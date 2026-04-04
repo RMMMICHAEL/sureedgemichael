@@ -36,7 +36,10 @@ export function AppShell() {
   useEffect(() => { legsRef.current = legs; }, [legs]);
 
   useEffect(() => {
-    if (!initialized || !sheetSync?.url) return;
+    // Do NOT auto-sync during onboarding: the first full-history import is
+    // handled by OnboardingModal → ImportPreview → user confirms.
+    // Auto-refresh only resumes after onboarding is marked complete.
+    if (!initialized || !onboardingDone || !sheetSync?.url) return;
 
     async function doSync() {
       if (!sheetSync) return;
@@ -62,7 +65,7 @@ export function AppShell() {
     const id = setInterval(doSync, 60_000);
     return () => clearInterval(id);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialized, sheetSync?.url]);
+  }, [initialized, onboardingDone, sheetSync?.url]);
 
   return (
     <div className="flex min-h-screen" style={{ background: 'var(--bg)' }}>

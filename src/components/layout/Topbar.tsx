@@ -56,8 +56,10 @@ export function Topbar({ onMenuClick }: TopbarProps) {
 
     setSyncing(true);
     try {
-      // currentMonthOnly: true → fetch only the current month for speed (< 3s)
-      const result = await syncFromSheet(cfg, { currentMonthOnly: true });
+      // If there are no legs yet (fresh / wiped), import the full history.
+      // Otherwise only fetch the current month for speed (< 3s).
+      const currentMonthOnly = legs.length > 0;
+      const result = await syncFromSheet(cfg, { currentMonthOnly });
       const commitResult = commitRows(result.rows, { includeAll: true, existingLegs: legs });
       commitImport(commitResult);
       setSheetSync({ ...cfg, lastSync: new Date().toISOString() });
