@@ -11,7 +11,7 @@
  */
 
 import type { SheetSync } from '@/types';
-import { parseCSVText } from './importEngine';
+import { parseCSVText, parseWorkbook } from './importEngine';
 import type { ImportResult, ImportOptions } from './importEngine';
 
 // ── URL parsing ───────────────────────────────────────────────────────────────
@@ -43,48 +43,64 @@ export function parseSheetUrl(url: string): Pick<SheetSync, 'sheetId' | 'gid'> |
 }
 
 /**
- * Builds the URL to fetch the CSV — always via our server-side proxy.
- * The proxy forwards the request to Google Sheets server-side, avoiding
- * CORS restrictions that block direct browser → Google requests in production.
- *
- * In dev the proxy runs at http://localhost:3000/api/sheets-proxy.
- * In production (Vercel) it runs at https://<your-domain>/api/sheets-proxy.
- * Using a relative URL (/api/...) works in both environments.
+ * Builds the proxy URL for a CSV export (single tab — fast, used for
+ * incremental month-only syncs).
  */
 export function buildExportUrl(sheetId: string, gid = '0'): string {
   const params = new URLSearchParams({ sheetId, gid });
   return `/api/sheets-proxy?${params.toString()}`;
 }
 
+/**
+ * Builds the proxy URL for an XLSX export (ALL tabs — used for full-history
+ * imports so every monthly tab is included in one download).
+ */
+export function buildXlsxUrl(sheetId: string): string {
+  return `/api/sheets-proxy?sheetId=${encodeURIComponent(sheetId)}&format=xlsx`;
+}
+
 // ── Sync ─────────────────────────────────────────────────────────────────────
 
 /**
- * Fetches the Google Sheet as CSV and runs it through the full import pipeline.
+ * Fetches a Google Sheet and runs it through the full import pipeline.
+ *
+ * Strategy:
+ *   • Full-history import (currentMonthOnly = false OR absent):
+ *       Downloads XLSX — includes ALL tabs (one tab per month is common).
+ *       Passes every sheet through parseWorkbook so no month is missed.
+ *
+ *   • Incremental sync (currentMonthOnly = true):
+ *       Downloads CSV of the specific tab (gid) — 10-50× smaller, much faster.
+ *       Passes through the RFC 4180 CSV parser (parseCSVText).
  *
  * Requires the sheet to be publicly accessible ("anyone with the link can view").
- * Google's export endpoint supports CORS for public sheets.
- *
- * Throws if the fetch fails or the URL is invalid.
  */
 export async function syncFromSheet(cfg: SheetSync, options?: ImportOptions): Promise<ImportResult> {
-  const exportUrl = buildExportUrl(cfg.sheetId, cfg.gid ?? '0');
+  const fullHistory = !options?.currentMonthOnly;
 
-  const response = await fetch(exportUrl, { cache: 'no-store' });
+  const url = fullHistory
+    ? buildXlsxUrl(cfg.sheetId)
+    : buildExportUrl(cfg.sheetId, cfg.gid ?? '0');
+
+  const response = await fetch(url, { cache: 'no-store' });
 
   if (!response.ok) {
-    // The proxy returns JSON error messages for auth/access problems
     try {
       const json = await response.json() as { error?: string };
       throw new Error(json.error ?? `Erro ao buscar planilha: HTTP ${response.status}`);
     } catch (e) {
-      if (e instanceof Error && e.message !== `Erro ao buscar planilha: HTTP ${response.status}`) throw e;
+      if (e instanceof Error && e.message.startsWith('Erro ao buscar')) throw e;
       throw new Error(`Erro ao buscar planilha: HTTP ${response.status}`);
     }
   }
 
-  // Get the CSV as text and use the robust RFC 4180 parser with
-  // auto-separator detection (handles comma vs semicolon, Brazilian locale,
-  // and quoted fields containing comma decimal values like "2,2").
-  const csvText = await response.text();
-  return parseCSVText(csvText, options);
+  if (fullHistory) {
+    // XLSX → parseWorkbook iterates over ALL sheets in the workbook
+    const buffer = await response.arrayBuffer();
+    return parseWorkbook(buffer, options);
+  } else {
+    // CSV → fast RFC 4180 parser with auto-separator detection
+    const csvText = await response.text();
+    return parseCSVText(csvText, options);
+  }
 }
