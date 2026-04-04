@@ -1,0 +1,1489 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SureEdge — Gestão Profissional de Surebets</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+  <style>
+    /* ── Reset & base ─────────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --g:     #3FFF21;
+      --g2:    #32CC1A;
+      --g-dim: rgba(63,255,33,.12);
+      --g-glow: rgba(63,255,33,.22);
+      --bg:    #000000;
+      --bg2:   #080808;
+      --bg3:   #0e0e0e;
+      --sur:   #141414;
+      --sur2:  #1a1a1a;
+      --b:     rgba(255,255,255,.07);
+      --b2:    rgba(255,255,255,.12);
+      --t:     #F0F0F0;
+      --t2:    #A0A0A0;
+      --t3:    #606060;
+      --r:     #FF4D4D;
+      --bl:    #4DA6FF;
+      --radius: 16px;
+      --font:  'Manrope', sans-serif;
+      --mono:  'JetBrains Mono', monospace;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--t);
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    a { color: inherit; text-decoration: none; }
+    img { max-width: 100%; }
+
+    /* ── Utility ──────────────────────────────────────────────────────────── */
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+
+    .pill-green {
+      background: var(--g-dim);
+      border: 1px solid rgba(63,255,33,.3);
+      color: var(--g);
+    }
+
+    .pill-blue {
+      background: rgba(77,166,255,.1);
+      border: 1px solid rgba(77,166,255,.25);
+      color: var(--bl);
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 12px 28px;
+      border-radius: 999px;
+      font-family: var(--font);
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all .2s ease;
+      border: none;
+      outline: none;
+    }
+
+    .btn-primary {
+      background: var(--g);
+      color: #000;
+    }
+    .btn-primary:hover {
+      background: #4FFF30;
+      box-shadow: 0 0 28px rgba(63,255,33,.45);
+      transform: translateY(-1px);
+    }
+
+    .btn-outline {
+      background: transparent;
+      border: 1.5px solid var(--b2);
+      color: var(--t);
+    }
+    .btn-outline:hover {
+      border-color: rgba(63,255,33,.4);
+      color: var(--g);
+      background: var(--g-dim);
+    }
+
+    .section-label {
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--g);
+      margin-bottom: 12px;
+    }
+
+    .section-title {
+      font-size: clamp(28px, 5vw, 46px);
+      font-weight: 900;
+      line-height: 1.15;
+      color: var(--t);
+      letter-spacing: -.02em;
+    }
+
+    .section-subtitle {
+      font-size: 16px;
+      color: var(--t2);
+      max-width: 560px;
+      margin-top: 16px;
+      line-height: 1.7;
+    }
+
+    .glow-orb {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(120px);
+      pointer-events: none;
+    }
+
+    /* ── Navbar ───────────────────────────────────────────────────────────── */
+    nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 100;
+      height: 64px;
+      display: flex;
+      align-items: center;
+      background: rgba(0,0,0,.75);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--b);
+    }
+
+    .nav-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .logo-icon {
+      width: 32px;
+      height: 32px;
+      background: var(--g);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .logo-icon svg {
+      width: 18px;
+      height: 18px;
+    }
+
+    .logo-text {
+      font-size: 18px;
+      font-weight: 900;
+      color: var(--t);
+      letter-spacing: -.02em;
+    }
+
+    .logo-text span {
+      color: var(--g);
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 32px;
+      list-style: none;
+    }
+
+    .nav-links a {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--t2);
+      transition: color .15s;
+    }
+
+    .nav-links a:hover { color: var(--t); }
+
+    .nav-cta {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    @media (max-width: 768px) {
+      .nav-links { display: none; }
+    }
+
+    /* ── Hero ─────────────────────────────────────────────────────────────── */
+    #hero {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+      padding-top: 64px;
+    }
+
+    .hero-bg {
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 80% 60% at 50% -10%, rgba(63,255,33,.12) 0%, transparent 70%),
+        radial-gradient(ellipse 40% 40% at 80% 80%, rgba(77,166,255,.06) 0%, transparent 60%);
+    }
+
+    .hero-grid {
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px);
+      background-size: 48px 48px;
+      mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, black 20%, transparent 80%);
+    }
+
+    .hero-content {
+      position: relative;
+      z-index: 1;
+      text-align: center;
+      max-width: 800px;
+      padding: 80px 24px 60px;
+    }
+
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 16px 6px 8px;
+      background: rgba(63,255,33,.08);
+      border: 1px solid rgba(63,255,33,.22);
+      border-radius: 999px;
+      margin-bottom: 32px;
+    }
+
+    .hero-badge-dot {
+      width: 6px;
+      height: 6px;
+      background: var(--g);
+      border-radius: 50%;
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: .5; transform: scale(.7); }
+    }
+
+    .hero-badge span {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--g);
+      letter-spacing: .04em;
+    }
+
+    .hero-title {
+      font-size: clamp(40px, 8vw, 76px);
+      font-weight: 900;
+      line-height: 1.05;
+      letter-spacing: -.03em;
+      color: var(--t);
+      margin-bottom: 24px;
+    }
+
+    .hero-title .highlight {
+      color: var(--g);
+      position: relative;
+    }
+
+    .hero-title .highlight::after {
+      content: '';
+      position: absolute;
+      bottom: 4px; left: 0; right: 0;
+      height: 3px;
+      background: var(--g);
+      border-radius: 2px;
+      opacity: .4;
+    }
+
+    .hero-subtitle {
+      font-size: clamp(15px, 2.5vw, 18px);
+      color: var(--t2);
+      max-width: 560px;
+      margin: 0 auto 40px;
+      line-height: 1.7;
+    }
+
+    .hero-actions {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+
+    .hero-stats {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 40px;
+      margin-top: 60px;
+      padding-top: 40px;
+      border-top: 1px solid var(--b);
+      flex-wrap: wrap;
+    }
+
+    .hero-stat-value {
+      font-size: 28px;
+      font-weight: 900;
+      color: var(--g);
+      letter-spacing: -.03em;
+      font-family: var(--mono);
+    }
+
+    .hero-stat-label {
+      font-size: 12px;
+      color: var(--t3);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      margin-top: 4px;
+    }
+
+    /* ── Dashboard mock ──────────────────────────────────────────────────── */
+    .dashboard-preview {
+      max-width: 900px;
+      margin: 0 auto;
+      position: relative;
+      padding: 60px 24px 0;
+    }
+
+    .dashboard-preview::before {
+      content: '';
+      position: absolute;
+      top: 60px; left: 50%; transform: translateX(-50%);
+      width: 80%; height: 60%;
+      background: radial-gradient(ellipse, rgba(63,255,33,.18) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .mock-window {
+      background: var(--bg3);
+      border: 1px solid var(--b2);
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 40px 120px rgba(0,0,0,.8), 0 0 0 1px rgba(63,255,33,.06);
+    }
+
+    .mock-titlebar {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--b);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--sur);
+    }
+
+    .mock-dot {
+      width: 12px; height: 12px;
+      border-radius: 50%;
+    }
+
+    .mock-body {
+      padding: 20px;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+    }
+
+    .mock-card {
+      background: var(--sur);
+      border: 1px solid var(--b);
+      border-radius: 12px;
+      padding: 16px;
+    }
+
+    .mock-card-label {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--t3);
+      text-transform: uppercase;
+      letter-spacing: .07em;
+      margin-bottom: 8px;
+    }
+
+    .mock-card-value {
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: -.02em;
+      font-family: var(--mono);
+    }
+
+    .mock-card-value.green { color: var(--g); }
+    .mock-card-value.blue  { color: var(--bl); }
+    .mock-card-value.white { color: var(--t); }
+    .mock-card-value.red   { color: var(--r); }
+
+    .mock-card-sub {
+      font-size: 10px;
+      color: var(--t3);
+      margin-top: 4px;
+      font-family: var(--mono);
+    }
+
+    .mock-chart-row {
+      grid-column: 1 / -1;
+      background: var(--sur);
+      border: 1px solid var(--b);
+      border-radius: 12px;
+      padding: 16px;
+      height: 80px;
+      display: flex;
+      align-items: flex-end;
+      gap: 4px;
+    }
+
+    .mock-bar {
+      flex: 1;
+      border-radius: 4px 4px 0 0;
+      background: rgba(63,255,33,.25);
+      transition: all .3s;
+    }
+
+    .mock-bar.high { background: var(--g); }
+
+    @media (max-width: 600px) {
+      .mock-body { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    /* ── Features ────────────────────────────────────────────────────────── */
+    #features {
+      padding: 100px 0;
+      position: relative;
+    }
+
+    .features-header {
+      text-align: center;
+      margin-bottom: 64px;
+    }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+    }
+
+    @media (max-width: 900px) {
+      .features-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    @media (max-width: 580px) {
+      .features-grid { grid-template-columns: 1fr; }
+    }
+
+    .feature-card {
+      background: var(--bg3);
+      border: 1px solid var(--b);
+      border-radius: var(--radius);
+      padding: 28px;
+      transition: border-color .2s, transform .2s;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .feature-card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, var(--g-dim) 0%, transparent 60%);
+      opacity: 0;
+      transition: opacity .3s;
+    }
+
+    .feature-card:hover {
+      border-color: rgba(63,255,33,.28);
+      transform: translateY(-4px);
+    }
+
+    .feature-card:hover::before {
+      opacity: 1;
+    }
+
+    .feature-icon {
+      width: 44px;
+      height: 44px;
+      background: var(--g-dim);
+      border: 1px solid rgba(63,255,33,.2);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 18px;
+      position: relative;
+    }
+
+    .feature-icon svg {
+      width: 22px;
+      height: 22px;
+      color: var(--g);
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .feature-title {
+      font-size: 16px;
+      font-weight: 800;
+      color: var(--t);
+      margin-bottom: 10px;
+      letter-spacing: -.01em;
+    }
+
+    .feature-desc {
+      font-size: 13.5px;
+      color: var(--t2);
+      line-height: 1.65;
+    }
+
+    /* ── How it works ─────────────────────────────────────────────────────── */
+    #how {
+      padding: 100px 0;
+      background: linear-gradient(180deg, transparent 0%, rgba(63,255,33,.03) 50%, transparent 100%);
+    }
+
+    .how-header {
+      text-align: center;
+      margin-bottom: 64px;
+    }
+
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+      position: relative;
+    }
+
+    .steps::before {
+      content: '';
+      position: absolute;
+      top: 28px;
+      left: calc(16.66% + 16px);
+      right: calc(16.66% + 16px);
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--g), transparent);
+      opacity: .3;
+    }
+
+    @media (max-width: 700px) {
+      .steps { grid-template-columns: 1fr; }
+      .steps::before { display: none; }
+    }
+
+    .step {
+      text-align: center;
+      padding: 28px;
+      position: relative;
+    }
+
+    .step-number {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: var(--g-dim);
+      border: 1.5px solid rgba(63,255,33,.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      font-weight: 900;
+      color: var(--g);
+      margin: 0 auto 20px;
+      font-family: var(--mono);
+      position: relative;
+      z-index: 1;
+    }
+
+    .step-title {
+      font-size: 16px;
+      font-weight: 800;
+      color: var(--t);
+      margin-bottom: 10px;
+    }
+
+    .step-desc {
+      font-size: 13.5px;
+      color: var(--t2);
+      line-height: 1.65;
+    }
+
+    /* ── Social proof / big numbers ──────────────────────────────────────── */
+    #proof {
+      padding: 80px 0;
+      border-top: 1px solid var(--b);
+      border-bottom: 1px solid var(--b);
+    }
+
+    .proof-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 40px;
+      text-align: center;
+    }
+
+    @media (max-width: 700px) {
+      .proof-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    .proof-value {
+      font-size: 40px;
+      font-weight: 900;
+      color: var(--g);
+      letter-spacing: -.03em;
+      font-family: var(--mono);
+    }
+
+    .proof-label {
+      font-size: 13px;
+      color: var(--t2);
+      margin-top: 6px;
+      font-weight: 600;
+    }
+
+    /* ── Sheets integration highlight ────────────────────────────────────── */
+    #integration {
+      padding: 100px 0;
+    }
+
+    .integration-inner {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 60px;
+      align-items: center;
+    }
+
+    @media (max-width: 768px) {
+      .integration-inner { grid-template-columns: 1fr; }
+    }
+
+    .integration-visual {
+      background: var(--bg3);
+      border: 1px solid var(--b2);
+      border-radius: var(--radius);
+      padding: 28px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .integration-visual::before {
+      content: '';
+      position: absolute;
+      top: -40px; right: -40px;
+      width: 200px; height: 200px;
+      background: radial-gradient(circle, rgba(63,255,33,.15), transparent 70%);
+      pointer-events: none;
+    }
+
+    .sheet-url {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: var(--sur);
+      border: 1px solid var(--b);
+      border-radius: 10px;
+      padding: 12px 16px;
+      margin-bottom: 16px;
+    }
+
+    .sheet-url-text {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--t3);
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .sheet-connect-btn {
+      padding: 8px 16px;
+      border-radius: 8px;
+      background: var(--g);
+      color: #000;
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .sheet-status-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      background: rgba(63,255,33,.06);
+      border: 1px solid rgba(63,255,33,.15);
+      border-radius: 10px;
+    }
+
+    .sheet-status-dot {
+      width: 8px; height: 8px;
+      background: var(--g);
+      border-radius: 50%;
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    .sheet-status-text {
+      font-size: 12px;
+      color: var(--t2);
+    }
+
+    .sheet-status-text strong {
+      color: var(--g);
+    }
+
+    /* ── FAQ ─────────────────────────────────────────────────────────────── */
+    #faq {
+      padding: 100px 0;
+    }
+
+    .faq-header {
+      text-align: center;
+      margin-bottom: 56px;
+    }
+
+    .faq-list {
+      max-width: 700px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .faq-item {
+      background: var(--bg3);
+      border: 1px solid var(--b);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    .faq-question {
+      padding: 20px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--t);
+      user-select: none;
+      gap: 16px;
+    }
+
+    .faq-question:hover { color: var(--g); }
+
+    .faq-chevron {
+      width: 20px;
+      height: 20px;
+      flex-shrink: 0;
+      transition: transform .2s;
+    }
+
+    .faq-item.open .faq-chevron { transform: rotate(180deg); }
+
+    .faq-answer {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height .3s ease, padding .2s ease;
+      padding: 0 24px;
+      font-size: 14px;
+      color: var(--t2);
+      line-height: 1.7;
+    }
+
+    .faq-item.open .faq-answer {
+      max-height: 400px;
+      padding: 0 24px 20px;
+    }
+
+    /* ── CTA banner ──────────────────────────────────────────────────────── */
+    #cta {
+      padding: 80px 0 120px;
+    }
+
+    .cta-box {
+      background: var(--bg3);
+      border: 1px solid rgba(63,255,33,.2);
+      border-radius: 24px;
+      padding: 64px 40px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .cta-box::before {
+      content: '';
+      position: absolute;
+      top: -80px; left: 50%; transform: translateX(-50%);
+      width: 500px; height: 300px;
+      background: radial-gradient(ellipse, rgba(63,255,33,.14) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .cta-title {
+      font-size: clamp(28px, 5vw, 46px);
+      font-weight: 900;
+      color: var(--t);
+      letter-spacing: -.025em;
+      margin-bottom: 16px;
+    }
+
+    .cta-sub {
+      font-size: 16px;
+      color: var(--t2);
+      margin-bottom: 36px;
+    }
+
+    /* ── Footer ──────────────────────────────────────────────────────────── */
+    footer {
+      padding: 32px 0;
+      border-top: 1px solid var(--b);
+    }
+
+    .footer-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .footer-copy {
+      font-size: 13px;
+      color: var(--t3);
+    }
+
+    .footer-links {
+      display: flex;
+      gap: 24px;
+    }
+
+    .footer-links a {
+      font-size: 13px;
+      color: var(--t3);
+      transition: color .15s;
+    }
+
+    .footer-links a:hover { color: var(--t2); }
+
+    /* ── Scroll reveal animation ─────────────────────────────────────────── */
+    .reveal {
+      opacity: 0;
+      transform: translateY(24px);
+      transition: opacity .6s ease, transform .6s ease;
+    }
+
+    .reveal.visible {
+      opacity: 1;
+      transform: none;
+    }
+
+    /* ── House logos strip ───────────────────────────────────────────────── */
+    .houses-strip {
+      overflow: hidden;
+      position: relative;
+      padding: 20px 0;
+      margin-top: 60px;
+    }
+
+    .houses-strip::before,
+    .houses-strip::after {
+      content: '';
+      position: absolute;
+      top: 0; bottom: 0;
+      width: 80px;
+      z-index: 1;
+    }
+    .houses-strip::before { left: 0; background: linear-gradient(90deg, var(--bg), transparent); }
+    .houses-strip::after  { right: 0; background: linear-gradient(-90deg, var(--bg), transparent); }
+
+    .houses-scroll {
+      display: flex;
+      gap: 24px;
+      width: max-content;
+      animation: scroll-x 28s linear infinite;
+    }
+
+    @keyframes scroll-x {
+      from { transform: translateX(0); }
+      to   { transform: translateX(-50%); }
+    }
+
+    .house-chip {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      background: var(--sur);
+      border: 1px solid var(--b);
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--t2);
+      white-space: nowrap;
+    }
+
+    .house-chip img {
+      width: 18px;
+      height: 18px;
+      border-radius: 4px;
+      object-fit: contain;
+    }
+  </style>
+</head>
+
+<body>
+
+<!-- ── Navbar ─────────────────────────────────────────────────────────────── -->
+<nav>
+  <div class="container">
+    <div class="nav-inner">
+      <a href="#" class="logo">
+        <div class="logo-icon">
+          <!-- Zap icon -->
+          <svg viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+          </svg>
+        </div>
+        <span class="logo-text">Sure<span>Edge</span></span>
+      </a>
+
+      <ul class="nav-links">
+        <li><a href="#features">Funcionalidades</a></li>
+        <li><a href="#how">Como funciona</a></li>
+        <li><a href="#integration">Integração</a></li>
+        <li><a href="#faq">FAQ</a></li>
+      </ul>
+
+      <div class="nav-cta">
+        <a href="/" class="btn btn-primary" style="padding:9px 22px;font-size:13px;">
+          Acessar painel
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        </a>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<!-- ── Hero ───────────────────────────────────────────────────────────────── -->
+<section id="hero">
+  <div class="hero-bg"></div>
+  <div class="hero-grid"></div>
+
+  <div class="hero-content">
+    <div class="hero-badge">
+      <div class="hero-badge-dot"></div>
+      <span>Gestão profissional de surebets</span>
+    </div>
+
+    <h1 class="hero-title">
+      Seu lucro garantido,<br/>
+      <span class="highlight">sob controle total</span>
+    </h1>
+
+    <p class="hero-subtitle">
+      Importe suas operações do Google Sheets, acompanhe o caixa de cada casa,
+      visualize seu desempenho e gerencie tudo em tempo real — numa interface feita
+      para o apostador profissional.
+    </p>
+
+    <div class="hero-actions">
+      <a href="/" class="btn btn-primary">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        Começar agora — grátis
+      </a>
+      <a href="#features" class="btn btn-outline">Ver funcionalidades</a>
+    </div>
+
+    <div class="hero-stats">
+      <div>
+        <div class="hero-stat-value">R$ 0,00</div>
+        <div class="hero-stat-label">Custo mensal</div>
+      </div>
+      <div>
+        <div class="hero-stat-value">100%</div>
+        <div class="hero-stat-label">Dados no seu device</div>
+      </div>
+      <div>
+        <div class="hero-stat-value">+80</div>
+        <div class="hero-stat-label">Casas suportadas</div>
+      </div>
+      <div>
+        <div class="hero-stat-value">CSV</div>
+        <div class="hero-stat-label">Sync ultrarrápido</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Dashboard preview ─────────────────────────────────────────────────── -->
+<div class="dashboard-preview container reveal">
+  <div class="mock-window">
+    <div class="mock-titlebar">
+      <div class="mock-dot" style="background:#FF5F57"></div>
+      <div class="mock-dot" style="background:#FEBC2E"></div>
+      <div class="mock-dot" style="background:#28C840"></div>
+      <span style="margin-left:8px;font-size:12px;color:var(--t3);font-family:var(--mono)">SureEdge — Dashboard</span>
+    </div>
+    <div class="mock-body">
+      <div class="mock-card">
+        <div class="mock-card-label">Lucro do Mês</div>
+        <div class="mock-card-value green">+R$2.840</div>
+        <div class="mock-card-sub">↑ 12% vs. mês anterior</div>
+      </div>
+      <div class="mock-card">
+        <div class="mock-card-label">Total em Casas</div>
+        <div class="mock-card-value blue">R$18.500</div>
+        <div class="mock-card-sub">7 casas ativas</div>
+      </div>
+      <div class="mock-card">
+        <div class="mock-card-label">Operações</div>
+        <div class="mock-card-value white">147</div>
+        <div class="mock-card-sub">12 pendentes</div>
+      </div>
+      <div class="mock-card">
+        <div class="mock-card-label">ROI Médio</div>
+        <div class="mock-card-value green">2.4%</div>
+        <div class="mock-card-sub">por operação</div>
+      </div>
+
+      <div class="mock-chart-row" id="mockChart">
+        <!-- Generated by JS -->
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Houses strip ──────────────────────────────────────────────────────── -->
+<div class="container">
+  <div class="houses-strip">
+    <div class="houses-scroll" id="housesScroll">
+      <!-- JS generated -->
+    </div>
+  </div>
+</div>
+
+<!-- ── Features ─────────────────────────────────────────────────────────── -->
+<section id="features">
+  <div class="container">
+    <div class="features-header">
+      <div class="section-label">Funcionalidades</div>
+      <h2 class="section-title">Tudo que o apostador<br/>profissional precisa</h2>
+      <p class="section-subtitle" style="margin:16px auto 0">
+        Do registro manual à análise avançada — o SureEdge centraliza
+        toda sua gestão em um único painel.
+      </p>
+    </div>
+
+    <div class="features-grid">
+
+      <div class="feature-card reveal">
+        <div class="feature-icon">
+          <svg viewBox="0 0 24 24"><path d="M3 3h18v18H3z M8 12h8 M12 8v8"/></svg>
+        </div>
+        <div class="feature-title">Registro de Operações</div>
+        <div class="feature-desc">
+          Registre surebets, delays e duplo green com até 4 legs por operação.
+          CASA 1 e CASA 2 lado a lado, com cópia rápida de dados entre legs.
+        </div>
+      </div>
+
+      <div class="feature-card reveal">
+        <div class="feature-icon">
+          <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+        </div>
+        <div class="feature-title">Importação Google Sheets</div>
+        <div class="feature-desc">
+          Cole o link da sua planilha e importe automaticamente. Sincronização
+          por CSV — 10x mais rápida que XLSX — com deduplicação inteligente.
+        </div>
+      </div>
+
+      <div class="feature-card reveal">
+        <div class="feature-icon">
+          <svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 16l4-4 4 4 5-5"/></svg>
+        </div>
+        <div class="feature-title">Dashboard Completo</div>
+        <div class="feature-desc">
+          Lucro diário, mensal e acumulado em gráficos interativos. Filtros por
+          período, comparativo mensal e análise por tipo de operação.
+        </div>
+      </div>
+
+      <div class="feature-card reveal">
+        <div class="feature-icon">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 3"/></svg>
+        </div>
+        <div class="feature-title">Controle de Caixa</div>
+        <div class="feature-desc">
+          Acompanhe o saldo de cada casa de aposta em tempo real.
+          Histórico de depósitos, saques e movimentações por bookmaker.
+        </div>
+      </div>
+
+      <div class="feature-card reveal">
+        <div class="feature-icon">
+          <svg viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.27 6.96L12 12.01l8.73-5.05M12 22.08V12"/></svg>
+        </div>
+        <div class="feature-title">Análise de Cruzamentos</div>
+        <div class="feature-desc">
+          Veja os pares de casas mais lucrativos, taxa de Green por bookmaker
+          e os melhores mercados para suas operações.
+        </div>
+      </div>
+
+      <div class="feature-card reveal">
+        <div class="feature-icon">
+          <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        </div>
+        <div class="feature-title">Gestão de Clientes</div>
+        <div class="feature-desc">
+          Gerencie contas de parceiros, registre compras de acesso e controle
+          o histórico de transações por cliente de forma organizada.
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ── How it works ──────────────────────────────────────────────────────── -->
+<section id="how">
+  <div class="container">
+    <div class="how-header">
+      <div class="section-label">Como funciona</div>
+      <h2 class="section-title">Configure em 3 passos</h2>
+    </div>
+
+    <div class="steps">
+      <div class="step reveal">
+        <div class="step-number">01</div>
+        <div class="step-title">Conecte sua planilha</div>
+        <div class="step-desc">
+          Cole o link da sua planilha Google Sheets e o SureEdge importa suas
+          operações automaticamente — sem complicação.
+        </div>
+      </div>
+
+      <div class="step reveal" style="transition-delay:.12s">
+        <div class="step-number">02</div>
+        <div class="step-title">Cadastre suas casas</div>
+        <div class="step-desc">
+          Adicione suas casas de aposta com o saldo inicial de cada uma.
+          O sistema calcula lucros e movimentações em tempo real.
+        </div>
+      </div>
+
+      <div class="step reveal" style="transition-delay:.24s">
+        <div class="step-number">03</div>
+        <div class="step-title">Acompanhe seu lucro</div>
+        <div class="step-desc">
+          Visualize gráficos, analise cruzamentos, controle gastos e tome
+          decisões mais inteligentes baseadas em dados reais.
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Proof ─────────────────────────────────────────────────────────────── -->
+<section id="proof">
+  <div class="container">
+    <div class="proof-grid">
+      <div class="reveal">
+        <div class="proof-value">+80</div>
+        <div class="proof-label">Casas cadastradas</div>
+      </div>
+      <div class="reveal" style="transition-delay:.1s">
+        <div class="proof-value">48</div>
+        <div class="proof-label">Esportes suportados</div>
+      </div>
+      <div class="reveal" style="transition-delay:.2s">
+        <div class="proof-value">100%</div>
+        <div class="proof-label">Privado — dados locais</div>
+      </div>
+      <div class="reveal" style="transition-delay:.3s">
+        <div class="proof-value">0</div>
+        <div class="proof-label">Custo mensal</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Sheets integration ─────────────────────────────────────────────────── -->
+<section id="integration">
+  <div class="container">
+    <div class="integration-inner">
+      <div class="reveal">
+        <div class="section-label">Integração nativa</div>
+        <h2 class="section-title" style="font-size:clamp(24px,4vw,38px)">Sincronize com<br/>Google Sheets</h2>
+        <p class="section-subtitle">
+          Se você já registra suas operações em planilha, o SureEdge importa
+          tudo automaticamente. Sem precisar mudar sua rotina.
+        </p>
+        <ul style="margin-top:24px;display:flex;flex-direction:column;gap:12px;list-style:none">
+          <li style="display:flex;align-items:center;gap:10px;font-size:14px;color:var(--t2)">
+            <span style="width:20px;height:20px;background:var(--g-dim);border:1px solid rgba(63,255,33,.25);border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--g)" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg>
+            </span>
+            Sincronização automática a cada 60 segundos
+          </li>
+          <li style="display:flex;align-items:center;gap:10px;font-size:14px;color:var(--t2)">
+            <span style="width:20px;height:20px;background:var(--g-dim);border:1px solid rgba(63,255,33,.25);border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--g)" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg>
+            </span>
+            Deduplicação inteligente — nunca duplica registros
+          </li>
+          <li style="display:flex;align-items:center;gap:10px;font-size:14px;color:var(--t2)">
+            <span style="width:20px;height:20px;background:var(--g-dim);border:1px solid rgba(63,255,33,.25);border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--g)" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg>
+            </span>
+            Formato CSV ultra-leve (10× mais rápido que XLSX)
+          </li>
+          <li style="display:flex;align-items:center;gap:10px;font-size:14px;color:var(--t2)">
+            <span style="width:20px;height:20px;background:var(--g-dim);border:1px solid rgba(63,255,33,.25);border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--g)" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg>
+            </span>
+            Importa apenas o mês atual — sem processar histórico completo
+          </li>
+        </ul>
+      </div>
+
+      <div class="integration-visual reveal" style="transition-delay:.15s">
+        <div style="font-size:11px;font-weight:800;letter-spacing:.07em;color:var(--t3);text-transform:uppercase;margin-bottom:14px">
+          Conectar planilha
+        </div>
+        <div class="sheet-url">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+          <span class="sheet-url-text">https://docs.google.com/spreadsheets/d/1BxiMVs0XR...</span>
+          <div class="sheet-connect-btn">Conectar</div>
+        </div>
+        <div class="sheet-status-row">
+          <div class="sheet-status-dot"></div>
+          <span class="sheet-status-text">
+            Planilha conectada — <strong>147 operações</strong> importadas. Última sync: agora.
+          </span>
+        </div>
+
+        <div style="margin-top:20px;display:flex;flex-direction:column;gap:8px">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--sur);border:1px solid var(--b);border-radius:8px">
+            <span style="font-size:12px;color:var(--t2)">bet365.com / Corinthians × Flamengo</span>
+            <span style="font-size:11px;font-weight:700;color:var(--g);font-family:var(--mono)">Green</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--sur);border:1px solid var(--b);border-radius:8px">
+            <span style="font-size:12px;color:var(--t2)">betano.com / Manchester City × Arsenal</span>
+            <span style="font-size:11px;font-weight:700;color:var(--t3);font-family:var(--mono)">Pendente</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--sur);border:1px solid var(--b);border-radius:8px">
+            <span style="font-size:12px;color:var(--t2)">pinnacle.com / Novak × Alcaraz</span>
+            <span style="font-size:11px;font-weight:700;color:var(--g);font-family:var(--mono)">Green</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── FAQ ───────────────────────────────────────────────────────────────── -->
+<section id="faq">
+  <div class="container">
+    <div class="faq-header">
+      <div class="section-label">Perguntas frequentes</div>
+      <h2 class="section-title">Tem alguma dúvida?</h2>
+    </div>
+
+    <div class="faq-list">
+
+      <div class="faq-item">
+        <div class="faq-question">
+          O SureEdge é gratuito?
+          <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+        </div>
+        <div class="faq-answer">
+          Sim, 100% gratuito. O SureEdge roda inteiramente no seu navegador — sem servidor, sem assinatura, sem surpresas.
+          Seus dados ficam salvos localmente no seu dispositivo.
+        </div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-question">
+          Meus dados são seguros?
+          <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+        </div>
+        <div class="faq-answer">
+          Completamente. Nenhum dado é enviado para servidores externos. Todas as informações — operações, casas, caixa — ficam salvas
+          exclusivamente no localStorage do seu navegador. Só você tem acesso.
+        </div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-question">
+          Preciso usar o Google Sheets?
+          <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+        </div>
+        <div class="faq-answer">
+          Não. Você pode registrar operações manualmente pelo painel, uma a uma. A integração com Google Sheets é opcional,
+          mas facilita muito quem já tem uma planilha de controle.
+        </div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-question">
+          Como funciona a sincronização automática?
+          <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+        </div>
+        <div class="faq-answer">
+          Após conectar sua planilha, o SureEdge faz uma leitura automática toda vez que você abre o painel e a cada 60 segundos
+          enquanto está aberto. Novas operações são importadas sem duplicar as existentes.
+        </div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-question">
+          Quais tipos de aposta são suportados?
+          <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+        </div>
+        <div class="faq-answer">
+          O SureEdge suporta Surebet, Delay e Duplo Green — os três modelos mais usados por apostadores profissionais.
+          Também há suporte para 48 esportes, de futebol a e-sports.
+        </div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-question">
+          Posso usar no celular?
+          <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+        </div>
+        <div class="faq-answer">
+          Sim. O SureEdge é totalmente responsivo. A interface se adapta a qualquer tamanho de tela,
+          desde desktop até smartphones, com layout otimizado para cada dispositivo.
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ── CTA ───────────────────────────────────────────────────────────────── -->
+<section id="cta">
+  <div class="container">
+    <div class="cta-box reveal">
+      <div class="pill pill-green" style="margin-bottom:24px">Grátis para sempre</div>
+      <h2 class="cta-title">Comece a lucrar<br/>com mais controle</h2>
+      <p class="cta-sub">Configure em menos de 2 minutos. Sem cadastro, sem cartão de crédito.</p>
+      <a href="/" class="btn btn-primary" style="font-size:15px;padding:14px 36px">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        Abrir o painel agora
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- ── Footer ────────────────────────────────────────────────────────────── -->
+<footer>
+  <div class="container">
+    <div class="footer-inner">
+      <div class="logo">
+        <div class="logo-icon" style="width:24px;height:24px;border-radius:6px">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="14" height="14">
+            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+          </svg>
+        </div>
+        <span class="logo-text" style="font-size:15px">Sure<span>Edge</span></span>
+      </div>
+      <div class="footer-copy">© 2025 SureEdge — Todos os direitos reservados</div>
+      <div class="footer-links">
+        <a href="#features">Funcionalidades</a>
+        <a href="#faq">FAQ</a>
+        <a href="/">Painel</a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<script>
+  // ── Mock chart bars ──────────────────────────────────────────────────────
+  const heights = [30, 45, 35, 60, 40, 75, 55, 80, 50, 65, 45, 70,
+                   55, 85, 60, 90, 70, 50, 65, 80, 55, 75, 60, 70,
+                   85, 65, 90, 75, 60, 80];
+  const chartEl = document.getElementById('mockChart');
+  if (chartEl) {
+    heights.forEach((h, i) => {
+      const bar = document.createElement('div');
+      bar.className = 'mock-bar' + (h > 75 ? ' high' : '');
+      bar.style.height = h + '%';
+      bar.style.opacity = 0.4 + (h / 100) * 0.6;
+      chartEl.appendChild(bar);
+    });
+  }
+
+  // ── Houses strip ────────────────────────────────────────────────────────
+  const HOUSES = [
+    'bet365.com','betano.com','pinnacle.com','sportingbet.com.br','kto.com',
+    'superbet.com.br','pixbet.com','betsul.com','vaidebet.com','betnacional.com',
+    'estrelabet.com','novibet.com.br','betsson.com','blaze.com','stake.com',
+    'betpix365.com','betfair.com','betboom.com','realsbetbr.com','betwarrior.com',
+  ];
+  const housesEl = document.getElementById('housesScroll');
+  if (housesEl) {
+    // Duplicate for infinite scroll
+    [...HOUSES, ...HOUSES].forEach(domain => {
+      const chip = document.createElement('div');
+      chip.className = 'house-chip';
+      const img = document.createElement('img');
+      img.src = 'https://www.google.com/s2/favicons?sz=32&domain=' + domain;
+      img.alt = domain;
+      img.onerror = () => { img.style.display = 'none'; };
+      const name = document.createElement('span');
+      name.textContent = domain.replace(/\.(com|br|com\.br|net).*$/, '');
+      chip.appendChild(img);
+      chip.appendChild(name);
+      housesEl.appendChild(chip);
+    });
+  }
+
+  // ── FAQ accordion ───────────────────────────────────────────────────────
+  document.querySelectorAll('.faq-item').forEach(item => {
+    item.querySelector('.faq-question').addEventListener('click', () => {
+      const wasOpen = item.classList.contains('open');
+      document.querySelectorAll('.faq-item').forEach(i => i.classList.remove('open'));
+      if (!wasOpen) item.classList.add('open');
+    });
+  });
+
+  // ── Scroll reveal ───────────────────────────────────────────────────────
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        e.target.classList.add('visible');
+        observer.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.08 });
+
+  document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+</script>
+
+</body>
+</html>

@@ -1,0 +1,241 @@
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800;900&family=Figtree:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   SureEdge — Design System
+   Neon green on true black, Manrope + Figtree
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* ── Neon green accent ── */
+  --g:    #3FFF21;
+  --g-rgb: 63,255,33;
+  --gd:   rgba(63,255,33,.06);
+  --gb:   rgba(63,255,33,.15);
+  --g2:   rgba(63,255,33,.25);
+
+  /* ── Backgrounds — true black base ── */
+  --bg:   #000000;
+  --bg2:  #111111;
+  --bg3:  #161616;
+  --bg4:  #1C1C1C;
+
+  /* ── Surfaces — elevated cards/panels ── */
+  --sur:  #1A1A1A;
+  --sur2: #222222;
+
+  /* ── Borders — green-tinted translucent ── */
+  --b:    rgba(63,255,33,.10);
+  --b2:   rgba(63,255,33,.18);
+  --b3:   rgba(63,255,33,.28);
+
+  /* ── Text hierarchy ── */
+  --t:    #FFFFFF;
+  --t2:   #9A9A9A;
+  --t3:   #555555;
+
+  /* ── Semantic accents ── */
+  --r:    #FF4D4D;
+  --rd:   rgba(255,77,77,.10);
+  --y:    #FFD600;
+  --yd:   rgba(255,214,0,.10);
+  --bl:   #4DA6FF;
+  --bld:  rgba(77,166,255,.10);
+  --or:   #FF8F3D;
+  --ord:  rgba(255,143,61,.10);
+  --purple: #A78BFA;
+
+  /* ── Spacing / radius tokens ── */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+
+  /* ── Button glow ── */
+  --btn-glow: rgba(63,255,33,0.48) 0px 15px 75px, rgba(118,255,97,0.96) 0px 0.6px 3px;
+}
+
+/* ── Base reset ── */
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  font-family: 'Figtree', system-ui, -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--t);
+  min-height: 100vh;
+  font-size: 14px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  letter-spacing: -0.01em;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Manrope', system-ui, sans-serif;
+}
+
+/* ── Scrollbar — minimal + elegant ── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(63,255,33,.12);
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover { background: rgba(63,255,33,.25); }
+
+/* Firefox scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(63,255,33,.12) transparent;
+}
+
+/* ── Focus ring ── */
+:focus-visible {
+  outline: 2px solid var(--g);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ── Inputs ── */
+input, select, textarea {
+  font-family: 'Figtree', system-ui, sans-serif;
+  outline: none;
+}
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="month"]::-webkit-calendar-picker-indicator {
+  filter: invert(60%) sepia(100%) saturate(400%) hue-rotate(90deg);
+  cursor: pointer;
+}
+
+/* ── Selection ── */
+::selection {
+  background: rgba(63,255,33,.20);
+  color: #fff;
+}
+
+/* ── Recharts overrides for dark neon theme ── */
+.recharts-cartesian-grid-horizontal line,
+.recharts-cartesian-grid-vertical line {
+  stroke: rgba(63,255,33,0.04);
+}
+.recharts-text {
+  fill: var(--t3);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+}
+.recharts-tooltip-wrapper { font-family: 'Figtree', sans-serif; }
+.recharts-default-tooltip {
+  background: var(--bg3) !important;
+  border: 1px solid var(--b2) !important;
+  border-radius: var(--radius-md) !important;
+  color: var(--t) !important;
+  box-shadow: 0 8px 32px rgba(0,0,0,.5) !important;
+  backdrop-filter: blur(12px) !important;
+}
+
+/* ── Table styles ── */
+table { border-collapse: collapse; width: 100%; }
+th {
+  text-align: left;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--t3);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--b);
+  white-space: nowrap;
+}
+td {
+  padding: 11px 14px;
+  font-size: 13px;
+  color: var(--t2);
+  border-bottom: 1px solid var(--b);
+  transition: background .15s ease;
+}
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: rgba(63,255,33,.02); }
+
+/* ── Card component classes ── */
+.card {
+  background: var(--bg2);
+  border: 1px solid var(--b);
+  border-radius: var(--radius-lg);
+  transition: border-color .2s ease, box-shadow .2s ease;
+}
+.card:hover {
+  border-color: var(--b2);
+}
+.card-glow {
+  background: var(--bg2);
+  border: 1px solid var(--gb);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 0 0 1px var(--gb), 0 8px 32px rgba(63,255,33,.04);
+}
+
+/* ── Glow utilities ── */
+.glow-green {
+  box-shadow: 0 0 20px rgba(63,255,33,.22), 0 0 40px rgba(63,255,33,.08);
+}
+.glow-green-sm {
+  box-shadow: 0 0 10px rgba(63,255,33,.18);
+}
+.text-glow {
+  text-shadow: 0 0 18px rgba(63,255,33,.45);
+}
+
+/* ── Utility animations ── */
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; box-shadow: 0 0 6px var(--g); }
+  50%       { opacity: .4; box-shadow: none; }
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(16px) scale(.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(.95); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 10px rgba(63,255,33,.15); }
+  50%       { box-shadow: 0 0 24px rgba(63,255,33,.35); }
+}
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.animate-fade-in  { animation: fadeIn  .25s ease both; }
+.animate-slide-up { animation: slideUp .3s cubic-bezier(.2,.8,.4,1) both; }
+.animate-scale-in { animation: scaleIn .2s ease both; }
+.animate-spin     { animation: spin 1s linear infinite; }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Stagger delay utility ── */
+.stagger-1 { animation-delay: 50ms; }
+.stagger-2 { animation-delay: 100ms; }
+.stagger-3 { animation-delay: 150ms; }
+.stagger-4 { animation-delay: 200ms; }
+.stagger-5 { animation-delay: 250ms; }
+
+/* ── Skeleton loading shimmer ── */
+.skeleton {
+  background: linear-gradient(90deg, var(--sur) 25%, var(--sur2) 50%, var(--sur) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: var(--radius-sm);
+}
