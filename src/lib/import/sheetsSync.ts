@@ -43,12 +43,17 @@ export function parseSheetUrl(url: string): Pick<SheetSync, 'sheetId' | 'gid'> |
 }
 
 /**
- * Builds the CSV export URL for a given sheet ID and tab (gid).
- * CSV is 10-50x smaller than XLSX → much faster sync.
- * The gid targets a specific sheet tab (default = first tab, gid=0).
+ * Builds the URL to fetch the CSV — always via our server-side proxy.
+ * The proxy forwards the request to Google Sheets server-side, avoiding
+ * CORS restrictions that block direct browser → Google requests in production.
+ *
+ * In dev the proxy runs at http://localhost:3000/api/sheets-proxy.
+ * In production (Vercel) it runs at https://<your-domain>/api/sheets-proxy.
+ * Using a relative URL (/api/...) works in both environments.
  */
 export function buildExportUrl(sheetId: string, gid = '0'): string {
-  return `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`;
+  const params = new URLSearchParams({ sheetId, gid });
+  return `/api/sheets-proxy?${params.toString()}`;
 }
 
 // ── Sync ─────────────────────────────────────────────────────────────────────
@@ -67,21 +72,14 @@ export async function syncFromSheet(cfg: SheetSync, options?: ImportOptions): Pr
   const response = await fetch(exportUrl, { cache: 'no-store' });
 
   if (!response.ok) {
-    if (response.status === 401 || response.status === 403) {
-      throw new Error(
-        'Acesso negado. Certifique-se de que a planilha está configurada como "Qualquer pessoa com o link pode ver".'
-      );
+    // The proxy returns JSON error messages for auth/access problems
+    try {
+      const json = await response.json() as { error?: string };
+      throw new Error(json.error ?? `Erro ao buscar planilha: HTTP ${response.status}`);
+    } catch (e) {
+      if (e instanceof Error && e.message !== `Erro ao buscar planilha: HTTP ${response.status}`) throw e;
+      throw new Error(`Erro ao buscar planilha: HTTP ${response.status}`);
     }
-    throw new Error(`Erro ao buscar planilha: HTTP ${response.status}`);
-  }
-
-  const contentType = response.headers.get('content-type') ?? '';
-
-  // Google sometimes returns HTML (login page) when the sheet is private
-  if (contentType.includes('text/html')) {
-    throw new Error(
-      'A planilha está privada. Configure para "Qualquer pessoa com o link pode ver" e tente novamente.'
-    );
   }
 
   const arrayBuffer = await response.arrayBuffer();
