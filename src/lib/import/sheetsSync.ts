@@ -11,7 +11,7 @@
  */
 
 import type { SheetSync } from '@/types';
-import { parseWorkbook } from './importEngine';
+import { parseCSVText } from './importEngine';
 import type { ImportResult, ImportOptions } from './importEngine';
 
 // ── URL parsing ───────────────────────────────────────────────────────────────
@@ -82,6 +82,9 @@ export async function syncFromSheet(cfg: SheetSync, options?: ImportOptions): Pr
     }
   }
 
-  const arrayBuffer = await response.arrayBuffer();
-  return parseWorkbook(arrayBuffer, options);
+  // Get the CSV as text and use the robust RFC 4180 parser with
+  // auto-separator detection (handles comma vs semicolon, Brazilian locale,
+  // and quoted fields containing comma decimal values like "2,2").
+  const csvText = await response.text();
+  return parseCSVText(csvText, options);
 }

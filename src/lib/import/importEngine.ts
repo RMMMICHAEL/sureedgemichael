@@ -148,11 +148,237 @@ export interface ImportResult {
   month:     string;        // YYYY-MM of filter, or 'all' when importing full history
 }
 
+// ── Shared pipeline helpers ──────────────────────────────────────────────────
+
+const DATE_HEADER_KEYWORDS = ['data', 'date', 'registro', 'dt.', 'aposta'];
+
 /**
- * Parse an Excel ArrayBuffer through the full pipeline.
+ * Given a 2-D array of cell values (one sheet worth), scans for the header
+ * row and processes all subsequent data rows through the normalisation pipeline.
+ *
+ * Returns the list of ImportRows produced and the count of month-filtered rows.
+ */
+function processRawRows(
+  raw: unknown[][],
+  sheetName: string,
+  currentMonthOnly: boolean,
+  targetMonth: string,
+): { rows: ImportRow[]; skipped: number } {
+  const rows: ImportRow[] = [];
+  let skipped = 0;
+
+  // ── ETAPA A: find header row ──────────────────────────────────────────────
+  let hRow = -1;
+  const colMap: Record<number, string> = {};
+
+  for (let i = 0; i < Math.min(raw.length, 30); i++) {
+    const row = raw[i];
+    if (!row || row.length === 0) continue;
+
+    const isHeader = row.some(c => {
+      const s = String(c ?? '').toLowerCase().trim()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      return DATE_HEADER_KEYWORDS.some(kw => s.includes(kw));
+    });
+
+    if (isHeader) {
+      hRow = i;
+      row.forEach((cell, idx) => {
+        const key = resolveColName(String(cell ?? ''));
+        if (key) colMap[idx] = key;
+      });
+      break;
+    }
+  }
+
+  if (hRow < 0) {
+    console.warn(`[importEngine] Sheet "${sheetName}": no header row found — skipped`);
+    return { rows, skipped };
+  }
+
+  if (!Object.values(colMap).includes('bd')) {
+    console.warn(`[importEngine] Sheet "${sheetName}": no 'bd' (date) column — skipped`);
+    return { rows, skipped };
+  }
+
+  // ── ETAPA B–E: normalise each data row ───────────────────────────────────
+  const get = (row: unknown[], key: string): unknown => {
+    const entry = Object.entries(colMap).find(([, v]) => v === key);
+    return entry ? row[+entry[0]] : undefined;
+  };
+
+  for (let i = hRow + 1; i < raw.length; i++) {
+    const r = raw[i];
+    if (!r || r.length === 0) continue;
+
+    const hasContent = r.some(c => c !== undefined && c !== null && String(c).trim() !== '');
+    if (!hasContent) continue;
+
+    const bdRaw = String(get(r, 'bd') ?? '').trim();
+    const bd    = parseDT(bdRaw);
+    if (!bd) continue;
+
+    if (currentMonthOnly && toYearMonth(bd) !== targetMonth) { skipped++; continue; }
+
+    const edRaw = String(get(r, 'ed') ?? '').trim();
+    const ed    = parseDT(edRaw) ?? bd;
+
+    const sp        = String(get(r, 'sp') ?? '').trim();
+    const ev        = String(get(r, 'ev') ?? '').trim();
+    const ho        = normHouse(String(get(r, 'ho') ?? '').trim());
+    const mk        = String(get(r, 'mk') ?? '').trim();
+    const od        = parseOdd(get(r, 'od'));
+    const st        = parseNum(get(r, 'st'));
+    const pc        = parsePct(get(r, 'pc'));
+    const re        = mapResult(get(r, 're'));
+    const lucro_raw = get(r, 'lucro_raw');
+
+    if ((!ho && !mk) || (od === 0 && st === 0)) continue;
+
+    const importRow: ImportRow = { bd, ed, sp, ev, ho, mk, od, st, pc, re, lucro_raw, sheet: sheetName, flags: [] };
+    const { flags } = detectAnomalies(importRow);
+    importRow.flags = flags;
+    rows.push(importRow);
+  }
+
+  return { rows, skipped };
+}
+
+// ── RFC 4180 CSV parser with auto-separator detection ─────────────────────
+
+/**
+ * Detects whether the CSV text uses commas or semicolons as field separators.
+ *
+ * Strategy: scan the first 5 lines, count unquoted occurrences of each.
+ * In Brazilian Google Sheets exports, semicolons are often used to avoid
+ * ambiguity with the comma decimal separator.
+ */
+function detectCSVSeparator(text: string): ',' | ';' | '\t' {
+  const sample = text.slice(0, 4096); // check first ~4KB
+  let commas = 0, semicolons = 0, tabs = 0;
+  let inQ = false;
+  for (let i = 0; i < sample.length; i++) {
+    const ch = sample[i];
+    if (ch === '"')      { inQ = !inQ; }
+    else if (!inQ) {
+      if (ch === ',')    commas++;
+      else if (ch === ';') semicolons++;
+      else if (ch === '\t') tabs++;
+      else if (ch === '\n') {
+        // Only sample the first 5 lines
+        if (sample.slice(0, i).split('\n').length > 5) break;
+      }
+    }
+  }
+  if (tabs > commas && tabs > semicolons) return '\t';
+  if (semicolons > commas) return ';';
+  return ',';
+}
+
+/**
+ * Parses CSV text into a 2-D array of strings (RFC 4180 compliant).
+ *
+ * Handles:
+ *   • Quoted fields (may contain the separator character or newlines)
+ *   • Escaped double-quotes ("")
+ *   • Mixed line endings: \r\n, \n, \r
+ *   • Auto-detected separator (comma, semicolon, or tab)
+ */
+function parseCSVRaw(text: string, sep: string): string[][] {
+  const rows: string[][] = [];
+  let row:   string[]   = [];
+  let field  = '';
+  let inQ    = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const ch   = text[i];
+    const next = text[i + 1];
+
+    if (inQ) {
+      if (ch === '"' && next === '"') {
+        // Escaped quote inside quoted field
+        field += '"';
+        i++;
+      } else if (ch === '"') {
+        inQ = false;
+      } else {
+        field += ch;
+      }
+    } else {
+      if (ch === '"') {
+        inQ = true;
+      } else if (ch === sep) {
+        row.push(field.trim());
+        field = '';
+      } else if (ch === '\r' && next === '\n') {
+        row.push(field.trim());
+        field = '';
+        rows.push(row);
+        row = [];
+        i++; // skip \n
+      } else if (ch === '\n' || ch === '\r') {
+        row.push(field.trim());
+        field = '';
+        rows.push(row);
+        row = [];
+      } else {
+        field += ch;
+      }
+    }
+  }
+
+  // Flush last field / row
+  if (field || row.length > 0) {
+    row.push(field.trim());
+    if (row.some(f => f !== '')) rows.push(row);
+  }
+
+  return rows;
+}
+
+// ── Public entry points ──────────────────────────────────────────────────────
+
+/**
+ * Parse a raw CSV string (from Google Sheets proxy or file upload) through
+ * the full import pipeline.
+ *
+ * Automatically detects the field separator (comma, semicolon, or tab)
+ * and uses an RFC 4180 compliant parser so quoted fields with Brazilian
+ * comma-decimal values (e.g. "2,2") are never mis-split.
+ */
+export function parseCSVText(
+  csvText: string,
+  options: ImportOptions = {},
+): ImportResult {
+  const { currentMonthOnly = false, targetMonth = currentMonth() } = options;
+
+  const sep  = detectCSVSeparator(csvText);
+  const raw  = parseCSVRaw(csvText, sep);
+
+  // Treat the whole CSV as a single "sheet" named 'Sheet1'
+  const { rows: allRows, skipped } = processRawRows(
+    raw as unknown[][],
+    'Sheet1',
+    currentMonthOnly,
+    targetMonth,
+  );
+
+  return {
+    rows:      allRows,
+    clean:     allRows.filter(r => r.flags.length === 0),
+    anomalies: allRows.filter(r => r.flags.length > 0),
+    nonBets:   allRows.filter(r => r.flags.some(f => f.code === 'sport_suspect')),
+    skipped,
+    month: currentMonthOnly ? targetMonth : 'all',
+  };
+}
+
+/**
+ * Parse an Excel/XLSX ArrayBuffer through the full pipeline.
  * Returns structured ImportResult with graded flags.
  *
  * Async: dynamically imports 'xlsx' to avoid SSR issues in Next.js.
+ * Used only for manual file-upload flows — Google Sheets sync uses parseCSVText.
  */
 export async function parseWorkbook(
   buffer: ArrayBuffer,
@@ -161,132 +387,30 @@ export async function parseWorkbook(
   const { currentMonthOnly = false, targetMonth = currentMonth() } = options;
 
   const XLSX = await import('xlsx');
-
   const wb = XLSX.read(buffer, { type: 'array', cellDates: true });
+
+  let totalSkipped = 0;
   const allRows: ImportRow[] = [];
-  let skipped = 0;
 
   wb.SheetNames.forEach((sName: string) => {
-    const ws = wb.Sheets[sName];
-
-    // raw:false → XLSX returns formatted strings ("4,79%", "R$ 835,00") which
-    // our parsers handle correctly for Brazilian locale.
+    const ws  = wb.Sheets[sName];
     const raw = XLSX.utils.sheet_to_json(ws, {
       header: 1,
-      raw: false,
+      raw:    false,
       dateNF: 'dd/mm/yyyy hh:mm:ss',
     }) as unknown[][];
 
-    // ── ETAPA A: find header row ────────────────────────────────────────────
-    //
-    // Scan the first 20 rows for any row that contains a "date" column header.
-    // We match on a broad set of keywords to tolerate label variations.
-    const DATE_HEADER_KEYWORDS = ['data', 'date', 'registro', 'dt.', 'aposta'];
-
-    let hRow = -1;
-    let colMap: Record<number, string> = {};
-
-    for (let i = 0; i < Math.min(raw.length, 20); i++) {
-      const row = raw[i];
-      if (!row || row.length === 0) continue;
-
-      const isHeader = row.some(c => {
-        const s = String(c || '').toLowerCase().trim();
-        return DATE_HEADER_KEYWORDS.some(kw => s.includes(kw));
-      });
-
-      if (isHeader) {
-        hRow = i;
-        row.forEach((cell, idx) => {
-          const key = resolveColName(String(cell || ''));
-          if (key) colMap[idx] = key;
-        });
-        break;
-      }
-    }
-
-    // If no recognisable header was found, skip this sheet entirely.
-    // Importing without a known column map would produce corrupt data.
-    if (hRow < 0) {
-      console.warn(`[importEngine] Sheet "${sName}": no header row found — skipped`);
-      return;
-    }
-
-    // Ensure at minimum that 'bd' (bet date) is mapped somewhere.
-    const hasBd = Object.values(colMap).includes('bd');
-    if (!hasBd) {
-      console.warn(`[importEngine] Sheet "${sName}": no 'bd' (date) column found — skipped`);
-      return;
-    }
-
-    // ── ETAPA B–C: normalise each data row ──────────────────────────────────
-    //
-    // get(key) extracts a value using ONLY the header-derived colMap.
-    // There are NO positional fallbacks — a missing column returns undefined.
-    const get = (row: unknown[], key: string): unknown => {
-      const entry = Object.entries(colMap).find(([, v]) => v === key);
-      if (!entry) return undefined;
-      return row[+entry[0]];
-    };
-
-    for (let i = hRow + 1; i < raw.length; i++) {
-      const r = raw[i];
-      if (!r || r.length === 0) continue;
-
-      // Skip rows that are completely blank (all cells empty/undefined)
-      const hasAnyContent = r.some(c => c !== undefined && c !== null && String(c).trim() !== '');
-      if (!hasAnyContent) continue;
-
-      // ── Parse bd first — skip row if date is unparseable ─────────────────
-      const bdRaw = String(get(r, 'bd') ?? '').trim();
-      const bd    = parseDT(bdRaw);
-      if (!bd) continue;   // row has no valid registration date → skip
-
-      // ── ETAPA E: month filter ──────────────────────────────────────────────
-      if (currentMonthOnly && toYearMonth(bd) !== targetMonth) {
-        skipped++;
-        continue;
-      }
-
-      // ── Parse remaining fields (no positional fallbacks) ──────────────────
-      const edRaw = String(get(r, 'ed') ?? '').trim();
-      const ed    = parseDT(edRaw) ?? bd;   // fall back to bd only if truly absent
-
-      const sp  = String(get(r, 'sp') ?? '').trim();
-      const ev  = String(get(r, 'ev') ?? '').trim();
-      const ho  = normHouse(String(get(r, 'ho') ?? '').trim());
-      const mk  = String(get(r, 'mk') ?? '').trim();
-      const od  = parseOdd(get(r, 'od'));  // parseOdd: period = decimal always
-      const st  = parseNum(get(r, 'st'));
-      const pc  = parsePct(get(r, 'pc'));
-      const re  = mapResult(get(r, 're'));
-      const lucro_raw = get(r, 'lucro_raw');
-
-      // Skip rows that have no betting data at all:
-      //   • no house AND no market  → likely a memo/note/separator row
-      //   • odd = 0 AND stake = 0   → template or blank data row
-      if ((!ho && !mk) || (od === 0 && st === 0)) continue;
-
-      const row: ImportRow = { bd, ed, sp, ev, ho, mk, od, st, pc, re, lucro_raw, sheet: sName, flags: [] };
-
-      // ── ETAPA D: contextual validation ───────────────────────────────────
-      const { flags } = detectAnomalies(row);
-      row.flags = flags;
-
-      allRows.push(row);
-    }
+    const { rows, skipped } = processRawRows(raw, sName, currentMonthOnly, targetMonth);
+    allRows.push(...rows);
+    totalSkipped += skipped;
   });
 
-  const clean     = allRows.filter(r => r.flags.length === 0);
-  const anomalies = allRows.filter(r => r.flags.length > 0);
-  const nonBets   = allRows.filter(r => r.flags.some(f => f.code === 'sport_suspect'));
-
   return {
-    rows: allRows,
-    clean,
-    anomalies,
-    nonBets,
-    skipped,
+    rows:      allRows,
+    clean:     allRows.filter(r => r.flags.length === 0),
+    anomalies: allRows.filter(r => r.flags.length > 0),
+    nonBets:   allRows.filter(r => r.flags.some(f => f.code === 'sport_suspect')),
+    skipped:   totalSkipped,
     month: currentMonthOnly ? targetMonth : 'all',
   };
 }
