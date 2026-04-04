@@ -56,18 +56,22 @@ export function Topbar({ onMenuClick }: TopbarProps) {
 
     setSyncing(true);
     try {
-      // If there are no legs yet (fresh / wiped), import the full history.
-      // Otherwise only fetch the current month for speed (< 3s).
-      const currentMonthOnly = legs.length > 0;
-      const result = await syncFromSheet(cfg, { currentMonthOnly });
-      const commitResult = commitRows(result.rows, { includeAll: true, existingLegs: legs });
+      // First sync ever (historyImported absent): import FULL history.
+      // Subsequent manual syncs: current month only (fast).
+      const needsFullHistory = !sheetSync?.historyImported;
+      const result = await syncFromSheet(cfg, { currentMonthOnly: !needsFullHistory });
+      const commitResult = commitRows(result.rows, {
+        includeAll:   needsFullHistory,
+        existingLegs: legs,
+      });
       commitImport(commitResult);
-      setSheetSync({ ...cfg, lastSync: new Date().toISOString() });
+      setSheetSync({ ...cfg, lastSync: new Date().toISOString(), historyImported: true });
       setShowInput(false);
       const anomalyNote = commitResult.anomalies > 0
         ? ` · ${commitResult.anomalies} com anomalias (revise em Análise)` : '';
+      const importedLabel = needsFullHistory ? 'Histórico importado' : 'Sincronizado';
       toastFn(
-        `${commitResult.imported} novas operações · ${commitResult.dupes} já existiam${anomalyNote}`,
+        `${importedLabel} · ${commitResult.imported} novas operações · ${commitResult.dupes} já existiam${anomalyNote}`,
         commitResult.anomalies > 0 ? 'wrn' : 'ok'
       );
     } catch (err: unknown) {

@@ -39,8 +39,8 @@ function StepSheet({ onNext }: { onNext: () => void }) {
 
     setSyncing(true);
     try {
-      const result = await syncFromSheet(cfg);
-      setSheetSync({ ...cfg, lastSync: new Date().toISOString() });
+      const result = await syncFromSheet(cfg);          // no filter → full history
+      setSheetSync({ ...cfg, lastSync: new Date().toISOString(), historyImported: true });
       setImportBuf(result);
       setSynced(true);
       toastFn(`Planilha conectada — ${result.rows.length} linhas encontradas`, 'ok');

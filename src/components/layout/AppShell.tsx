@@ -44,18 +44,33 @@ export function AppShell() {
     async function doSync() {
       if (!sheetSync) return;
       setSyncing(true);
+
+      // First ever sync (historyImported absent/false): import FULL history so
+      // the user gets all their past data. After that, currentMonthOnly keeps
+      // syncs fast.
+      const needsFullHistory = !sheetSync.historyImported;
+
       try {
-        const result    = await syncFromSheet(sheetSync, { currentMonthOnly: true });
+        const result    = await syncFromSheet(sheetSync, { currentMonthOnly: !needsFullHistory });
         const committed = commitRows(result.rows, {
-          includeAll:   false,
+          includeAll:   needsFullHistory, // include anomalies on full history import
           existingLegs: legsRef.current,
         });
         if (committed.imported > 0) {
           commitImport(committed);
-          toastFn(`Sincronizado — ${committed.imported} nova(s) operação(ões)`, 'ok');
+          toastFn(
+            needsFullHistory
+              ? `Histórico importado — ${committed.imported} operação(ões)`
+              : `Sincronizado — ${committed.imported} nova(s) operação(ões)`,
+            'ok',
+          );
+        }
+        // Mark history as imported so future syncs use currentMonthOnly
+        if (needsFullHistory) {
+          useStore.getState().setSheetSync({ ...sheetSync, historyImported: true });
         }
       } catch {
-        // Silent fail on background sync — only toast on manual sync
+        // Silent fail on background sync
       } finally {
         setSyncing(false);
       }

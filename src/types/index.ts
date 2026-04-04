@@ -153,12 +153,13 @@ export interface Client {
 
 // ── Google Sheets sync config ────────────────────────────
 export interface SheetSync {
-  url: string;          // original URL pasted by user
-  sheetId: string;      // extracted from URL
-  gid: string;          // sheet tab gid (default '0')
-  lastSync: string;     // ISO timestamp of last successful sync
-  autoSync: boolean;    // sync automatically on app open
-  intervalMin: number;  // auto-sync interval in minutes (0 = manual only)
+  url: string;              // original URL pasted by user
+  sheetId: string;          // extracted from URL
+  gid: string;              // sheet tab gid (default '0')
+  lastSync: string;         // ISO timestamp of last successful sync
+  autoSync: boolean;        // sync automatically on app open
+  intervalMin: number;      // auto-sync interval in minutes (0 = manual only)
+  historyImported?: boolean; // true after first full-history import; subsequent syncs use currentMonthOnly
 }
 
 // ── Import pipeline ──────────────────────────────────────
