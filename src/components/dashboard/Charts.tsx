@@ -1,82 +1,109 @@
 'use client';
 
 /**
- * Charts.tsx
- * All dashboard charts using Recharts.
- * Unified dark neon theme.
+ * Charts.tsx — Premium financial dashboard charts using Recharts.
  */
 
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  Area, AreaChart, Cell, PieChart, Pie,
+  Area, AreaChart, Cell, PieChart, Pie, ReferenceLine,
 } from 'recharts';
-import type { WeekDay, MonthPoint, SportStat, HourStat } from '@/lib/finance/calculator';
+import type {
+  WeekDay, MonthPoint, SportStat, HourStat,
+  WeekStat, DayStat, ResultDist,
+} from '@/lib/finance/calculator';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
 function fmtBRL(v: number) {
-  const sign = v < 0 ? '\u2212' : '+';
+  const sign = v < 0 ? '−' : '+';
   return `${sign} R$ ${Math.abs(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-const cardStyle: React.CSSProperties = {
+function fmtBRLShort(v: number) {
+  const abs = Math.abs(v);
+  const sign = v < 0 ? '-' : '+';
+  if (abs >= 1000) return `${sign}R$${(abs / 1000).toFixed(1)}k`;
+  return `${sign}R$${abs.toFixed(0)}`;
+}
+
+const card: React.CSSProperties = {
   background: 'var(--bg2)',
   border: '1px solid var(--b)',
   borderRadius: 16,
   padding: '20px 20px 16px',
+  position: 'relative',
+  overflow: 'hidden',
 };
 
-const tooltipStyle: React.CSSProperties = {
-  background: 'var(--bg3)',
-  border: '1px solid var(--b2)',
-  borderRadius: 12,
-  color: 'var(--t)',
-  boxShadow: '0 8px 32px rgba(0,0,0,.5)',
+const tip: React.CSSProperties = {
+  background: '#0D1117',
+  border: '1px solid rgba(255,255,255,.08)',
+  borderRadius: 10,
+  color: '#f1f5f9',
+  fontSize: 12,
+  boxShadow: '0 16px 48px rgba(0,0,0,.6)',
+  padding: '10px 14px',
 };
 
-const AXIS_TICK = { fill: 'var(--t3)', fontSize: 10, fontFamily: "'JetBrains Mono', monospace" };
+const AXIS = { fill: 'rgba(255,255,255,.3)', fontSize: 10, fontFamily: "'JetBrains Mono',monospace" };
 
-// ── Week bar chart ───────────────────────────────────────────────────────────
+function ChartTitle({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{ color: 'rgba(255,255,255,.85)', fontSize: 13, fontWeight: 700, marginBottom: 16, letterSpacing: '.01em' }}>
+      {children}
+    </div>
+  );
+}
+
+function EmptyState({ h = 160 }: { h?: number }) {
+  return (
+    <div style={{ height: h, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,.2)', fontSize: 13 }}>
+      Sem dados disponíveis
+    </div>
+  );
+}
+
+// ── Week bar chart ────────────────────────────────────────────────────────────
 
 export function WeekChart({ data }: { data: WeekDay[] }) {
   return (
-    <div style={cardStyle}>
-      <div className="text-sm font-bold mb-4" style={{ color: 'var(--t)' }}>
-        Lucro por Dia — Semana Atual
-      </div>
+    <div style={card}>
+      <ChartTitle>Lucro por Dia — Semana Atual</ChartTitle>
       <ResponsiveContainer width="100%" height={180}>
-        <BarChart data={data} barCategoryGap="30%">
-          <CartesianGrid vertical={false} stroke="rgba(0,255,136,.03)" />
-          <XAxis
-            dataKey="label"
-            axisLine={false}
-            tickLine={false}
-            tick={AXIS_TICK}
-          />
+        <BarChart data={data} barCategoryGap="32%">
+          <defs>
+            <linearGradient id="wkGreen" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%"   stopColor="#22c55e" stopOpacity={1} />
+              <stop offset="100%" stopColor="#16a34a" stopOpacity={0.7} />
+            </linearGradient>
+            <linearGradient id="wkRed" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%"   stopColor="#ef4444" stopOpacity={1} />
+              <stop offset="100%" stopColor="#b91c1c" stopOpacity={0.7} />
+            </linearGradient>
+            <linearGradient id="wkBlue" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%"   stopColor="#60a5fa" stopOpacity={1} />
+              <stop offset="100%" stopColor="#3b82f6" stopOpacity={0.7} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid vertical={false} stroke="rgba(255,255,255,.03)" />
+          <ReferenceLine y={0} stroke="rgba(255,255,255,.1)" strokeDasharray="4 4" />
+          <XAxis dataKey="label" axisLine={false} tickLine={false} tick={AXIS} />
           <YAxis
-            axisLine={false}
-            tickLine={false}
-            tickFormatter={v => `R$${v >= 0 ? '+' : ''}${v}`}
-            tick={AXIS_TICK}
-            width={64}
+            axisLine={false} tickLine={false}
+            tickFormatter={fmtBRLShort}
+            tick={AXIS} width={56}
           />
           <Tooltip
-            formatter={(val: number) => [fmtBRL(val), 'Lucro']}
-            labelFormatter={(l: string) => `${l}`}
-            contentStyle={tooltipStyle}
-            cursor={{ fill: 'rgba(0,255,136,.02)' }}
+            formatter={(v: number) => [fmtBRL(v), 'Lucro']}
+            contentStyle={tip}
+            cursor={{ fill: 'rgba(255,255,255,.03)', radius: 4 }}
           />
-          <Bar dataKey="profit" radius={[5, 5, 0, 0]}>
-            {data.map((entry, i) => (
+          <Bar dataKey="profit" radius={[5, 5, 2, 2]}>
+            {data.map((e, i) => (
               <Cell
                 key={i}
-                fill={
-                  entry.isToday ? '#4DA6FF' :
-                  entry.profit > 0 ? '#00FF88' :
-                  entry.profit < 0 ? '#FF4D4D' :
-                  'var(--sur)'
-                }
-                fillOpacity={entry.isToday ? 1 : 0.85}
+                fill={e.isToday ? 'url(#wkBlue)' : e.profit >= 0 ? 'url(#wkGreen)' : 'url(#wkRed)'}
               />
             ))}
           </Bar>
@@ -86,57 +113,52 @@ export function WeekChart({ data }: { data: WeekDay[] }) {
   );
 }
 
-// ── Month cumulative line chart ──────────────────────────────────────────────
+// ── Month cumulative area chart ───────────────────────────────────────────────
 
 export function MonthChart({ data }: { data: MonthPoint[] }) {
-  const lastVal = data[data.length - 1]?.cumulative ?? 0;
-  const color   = lastVal >= 0 ? '#00FF88' : '#FF4D4D';
+  const last  = data[data.length - 1]?.cumulative ?? 0;
+  const color = last >= 0 ? '#22c55e' : '#ef4444';
 
   return (
-    <div style={cardStyle}>
-      <div className="text-sm font-bold mb-4" style={{ color: 'var(--t)' }}>
-        Evolução Mensal — Lucro Acumulado
+    <div style={card}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+        <ChartTitle>Evolução Mensal — Acumulado</ChartTitle>
+        <span style={{
+          fontFamily: "'JetBrains Mono',monospace",
+          fontSize: 15, fontWeight: 700,
+          color: last >= 0 ? '#22c55e' : '#ef4444',
+        }}>
+          {fmtBRL(last)}
+        </span>
       </div>
-      {data.length < 2 ? (
-        <div className="flex items-center justify-center h-44 text-sm" style={{ color: 'var(--t3)' }}>
-          Sem dados suficientes no mês atual
-        </div>
-      ) : (
+      {data.length < 2 ? <EmptyState /> : (
         <ResponsiveContainer width="100%" height={180}>
           <AreaChart data={data}>
             <defs>
               <linearGradient id="mcGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%"  stopColor={color} stopOpacity={0.20} />
-                <stop offset="100%" stopColor={color} stopOpacity={0.01} />
+                <stop offset="0%"   stopColor={color} stopOpacity={0.25} />
+                <stop offset="100%" stopColor={color} stopOpacity={0} />
               </linearGradient>
             </defs>
-            <CartesianGrid stroke="rgba(0,255,136,.03)" vertical={false} />
-            <XAxis
-              dataKey="day"
-              axisLine={false}
-              tickLine={false}
-              tick={AXIS_TICK}
-            />
+            <CartesianGrid stroke="rgba(255,255,255,.03)" vertical={false} />
+            <ReferenceLine y={0} stroke="rgba(255,255,255,.1)" strokeDasharray="4 4" />
+            <XAxis dataKey="day" axisLine={false} tickLine={false} tick={AXIS} interval={4} />
             <YAxis
-              axisLine={false}
-              tickLine={false}
-              tickFormatter={v => `R$${v}`}
-              tick={AXIS_TICK}
-              width={64}
+              axisLine={false} tickLine={false}
+              tickFormatter={fmtBRLShort}
+              tick={AXIS} width={56}
             />
             <Tooltip
-              formatter={(val: number) => [fmtBRL(val), 'Acumulado']}
-              contentStyle={tooltipStyle}
-              cursor={{ stroke: 'rgba(0,255,136,.1)', strokeWidth: 1 }}
+              formatter={(v: number) => [fmtBRL(v), 'Acumulado']}
+              contentStyle={tip}
+              cursor={{ stroke: 'rgba(255,255,255,.1)', strokeWidth: 1 }}
             />
             <Area
-              type="monotone"
-              dataKey="cumulative"
-              stroke={color}
-              strokeWidth={2}
+              type="monotone" dataKey="cumulative"
+              stroke={color} strokeWidth={2.5}
               fill="url(#mcGrad)"
               dot={false}
-              activeDot={{ r: 4, fill: color, stroke: 'var(--bg)', strokeWidth: 2 }}
+              activeDot={{ r: 4, fill: color, stroke: '#0D1117', strokeWidth: 2 }}
             />
           </AreaChart>
         </ResponsiveContainer>
@@ -145,47 +167,25 @@ export function MonthChart({ data }: { data: MonthPoint[] }) {
   );
 }
 
-// ── Sport horizontal bar chart ───────────────────────────────────────────────
+// ── Sport horizontal bar chart ────────────────────────────────────────────────
 
-const SPORT_COLORS = ['#00FF88', '#4DA6FF', '#FFD600', '#FF8F3D', '#A78BFA', '#34D399'];
+const SP_COLORS = ['#818cf8', '#34d399', '#f59e0b', '#60a5fa', '#f472b6', '#a3e635'];
 
 export function SportChart({ data }: { data: SportStat[] }) {
   const top = data.slice(0, 6);
   return (
-    <div style={cardStyle}>
-      <div className="text-sm font-bold mb-4" style={{ color: 'var(--t)' }}>
-        Lucro por Esporte
-      </div>
-      {!top.length ? (
-        <div className="flex items-center justify-center h-36 text-sm" style={{ color: 'var(--t3)' }}>
-          Sem dados
-        </div>
-      ) : (
-        <ResponsiveContainer width="100%" height={Math.max(140, top.length * 36)}>
-          <BarChart layout="vertical" data={top} barCategoryGap="25%">
-            <CartesianGrid horizontal={false} stroke="rgba(0,255,136,.03)" />
-            <XAxis
-              type="number"
-              axisLine={false}
-              tickLine={false}
-              tickFormatter={v => `R$${v}`}
-              tick={AXIS_TICK}
-            />
-            <YAxis
-              type="category"
-              dataKey="sport"
-              axisLine={false}
-              tickLine={false}
-              width={90}
-              tick={AXIS_TICK}
-            />
-            <Tooltip
-              formatter={(val: number) => [fmtBRL(val), 'Lucro']}
-              contentStyle={tooltipStyle}
-            />
-            <Bar dataKey="profit" radius={[0, 4, 4, 0]}>
+    <div style={card}>
+      <ChartTitle>Lucro por Esporte</ChartTitle>
+      {!top.length ? <EmptyState h={140} /> : (
+        <ResponsiveContainer width="100%" height={Math.max(140, top.length * 38)}>
+          <BarChart layout="vertical" data={top} barCategoryGap="28%">
+            <CartesianGrid horizontal={false} stroke="rgba(255,255,255,.03)" />
+            <XAxis type="number" axisLine={false} tickLine={false} tickFormatter={fmtBRLShort} tick={AXIS} />
+            <YAxis type="category" dataKey="sport" axisLine={false} tickLine={false} width={90} tick={AXIS} />
+            <Tooltip formatter={(v: number) => [fmtBRL(v), 'Lucro']} contentStyle={tip} />
+            <Bar dataKey="profit" radius={[0, 5, 5, 0]}>
               {top.map((_, i) => (
-                <Cell key={i} fill={SPORT_COLORS[i % SPORT_COLORS.length]} />
+                <Cell key={i} fill={SP_COLORS[i % SP_COLORS.length]} fillOpacity={0.9} />
               ))}
             </Bar>
           </BarChart>
@@ -195,35 +195,40 @@ export function SportChart({ data }: { data: SportStat[] }) {
   );
 }
 
-// ── Hourly volume bar chart ──────────────────────────────────────────────────
+// ── Hourly volume chart ───────────────────────────────────────────────────────
 
 export function HourlyChart({ data }: { data: HourStat[] }) {
+  const max = Math.max(...data.map(d => d.legs), 1);
   return (
-    <div style={cardStyle}>
-      <div className="text-sm font-bold mb-4" style={{ color: 'var(--t)' }}>
-        Volume por Horário
-      </div>
-      {!data.length ? (
-        <div className="flex items-center justify-center h-36 text-sm" style={{ color: 'var(--t3)' }}>Sem dados</div>
-      ) : (
+    <div style={card}>
+      <ChartTitle>Volume por Horário</ChartTitle>
+      {!data.length ? <EmptyState h={140} /> : (
         <ResponsiveContainer width="100%" height={150}>
-          <BarChart data={data} barCategoryGap="20%">
-            <CartesianGrid vertical={false} stroke="rgba(0,255,136,.03)" />
+          <BarChart data={data} barCategoryGap="15%">
+            <defs>
+              <linearGradient id="hrGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%"   stopColor="#60a5fa" stopOpacity={0.9} />
+                <stop offset="100%" stopColor="#3b82f6" stopOpacity={0.4} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid vertical={false} stroke="rgba(255,255,255,.03)" />
             <XAxis
               dataKey="hour"
-              axisLine={false}
-              tickLine={false}
+              axisLine={false} tickLine={false}
               tickFormatter={h => `${h}h`}
-              tick={AXIS_TICK}
-              interval={2}
+              tick={AXIS} interval={2}
             />
             <YAxis hide />
             <Tooltip
-              formatter={(val: number) => [val, 'Pernas']}
-              labelFormatter={(h: string) => `${h}:00`}
-              contentStyle={tooltipStyle}
+              formatter={(v: number) => [v, 'Pernas']}
+              labelFormatter={(h: string) => `${h}:00h`}
+              contentStyle={tip}
             />
-            <Bar dataKey="legs" fill="rgba(77,166,255,.6)" radius={[3, 3, 0, 0]} />
+            <Bar dataKey="legs" fill="url(#hrGrad)" radius={[3, 3, 1, 1]}>
+              {data.map((e, i) => (
+                <Cell key={i} fillOpacity={0.4 + (e.legs / max) * 0.6} />
+              ))}
+            </Bar>
           </BarChart>
         </ResponsiveContainer>
       )}
@@ -231,54 +236,335 @@ export function HourlyChart({ data }: { data: HourStat[] }) {
   );
 }
 
-// ── Live vs Pre donut ────────────────────────────────────────────────────────
+// ── Live vs Pre donut ─────────────────────────────────────────────────────────
 
 export function LivePreChart({ live, pre }: { live: number; pre: number }) {
-  const total = live + pre;
+  const total   = live + pre;
   const pieData = [
-    { name: 'Live',    value: live, color: '#FF6B6B' },
-    { name: 'Pré-Live', value: pre,  color: '#4DA6FF' },
+    { name: 'Live',     value: live, color: '#f87171' },
+    { name: 'Pré-Live', value: pre,  color: '#60a5fa' },
   ];
-  const livePct = total > 0 ? ((live / total) * 100).toFixed(0) : '0';
+  const livePct = total > 0 ? Math.round(live / total * 100) : 0;
 
   return (
-    <div style={cardStyle} className="flex flex-col">
-      <div className="text-sm font-bold mb-2" style={{ color: 'var(--t)' }}>
-        Live vs Pré-Live
-      </div>
-      <div className="flex items-center gap-4 flex-1">
+    <div style={{ ...card, display: 'flex', flexDirection: 'column' }}>
+      <ChartTitle>Live vs Pré-Live</ChartTitle>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, flex: 1 }}>
         <ResponsiveContainer width={110} height={110}>
           <PieChart>
+            <defs>
+              <filter id="glow">
+                <feGaussianBlur stdDeviation="3" result="blur" />
+                <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+              </filter>
+            </defs>
             <Pie
-              data={total > 0 ? pieData : [{ name: 'Sem dados', value: 1, color: 'var(--sur)' }]}
-              cx="50%"
-              cy="50%"
-              innerRadius={32}
-              outerRadius={50}
+              data={total > 0 ? pieData : [{ name: 'Sem dados', value: 1, color: 'rgba(255,255,255,.08)' }]}
+              cx="50%" cy="50%"
+              innerRadius={34} outerRadius={50}
               dataKey="value"
               strokeWidth={0}
+              paddingAngle={total > 0 ? 3 : 0}
             >
-              {(total > 0 ? pieData : [{ color: 'var(--sur)' }]).map((e, i) => (
+              {(total > 0 ? pieData : [{ color: 'rgba(255,255,255,.08)' }]).map((e, i) => (
                 <Cell key={i} fill={e.color} />
               ))}
             </Pie>
           </PieChart>
         </ResponsiveContainer>
-        <div className="flex flex-col gap-2.5 flex-1">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, flex: 1 }}>
           {pieData.map(d => (
-            <div key={d.name} className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: d.color }} />
-              <span className="text-[11px]" style={{ color: 'var(--t2)' }}>{d.name}</span>
-              <span className="ml-auto text-xs font-bold" style={{ color: 'var(--t)', fontFamily: "'JetBrains Mono', monospace" }}>
+            <div key={d.name} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: d.color, flexShrink: 0 }} />
+              <span style={{ fontSize: 11, color: 'rgba(255,255,255,.5)' }}>{d.name}</span>
+              <span style={{ marginLeft: 'auto', fontSize: 13, fontWeight: 700, color: '#f1f5f9', fontFamily: "'JetBrains Mono',monospace" }}>
                 {d.value}
               </span>
             </div>
           ))}
-          <div className="text-[11px] mt-0.5" style={{ color: 'var(--t3)' }}>
-            {livePct}% live
+          <div style={{ fontSize: 22, fontWeight: 800, color: '#f87171', fontFamily: "'JetBrains Mono',monospace", marginTop: 4 }}>
+            {livePct}%
+            <span style={{ fontSize: 11, fontWeight: 400, color: 'rgba(255,255,255,.3)', marginLeft: 6 }}>live</span>
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── Weekly profit (last 4 weeks of month) ────────────────────────────────────
+
+export function WeeklyProfitChart({ data }: { data: WeekStat[] }) {
+  const total = +data.reduce((s, d) => s + d.profit, 0).toFixed(2);
+  return (
+    <div style={card}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <ChartTitle>Lucro por Semana — 4 Semanas do Mês</ChartTitle>
+        <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 14, fontWeight: 700, color: total >= 0 ? '#4ade80' : '#f87171' }}>
+          {fmtBRL(total)}
+        </span>
+      </div>
+      {!data.length ? <EmptyState /> : (
+        <ResponsiveContainer width="100%" height={200}>
+          <BarChart data={data} barCategoryGap="28%">
+            <defs>
+              <linearGradient id="wkpGreen" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%"   stopColor="#4ade80" stopOpacity={1} />
+                <stop offset="100%" stopColor="#16a34a" stopOpacity={0.6} />
+              </linearGradient>
+              <linearGradient id="wkpRed" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%"   stopColor="#f87171" stopOpacity={1} />
+                <stop offset="100%" stopColor="#b91c1c" stopOpacity={0.6} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid vertical={false} stroke="rgba(255,255,255,.03)" />
+            <ReferenceLine y={0} stroke="rgba(255,255,255,.12)" strokeDasharray="4 4" />
+            <XAxis
+              dataKey="weekLabel"
+              axisLine={false} tickLine={false}
+              tick={AXIS}
+              interval={0}
+              angle={-20}
+              textAnchor="end"
+              height={40}
+            />
+            <YAxis
+              axisLine={false} tickLine={false}
+              tickFormatter={fmtBRLShort}
+              tick={AXIS} width={56}
+            />
+            <Tooltip
+              contentStyle={tip}
+              formatter={(v: number, _: string, props: { payload?: WeekStat }) => {
+                const d = props.payload;
+                return [
+                  <span key="p" style={{ fontFamily: "'JetBrains Mono',monospace" }}>
+                    {fmtBRL(v)}
+                    <br />
+                    <span style={{ color: 'rgba(255,255,255,.45)', fontSize: 11 }}>
+                      {d?.ops ?? 0} ops · ROI {d?.roi ?? 0}%
+                    </span>
+                  </span>,
+                  'Lucro',
+                ];
+              }}
+              cursor={{ fill: 'rgba(255,255,255,.03)' }}
+            />
+            <Bar dataKey="profit" radius={[6, 6, 2, 2]}>
+              {data.map((e, i) => (
+                <Cell key={i} fill={e.profit >= 0 ? 'url(#wkpGreen)' : 'url(#wkpRed)'} />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      )}
+    </div>
+  );
+}
+
+// ── Daily profit bar chart ────────────────────────────────────────────────────
+
+export function DailyProfitChart({ data }: { data: DayStat[] }) {
+  const hasData  = data.some(d => d.profit !== 0);
+  const total    = +data.reduce((s, d) => s + d.profit, 0).toFixed(2);
+  const maxAbs   = Math.max(...data.map(d => Math.abs(d.profit)), 0.01);
+
+  return (
+    <div style={card}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <ChartTitle>Lucro Diário</ChartTitle>
+        <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 14, fontWeight: 700, color: total >= 0 ? '#4ade80' : '#f87171' }}>
+          {fmtBRL(total)}
+        </span>
+      </div>
+      {!hasData ? <EmptyState /> : (
+        <ResponsiveContainer width="100%" height={200}>
+          <BarChart data={data} barCategoryGap="18%" margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+            <defs>
+              <linearGradient id="dpGreen" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%"   stopColor="#4ade80" stopOpacity={1} />
+                <stop offset="100%" stopColor="#16a34a" stopOpacity={0.5} />
+              </linearGradient>
+              <linearGradient id="dpRed" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%"   stopColor="#f87171" stopOpacity={1} />
+                <stop offset="100%" stopColor="#b91c1c" stopOpacity={0.5} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid stroke="rgba(255,255,255,.03)" vertical={false} />
+            <ReferenceLine y={0} stroke="rgba(255,255,255,.1)" strokeDasharray="4 4" />
+            <XAxis
+              dataKey="dayLabel"
+              axisLine={false} tickLine={false}
+              tick={AXIS}
+              interval={Math.floor(data.length / 10)}
+            />
+            <YAxis
+              axisLine={false} tickLine={false}
+              tickFormatter={fmtBRLShort}
+              tick={AXIS} width={56}
+            />
+            <Tooltip
+              contentStyle={tip}
+              formatter={(v: number, _: string, props: { payload?: DayStat }) => [
+                fmtBRL(v),
+                props.payload?.ops ? `${props.payload.ops} op${props.payload.ops > 1 ? 's' : ''}` : 'Lucro',
+              ]}
+              cursor={{ fill: 'rgba(255,255,255,.03)' }}
+            />
+            <Bar dataKey="profit" radius={[3, 3, 1, 1]}>
+              {data.map((e, i) => (
+                <Cell
+                  key={i}
+                  fill={e.profit >= 0 ? 'url(#dpGreen)' : 'url(#dpRed)'}
+                  fillOpacity={0.5 + (Math.abs(e.profit) / maxAbs) * 0.5}
+                />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      )}
+    </div>
+  );
+}
+
+// ── Sport distribution donut + legend ────────────────────────────────────────
+
+const SPORT_DIST_COLORS = [
+  '#818cf8', '#34d399', '#f59e0b', '#60a5fa',
+  '#f472b6', '#a3e635', '#fb923c', '#22d3ee',
+];
+
+export function SportDistributionChart({ data }: { data: SportStat[] }) {
+  const top    = data.slice(0, 8);
+  const total  = top.reduce((s, d) => s + d.legs, 0);
+  const tProfit = +top.reduce((s, d) => s + d.profit, 0).toFixed(2);
+  const pieData = top.map((d, i) => ({ name: d.sport || 'Outros', value: d.legs, color: SPORT_DIST_COLORS[i % SPORT_DIST_COLORS.length] }));
+  const maxLegs = Math.max(...top.map(d => d.legs), 1);
+
+  function sportEmoji(sp: string) {
+    const s = (sp || '').toLowerCase();
+    if (s.includes('futebol') && !s.includes('amer')) return '⚽';
+    if (s.includes('americano')) return '🏈';
+    if (s.includes('tênis') || s.includes('tenis')) return '🎾';
+    if (s.includes('basquete')) return '🏀';
+    if (s.includes('hockey')) return '🏒';
+    if (s.includes('e-') || s.includes('esport')) return '🎮';
+    if (s.includes('volei') || s.includes('vôlei')) return '🏐';
+    if (s.includes('baseball')) return '⚾';
+    if (s.includes('mma') || s.includes('ufc')) return '🥊';
+    return '🎯';
+  }
+
+  return (
+    <div style={card}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <ChartTitle>Distribuição por Esporte</ChartTitle>
+        <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 13, fontWeight: 700, color: tProfit >= 0 ? '#4ade80' : '#f87171' }}>
+          {fmtBRL(tProfit)}
+        </span>
+      </div>
+      {!top.length ? <EmptyState h={140} /> : (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          {/* Donut */}
+          <ResponsiveContainer width={130} height={130}>
+            <PieChart>
+              <Pie
+                data={pieData}
+                cx="50%" cy="50%"
+                innerRadius={36} outerRadius={58}
+                dataKey="value"
+                strokeWidth={0}
+                paddingAngle={2}
+              >
+                {pieData.map((e, i) => <Cell key={i} fill={e.color} fillOpacity={0.9} />)}
+              </Pie>
+            </PieChart>
+          </ResponsiveContainer>
+
+          {/* Legend + bars */}
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {top.map((d, i) => {
+              const color = SPORT_DIST_COLORS[i % SPORT_DIST_COLORS.length];
+              const pct   = total > 0 ? Math.round(d.legs / total * 100) : 0;
+              const barPct = Math.round(d.legs / maxLegs * 100);
+              return (
+                <div key={d.sport} style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                  <span style={{ fontSize: 13, flexShrink: 0, width: 18 }}>{sportEmoji(d.sport)}</span>
+                  <span style={{ fontSize: 11, color: 'rgba(255,255,255,.6)', minWidth: 70, maxWidth: 70, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {d.sport || 'Outros'}
+                  </span>
+                  <div style={{ flex: 1, height: 3, background: 'rgba(255,255,255,.06)', borderRadius: 3, overflow: 'hidden' }}>
+                    <div style={{ width: `${barPct}%`, height: '100%', background: color, borderRadius: 3 }} />
+                  </div>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,.5)', fontFamily: "'JetBrains Mono',monospace", minWidth: 28, textAlign: 'right' }}>
+                    {pct}%
+                  </span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color, fontFamily: "'JetBrains Mono',monospace", minWidth: 40, textAlign: 'right' }}>
+                    {d.profit >= 0 ? '+' : ''}R${Math.abs(d.profit) >= 1000 ? `${(d.profit / 1000).toFixed(1)}k` : d.profit.toFixed(0)}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Result distribution donut + legend ───────────────────────────────────────
+
+export function ResultDistributionChart({ data }: { data: ResultDist[] }) {
+  const total       = data.reduce((s, d) => s + d.count, 0);
+  const totalProfit = +data.reduce((s, d) => s + d.profit, 0).toFixed(2);
+
+  return (
+    <div style={card}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+        <ChartTitle>Distribuição de Resultados</ChartTitle>
+        <span style={{
+          fontFamily: "'JetBrains Mono',monospace",
+          fontSize: 13, fontWeight: 700,
+          color: totalProfit >= 0 ? '#4ade80' : '#f87171',
+        }}>
+          {fmtBRL(totalProfit)}
+        </span>
+      </div>
+      {!data.length ? <EmptyState h={140} /> : (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <ResponsiveContainer width={130} height={130}>
+            <PieChart>
+              <Pie
+                data={data}
+                cx="50%" cy="50%"
+                innerRadius={36} outerRadius={58}
+                dataKey="count"
+                strokeWidth={0}
+                paddingAngle={2}
+              >
+                {data.map((e, i) => <Cell key={i} fill={e.color} fillOpacity={0.9} />)}
+              </Pie>
+            </PieChart>
+          </ResponsiveContainer>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {data.map(d => {
+              const pct = total > 0 ? Math.round(d.count / total * 100) : 0;
+              return (
+                <div key={d.result} style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                  <span style={{ width: 7, height: 7, borderRadius: 2, background: d.color, flexShrink: 0 }} />
+                  <span style={{ fontSize: 11, color: 'rgba(255,255,255,.55)', minWidth: 80 }}>{d.result}</span>
+                  <div style={{ flex: 1, height: 3, background: 'rgba(255,255,255,.06)', borderRadius: 3, overflow: 'hidden' }}>
+                    <div style={{ width: `${pct}%`, height: '100%', background: d.color, borderRadius: 3 }} />
+                  </div>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,.7)', fontFamily: "'JetBrains Mono',monospace", minWidth: 22, textAlign: 'right' }}>
+                    {pct}%
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

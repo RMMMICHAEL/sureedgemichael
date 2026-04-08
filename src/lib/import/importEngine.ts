@@ -24,6 +24,15 @@
 
 import type { ImportRow, Leg } from '@/types';
 import { parseDT, currentMonth, toYearMonth } from '@/lib/parsers/dateParser';
+
+// ── XLSX module cache (avoid re-importing on every parseWorkbook call) ────────
+// The dynamic import is resolved once and the module reference is reused for
+// subsequent calls. Reduces repeated overhead on manual/auto syncs.
+let _xlsxModule: typeof import('xlsx') | null = null;
+async function getXLSX() {
+  if (!_xlsxModule) _xlsxModule = await import('xlsx');
+  return _xlsxModule;
+}
 import { parseNum, parseOdd } from '@/lib/parsers/numberParser';
 import { parsePct }   from '@/lib/parsers/percentParser';
 import { mapResult }  from '@/lib/parsers/resultMapper';
@@ -386,7 +395,7 @@ export async function parseWorkbook(
 ): Promise<ImportResult> {
   const { currentMonthOnly = false, targetMonth = currentMonth() } = options;
 
-  const XLSX = await import('xlsx');
+  const XLSX = await getXLSX();
   const wb = XLSX.read(buffer, { type: 'array', cellDates: true });
 
   let totalSkipped = 0;
@@ -420,6 +429,12 @@ export async function parseWorkbook(
 export interface CommitOptions {
   includeAll: boolean;      // if false, skip non-bet rows
   existingLegs: Leg[];      // for duplicate detection
+  /**
+   * Keys of import rows that were manually overridden (format: "ho|mk|bd.slice(0,16)").
+   * These are permanently excluded from re-import to prevent duplication
+   * when an edited operation differs from its original sheet values.
+   */
+  excludedImportKeys?: Set<string>;
 }
 
 export interface CommitResult {
@@ -473,10 +488,18 @@ export function commitRows(rows: ImportRow[], opts: CommitOptions): CommitResult
   ops.forEach((opRows, gi) => {
     const oid = `imp_${baseTs}_${gi}`;
     opRows.forEach((row, j) => {
-      // Dupe check: same registration_date + house + market
-      const isDupe = opts.existingLegs.some(
-        l => l.bd === row.bd && l.ho === row.ho && l.mk === row.mk
-      );
+      // Dupe check: same registration_date (minute precision) + house + market.
+      // Compare only first 16 chars of bd ("YYYY-MM-DDTHH:MM") because:
+      //   – Imported rows from parseDT return 19-char strings ("…:SS")
+      //   – Manually-edited legs store 16-char strings (datetime-local sliced)
+      // Using minute-level granularity is safe: two distinct bets at the same
+      // minute on the same house/market is virtually impossible.
+      const rowKey = `${row.ho}|${row.mk}|${row.bd.slice(0, 16)}`;
+      const isDupe =
+        (opts.excludedImportKeys?.has(rowKey) ?? false) ||
+        opts.existingLegs.some(
+          l => l.bd.slice(0, 16) === row.bd.slice(0, 16) && l.ho === row.ho && l.mk === row.mk
+        );
       if (isDupe) { dupes++; return; }
 
       if (row.flags.length) anomalies++;

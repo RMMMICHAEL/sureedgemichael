@@ -12,6 +12,7 @@ const RESULT_STYLES: Record<ResultType, { bg: string; color: string; border: str
   'Meio Green': { bg: 'rgba(255,214,0,.08)',   color: '#FFD600', border: 'rgba(255,214,0,.15)' },
   'Meio Red':   { bg: 'rgba(255,143,61,.08)',  color: '#FF8F3D', border: 'rgba(255,143,61,.15)' },
   Devolvido:    { bg: 'rgba(77,166,255,.08)',   color: '#4DA6FF', border: 'rgba(77,166,255,.15)' },
+  Cashout:      { bg: 'rgba(255,191,0,.08)',   color: '#FFBF00', border: 'rgba(255,191,0,.15)' },
   Pendente:     { bg: 'rgba(122,174,138,.06)', color: 'var(--t3)', border: 'rgba(122,174,138,.10)' },
 };
 

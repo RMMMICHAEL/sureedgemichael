@@ -15,6 +15,7 @@ import { GastosPage }      from '@/components/gastos/GastosPage';
 import { ContasPage }      from '@/components/contas/ContasPage';
 import { AnalisePage }     from '@/components/analise/AnalisePage';
 import { AdminPage }       from '@/components/admin/AdminPage';
+import { PerfilPage }      from '@/components/perfil/PerfilPage';
 import { syncFromSheet }   from '@/lib/import/sheetsSync';
 import { commitRows }      from '@/lib/import/importEngine';
 
@@ -24,16 +25,19 @@ export function AppShell() {
   const onboardingDone = useStore(s => s.onboarding_done);
   const importBuffer   = useStore(s => s.importBuffer);
   const sheetSync      = useStore(s => s.sheetSync);
-  const legs           = useStore(s => s.legs);
-  const commitImport   = useStore(s => s.commitImport);
-  const setSyncing     = useStore(s => s.setSyncing);
-  const toastFn        = useStore(s => s.toast);
+  const legs                = useStore(s => s.legs);
+  const excludedImportKeys  = useStore(s => s.excludedImportKeys);
+  const commitImport        = useStore(s => s.commitImport);
+  const setSyncing          = useStore(s => s.setSyncing);
+  const toastFn             = useStore(s => s.toast);
 
   const [mobileOpen, setMobileOpen] = useState(false);
 
   // ── Auto-refresh: sync on mount + every 60 s ────────────────────────────────
   const legsRef = useRef(legs);
+  const excludedKeysRef = useRef(excludedImportKeys);
   useEffect(() => { legsRef.current = legs; }, [legs]);
+  useEffect(() => { excludedKeysRef.current = excludedImportKeys; }, [excludedImportKeys]);
 
   useEffect(() => {
     // Do NOT auto-sync during onboarding: the first full-history import is
@@ -51,10 +55,20 @@ export function AppShell() {
       const needsFullHistory = !sheetSync.historyImported;
 
       try {
-        const result    = await syncFromSheet(sheetSync, { currentMonthOnly: !needsFullHistory });
+        if (needsFullHistory) {
+          toastFn('Baixando histórico completo da planilha…', 'info');
+        }
+
+        const result = await syncFromSheet(sheetSync, { currentMonthOnly: !needsFullHistory });
+
+        if (needsFullHistory && result.rows.length > 0) {
+          toastFn(`Processando ${result.rows.length} linhas…`, 'info');
+        }
+
         const committed = commitRows(result.rows, {
-          includeAll:   needsFullHistory, // include anomalies on full history import
-          existingLegs: legsRef.current,
+          includeAll:          needsFullHistory,
+          existingLegs:        legsRef.current,
+          excludedImportKeys:  new Set(excludedKeysRef.current ?? []),
         });
         if (committed.imported > 0) {
           commitImport(committed);
@@ -64,6 +78,8 @@ export function AppShell() {
               : `Sincronizado — ${committed.imported} nova(s) operação(ões)`,
             'ok',
           );
+        } else if (needsFullHistory) {
+          toastFn('Histórico sincronizado — sem novas entradas', 'ok');
         }
         // Mark history as imported so future syncs use currentMonthOnly
         if (needsFullHistory) {
@@ -102,6 +118,7 @@ export function AppShell() {
           {view === 'contas'  && <ContasPage />}
           {view === 'analise' && <AnalisePage />}
           {view === 'admin'   && <AdminPage />}
+          {view === 'perfil'  && <PerfilPage />}
         </main>
       </div>
 

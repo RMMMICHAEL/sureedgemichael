@@ -8,6 +8,7 @@ export type ResultType =
   | 'Meio Green'
   | 'Meio Red'
   | 'Devolvido'
+  | 'Cashout'
   | 'Pendente';
 
 export type SignalType = 'live' | 'pre';
@@ -41,6 +42,7 @@ export interface Leg {
   signal?: SignalType;
   opType?: OpType;          // operation type (default: 'surebet')
   manualProfit?: number;    // for delay/duplo_green/outros — overrides calculated profit
+  cashoutValue?: number;    // when result = 'Cashout', the amount received (replaces normal profit calc)
   /**
    * 'import' = dado histórico importado da planilha → NÃO afeta saldo das casas.
    * 'manual' ou undefined = operação registrada manualmente → afeta saldo.
@@ -216,6 +218,21 @@ export interface AppDB {
   onboarding_done: boolean;
   onboarding_step: OnboardingStep;
   sheetSync?: SheetSync;
+  profile?: UserProfile;
+  /**
+   * Set of "ho|mk|bd.slice(0,16)" keys for import rows manually
+   * edited/overridden. commitRows() skips these on re-import.
+   */
+  excludedImportKeys?: string[];
+}
+
+// ── User profile ─────────────────────────────────────────
+export interface UserProfile {
+  name: string;
+  email: string;
+  phone: string;
+  avatarDataUrl?: string;   // base64 data URL of profile photo
+  role?: string;            // e.g. "Apostador", "Gerente"
 }
 
 // ── View / navigation ────────────────────────────────────
@@ -227,4 +244,5 @@ export type ViewId =
   | 'gastos'
   | 'contas'
   | 'analise'
-  | 'admin';
+  | 'admin'
+  | 'perfil';

@@ -11,7 +11,7 @@ import { create } from 'zustand';
 import type {
   AppDB, Bookmaker, Bank, Leg, ImportLog, OnboardingStep, ViewId,
   Expense, PartnerAccount, AccountTransaction, SheetSync,
-  Client, PurchasedAccount,
+  Client, PurchasedAccount, UserProfile,
 } from '@/types';
 import { loadDB, persistDB } from '@/lib/storage/db';
 import { recalcBookmakers, normHouse, bmColor, bmAbbr } from '@/lib/finance/reconciler';
@@ -77,6 +77,10 @@ interface StoreState extends AppDB {
   // Actions — Sheet sync
   setSheetSync:  (cfg: SheetSync) => void;
   setSyncing:    (v: boolean) => void;
+  addExcludedImportKeys: (keys: string[]) => void;
+
+  // Actions — User profile
+  updateProfile: (patch: Partial<UserProfile>) => void;
 
   // Actions — Onboarding
   completeOnboardingStep: (step: OnboardingStep) => void;
@@ -107,19 +111,20 @@ let toastSeq = 0;
 
 export const useStore = create<StoreState>()((set, get) => ({
   // Initial state — will be overwritten by init()
-  legs:             [],
-  bms:              [],
-  banks:            [],
-  expenses:         [],
-  partnerAccounts:  [],
-  clients:          [],
-  targetHouses:     [],
-  import_log:       [],
-  onboarding_done:  false,
-  onboarding_step:  'bookmakers',
-  sheetSync:        undefined,
-  totalCash:        0,
-  initialized:      false,
+  legs:                [],
+  bms:                 [],
+  banks:               [],
+  expenses:            [],
+  partnerAccounts:     [],
+  clients:             [],
+  targetHouses:        [],
+  import_log:          [],
+  onboarding_done:     false,
+  onboarding_step:     'bookmakers',
+  sheetSync:           undefined,
+  excludedImportKeys:  [],
+  totalCash:           0,
+  initialized:         false,
   view:             'dash',
   dateFrom:         null,
   dateTo:           null,
@@ -144,7 +149,8 @@ export const useStore = create<StoreState>()((set, get) => ({
     const targetHouses    = (db as AppDB).targetHouses    ?? [];
     const sheetSync       = (db as AppDB).sheetSync;
 
-    const migrated = { ...db, legs, expenses, partnerAccounts, clients, targetHouses, sheetSync };
+    const excludedImportKeys = (db as AppDB).excludedImportKeys ?? [];
+    const migrated = { ...db, legs, expenses, partnerAccounts, clients, targetHouses, sheetSync, excludedImportKeys };
     const { bms, totalCash } = recalc(migrated);
     set({ ...migrated, bms, totalCash, initialized: true });
   },
@@ -465,6 +471,25 @@ export const useStore = create<StoreState>()((set, get) => ({
 
   setSyncing(v) {
     set({ isSyncing: v });
+  },
+
+  addExcludedImportKeys(keys) {
+    set(s => {
+      const existing = new Set(s.excludedImportKeys ?? []);
+      keys.forEach(k => existing.add(k));
+      const excludedImportKeys = Array.from(existing);
+      persistDB({ ...s, excludedImportKeys });
+      return { excludedImportKeys };
+    });
+  },
+
+  // ── profile ──────────────────────────────────────────────────────────────
+  updateProfile(patch) {
+    set(s => {
+      const profile = { ...(s.profile ?? { name: '', email: '', phone: '' }), ...patch };
+      persistDB({ ...s, profile });
+      return { profile };
+    });
   },
 
   // ── onboarding ───────────────────────────────────────────────────────────

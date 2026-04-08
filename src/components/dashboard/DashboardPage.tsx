@@ -6,12 +6,17 @@ import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
   BarChart, Bar, Cell,
 } from 'recharts';
-import { calcLegProfit, groupLegsIntoOps } from '@/lib/finance/calculator';
+import {
+  calcLegProfit, groupLegsIntoOps, filterByDate,
+  calcWeeklyProfit, calcBySport,
+} from '@/lib/finance/calculator';
+import { DailyProfitChart, WeeklyProfitChart, SportDistributionChart } from '@/components/dashboard/Charts';
 import { todayStr, currentMonth } from '@/lib/parsers/dateParser';
 import type { Leg, OpType, Expense } from '@/types';
+import type { DayStat, SportStat } from '@/lib/finance/calculator';
 import {
   TrendingUp, TrendingDown, Calendar, DollarSign,
-  Zap, BarChart3, Eye, EyeOff, Receipt,
+  Zap, BarChart3, Eye, EyeOff, Receipt, Activity,
 } from 'lucide-react';
 
 const EXPENSE_COLORS: Record<string, string> = {
@@ -716,6 +721,23 @@ function ExpensesChart({ expenses, from, to }: { expenses: Expense[]; from: stri
   );
 }
 
+/* ── Chart section period presets ───────────────────────────────────────────── */
+
+type ChartPeriodKey = '30d' | '60d' | '90d' | 'custom';
+
+const CHART_PERIODS: { key: ChartPeriodKey; label: string; days: number }[] = [
+  { key: '30d', label: '30 dias', days: 30 },
+  { key: '60d', label: '60 dias', days: 60 },
+  { key: '90d', label: '90 dias', days: 90 },
+  { key: 'custom', label: 'Período', days: 0 },
+];
+
+function subDays(iso: string, n: number): string {
+  const d = new Date(iso + 'T12:00:00');
+  d.setDate(d.getDate() - n);
+  return d.toISOString().slice(0, 10);
+}
+
 /* ── Main ──────────────────────────────────────────────────────────────────── */
 
 export function DashboardPage() {
@@ -731,7 +753,6 @@ export function DashboardPage() {
 
   const settled = legs.filter(l => l.re !== 'Pendente' && l.re !== 'Devolvido');
 
-  // Helper: sum expenses in date range
   function expSum(from: string, to: string) {
     return +expenses.filter(e => e.date >= from && e.date <= to).reduce((s, e) => s + e.amount, 0).toFixed(2);
   }
@@ -745,7 +766,7 @@ export function DashboardPage() {
 
   const monthName = new Date().toLocaleString('pt-BR', { month: 'long' });
 
-  // Period filter for ProfitByType
+  // Period filter for ProfitByType + DailyChart
   const [period, setPeriod] = useState<PeriodKey>('mes');
   const [customFrom, setCustomFrom] = useState(mStart);
   const [customTo,   setCustomTo]   = useState(today);
@@ -764,15 +785,65 @@ export function DashboardPage() {
 
   const monthLegs = legs.filter(l => l.bd.slice(0, 10) >= mStart);
 
-  // Compute the actual from/to for the selected period
   const activePeriodFrom = period === 'hoje' ? today
     : period === 'semana' ? weekStart
     : period === 'mes' ? mStart
     : customFrom;
   const activePeriodTo = period === 'personalizado' ? customTo : today;
 
+  // ── Chart section period (last 30/60/90 days or custom) ──────────────────
+  const [chartPeriod,   setChartPeriod]   = useState<ChartPeriodKey>('30d');
+  const [chartCustomFrom, setChartCustomFrom] = useState(subDays(today, 29));
+  const [chartCustomTo,   setChartCustomTo]   = useState(today);
+
+  const chartFrom = chartPeriod === 'custom'
+    ? chartCustomFrom
+    : subDays(today, CHART_PERIODS.find(p => p.key === chartPeriod)!.days - 1);
+  const chartTo = chartPeriod === 'custom' ? chartCustomTo : today;
+
+  const chartLegs = useMemo(
+    () => filterByDate(legs, chartFrom, chartTo),
+    [legs, chartFrom, chartTo],
+  );
+
+  // Build DayStat[] from chartLegs over the selected date range
+  const dailyData = useMemo<DayStat[]>(() => {
+    const byDay: Record<string, { profit: number; ops: number }> = {};
+    chartLegs.forEach(l => {
+      const d = l.bd.slice(0, 10);
+      if (!byDay[d]) byDay[d] = { profit: 0, ops: 0 };
+      byDay[d].profit += calcLegProfit(l);
+    });
+    // count ops per day
+    groupLegsIntoOps(chartLegs).forEach(op => {
+      const d = op.bet_date.slice(0, 10);
+      if (byDay[d]) byDay[d].ops++;
+    });
+
+    const result: DayStat[] = [];
+    const cursor = new Date(chartFrom + 'T12:00:00');
+    const end    = new Date(chartTo   + 'T12:00:00');
+    while (cursor <= end) {
+      const date = cursor.toISOString().slice(0, 10);
+      const mm = date.slice(5, 7), dd = date.slice(8, 10);
+      const entry = byDay[date];
+      result.push({
+        dayLabel: `${dd}/${mm}`,
+        date,
+        profit: entry ? +entry.profit.toFixed(2) : 0,
+        ops:    entry?.ops ?? 0,
+      });
+      cursor.setDate(cursor.getDate() + 1);
+    }
+    return result;
+  }, [chartLegs, chartFrom, chartTo]);
+
+  const weeklyData  = useMemo(() => calcWeeklyProfit(chartLegs, 4),  [chartLegs]);
+  const sportDist   = useMemo<SportStat[]>(() => calcBySport(chartLegs),     [chartLegs]);
+
   return (
     <div className="flex flex-col gap-5 animate-fade-in">
+
       {/* KPI Bar */}
       <KPIBar stats={[
         {
@@ -824,6 +895,85 @@ export function DashboardPage() {
           <DailyChart legs={filteredLegs} from={activePeriodFrom} to={activePeriodTo} period={period} />
         </div>
         <TopHousesCard legs={filteredLegs} />
+      </div>
+
+      {/* ── Tendência & Distribuição ─────────────────────────────────────── */}
+      <div style={{
+        background: 'var(--bg2)',
+        border: '1px solid var(--b)',
+        borderRadius: 20,
+        padding: '18px 20px 20px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 16,
+      }}>
+        {/* Header with period selector */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{
+              width: 30, height: 30, borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: 'linear-gradient(135deg, rgba(99,102,241,.25), rgba(99,102,241,.08))',
+              border: '1px solid rgba(99,102,241,.2)',
+            }}>
+              <Activity size={14} style={{ color: '#818cf8' }} />
+            </span>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#f1f5f9' }}>Tendência &amp; Distribuição</div>
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,.3)', marginTop: 1 }}>
+                {chartFrom} → {chartTo} · {chartLegs.length} apostas
+              </div>
+            </div>
+          </div>
+
+          {/* Period pills */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: 2, padding: '3px', borderRadius: 10, background: 'rgba(255,255,255,.05)' }}>
+              {CHART_PERIODS.slice(0, 3).map(p => (
+                <button
+                  key={p.key}
+                  onClick={() => setChartPeriod(p.key)}
+                  style={{
+                    padding: '5px 14px', borderRadius: 7, fontSize: 11, fontWeight: 700,
+                    cursor: 'pointer', border: 'none', transition: 'all .15s',
+                    ...(chartPeriod === p.key
+                      ? { background: 'rgba(129,140,248,.2)', color: '#818cf8', boxShadow: '0 0 0 1px rgba(129,140,248,.3)' }
+                      : { background: 'transparent', color: 'rgba(255,255,255,.35)' }),
+                  }}
+                >
+                  {p.label}
+                </button>
+              ))}
+              <button
+                onClick={() => setChartPeriod('custom')}
+                style={{
+                  padding: '5px 14px', borderRadius: 7, fontSize: 11, fontWeight: 700,
+                  cursor: 'pointer', border: 'none', transition: 'all .15s',
+                  ...(chartPeriod === 'custom'
+                    ? { background: 'rgba(129,140,248,.2)', color: '#818cf8', boxShadow: '0 0 0 1px rgba(129,140,248,.3)' }
+                    : { background: 'transparent', color: 'rgba(255,255,255,.35)' }),
+                }}
+              >
+                Período
+              </button>
+            </div>
+            {chartPeriod === 'custom' && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <input type="date" value={chartCustomFrom} onChange={e => setChartCustomFrom(e.target.value)}
+                  style={{ padding: '5px 8px', borderRadius: 8, fontSize: 11, fontFamily: "'JetBrains Mono',monospace", background: 'rgba(255,255,255,.06)', border: '1px solid rgba(255,255,255,.1)', color: '#f1f5f9', outline: 'none' }} />
+                <span style={{ color: 'rgba(255,255,255,.3)', fontSize: 11 }}>→</span>
+                <input type="date" value={chartCustomTo} onChange={e => setChartCustomTo(e.target.value)}
+                  style={{ padding: '5px 8px', borderRadius: 8, fontSize: 11, fontFamily: "'JetBrains Mono',monospace", background: 'rgba(255,255,255,.06)', border: '1px solid rgba(255,255,255,.1)', color: '#f1f5f9', outline: 'none' }} />
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Charts grid */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 14 }}>
+          <DailyProfitChart  data={dailyData}  />
+          <WeeklyProfitChart data={weeklyData} />
+        </div>
+        <SportDistributionChart data={sportDist} />
       </div>
 
       {/* Monthly comparison chart */}

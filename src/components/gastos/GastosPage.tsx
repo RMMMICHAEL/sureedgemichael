@@ -162,14 +162,40 @@ export function GastosPage() {
   const [editing,    setEditing]    = useState<Expense | undefined>(undefined);
   const [filterMonth, setFilterMonth] = useState(currentMonth());
 
-  const filtered = useMemo(() =>
-    expenses
-      .filter(e => !filterMonth || e.date.slice(0, 7) === filterMonth)
-      .sort((a, b) => b.date.localeCompare(a.date)),
-    [expenses, filterMonth]
-  );
+  // Recurring expenses appear in every month from their acquisition date onward.
+  // We tag each item with `isPrevisto: true` if it's a recurring expense being
+  // projected into the filter month (i.e. the filter month ≠ its own date's month).
+  const filtered = useMemo(() => {
+    if (!filterMonth) {
+      return expenses
+        .map(e => ({ ...e, isPrevisto: false }))
+        .sort((a, b) => b.date.localeCompare(a.date));
+    }
 
-  const totalMonth = filtered.reduce((s, e) => s + e.amount, 0);
+    const result: (Expense & { isPrevisto: boolean })[] = [];
+
+    expenses.forEach(e => {
+      const expMonth = e.date.slice(0, 7);
+      if (expMonth === filterMonth) {
+        // Expense is in the exact filter month — show it normally
+        result.push({ ...e, isPrevisto: false });
+      } else if (e.recurring && expMonth <= filterMonth) {
+        // Recurring expense from a prior month — project it as "previsto"
+        result.push({ ...e, isPrevisto: true });
+      }
+    });
+
+    return result.sort((a, b) => {
+      // Confirmed first, previsto second; within each group sort by date desc
+      if (a.isPrevisto !== b.isPrevisto) return a.isPrevisto ? 1 : -1;
+      return b.date.localeCompare(a.date);
+    });
+  }, [expenses, filterMonth]);
+
+  // Total includes confirmed entries; previsto shown separately
+  const totalConfirmed = filtered.filter(e => !e.isPrevisto).reduce((s, e) => s + e.amount, 0);
+  const totalPrevisto  = filtered.filter(e =>  e.isPrevisto).reduce((s, e) => s + e.amount, 0);
+  const totalMonth     = totalConfirmed + totalPrevisto;
 
   // By category for pie chart
   const byCategory = useMemo(() => {
@@ -216,8 +242,16 @@ export function GastosPage() {
           className="px-3 py-1.5 rounded-lg text-sm font-mono"
           style={{ background: 'var(--sur)', border: '1px solid var(--b2)', color: 'var(--t)' }}
         />
-        <div className="ml-auto text-sm font-bold" style={{ color: 'var(--r)' }}>
-          Total: − {fmtBRL(totalMonth)}
+        <div className="ml-auto flex items-center gap-3 flex-wrap">
+          {totalPrevisto > 0 && (
+            <span className="text-xs font-bold font-mono px-2 py-1 rounded-lg"
+              style={{ background: 'rgba(255,191,0,.08)', color: '#FFBF00', border: '1px solid rgba(255,191,0,.2)' }}>
+              Previsto: − {fmtBRL(totalPrevisto)}
+            </span>
+          )}
+          <span className="text-sm font-bold" style={{ color: 'var(--r)' }}>
+            Total: − {fmtBRL(totalMonth)}
+          </span>
         </div>
       </div>
 
@@ -236,9 +270,13 @@ export function GastosPage() {
           <div className="lg:col-span-2 flex flex-col gap-2">
             {filtered.map(e => (
               <div
-                key={e.id}
+                key={e.isPrevisto ? `prev_${e.id}` : e.id}
                 className="flex items-center gap-3 px-4 py-3 rounded-xl"
-                style={{ background: 'var(--bg2)', border: '1px solid var(--b)' }}
+                style={{
+                  background: e.isPrevisto ? 'rgba(255,191,0,.04)' : 'var(--bg2)',
+                  border:     e.isPrevisto ? '1px solid rgba(255,191,0,.2)' : '1px solid var(--b)',
+                  opacity:    e.isPrevisto ? 0.85 : 1,
+                }}
               >
                 <div
                   className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
@@ -250,7 +288,15 @@ export function GastosPage() {
                   <Receipt size={14} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium truncate" style={{ color: 'var(--t)' }}>{e.description}</div>
+                  <div className="flex items-center gap-2">
+                    <div className="text-sm font-medium truncate" style={{ color: 'var(--t)' }}>{e.description}</div>
+                    {e.isPrevisto && (
+                      <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-bold shrink-0"
+                        style={{ background: 'rgba(255,191,0,.15)', color: '#FFBF00', border: '1px solid rgba(255,191,0,.3)' }}>
+                        ⏳ Previsto
+                      </span>
+                    )}
+                  </div>
                   <div className="flex items-center gap-2 mt-0.5">
                     <span
                       className="text-xs px-1.5 py-0.5 rounded font-medium"
@@ -267,36 +313,50 @@ export function GastosPage() {
                         <RefreshCw size={9} /> Recorrente
                       </span>
                     )}
-                    <span className="text-xs font-mono" style={{ color: 'var(--t3)' }}>{fmtDate(e.date)}</span>
+                    <span className="text-xs font-mono" style={{ color: 'var(--t3)' }}>
+                      {e.isPrevisto ? `desde ${fmtDate(e.date)}` : fmtDate(e.date)}
+                    </span>
                     {e.notes && <span className="text-xs truncate" style={{ color: 'var(--t3)' }}>{e.notes}</span>}
                   </div>
                 </div>
-                <div className="text-sm font-bold font-mono flex-shrink-0" style={{ color: 'var(--r)' }}>
+                <div className="text-sm font-bold font-mono flex-shrink-0" style={{ color: e.isPrevisto ? '#FFBF00' : 'var(--r)' }}>
                   − {fmtBRL(e.amount)}
                 </div>
-                <div className="flex gap-1">
+                {!e.isPrevisto && (
+                  <div className="flex gap-1">
+                    <button
+                      onClick={() => { setEditing(e); setShowForm(true); }}
+                      className="w-7 h-7 rounded-lg flex items-center justify-center text-xs"
+                      style={{ color: 'var(--t3)' }}
+                      onMouseEnter={el => { (el.currentTarget as HTMLElement).style.background = 'var(--sur)'; }}
+                      onMouseLeave={el => { (el.currentTarget as HTMLElement).style.background = ''; }}
+                    >
+                      ✏️
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (confirm('Remover este gasto?')) {
+                          deleteExpense(e.id);
+                          toast('Gasto removido', 'ok');
+                        }
+                      }}
+                      className="w-7 h-7 rounded-lg flex items-center justify-center"
+                      style={{ color: 'var(--r)', background: 'var(--rd)' }}
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                )}
+                {e.isPrevisto && (
                   <button
                     onClick={() => { setEditing(e); setShowForm(true); }}
-                    className="w-7 h-7 rounded-lg flex items-center justify-center text-xs"
-                    style={{ color: 'var(--t3)' }}
-                    onMouseEnter={el => { (el.currentTarget as HTMLElement).style.background = 'var(--sur)'; }}
-                    onMouseLeave={el => { (el.currentTarget as HTMLElement).style.background = ''; }}
+                    className="flex items-center gap-1 text-xs px-2 py-1.5 rounded-lg font-bold shrink-0"
+                    style={{ background: 'rgba(255,191,0,.1)', color: '#FFBF00', border: '1px solid rgba(255,191,0,.2)' }}
+                    title="Editar gasto recorrente"
                   >
-                    ✏️
+                    ✏️ Editar
                   </button>
-                  <button
-                    onClick={() => {
-                      if (confirm('Remover este gasto?')) {
-                        deleteExpense(e.id);
-                        toast('Gasto removido', 'ok');
-                      }
-                    }}
-                    className="w-7 h-7 rounded-lg flex items-center justify-center"
-                    style={{ color: 'var(--r)', background: 'var(--rd)' }}
-                  >
-                    <Trash2 size={12} />
-                  </button>
-                </div>
+                )}
               </div>
             ))}
           </div>

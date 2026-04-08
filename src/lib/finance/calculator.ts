@@ -7,7 +7,7 @@ import type { Leg, Operation, ResultType, SignalType } from '@/types';
 
 // ── Leg profit ───────────────────────────────────────────────────────────────
 
-export function calcLegProfit(leg: Pick<Leg, 'st' | 'od' | 're' | 'manualProfit'>): number {
+export function calcLegProfit(leg: Pick<Leg, 'st' | 'od' | 're' | 'manualProfit' | 'cashoutValue'>): number {
   if (leg.manualProfit !== undefined) return +leg.manualProfit.toFixed(2);
   const st = +(leg.st) || 0;
   const od = +(leg.od) || 0;
@@ -17,6 +17,10 @@ export function calcLegProfit(leg: Pick<Leg, 'st' | 'od' | 're' | 'manualProfit'
     case 'Red':        return -st;
     case 'Meio Red':   return +(-st * 0.5).toFixed(2);
     case 'Devolvido':  return 0;
+    // Cashout: profit = cashoutValue received − stake invested
+    case 'Cashout':    return leg.cashoutValue !== undefined
+                         ? +(leg.cashoutValue - st).toFixed(2)
+                         : 0;
     default:           return 0;  // Pendente
   }
 }
@@ -229,6 +233,116 @@ export function calcByHour(legs: Leg[]): HourStat[] {
   return Object.values(map)
     .map(h => ({ ...h, profit: +h.profit.toFixed(2) }))
     .sort((a, b) => a.hour.localeCompare(b.hour));
+}
+
+// ── Weekly profit (last N weeks) ─────────────────────────────────────────────
+
+export interface WeekStat {
+  weekLabel: string;   // "Sem 1", "Sem 2", ...
+  dateFrom:  string;   // "YYYY-MM-DD" (Monday)
+  dateTo:    string;   // "YYYY-MM-DD" (Sunday)
+  profit:    number;
+  ops:       number;
+  roi:       number;
+}
+
+export function calcWeeklyProfit(legs: Leg[], nWeeks = 8): WeekStat[] {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const dow = today.getDay();
+  // current Monday
+  const thisMon = new Date(today);
+  thisMon.setDate(today.getDate() - (dow === 0 ? 6 : dow - 1));
+
+  return Array.from({ length: nWeeks }, (_, i) => {
+    const weekIndex = nWeeks - 1 - i;
+    const from = new Date(thisMon);
+    from.setDate(thisMon.getDate() - weekIndex * 7);
+    const to = new Date(from);
+    to.setDate(from.getDate() + 6);
+
+    const dateFrom = from.toISOString().slice(0, 10);
+    const dateTo   = to.toISOString().slice(0, 10);
+
+    const wLegs = legs.filter(l => {
+      const d = (l.bd || '').slice(0, 10);
+      return d >= dateFrom && d <= dateTo;
+    });
+
+    const profit = +wLegs.reduce((s, l) => s + calcLegProfit(l), 0).toFixed(2);
+    const ops    = groupLegsIntoOps(wLegs).length;
+    const stake  = wLegs
+      .filter(l => l.re !== 'Pendente' && l.re !== 'Devolvido')
+      .reduce((s, l) => s + l.st, 0);
+    const roi = stake > 0 ? +(profit / stake * 100).toFixed(2) : 0;
+
+    const weekLabel = weekIndex === 0
+      ? 'Esta sem.'
+      : weekIndex === 1
+        ? 'Sem. passada'
+        : `-${weekIndex}sem`;
+
+    return { weekLabel, dateFrom, dateTo, profit, ops, roi };
+  });
+}
+
+// ── Daily profit (last N days) ────────────────────────────────────────────────
+
+export interface DayStat {
+  dayLabel: string;   // "DD/MM"
+  date:     string;   // "YYYY-MM-DD"
+  profit:   number;
+  ops:      number;
+}
+
+export function calcDailyProfit(legs: Leg[], nDays = 30): DayStat[] {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  return Array.from({ length: nDays }, (_, i) => {
+    const dt = new Date(today);
+    dt.setDate(today.getDate() - (nDays - 1 - i));
+    const date = dt.toISOString().slice(0, 10);
+    const mm = date.slice(5, 7);
+    const dd = date.slice(8, 10);
+
+    const dLegs = legs.filter(l => (l.bd || '').slice(0, 10) === date);
+    const profit = +dLegs.reduce((s, l) => s + calcLegProfit(l), 0).toFixed(2);
+    const ops    = groupLegsIntoOps(dLegs).length;
+
+    return { dayLabel: `${dd}/${mm}`, date, profit, ops };
+  });
+}
+
+// ── Result distribution ───────────────────────────────────────────────────────
+
+export interface ResultDist {
+  result: string;
+  count:  number;
+  profit: number;
+  color:  string;
+}
+
+export function calcResultDistribution(legs: Leg[]): ResultDist[] {
+  const RESULTS: { key: ResultType | 'Pendente'; color: string }[] = [
+    { key: 'Green',       color: '#22c55e' },
+    { key: 'Meio Green',  color: '#86efac' },
+    { key: 'Red',         color: '#ef4444' },
+    { key: 'Meio Red',    color: '#fca5a5' },
+    { key: 'Cashout',     color: '#f59e0b' },
+    { key: 'Devolvido',   color: '#6b7280' },
+    { key: 'Pendente',    color: '#3b82f6' },
+  ];
+
+  return RESULTS.map(({ key, color }) => {
+    const subset = legs.filter(l => l.re === key);
+    return {
+      result: key,
+      count:  subset.length,
+      profit: +subset.reduce((s, l) => s + calcLegProfit(l), 0).toFixed(2),
+      color,
+    };
+  }).filter(r => r.count > 0);
 }
 
 // ── By house ─────────────────────────────────────────────────────────────────

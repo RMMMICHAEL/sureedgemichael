@@ -8,7 +8,7 @@ import { groupLegsIntoOps, calcLegProfit } from '@/lib/finance/calculator';
 import { currentMonth } from '@/lib/parsers/dateParser';
 import {
   Trash2, Plus, AlertTriangle, Zap, Clock, ChevronDown,
-  Pencil, Check, X, Copy, Shuffle,
+  Pencil, Check, X, Copy, Shuffle, DollarSign,
 } from 'lucide-react';
 import type { Leg, ResultType, OpType } from '@/types';
 import { houseFavicon } from '@/lib/bookmakers/logos';
@@ -43,7 +43,7 @@ const SPORTS = [
   'Taekwondo','Tênis de Mesa','Tiro com Arco','Triatlo','UFC','Xadrez','Outros',
 ];
 
-const RESULTS: ResultType[] = ['Pendente','Green','Red','Meio Green','Meio Red','Devolvido'];
+const RESULTS: ResultType[] = ['Pendente','Green','Red','Meio Green','Meio Red','Devolvido','Cashout'];
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 
@@ -76,13 +76,14 @@ const HOUSE_BRAND: Record<string, { color: string; bg: string; border: string }>
   'Betboom':      { color: '#60A5FA', bg: 'rgba(96,165,250,.14)',   border: 'rgba(96,165,250,.28)' },
 };
 
-const STATUS_CFG: Record<string, { color: string; bg: string; border: string }> = {
-  'Green':      { color: '#00FF88', bg: 'rgba(0,255,136,.08)',    border: 'rgba(0,255,136,.18)' },
-  'Red':        { color: '#FF4D4D', bg: 'rgba(255,77,77,.08)',    border: 'rgba(255,77,77,.18)' },
-  'Meio Green': { color: '#FFD600', bg: 'rgba(255,214,0,.08)',    border: 'rgba(255,214,0,.18)' },
-  'Meio Red':   { color: '#FF8F3D', bg: 'rgba(255,143,61,.08)',   border: 'rgba(255,143,61,.18)' },
-  'Devolvido':  { color: '#4DA6FF', bg: 'rgba(77,166,255,.08)',   border: 'rgba(77,166,255,.18)' },
-  'Pendente':   { color: 'var(--t3)', bg: 'rgba(0,255,136,.04)', border: 'rgba(0,255,136,.08)' },
+const STATUS_CFG: Record<string, { color: string; bg: string; border: string; icon: string }> = {
+  'Green':      { color: '#00FF88', bg: 'rgba(0,255,136,.12)',    border: 'rgba(0,255,136,.28)',   icon: '✅' },
+  'Red':        { color: '#FF4D4D', bg: 'rgba(255,77,77,.12)',    border: 'rgba(255,77,77,.28)',   icon: '❌' },
+  'Meio Green': { color: '#FFD600', bg: 'rgba(255,214,0,.12)',    border: 'rgba(255,214,0,.28)',   icon: '🟡' },
+  'Meio Red':   { color: '#FF8F3D', bg: 'rgba(255,143,61,.12)',   border: 'rgba(255,143,61,.28)',  icon: '🟠' },
+  'Devolvido':  { color: '#4DA6FF', bg: 'rgba(77,166,255,.12)',   border: 'rgba(77,166,255,.28)',  icon: '↩️' },
+  'Cashout':    { color: '#FFBF00', bg: 'rgba(255,191,0,.12)',    border: 'rgba(255,191,0,.28)',   icon: '💰' },
+  'Pendente':   { color: '#94A3B8', bg: 'rgba(148,163,184,.08)', border: 'rgba(148,163,184,.2)', icon: '⏳' },
 };
 
 const OP_TYPE_LABELS: Record<OpType, string> = {
@@ -169,33 +170,47 @@ function HouseBadge({ name }: { name: string }) {
   );
 }
 
-/** Status pill — read-only or editable select */
+/** Status pill — read-only badge or editable segmented button row */
 function StatusPill({
   value, onChange,
 }: { value: string; onChange?: (v: ResultType) => void }) {
   const s = sCfg(value);
+
   if (!onChange) {
+    // Read-only: compact coloured label
     return (
       <span
-        className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold whitespace-nowrap"
-        style={{ background: s.bg, color: s.color, border: `1px solid ${s.border}` }}
+        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold whitespace-nowrap"
+        style={{ background: s.bg, color: s.color, border: `1px solid ${s.border}`, fontFamily: "'JetBrains Mono', monospace" }}
       >
+        <span style={{ fontSize: 10 }}>{s.icon}</span>
         {value}
       </span>
     );
   }
+
+  // Editable: styled select dropdown with dynamic status colours
   return (
     <select
       value={value}
       onChange={e => onChange(e.target.value as ResultType)}
+      onClick={e => e.stopPropagation()}
       className="text-xs font-bold rounded-full cursor-pointer"
       style={{
-        height: 26, padding: '0 8px',
-        background: s.bg, color: s.color,
-        border: `1px solid ${s.border}`, outline: 'none',
+        height: 26,
+        padding: '0 8px',
+        background: s.bg,
+        color: s.color,
+        border: `1px solid ${s.border}`,
+        outline: 'none',
+        minWidth: 108,
       }}
     >
-      {RESULTS.map(r => <option key={r} value={r}>{r}</option>)}
+      {RESULTS.map(r => (
+        <option key={r} value={r} style={{ background: '#1a1d24', color: sCfg(r).color }}>
+          {sCfg(r).icon} {r}
+        </option>
+      ))}
     </select>
   );
 }
@@ -480,6 +495,111 @@ function AltOpModal({ onClose }: { onClose: () => void }) {
   );
 }
 
+// ── Cashout modal ──────────────────────────────────────────────────────────────
+
+/**
+ * CashoutModal: records a cashout on one specific leg of an operation.
+ * The user informs how much they received; profit = cashoutValue - stake.
+ */
+function CashoutModal({
+  leg,
+  onClose,
+}: {
+  leg: Leg;
+  onClose: () => void;
+}) {
+  const updateLeg = useStore(s => s.updateLeg);
+  const toastFn   = useStore(s => s.toast);
+  const [val, setVal] = useState('');
+
+  function confirm() {
+    const v = parseFloat(val.replace(',', '.'));
+    if (isNaN(v) || v < 0) { toastFn('Informe um valor válido', 'wrn'); return; }
+    updateLeg(leg.id, { re: 'Cashout', cashoutValue: v });
+    toastFn(`Cashout de R$ ${v.toFixed(2)} registrado`, 'ok');
+    onClose();
+  }
+
+  const profit = (() => {
+    const v = parseFloat(val.replace(',', '.'));
+    if (isNaN(v)) return null;
+    return +(v - leg.st).toFixed(2);
+  })();
+
+  return (
+    <Modal title="Registrar Cashout" onClose={onClose} size="sm">
+      <div className="flex flex-col gap-4">
+        {/* Info */}
+        <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl"
+          style={{ background: 'rgba(255,191,0,.07)', border: '1px solid rgba(255,191,0,.18)' }}>
+          <DollarSign size={16} style={{ color: '#FFBF00', flexShrink: 0 }} />
+          <div>
+            <div className="text-xs font-bold" style={{ color: '#FFBF00' }}>
+              {leg.ho || 'Casa'} · Stake: R$ {leg.st.toFixed(2)} · @{leg.od}
+            </div>
+            <div className="text-xs mt-0.5" style={{ color: '#9CA3AF' }}>
+              Informe o valor total recebido no cashout nesta casa.
+            </div>
+          </div>
+        </div>
+
+        <label className="flex flex-col gap-1.5">
+          <span className="text-xs font-bold uppercase" style={{ color: '#FFBF00' }}>
+            Valor do Cashout (R$)
+          </span>
+          <input
+            type="number"
+            step="0.01"
+            min="0"
+            value={val}
+            onChange={e => setVal(e.target.value)}
+            placeholder="Ex: 45.00"
+            className="font-mono"
+            style={{
+              height: 40, padding: '0 12px', borderRadius: 8,
+              background: 'var(--sur)', border: '1px solid rgba(255,191,0,.3)',
+              color: 'var(--t)', fontSize: 14, width: '100%', outline: 'none',
+            }}
+            autoFocus
+          />
+        </label>
+
+        {/* Live profit preview */}
+        {profit !== null && (
+          <div className="flex items-center justify-between px-3 py-2 rounded-lg"
+            style={{ background: profit >= 0 ? 'rgba(61,255,143,.08)' : 'rgba(255,69,69,.08)' }}>
+            <span className="text-xs font-bold" style={{ color: profit >= 0 ? '#3DFF8F' : '#FF4545' }}>
+              {profit >= 0 ? 'Lucro' : 'Prejuízo'}
+            </span>
+            <span className="text-sm font-black font-mono" style={{ color: profit >= 0 ? '#3DFF8F' : '#FF4545' }}>
+              {profit >= 0 ? '+' : ''} R$ {Math.abs(profit).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+            </span>
+          </div>
+        )}
+
+        <div className="flex justify-end gap-2 pt-2" style={{ borderTop: '1px solid rgba(255,255,255,.06)' }}>
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 rounded-lg text-sm font-bold transition-all"
+            style={{ background: 'rgba(255,255,255,.05)', color: '#9CA3AF', border: '1px solid rgba(255,255,255,.08)' }}
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={confirm}
+            className="px-4 py-2 rounded-lg text-sm font-bold transition-all"
+            style={{ background: 'rgba(255,191,0,.15)', color: '#FFBF00', border: '1px solid rgba(255,191,0,.3)' }}
+          >
+            💰 Confirmar Cashout
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 // ── Op card (view + inline edit) ──────────────────────────────────────────────
 
 type Op = ReturnType<typeof groupLegsIntoOps>[number];
@@ -499,15 +619,17 @@ function OpCard({
   onDeleteOp: (oid: string) => void;
   onChangeResult: (id: string, re: ResultType) => void;
 }) {
-  const addLeg    = useStore(s => s.addLeg);
-  const deleteLeg = useStore(s => s.deleteLeg);
-  const toastFn   = useStore(s => s.toast);
+  const addLeg                 = useStore(s => s.addLeg);
+  const deleteLeg              = useStore(s => s.deleteLeg);
+  const toastFn                = useStore(s => s.toast);
+  const addExcludedImportKeys  = useStore(s => s.addExcludedImportKeys);
 
   const [open, setOpen]           = useState(false);
   const [sp,   setSp]             = useState('');
   const [ev,   setEv]             = useState('');
   const [bd,   setBd]             = useState('');
   const [legDrafts, setLegDrafts] = useState<EditLegDraft[]>([]);
+  const [cashoutLeg, setCashoutLeg] = useState<Leg | null>(null);
 
   const opType     = (op.legs[0]?.opType ?? 'surebet') as OpType;
   const isAlt      = opType !== 'surebet';
@@ -542,6 +664,13 @@ function OpCard({
 
   function handleSave() {
     if (!ev.trim()) { toastFn('Preencha o evento', 'wrn'); return; }
+
+    // Before deleting, permanently exclude any import-sourced legs so the
+    // spreadsheet sync never re-imports the original row after this edit.
+    const importedKeys = op.legs
+      .filter(l => l.source === 'import')
+      .map(l => `${l.ho}|${l.mk}|${l.bd.slice(0, 16)}`);
+    if (importedKeys.length > 0) addExcludedImportKeys(importedKeys);
 
     const oid = op.id;
     op.legs.forEach(l => deleteLeg(l.id));
@@ -805,7 +934,7 @@ function OpCard({
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr style={{ background: 'rgba(255,255,255,.025)' }}>
-                    {['Data Evento','Casa','Mercado','Odd','Stake','%','Status'].map(h => (
+                    {['Data Evento','Casa','Mercado','Odd','Stake','%','Status',''].map(h => (
                       <th key={h} style={{
                         padding: '7px 12px', fontSize: 10, fontWeight: 700,
                         color: '#374151', letterSpacing: '.07em', textTransform: 'uppercase',
@@ -845,7 +974,21 @@ function OpCard({
                       </td>
                       <td style={{ padding: '9px 12px', borderBottom: '1px solid rgba(255,255,255,.04)', overflow: 'visible' }}>
                         <StatusPill value={leg.re}
-                          onChange={re => onChangeResult(leg.id, re)} />
+                          onChange={re => {
+                            if (re === 'Cashout') setCashoutLeg(leg);
+                            else onChangeResult(leg.id, re);
+                          }} />
+                      </td>
+                      <td style={{ padding: '9px 12px', borderBottom: '1px solid rgba(255,255,255,.04)', whiteSpace: 'nowrap' }}>
+                        {leg.re === 'Cashout' && leg.cashoutValue !== undefined && (
+                          <span
+                            className="inline-flex items-center gap-1 text-xs font-mono font-bold px-2 py-0.5 rounded-lg"
+                            style={{ background: 'rgba(255,191,0,.1)', color: '#FFBF00', border: '1px solid rgba(255,191,0,.2)' }}
+                          >
+                            <DollarSign size={10} />
+                            R$ {leg.cashoutValue.toFixed(2)}
+                          </span>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -857,9 +1000,24 @@ function OpCard({
             <div className="sm:hidden flex flex-col divide-y divide-white/5">
               {op.legs.map(leg => (
                 <div key={leg.id} className="p-3 flex flex-col gap-2">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-2">
                     <HouseBadge name={leg.ho} />
-                    <StatusPill value={leg.re} onChange={re => onChangeResult(leg.id, re)} />
+                    <div className="flex items-center gap-2">
+                      {leg.re === 'Pendente' && leg.st > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setCashoutLeg(leg)}
+                          className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg font-bold"
+                          style={{ background: 'rgba(255,191,0,.1)', color: '#FFBF00', border: '1px solid rgba(255,191,0,.2)' }}
+                        >
+                          <DollarSign size={10} /> Cashout
+                        </button>
+                      )}
+                      <StatusPill value={leg.re} onChange={re => {
+                        if (re === 'Cashout') setCashoutLeg(leg);
+                        else onChangeResult(leg.id, re);
+                      }} />
+                    </div>
                   </div>
                   <div className="text-xs" style={{ color: '#9CA3AF' }}>
                     {leg.mk || '—'}
@@ -883,6 +1041,14 @@ function OpCard({
             </div>
           </div>
         )
+      )}
+
+      {/* Cashout modal */}
+      {cashoutLeg && (
+        <CashoutModal
+          leg={cashoutLeg}
+          onClose={() => setCashoutLeg(null)}
+        />
       )}
     </div>
   );
@@ -920,10 +1086,21 @@ export function OperationsPage() {
     );
     const openOps   = groupLegsIntoOps(pendingLegs);
     const openStake = +pendingLegs.reduce((s, l) => s + (l.st || 0), 0).toFixed(2);
-    const estProfit = +pendingLegs.reduce((s, l) => {
-      if (l.manualProfit !== undefined) return s + l.manualProfit;
-      return s + (l.st || 0) * ((l.od || 1) - 1);
+
+    // Surebet estimated profit: for each operation, the guaranteed return is the
+    // minimum payout across all legs minus total stake of that operation.
+    // e.g. Op with Leg A (stake=100, odd=2.10) and Leg B (stake=105, odd=2.00):
+    //   If A wins: 100×2.10 = 210 → net = 210 − 205 = +5
+    //   If B wins: 105×2.00 = 210 → net = 210 − 205 = +5  ← guaranteed min
+    const estProfit = +openOps.reduce((total, op) => {
+      if (op.legs.length === 1 && op.legs[0].manualProfit !== undefined) {
+        return total + (op.legs[0].manualProfit ?? 0);
+      }
+      const opStake  = op.legs.reduce((s, l) => s + (l.st || 0), 0);
+      const minReturn = Math.min(...op.legs.map(l => (l.st || 0) * (l.od || 1)));
+      return total + (minReturn - opStake);
     }, 0).toFixed(2);
+
     return { count: openOps.length, stake: openStake, estProfit };
   }, [legs]);
 
