@@ -1,5 +1,8 @@
 'use client';
 
+// Prevent static prerendering — page requires Supabase env vars at runtime
+export const dynamic = 'force-dynamic';
+
 import { useState } from 'react';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
