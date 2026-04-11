@@ -12,20 +12,18 @@ interface ModalProps {
   size?:    'sm' | 'md' | 'lg' | 'xl';
 }
 
-const SIZE_CLASSES = {
-  sm: 'max-w-md',
-  md: 'max-w-lg',
-  lg: 'max-w-2xl',
-  xl: 'max-w-4xl',
+const SIZE_MAP = {
+  sm:  480,
+  md:  560,
+  lg:  680,
+  xl:  900,
 };
 
 export function Modal({ title, onClose, children, size = 'md' }: ModalProps) {
-  // Drive enter animation: false → hidden, true → visible
   const [show, setShow] = useState(false);
   const rafRef = useRef<number | null>(null);
 
   useEffect(() => {
-    // Single rAF to trigger CSS transition after mount
     rafRef.current = requestAnimationFrame(() => setShow(true));
 
     const handleKey = (e: KeyboardEvent) => {
@@ -33,7 +31,6 @@ export function Modal({ title, onClose, children, size = 'md' }: ModalProps) {
     };
     document.addEventListener('keydown', handleKey);
 
-    // Prevent body scroll while modal is open
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
 
@@ -45,64 +42,69 @@ export function Modal({ title, onClose, children, size = 'md' }: ModalProps) {
   }, [onClose]);
 
   const content = (
+    /* Backdrop — fixed, fills viewport, centres the panel */
     <div
-      className="fixed inset-0 z-[200] overflow-y-auto"
-      style={{
-        background: show ? 'rgba(0,0,0,0.55)' : 'rgba(0,0,0,0)',
-        transition: 'background 0.2s ease',
-      }}
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+      style={{
+        position:       'fixed',
+        inset:          0,
+        zIndex:         500,
+        display:        'flex',
+        alignItems:     'center',
+        justifyContent: 'center',
+        padding:        '16px',
+        overflowY:      'auto',
+        background:     show ? 'rgba(0,0,0,0.6)' : 'transparent',
+        transition:     'background 0.2s ease',
+      }}
     >
+      {/* Panel */}
       <div
-        className="flex min-h-full items-center justify-center p-4"
-        onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+        className={clsx('w-full flex flex-col rounded-2xl')}
+        style={{
+          maxWidth:   SIZE_MAP[size],
+          maxHeight:  'min(90dvh, 90vh)',
+          background: 'var(--bg3)',
+          border:     '1px solid var(--b2)',
+          boxShadow:  '0 24px 64px rgba(0,0,0,0.6), 0 0 0 1px rgba(63,255,33,0.05)',
+          opacity:    show ? 1 : 0,
+          transform:  show ? 'translateY(0) scale(1)' : 'translateY(20px) scale(0.96)',
+          transition: 'opacity 0.22s ease, transform 0.22s cubic-bezier(0.2,0.8,0.4,1)',
+          /* Keep panel out of click-through zone */
+          flexShrink: 0,
+        }}
+        onClick={e => e.stopPropagation()}
       >
+        {/* Header */}
         <div
-          className={clsx('w-full flex flex-col rounded-2xl', SIZE_CLASSES[size])}
-          style={{
-            background: 'var(--bg3)',
-            border:     '1px solid var(--b2)',
-            boxShadow:  '0 24px 64px rgba(0,0,0,0.5), 0 0 0 1px rgba(63,255,33,0.04)',
-            maxHeight:  'min(90dvh, 90vh)',
-            opacity:    show ? 1 : 0,
-            transform:  show ? 'translateY(0) scale(1)' : 'translateY(16px) scale(0.97)',
-            transition: 'opacity 0.22s ease, transform 0.22s cubic-bezier(0.2,0.8,0.4,1)',
-          }}
-          onClick={e => e.stopPropagation()}
+          className="flex items-center justify-between px-6 py-4 flex-shrink-0"
+          style={{ borderBottom: '1px solid var(--b)' }}
         >
-          {/* Header */}
-          <div
-            className="flex items-center justify-between px-6 py-4 flex-shrink-0"
-            style={{ borderBottom: '1px solid var(--b)' }}
+          <h2 className="text-sm font-bold" style={{ color: 'var(--t)' }}>{title}</h2>
+          <button
+            onClick={onClose}
+            className="w-7 h-7 rounded-lg flex items-center justify-center transition-all duration-150"
+            style={{ color: 'var(--t3)' }}
+            onMouseEnter={e => {
+              (e.currentTarget as HTMLElement).style.background = 'var(--sur)';
+              (e.currentTarget as HTMLElement).style.color      = 'var(--t2)';
+            }}
+            onMouseLeave={e => {
+              (e.currentTarget as HTMLElement).style.background = '';
+              (e.currentTarget as HTMLElement).style.color      = 'var(--t3)';
+            }}
           >
-            <h2 className="text-sm font-bold" style={{ color: 'var(--t)' }}>{title}</h2>
-            <button
-              onClick={onClose}
-              className="w-7 h-7 rounded-lg flex items-center justify-center transition-all duration-150"
-              style={{ color: 'var(--t3)' }}
-              onMouseEnter={e => {
-                (e.currentTarget as HTMLElement).style.background = 'var(--sur)';
-                (e.currentTarget as HTMLElement).style.color      = 'var(--t2)';
-              }}
-              onMouseLeave={e => {
-                (e.currentTarget as HTMLElement).style.background = '';
-                (e.currentTarget as HTMLElement).style.color      = 'var(--t3)';
-              }}
-            >
-              <X size={14} />
-            </button>
-          </div>
+            <X size={14} />
+          </button>
+        </div>
 
-          {/* Scrollable body */}
-          <div className="px-6 py-5 overflow-y-auto flex-1 overscroll-contain">
-            {children}
-          </div>
+        {/* Scrollable body */}
+        <div className="px-6 py-5 overflow-y-auto flex-1 overscroll-contain">
+          {children}
         </div>
       </div>
     </div>
   );
 
-  // Render into document.body so CSS transforms/stacking contexts on ancestor
-  // elements never trap the fixed backdrop.
   return createPortal(content, document.body);
 }
