@@ -174,46 +174,48 @@ function ProfitByType({ legs, period, from, to, onPeriodChange, onFromChange, on
 }) {
   const settled = legs.filter(l => l.re !== 'Pendente' && l.re !== 'Devolvido');
 
-  // Group by: surebet → 'Surebet', delay → 'Delay', duplo_green → 'Duplo Green',
-  //           outros → use ev (description). If no ev, fallback to 'Outros'
   const byCategory = useMemo(() => {
-    const map = new Map<string, { profit: number; count: number }>();
+    // key = lowercase for dedup (prevents 'Delay' vs 'DELAY' vs 'delay' being separate bars)
+    const map = new Map<string, { profit: number; count: number; label: string }>();
     settled.forEach(l => {
       const opT = l.opType ?? 'surebet';
-      let key: string;
-      if (opT === 'surebet')     key = 'Surebet';
-      else if (opT === 'delay')  key = 'Delay';
-      else if (opT === 'duplo_green') key = 'Duplo Green';
-      else key = (l.ev?.trim() || 'Outros');
-      const cur = map.get(key) ?? { profit: 0, count: 0 };
-      map.set(key, { profit: cur.profit + calcLegProfit(l), count: cur.count + 1 });
+      let label: string;
+      if (opT === 'surebet')          label = 'Surebet';
+      else if (opT === 'delay')       label = 'Delay';
+      else if (opT === 'duplo_green') label = 'Duplo Green';
+      else                            label = l.ev?.trim() || 'Outros';
+
+      const key = label.toLowerCase(); // case-insensitive dedup
+      const cur = map.get(key) ?? { profit: 0, count: 0, label };
+      map.set(key, { profit: cur.profit + calcLegProfit(l), count: cur.count + 1, label: cur.label });
     });
-    map.forEach((v, k) => map.set(k, { ...v, profit: +v.profit.toFixed(2) }));
-    return Array.from(map.entries())
-      .map(([name, v]) => ({ name, ...v }))
+    return Array.from(map.values())
+      .map(v => ({ ...v, profit: +v.profit.toFixed(2) }))
       .sort((a, b) => Math.abs(b.profit) - Math.abs(a.profit));
   }, [settled]);
 
-  const maxAbs   = Math.max(...byCategory.map(d => Math.abs(d.profit)), 1);
-  const hasData  = settled.length > 0;
+  const maxAbs = Math.max(...byCategory.map(d => Math.abs(d.profit)), 1);
+  const hasData = settled.length > 0;
 
   const PERIODS: { key: PeriodKey; label: string }[] = [
-    { key: 'hoje',        label: 'Hoje'   },
-    { key: 'semana',      label: 'Semana' },
-    { key: 'mes',         label: 'Mês'    },
+    { key: 'hoje',          label: 'Hoje'    },
+    { key: 'semana',        label: 'Semana'  },
+    { key: 'mes',           label: 'Mês'     },
     { key: 'personalizado', label: 'Período' },
   ];
 
   return (
     <div className="rounded-2xl p-5 flex flex-col gap-5" style={cardStyle}>
+      {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h3 className="text-sm font-bold" style={{ color: 'var(--t)', fontFamily: "'Manrope', sans-serif" }}>
             Lucro por Tipo de Operação
           </h3>
-          <p className="text-[11px] mt-0.5" style={{ color: 'var(--t3)' }}>{settled.length} apostas liquidadas</p>
+          <p className="text-[11px] mt-0.5" style={{ color: 'var(--t3)' }}>
+            {settled.length} apostas liquidadas · {byCategory.length} categorias
+          </p>
         </div>
-        {/* Period selector */}
         <div className="flex items-center gap-2 flex-wrap">
           <div className="flex gap-0.5 p-0.5 rounded-xl" style={{ background: 'var(--sur)' }}>
             {PERIODS.slice(0, 3).map(p => (
@@ -248,107 +250,80 @@ function ProfitByType({ legs, period, from, to, onPeriodChange, onFromChange, on
       </div>
 
       {!hasData ? (
-        <div className="text-center py-8 text-sm" style={{ color: 'var(--t3)' }}>
+        <div className="text-center py-10 text-sm" style={{ color: 'var(--t3)' }}>
           Nenhuma operação liquidada ainda
         </div>
       ) : (
-        <div className="flex flex-col gap-4">
-          {/* Horizontal bar chart */}
-          <ResponsiveContainer width="100%" height={Math.max(byCategory.length * 52, 80)}>
-            <BarChart
-              data={byCategory}
-              layout="vertical"
-              margin={{ top: 0, right: 72, left: 0, bottom: 0 }}
-              barSize={18}
-            >
-              <CartesianGrid horizontal={false} stroke="rgba(255,255,255,.05)" />
-              <XAxis
-                type="number"
-                tickFormatter={v => `R$${(v / 1000).toFixed(1)}k`}
-                tick={{ fill: '#4A5568', fontSize: 10, fontFamily: "'JetBrains Mono', monospace" }}
-                axisLine={false}
-                tickLine={false}
-              />
-              <YAxis
-                type="category"
-                dataKey="name"
-                width={90}
-                tick={({ x, y, payload }: { x: number; y: number; payload: { value: string } }) => {
-                  const idx = byCategory.findIndex(d => d.name === payload.value);
-                  const color = CAT_COLORS[idx % CAT_COLORS.length];
-                  return (
-                    <text x={x} y={y} dy={4} textAnchor="end" fill={color}
-                      fontSize={10} fontWeight={700} fontFamily="'Manrope', sans-serif"
-                      style={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                      {payload.value.length > 11 ? payload.value.slice(0, 10) + '…' : payload.value}
-                    </text>
-                  );
-                }}
-                axisLine={false}
-                tickLine={false}
-              />
-              <Tooltip
-                cursor={{ fill: 'rgba(255,255,255,.04)' }}
-                content={({ active, payload }) => {
-                  if (!active || !payload?.length) return null;
-                  const d = payload[0].payload as { name: string; profit: number; count: number };
-                  const idx = byCategory.findIndex(x => x.name === d.name);
-                  const color = CAT_COLORS[idx % CAT_COLORS.length];
-                  return (
-                    <div className="px-3 py-2 rounded-xl text-xs"
-                      style={{ background: 'var(--bg3)', border: `1px solid ${color}40`,
-                               boxShadow: `0 4px 24px ${color}22` }}>
-                      <div className="font-bold mb-1" style={{ color }}>{d.name}</div>
-                      <div style={{ color: 'var(--t2)' }}>
-                        Lucro: <span className="font-mono font-black" style={{ color: d.profit >= 0 ? 'var(--g)' : 'var(--r)' }}>
-                          {fmtBRL(d.profit)}
-                        </span>
-                      </div>
-                      <div style={{ color: 'var(--t3)' }}>{d.count} {d.count === 1 ? 'aposta' : 'apostas'}</div>
-                    </div>
-                  );
-                }}
-              />
-              <Bar dataKey="profit" radius={[0, 6, 6, 0]} label={{
-                position: 'right',
-                formatter: (v: number) => v === 0 ? '' : fmtBRL(v),
-                fill: '#94A3B8',
-                fontSize: 10,
-                fontFamily: "'JetBrains Mono', monospace",
-                fontWeight: 700,
-              }}>
-                {byCategory.map((entry, i) => (
-                  <Cell
-                    key={entry.name}
-                    fill={entry.profit >= 0
-                      ? CAT_COLORS[i % CAT_COLORS.length]
-                      : 'rgba(255,77,77,.7)'}
-                  />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+        <div className="flex flex-col gap-2">
+          {byCategory.map((d, i) => {
+            const isNeg  = d.profit < 0;
+            const color  = CAT_COLORS[i % CAT_COLORS.length];
+            const barClr = isNeg ? '#FF4D4D' : color;
+            // bar fills up to 90% of the available half-width
+            const pct    = Math.min(Math.abs(d.profit) / maxAbs * 90, 90);
 
-          {/* Summary pills below chart */}
-          <div className="flex flex-wrap gap-2 pt-1" style={{ borderTop: '1px solid rgba(255,255,255,.06)' }}>
-            {byCategory.map((d, i) => {
-              const color = CAT_COLORS[i % CAT_COLORS.length];
-              return (
-                <div key={d.name} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full"
-                  style={{ background: `${color}12`, border: `1px solid ${color}28` }}>
-                  <span className="w-1.5 h-1.5 rounded-full" style={{ background: color }} />
-                  <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color }}>
-                    {d.name}
+            return (
+              <div key={d.label} className="flex items-center gap-3 group py-1">
+                {/* Category label — fixed width, right-aligned */}
+                <div className="flex-shrink-0 w-28 text-right">
+                  <span
+                    className="text-[11px] font-black uppercase tracking-wider truncate block"
+                    style={{ color, fontFamily: "'Manrope', sans-serif" }}
+                    title={d.label}
+                  >
+                    {d.label}
                   </span>
-                  <span className="text-[10px] font-black font-mono"
-                    style={{ color: d.profit >= 0 ? color : 'var(--r)' }}>
+                </div>
+
+                {/* Diverging bar zone — positive right, negative left from center */}
+                <div className="flex-1 relative h-7 flex items-center">
+                  {/* center hairline */}
+                  <div className="absolute left-1/2 inset-y-0 w-px pointer-events-none"
+                    style={{ background: 'rgba(255,255,255,.1)' }} />
+
+                  {isNeg ? (
+                    /* Negative: bar extends LEFT from center */
+                    <div
+                      className="absolute right-1/2 rounded-l-full transition-all duration-700"
+                      style={{
+                        top: 4, bottom: 4,
+                        width: `${pct / 2}%`,
+                        background: `linear-gradient(to left, ${barClr}cc, ${barClr})`,
+                        boxShadow: `0 0 10px ${barClr}55`,
+                      }}
+                    />
+                  ) : (
+                    /* Positive: bar extends RIGHT from center */
+                    <div
+                      className="absolute left-1/2 rounded-r-full transition-all duration-700"
+                      style={{
+                        top: 4, bottom: 4,
+                        width: `${pct / 2}%`,
+                        background: `linear-gradient(to right, ${barClr}cc, ${barClr})`,
+                        boxShadow: `0 0 10px ${barClr}55`,
+                      }}
+                    />
+                  )}
+                </div>
+
+                {/* Value + count — fixed width */}
+                <div className="flex-shrink-0 w-40 flex items-center gap-2">
+                  <span
+                    className="text-sm font-black font-mono"
+                    style={{ color: isNeg ? '#FF4D4D' : color }}
+                  >
                     {fmtBRL(d.profit)}
                   </span>
-                  <span className="text-[10px]" style={{ color: 'var(--t3)' }}>· {d.count}x</span>
+                  <span
+                    className="text-[10px] px-1.5 py-0.5 rounded-full font-bold"
+                    style={{ background: 'rgba(255,255,255,.06)', color: 'var(--t3)' }}
+                  >
+                    {d.count}x
+                  </span>
                 </div>
-              );
-            })}
-          </div>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
