@@ -16,7 +16,7 @@ import type { Leg, OpType, Expense } from '@/types';
 import type { DayStat, SportStat } from '@/lib/finance/calculator';
 import {
   TrendingUp, TrendingDown, Calendar, DollarSign,
-  Zap, BarChart3, Eye, EyeOff, Receipt, Activity,
+  BarChart3, Eye, EyeOff, Receipt, Activity,
 } from 'lucide-react';
 
 const EXPENSE_COLORS: Record<string, string> = {
@@ -154,28 +154,20 @@ function KPIBar({ stats }: { stats: KPIStat[] }) {
 
 /* ── Profit by operation type (dynamic — uses actual ev description for 'outros') */
 
-type PeriodKey = 'hoje' | 'semana' | 'mes' | 'personalizado';
+type PeriodKey = 'hoje' | '7d' | 'semana' | 'mes' | 'personalizado';
 
-// Color palette for dynamic categories
-const CAT_COLORS = [
-  '#FFD600', '#4DA6FF', '#3FFF21', '#FF8F3D',
-  '#A78BFA', '#F472B6', '#34D399', '#FB923C',
-  '#38BDF8', '#FCD34D', '#86EFAC', '#C084FC',
-];
+// Fixed colours per op type; extras for dynamic 'outros' categories
+const TYPE_COLOR: Record<string, string> = {
+  surebet:     '#FFD600',
+  delay:       '#4DA6FF',
+  'duplo green': '#3FFF21',
+};
+const EXTRA_COLORS = ['#FF8F3D','#A78BFA','#F472B6','#34D399','#FB923C','#38BDF8','#C084FC'];
 
-function ProfitByType({ legs, period, from, to, onPeriodChange, onFromChange, onToChange }: {
-  legs: Leg[];
-  period: PeriodKey;
-  from: string;
-  to: string;
-  onPeriodChange: (p: PeriodKey) => void;
-  onFromChange: (v: string) => void;
-  onToChange: (v: string) => void;
-}) {
+function ProfitByType({ legs }: { legs: Leg[] }) {
   const settled = legs.filter(l => l.re !== 'Pendente' && l.re !== 'Devolvido');
 
   const byCategory = useMemo(() => {
-    // key = lowercase for dedup (prevents 'Delay' vs 'DELAY' vs 'delay' being separate bars)
     const map = new Map<string, { profit: number; count: number; label: string }>();
     settled.forEach(l => {
       const opT = l.opType ?? 'surebet';
@@ -184,8 +176,7 @@ function ProfitByType({ legs, period, from, to, onPeriodChange, onFromChange, on
       else if (opT === 'delay')       label = 'Delay';
       else if (opT === 'duplo_green') label = 'Duplo Green';
       else                            label = l.ev?.trim() || 'Outros';
-
-      const key = label.toLowerCase(); // case-insensitive dedup
+      const key = label.toLowerCase();
       const cur = map.get(key) ?? { profit: 0, count: 0, label };
       map.set(key, { profit: cur.profit + calcLegProfit(l), count: cur.count + 1, label: cur.label });
     });
@@ -195,136 +186,106 @@ function ProfitByType({ legs, period, from, to, onPeriodChange, onFromChange, on
   }, [settled]);
 
   const maxAbs = Math.max(...byCategory.map(d => Math.abs(d.profit)), 1);
+  const totalProfit = +byCategory.reduce((s, d) => s + d.profit, 0).toFixed(2);
   const hasData = settled.length > 0;
 
-  const PERIODS: { key: PeriodKey; label: string }[] = [
-    { key: 'hoje',          label: 'Hoje'    },
-    { key: 'semana',        label: 'Semana'  },
-    { key: 'mes',           label: 'Mês'     },
-    { key: 'personalizado', label: 'Período' },
-  ];
+  function catColor(label: string, idx: number): string {
+    const k = label.toLowerCase();
+    if (TYPE_COLOR[k]) return TYPE_COLOR[k];
+    return EXTRA_COLORS[idx % EXTRA_COLORS.length];
+  }
 
   return (
     <div className="rounded-2xl p-5 flex flex-col gap-5" style={cardStyle}>
       {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
+      <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
-          <h3 className="text-sm font-bold" style={{ color: 'var(--t)', fontFamily: "'Manrope', sans-serif" }}>
+          <h3 className="text-sm font-bold" style={{ color: 'var(--t)', fontFamily: "'Manrope',sans-serif" }}>
             Lucro por Tipo de Operação
           </h3>
           <p className="text-[11px] mt-0.5" style={{ color: 'var(--t3)' }}>
-            {settled.length} apostas liquidadas · {byCategory.length} categorias
+            {settled.length} apostas · {byCategory.length} categorias
           </p>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex gap-0.5 p-0.5 rounded-xl" style={{ background: 'var(--sur)' }}>
-            {PERIODS.slice(0, 3).map(p => (
-              <button key={p.key} onClick={() => onPeriodChange(p.key)}
-                className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
-                style={period === p.key
-                  ? { background: 'var(--g)', color: '#000', borderRadius: 100 }
-                  : { color: 'var(--t3)' }}>
-                {p.label}
-              </button>
-            ))}
-          </div>
-          <button onClick={() => onPeriodChange('personalizado')}
-            className="px-3 py-1.5 rounded-xl text-xs font-bold transition-all"
-            style={period === 'personalizado'
-              ? { background: 'var(--g)', color: '#000', borderRadius: 100 }
-              : { background: 'var(--sur)', color: 'var(--t3)', borderRadius: 100 }}>
-            Período
-          </button>
-          {period === 'personalizado' && (
-            <div className="flex items-center gap-1.5">
-              <input type="date" value={from} onChange={e => onFromChange(e.target.value)}
-                className="px-2 py-1 rounded-lg text-xs font-mono"
-                style={{ background: 'var(--sur)', border: '1px solid var(--b2)', color: 'var(--t)' }} />
-              <span style={{ color: 'var(--t3)', fontSize: 12 }}>→</span>
-              <input type="date" value={to} onChange={e => onToChange(e.target.value)}
-                className="px-2 py-1 rounded-lg text-xs font-mono"
-                style={{ background: 'var(--sur)', border: '1px solid var(--b2)', color: 'var(--t)' }} />
-            </div>
-          )}
         </div>
       </div>
 
       {!hasData ? (
-        <div className="text-center py-10 text-sm" style={{ color: 'var(--t3)' }}>
-          Nenhuma operação liquidada ainda
+        <div className="flex flex-col items-center justify-center py-12 gap-2">
+          <span style={{ fontSize: 32 }}>📊</span>
+          <p className="text-sm font-medium" style={{ color: 'var(--t3)' }}>Nenhuma operação liquidada ainda</p>
         </div>
       ) : (
-        <div className="flex flex-col gap-2">
-          {byCategory.map((d, i) => {
-            const isNeg  = d.profit < 0;
-            const color  = CAT_COLORS[i % CAT_COLORS.length];
-            const barClr = isNeg ? '#FF4D4D' : color;
-            // bar fills up to 90% of the available half-width
-            const pct    = Math.min(Math.abs(d.profit) / maxAbs * 90, 90);
+        <>
+          {/* Category cards */}
+          <div className="flex flex-col gap-2.5">
+            {byCategory.map((d, i) => {
+              const color  = catColor(d.label, i);
+              const isNeg  = d.profit < 0;
+              const barClr = isNeg ? '#FF4545' : color;
+              const pct    = Math.min(Math.abs(d.profit) / maxAbs * 100, 100);
+              const rank   = i + 1;
 
-            return (
-              <div key={d.label} className="flex items-center gap-3 group py-1">
-                {/* Category label — fixed width, right-aligned */}
-                <div className="flex-shrink-0 w-28 text-right">
-                  <span
-                    className="text-[11px] font-black uppercase tracking-wider truncate block"
-                    style={{ color, fontFamily: "'Manrope', sans-serif" }}
-                    title={d.label}
-                  >
-                    {d.label}
+              return (
+                <div key={d.label}
+                  className="relative overflow-hidden rounded-xl px-4 py-3 flex items-center gap-4"
+                  style={{
+                    background: `${barClr}09`,
+                    border: `1px solid ${barClr}20`,
+                  }}
+                >
+                  {/* Left accent */}
+                  <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: barClr, borderRadius: '12px 0 0 12px' }} />
+
+                  {/* Rank */}
+                  <span className="text-[11px] font-black w-4 flex-shrink-0 text-center"
+                    style={{ color: `${barClr}80`, fontFamily: "'JetBrains Mono',monospace" }}>
+                    {rank}
                   </span>
-                </div>
 
-                {/* Diverging bar zone — positive right, negative left from center */}
-                <div className="flex-1 relative h-7 flex items-center">
-                  {/* center hairline */}
-                  <div className="absolute left-1/2 inset-y-0 w-px pointer-events-none"
-                    style={{ background: 'rgba(255,255,255,.1)' }} />
+                  {/* Label + bar */}
+                  <div className="flex-1 min-w-0 flex flex-col gap-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-black uppercase tracking-wider truncate"
+                        style={{ color, fontFamily: "'Manrope',sans-serif" }}>{d.label}</span>
+                      <span className="text-[10px] px-1.5 py-px rounded-full font-bold flex-shrink-0"
+                        style={{ background: 'rgba(255,255,255,.06)', color: 'var(--t3)' }}>
+                        {d.count}x
+                      </span>
+                    </div>
+                    <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,.06)' }}>
+                      <div style={{
+                        height: '100%', width: `${pct}%`,
+                        background: `linear-gradient(90deg, ${barClr}60, ${barClr})`,
+                        borderRadius: 9999,
+                        transition: 'width .8s cubic-bezier(.4,0,.2,1)',
+                      }} />
+                    </div>
+                  </div>
 
-                  {isNeg ? (
-                    /* Negative: bar extends LEFT from center */
-                    <div
-                      className="absolute right-1/2 rounded-l-full transition-all duration-700"
-                      style={{
-                        top: 4, bottom: 4,
-                        width: `${pct / 2}%`,
-                        background: `linear-gradient(to left, ${barClr}cc, ${barClr})`,
-                        boxShadow: `0 0 10px ${barClr}55`,
-                      }}
-                    />
-                  ) : (
-                    /* Positive: bar extends RIGHT from center */
-                    <div
-                      className="absolute left-1/2 rounded-r-full transition-all duration-700"
-                      style={{
-                        top: 4, bottom: 4,
-                        width: `${pct / 2}%`,
-                        background: `linear-gradient(to right, ${barClr}cc, ${barClr})`,
-                        boxShadow: `0 0 10px ${barClr}55`,
-                      }}
-                    />
-                  )}
+                  {/* Profit value */}
+                  <div className="flex-shrink-0 text-right">
+                    <span className="text-base font-black"
+                      style={{ color: isNeg ? '#FF4545' : color, fontFamily: "'JetBrains Mono',monospace" }}>
+                      {isNeg ? '−' : '+'}R${Math.abs(d.profit).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
                 </div>
+              );
+            })}
+          </div>
 
-                {/* Value + count — fixed width */}
-                <div className="flex-shrink-0 w-40 flex items-center gap-2">
-                  <span
-                    className="text-sm font-black font-mono"
-                    style={{ color: isNeg ? '#FF4D4D' : color }}
-                  >
-                    {fmtBRL(d.profit)}
-                  </span>
-                  <span
-                    className="text-[10px] px-1.5 py-0.5 rounded-full font-bold"
-                    style={{ background: 'rgba(255,255,255,.06)', color: 'var(--t3)' }}
-                  >
-                    {d.count}x
-                  </span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+          {/* Summary footer */}
+          <div className="flex items-center justify-between pt-3 mt-1"
+            style={{ borderTop: '1px solid rgba(255,255,255,.05)' }}>
+            <span className="text-[11px]" style={{ color: 'var(--t3)' }}>
+              Total {settled.length} apostas liquidadas
+            </span>
+            <span className="text-sm font-black"
+              style={{ color: totalProfit >= 0 ? 'var(--g)' : 'var(--r)', fontFamily: "'JetBrains Mono',monospace" }}>
+              {totalProfit >= 0 ? '+' : '−'}R${Math.abs(totalProfit).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+            </span>
+          </div>
+        </>
       )}
     </div>
   );
@@ -332,7 +293,23 @@ function ProfitByType({ legs, period, from, to, onPeriodChange, onFromChange, on
 
 /* ── Daily profit area chart ───────────────────────────────────────────────── */
 
-function DailyChart({ legs, from, to, period }: { legs: Leg[]; from: string; to: string; period: PeriodKey }) {
+const DAILY_PERIODS: { key: PeriodKey; label: string }[] = [
+  { key: 'hoje',          label: 'Hoje'   },
+  { key: '7d',            label: '7 dias' },
+  { key: 'semana',        label: 'Semana' },
+  { key: 'mes',           label: 'Mês'    },
+  { key: 'personalizado', label: '···'    },
+];
+
+function DailyChart({ legs, from, to, period, onPeriodChange, onFromChange, onToChange }: {
+  legs: Leg[];
+  from: string;
+  to: string;
+  period: PeriodKey;
+  onPeriodChange: (p: PeriodKey) => void;
+  onFromChange: (v: string) => void;
+  onToChange: (v: string) => void;
+}) {
   const byDay: Record<string, number> = {};
   legs.forEach(l => {
     const d = l.bd.slice(0, 10);
@@ -347,50 +324,62 @@ function DailyChart({ legs, from, to, period }: { legs: Leg[]; from: string; to:
     const k = cursor.toISOString().slice(0, 10);
     const daily = +(byDay[k] || 0).toFixed(2);
     cum = +(cum + daily).toFixed(2);
-    const label = period === 'hoje'
-      ? cursor.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
-      : cursor.getDate().toString();
-    data.push({ day: k, label, cumulative: cum, daily });
+    data.push({ day: k, label: cursor.getDate().toString(), cumulative: cum, daily });
     cursor.setDate(cursor.getDate() + 1);
   }
 
-  const periodLabel = period === 'hoje' ? 'Hoje'
-    : period === 'semana' ? 'Esta Semana'
-    : period === 'mes' ? new Date().toLocaleString('pt-BR', { month: 'long', year: 'numeric' })
-    : `${from} → ${to}`;
-
-  const lastVal   = data[data.length - 1]?.cumulative ?? 0;
-  const positive  = lastVal >= 0;
-  const lineColor = '#4DA6FF';
+  const lastVal     = data[data.length - 1]?.cumulative ?? 0;
+  const positive    = lastVal >= 0;
+  const lineColor   = positive ? '#3FFF21' : '#FF4545';
   const profitColor = positive ? 'var(--g)' : 'var(--r)';
+
+  const periodLabel = period === 'hoje'    ? 'Hoje'
+    : period === '7d'     ? 'Últimos 7 Dias'
+    : period === 'semana' ? 'Esta Semana'
+    : period === 'mes'    ? new Date().toLocaleString('pt-BR', { month: 'long', year: 'numeric' })
+    : `${from} → ${to}`;
 
   const CustomTooltip = ({ active, payload }: any) => {
     if (!active || !payload?.length) return null;
-    const cum   = payload[0]?.value as number;
-    const daily = payload[0]?.payload?.daily as number;
-    const day   = payload[0]?.payload?.day as string;
+    const c = payload[0]?.value as number;
+    const d = payload[0]?.payload?.daily as number;
+    const day = payload[0]?.payload?.day as string;
+    const cPos = c >= 0;
+    const dPos = d >= 0;
     return (
-      <div className="rounded-xl px-4 py-3 text-sm" style={tooltipStyle}>
-        <div className="font-bold mb-1.5 text-[11px] uppercase tracking-wide" style={{ color: 'var(--t3)' }}>{day}</div>
-        <div className="font-bold" style={{ color: cum >= 0 ? 'var(--g)' : 'var(--r)', fontFamily: "'JetBrains Mono', monospace" }}>
-          Acum: {fmtBRL(cum)}
+      <div style={{
+        background: '#0d1117',
+        border: `1px solid ${cPos ? 'rgba(63,255,33,.3)' : 'rgba(255,69,69,.3)'}`,
+        borderRadius: 10,
+        padding: '10px 14px',
+        boxShadow: '0 8px 32px rgba(0,0,0,.8)',
+        minWidth: 140,
+      }}>
+        <div style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,.35)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+          {day}
         </div>
-        <div className="text-xs mt-1" style={{ color: daily >= 0 ? 'var(--g)' : 'var(--r)', opacity: 0.7, fontFamily: "'JetBrains Mono', monospace" }}>
-          Dia: {fmtBRL(daily)}
+        <div style={{ fontSize: 13, fontWeight: 900, color: cPos ? '#3FFF21' : '#FF4545', fontFamily: "'JetBrains Mono',monospace" }}>
+          {cPos ? '+' : '−'} R$ {Math.abs(c).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
         </div>
+        {d !== 0 && (
+          <div style={{ fontSize: 11, fontWeight: 700, marginTop: 4, color: dPos ? 'rgba(63,255,33,.65)' : 'rgba(255,69,69,.65)', fontFamily: "'JetBrains Mono',monospace" }}>
+            dia: {dPos ? '+' : '−'} R$ {Math.abs(d).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+          </div>
+        )}
       </div>
     );
   };
 
   return (
     <div className="rounded-2xl p-5 h-full" style={cardStyle}>
-      <div className="flex items-start justify-between mb-5">
+      {/* Header row */}
+      <div className="flex items-start justify-between mb-4 flex-wrap gap-3">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-widest mb-1.5" style={{ color: 'var(--t3)', fontFamily: "'Manrope', sans-serif" }}>
-            Lucro Acumulado — {periodLabel}
+          <p className="text-[11px] font-semibold uppercase tracking-widest mb-1" style={{ color: 'var(--t3)', fontFamily: "'Manrope',sans-serif" }}>
+            Lucro por Dia — {periodLabel}
           </p>
           <div className="flex items-baseline gap-3">
-            <span className="text-3xl font-black" style={{ color: profitColor, fontFamily: "'JetBrains Mono', monospace" }}>
+            <span className="text-3xl font-black" style={{ color: profitColor, fontFamily: "'JetBrains Mono',monospace" }}>
               {fmtBRL(lastVal)}
             </span>
             {lastVal !== 0 && (
@@ -401,7 +390,33 @@ function DailyChart({ legs, from, to, period }: { legs: Leg[]; from: string; to:
             )}
           </div>
         </div>
+
+        {/* Period pills */}
+        <div className="flex gap-0.5 p-0.5 rounded-xl flex-shrink-0" style={{ background: 'var(--sur)' }}>
+          {DAILY_PERIODS.map(p => (
+            <button key={p.key} onClick={() => onPeriodChange(p.key)}
+              className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
+              style={period === p.key
+                ? { background: positive ? 'rgba(63,255,33,.15)' : 'rgba(255,69,69,.15)', color: positive ? 'var(--g)' : 'var(--r)', boxShadow: `0 0 0 1px ${positive ? 'rgba(63,255,33,.25)' : 'rgba(255,69,69,.25)'}` }
+                : { color: 'var(--t3)', background: 'transparent' }}>
+              {p.label}
+            </button>
+          ))}
+        </div>
       </div>
+
+      {/* Custom date range inputs */}
+      {period === 'personalizado' && (
+        <div className="flex items-center gap-1.5 mb-4">
+          <input type="date" value={from} onChange={e => onFromChange(e.target.value)}
+            className="px-2 py-1 rounded-lg text-xs font-mono"
+            style={{ background: 'var(--sur)', border: '1px solid var(--b2)', color: 'var(--t)' }} />
+          <span style={{ color: 'var(--t3)', fontSize: 12 }}>→</span>
+          <input type="date" value={to} onChange={e => onToChange(e.target.value)}
+            className="px-2 py-1 rounded-lg text-xs font-mono"
+            style={{ background: 'var(--sur)', border: '1px solid var(--b2)', color: 'var(--t)' }} />
+        </div>
+      )}
 
       {data.length < 1 ? (
         <p className="text-center py-12 text-sm" style={{ color: 'var(--t3)' }}>Sem dados no período</p>
@@ -409,29 +424,30 @@ function DailyChart({ legs, from, to, period }: { legs: Leg[]; from: string; to:
         <ResponsiveContainer width="100%" height={180}>
           <AreaChart data={data} margin={{ top: 5, right: 5, bottom: 0, left: 0 }}>
             <defs>
-              <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%"   stopColor={lineColor} stopOpacity={0.20} />
-                <stop offset="100%" stopColor={lineColor} stopOpacity={0.01} />
+              <linearGradient id="areaGradDyn" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%"   stopColor={lineColor} stopOpacity={0.22} />
+                <stop offset="75%"  stopColor={lineColor} stopOpacity={0.05} />
+                <stop offset="100%" stopColor={lineColor} stopOpacity={0.00} />
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(63,255,33,.03)" />
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,.03)" vertical={false} />
             <XAxis
               dataKey="label"
-              tick={{ fontSize: 10, fill: 'var(--t3)', fontFamily: "'JetBrains Mono', monospace" }}
+              tick={{ fontSize: 10, fill: 'rgba(255,255,255,.28)', fontFamily: "'JetBrains Mono',monospace" }}
               axisLine={false}
               tickLine={false}
               interval={Math.max(0, Math.floor(data.length / 7))}
             />
             <YAxis hide />
-            <Tooltip content={<CustomTooltip />} />
+            <Tooltip content={<CustomTooltip />} cursor={{ stroke: `${lineColor}25`, strokeWidth: 1 }} />
             <Area
               type="monotone"
               dataKey="cumulative"
               stroke={lineColor}
-              strokeWidth={2}
-              fill="url(#areaGrad)"
+              strokeWidth={2.5}
+              fill="url(#areaGradDyn)"
               dot={false}
-              activeDot={{ r: 4, fill: lineColor, stroke: 'var(--bg)', strokeWidth: 2 }}
+              activeDot={{ r: 5, fill: lineColor, stroke: '#0d1117', strokeWidth: 2 }}
             />
           </AreaChart>
         </ResponsiveContainer>
@@ -786,20 +802,28 @@ export function DashboardPage() {
   const [customTo,   setCustomTo]   = useState(today);
   const [capitalHidden, setCapitalHidden] = useState(false);
 
+  const sevenDayStart = useMemo(() => {
+    const d = new Date(today + 'T12:00:00');
+    d.setDate(d.getDate() - 6);
+    return d.toISOString().slice(0, 10);
+  }, [today]);
+
   const filteredLegs = useMemo(() => {
     let from = mStart, to = today;
     if (period === 'hoje')   { from = today; to = today; }
+    if (period === '7d')     { from = sevenDayStart; to = today; }
     if (period === 'semana') { from = weekStart; to = today; }
     if (period === 'personalizado') { from = customFrom; to = customTo; }
     return legs.filter(l => {
       const d = (l.bd || '').slice(0, 10);
       return d >= from && d <= to;
     });
-  }, [legs, period, customFrom, customTo, today, weekStart, mStart]);
+  }, [legs, period, customFrom, customTo, today, weekStart, mStart, sevenDayStart]);
 
   const monthLegs = legs.filter(l => l.bd.slice(0, 10) >= mStart);
 
   const activePeriodFrom = period === 'hoje' ? today
+    : period === '7d' ? sevenDayStart
     : period === 'semana' ? weekStart
     : period === 'mes' ? mStart
     : customFrom;
@@ -927,24 +951,24 @@ export function DashboardPage() {
         },
       ]} />
 
-      {/* Profit by type with period filters */}
-      <ProfitByType
-        legs={filteredLegs}
-        period={period}
-        from={customFrom}
-        to={customTo}
-        onPeriodChange={setPeriod}
-        onFromChange={setCustomFrom}
-        onToChange={setCustomTo}
-      />
-
-      {/* Daily chart + top houses — follow period filter */}
+      {/* Daily chart with period pills + top houses */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2">
-          <DailyChart legs={filteredLegs} from={activePeriodFrom} to={activePeriodTo} period={period} />
+          <DailyChart
+            legs={filteredLegs}
+            from={activePeriodFrom}
+            to={activePeriodTo}
+            period={period}
+            onPeriodChange={setPeriod}
+            onFromChange={setCustomFrom}
+            onToChange={setCustomTo}
+          />
         </div>
         <TopHousesCard legs={filteredLegs} />
       </div>
+
+      {/* Profit by operation type */}
+      <ProfitByType legs={filteredLegs} />
 
       {/* ── Tendência & Distribuição ─────────────────────────────────────── */}
       <div style={{
