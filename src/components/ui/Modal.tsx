@@ -50,7 +50,7 @@ export function Modal({ title, onClose, children, size = 'md' }: ModalProps) {
      * Clicking the overlay (not the modal panel) closes it.
      */
     <div
-      className="fixed inset-0 z-[200] flex items-start justify-center overflow-y-auto p-4 pt-16"
+      className="fixed inset-0 z-[200] flex items-center justify-center overflow-y-auto p-4"
       style={{
         background: show ? 'rgba(0,0,0,0.45)' : 'rgba(0,0,0,0)',
         transition: 'background 0.2s ease',
@@ -67,8 +67,8 @@ export function Modal({ title, onClose, children, size = 'md' }: ModalProps) {
           background:  'var(--bg3)',
           border:      '1px solid var(--b2)',
           boxShadow:   '0 20px 60px rgba(0,0,0,0.45), 0 0 0 1px rgba(63,255,33,0.04)',
-          maxHeight:   'calc(100dvh - 96px)',
-          marginBottom: '2rem',
+          maxHeight:   'min(90dvh, 90vh)',
+          marginBottom: 'env(safe-area-inset-bottom, 12px)',
           opacity:     show ? 1 : 0,
           transform:   show ? 'translateY(0) scale(1)' : 'translateY(14px) scale(0.97)',
           transition:  'opacity 0.22s ease, transform 0.22s cubic-bezier(0.2,0.8,0.4,1)',

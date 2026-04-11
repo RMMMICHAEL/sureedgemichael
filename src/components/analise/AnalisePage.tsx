@@ -472,30 +472,6 @@ export function AnalisePage() {
           icon={<TrendingUp size={15} />} />
       </div>
 
-      {/* Period profit + ROI bar */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 24, padding: '14px 20px', borderRadius: 14, background: 'var(--bg2)', border: '1px solid var(--b)' }}>
-        <div>
-          <div style={{ fontSize: 11, color: 'rgba(255,255,255,.35)', marginBottom: 4 }}>Lucro no período</div>
-          <div style={{ fontSize: 18, fontWeight: 800, fontFamily: "'JetBrains Mono',monospace", color: totalProfit >= 0 ? '#4ade80' : '#f87171' }}>
-            {fmtBRL(totalProfit)}
-          </div>
-        </div>
-        <div style={{ width: 1, height: 36, background: 'var(--b)', alignSelf: 'center' }} />
-        <div>
-          <div style={{ fontSize: 11, color: 'rgba(255,255,255,.35)', marginBottom: 4 }}>ROI</div>
-          <div style={{ fontSize: 18, fontWeight: 800, fontFamily: "'JetBrains Mono',monospace", color: roi >= 0 ? '#4ade80' : '#f87171' }}>
-            {roi >= 0 ? '+' : ''}{roi}%
-          </div>
-        </div>
-        <div style={{ width: 1, height: 36, background: 'var(--b)', alignSelf: 'center' }} />
-        <div>
-          <div style={{ fontSize: 11, color: 'rgba(255,255,255,.35)', marginBottom: 4 }}>Stake total</div>
-          <div style={{ fontSize: 18, fontWeight: 800, fontFamily: "'JetBrains Mono',monospace", color: 'var(--t)' }}>
-            R$ {totalStake.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-          </div>
-        </div>
-      </div>
-
       {/* Anomaly alert */}
       {withFlagsOids.size > 0 && (
         <div style={{ borderRadius: 14, padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, background: 'rgba(245,158,11,.07)', border: '1px solid rgba(245,158,11,.2)' }}>

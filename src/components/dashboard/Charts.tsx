@@ -365,19 +365,23 @@ export function WeeklyProfitChart({ data }: { data: WeekStat[] }) {
 // ── Daily profit bar chart ────────────────────────────────────────────────────
 
 export function DailyProfitChart({ data }: { data: DayStat[] }) {
-  const hasData  = data.some(d => d.profit !== 0);
-  const total    = +data.reduce((s, d) => s + d.profit, 0).toFixed(2);
-  const maxAbs   = Math.max(...data.map(d => Math.abs(d.profit)), 0.01);
+  const total  = +data.reduce((s, d) => s + d.profit, 0).toFixed(2);
+  const maxAbs = Math.max(...data.map(d => Math.abs(d.profit)), 0.01);
+
+  // Interval so X axis never gets overcrowded
+  const xInterval = data.length <= 15 ? 0
+    : data.length <= 31 ? 2
+    : Math.floor(data.length / 10);
 
   return (
     <div style={card}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <ChartTitle>Lucro Diário</ChartTitle>
+        <ChartTitle>Lucro por Dia</ChartTitle>
         <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 14, fontWeight: 700, color: total >= 0 ? '#4ade80' : '#f87171' }}>
           {fmtBRL(total)}
         </span>
       </div>
-      {!hasData ? <EmptyState /> : (
+      {data.length === 0 ? <EmptyState /> : (
         <ResponsiveContainer width="100%" height={200}>
           <BarChart data={data} barCategoryGap="18%" margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
             <defs>
@@ -389,6 +393,10 @@ export function DailyProfitChart({ data }: { data: DayStat[] }) {
                 <stop offset="0%"   stopColor="#f87171" stopOpacity={1} />
                 <stop offset="100%" stopColor="#b91c1c" stopOpacity={0.5} />
               </linearGradient>
+              <linearGradient id="dpZero" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%"   stopColor="#334155" stopOpacity={0.6} />
+                <stop offset="100%" stopColor="#1e293b" stopOpacity={0.3} />
+              </linearGradient>
             </defs>
             <CartesianGrid stroke="rgba(255,255,255,.03)" vertical={false} />
             <ReferenceLine y={0} stroke="rgba(255,255,255,.1)" strokeDasharray="4 4" />
@@ -396,7 +404,7 @@ export function DailyProfitChart({ data }: { data: DayStat[] }) {
               dataKey="dayLabel"
               axisLine={false} tickLine={false}
               tick={AXIS}
-              interval={Math.floor(data.length / 10)}
+              interval={xInterval}
             />
             <YAxis
               axisLine={false} tickLine={false}
@@ -405,18 +413,19 @@ export function DailyProfitChart({ data }: { data: DayStat[] }) {
             />
             <Tooltip
               contentStyle={tip}
-              formatter={(v: number, _: string, props: { payload?: DayStat }) => [
-                fmtBRL(v),
-                props.payload?.ops ? `${props.payload.ops} op${props.payload.ops > 1 ? 's' : ''}` : 'Lucro',
-              ]}
+              formatter={(v: number, _: string, props: { payload?: DayStat }) => {
+                const p = props.payload;
+                const label = p?.ops ? `${p.ops} op${p.ops > 1 ? 's' : ''}` : 'Sem apostas';
+                return [v === 0 ? '—' : fmtBRL(v), label];
+              }}
               cursor={{ fill: 'rgba(255,255,255,.03)' }}
             />
-            <Bar dataKey="profit" radius={[3, 3, 1, 1]}>
+            <Bar dataKey="profit" radius={[3, 3, 1, 1]} minPointSize={2}>
               {data.map((e, i) => (
                 <Cell
                   key={i}
-                  fill={e.profit >= 0 ? 'url(#dpGreen)' : 'url(#dpRed)'}
-                  fillOpacity={0.5 + (Math.abs(e.profit) / maxAbs) * 0.5}
+                  fill={e.profit > 0 ? 'url(#dpGreen)' : e.profit < 0 ? 'url(#dpRed)' : 'url(#dpZero)'}
+                  fillOpacity={e.profit === 0 ? 0.25 : 0.5 + (Math.abs(e.profit) / maxAbs) * 0.5}
                 />
               ))}
             </Bar>

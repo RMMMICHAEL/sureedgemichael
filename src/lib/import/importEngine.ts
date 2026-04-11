@@ -8,13 +8,12 @@
  * ETAPA D — validação:  anomaly detection (contextual, graded)
  * ETAPA E — filtro:     current month only (default behaviour)
  *
- * GROUPING RULE (v2):
- *   Rows with the exact same `bd` (registration timestamp) are legs of the
- *   same surebet operation. SureEdge records all legs at the same moment,
- *   so exact-timestamp grouping is deterministic and correct.
- *   The old sequential-pair approach was discarded because any extra row
- *   (total, separator, formula cell) would permanently misalign all
- *   subsequent pairs.
+ * GROUPING RULE:
+ *   Rows sharing the same `bd` at minute precision ("YYYY-MM-DDTHH:MM") are
+ *   grouped into the same operation. SureEdge records all legs at the same
+ *   moment, so this key is deterministic and handles 2-leg (Surebet/Delay)
+ *   and 3-leg (Duplo Green) operations correctly.
+ *   Groups with > 5 rows fall back to sequential pairing (date-only exports).
  *
  * NO POSITIONAL FALLBACKS:
  *   All field extraction uses only the header-derived colMap.
@@ -450,34 +449,46 @@ export function commitRows(rows: ImportRow[], opts: CommitOptions): CommitResult
     ? rows
     : rows.filter(r => !r.flags.some(f => f.code === 'sport_suspect'));
 
-  // ── Group rows into operations: sequential pairs ─────────────────────────
+  // ── Group rows into operations: timestamp-based grouping ─────────────────
   //
-  // The spreadsheet layout is fixed: every 2 data rows = 1 surebet operation
-  // (one row per bookmaker), separated by blank/separator rows that are already
-  // stripped by parseWorkbook before reaching here.
+  // PRIMARY RULE: rows sharing the exact same `bd` at minute precision
+  // ("YYYY-MM-DDTHH:MM") belong to the same operation. SureEdge registers
+  // all legs of an operation at the same moment, so the minute key is
+  // deterministic. This approach correctly handles 2-leg (Surebet/Delay) and
+  // 3-leg (Duplo Green) operations without positional assumptions.
   //
-  // After filtering, toProcess is a clean flat sequence:
-  //   [leg1_op1, leg2_op1, leg1_op2, leg2_op2, ...]
+  // SAFETY CAP: if a timestamp group exceeds 5 rows, the data likely comes
+  // from a bulk export with date-only values (no time component). In that
+  // case, the group is split sequentially into pairs — preserving the old
+  // behaviour as a fallback while avoiding false "giant operation" collapsing.
   //
-  // So sequential pairing (i=0,1 → op0; i=2,3 → op1) is correct.
-  //
-  // Why NOT bd-timestamp grouping:
-  //   When rows share the same registration timestamp (bulk exports, batch
-  //   entries, or date-only bd values), every row maps to the same key and
-  //   dozens of unrelated bets collapse into a single giant "operation".
-  //   Sequential pairing is immune to this because it depends only on position,
-  //   not on timestamp equality.
-  //
-  // Safety: parseWorkbook already filters out blank rows, rows without a valid
-  //   date, and rows without house/market/odd/stake data. Separator rows that
-  //   previously caused misalignment cannot reach this function.
+  // Why NOT pure sequential pairing:
+  //   Any extra row (summary line, formula cell, or 3-leg DuploGreen) causes
+  //   a one-position offset that permanently misaligns ALL subsequent pairs,
+  //   resulting in legs from different operations being grouped together
+  //   ("trocadas"). Timestamp grouping is immune to this.
+
+  const tsMap = new Map<string, ImportRow[]>();
+  toProcess.forEach(r => {
+    const key = r.bd.slice(0, 16); // minute precision: "YYYY-MM-DDTHH:MM"
+    if (!tsMap.has(key)) tsMap.set(key, []);
+    tsMap.get(key)!.push(r);
+  });
 
   const ops: ImportRow[][] = [];
-  for (let i = 0; i < toProcess.length; i += 2) {
-    const pair: ImportRow[] = [toProcess[i]];
-    if (toProcess[i + 1]) pair.push(toProcess[i + 1]);
-    ops.push(pair);
-  }
+  tsMap.forEach(group => {
+    if (group.length <= 5) {
+      // Normal case: 2-leg surebet, 3-leg duplo_green, or 1-leg alt op
+      ops.push(group);
+    } else {
+      // Fallback: date-only rows — split into sequential pairs
+      for (let i = 0; i < group.length; i += 2) {
+        const pair: ImportRow[] = [group[i]];
+        if (group[i + 1]) pair.push(group[i + 1]);
+        ops.push(pair);
+      }
+    }
+  });
 
   const newLegs:   Leg[]       = [];
   const newHouses: Set<string> = new Set();

@@ -435,6 +435,176 @@ function OpModal({ editOid, onClose }: OpModalProps) {
   );
 }
 
+// ── Duplo Green modal ─────────────────────────────────────────────────────────
+// 3 legs: Time 1 / Empate / Time 2 — pagamento antecipado pré-jogo
+
+interface DGLegDraft {
+  ho: string; mk: string; od: string; st: string; re: ResultType; ed: string;
+}
+
+function makeDGLeg(mk: string): DGLegDraft {
+  return { ho: '', mk, od: '', st: '', re: 'Pendente', ed: '' };
+}
+
+function DuploGreenModal({ onClose }: { onClose: () => void }) {
+  const addLeg  = useStore(s => s.addLeg);
+  const toastFn = useStore(s => s.toast);
+
+  const [ev, setEv] = useState('');
+  const [sp, setSp] = useState('Futebol');
+  const [bd, setBd] = useState(new Date().toISOString().slice(0, 16));
+  const [legs, setLegs] = useState<DGLegDraft[]>([
+    makeDGLeg('Time 1 (Casa)'),
+    makeDGLeg('Empate'),
+    makeDGLeg('Time 2 (Fora)'),
+  ]);
+
+  const setLeg = (i: number, val: DGLegDraft) =>
+    setLegs(prev => prev.map((l, idx) => idx === i ? val : l));
+
+  // Live profit preview
+  const totalStake = legs.reduce((s, l) => s + (parseFloat(l.st.replace(',', '.')) || 0), 0);
+  const payouts    = legs.map(l => {
+    const st = parseFloat(l.st.replace(',', '.')) || 0;
+    const od = parseFloat(l.od.replace(',', '.')) || 0;
+    return st * od;
+  });
+  const minPayout  = payouts.some(p => p > 0) ? Math.min(...payouts.filter(p => p > 0)) : 0;
+  const estProfit  = +(minPayout - totalStake).toFixed(2);
+
+  function save() {
+    if (!ev.trim()) { toastFn('Preencha o evento', 'wrn'); return; }
+    if (legs.some(l => !l.ho)) { toastFn('Selecione a casa para cada perna', 'wrn'); return; }
+    if (legs.some(l => !parseFloat(l.od.replace(',', '.')))) { toastFn('Preencha as odds', 'wrn'); return; }
+    const oid = `dg_${Date.now()}`;
+    legs.forEach((draft, i) => {
+      const edVal = draft.ed || bd;
+      const leg: Leg = {
+        id: `l_dg_${Date.now()}_${i}`, oid, bd, ed: edVal,
+        sp, ev: ev.trim(), ho: draft.ho, mk: draft.mk,
+        od: parseFloat(draft.od.replace(',', '.')) || 0,
+        st: parseFloat(draft.st.replace(',', '.')) || 0,
+        re: draft.re, pc: 0, pr: 0, fl: [],
+        source: 'manual', signal: 'pre', opType: 'duplo_green',
+      };
+      leg.pr = calcLegProfit(leg);
+      addLeg(leg);
+    });
+    toastFn('Duplo Green registrado', 'ok');
+    onClose();
+  }
+
+  const LEG_LABELS = ['Time 1 (Casa)', 'Empate', 'Time 2 (Fora)'];
+  const LEG_COLORS = ['#4DA6FF', '#FFCB2F', '#FF8F3D'];
+
+  return (
+    <Modal title="Novo Duplo Green" onClose={onClose} size="xl">
+      <div className="flex flex-col gap-4">
+        {/* Info banner */}
+        <div className="flex items-start gap-3 px-3 py-2.5 rounded-xl text-xs"
+          style={{ background: 'rgba(255,203,47,.07)', border: '1px solid rgba(255,203,47,.2)', color: '#FFCB2F' }}>
+          <span className="text-base flex-shrink-0">⚡</span>
+          <div>
+            <div className="font-bold mb-0.5">Pagamento Antecipado — Pré-Jogo</div>
+            <div style={{ color: 'rgba(255,203,47,.75)' }}>
+              Apostas em 3 casas diferentes (Time 1 / Empate / Time 2). Quando um time abrir 2 gols de vantagem,
+              uma das pernas é resolvida automaticamente pela casa. As demais permanecem em aberto.
+              Após o pagamento, edite a operação para registrar o resultado de cada perna.
+            </div>
+          </div>
+        </div>
+
+        {/* Common fields */}
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-bold uppercase text-slate-500">Esporte</span>
+            <select value={sp} onChange={e => setSp(e.target.value)} style={SELECT_S}>
+              {SPORTS.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-bold uppercase text-slate-500">Data da Aposta</span>
+            <input type="datetime-local" value={bd} onChange={e => setBd(e.target.value)}
+              className="font-mono" style={INPUT_S} />
+          </label>
+          <label className="col-span-2 sm:col-span-1 flex flex-col gap-1">
+            <span className="text-xs font-bold uppercase text-slate-500">Evento</span>
+            <input value={ev} onChange={e => setEv(e.target.value)}
+              placeholder="Ex: Real Madrid vs Barcelona" style={INPUT_S} />
+          </label>
+        </div>
+
+        {/* 3 legs */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+          {legs.map((leg, i) => (
+            <div key={i} className="rounded-xl p-3 flex flex-col gap-2"
+              style={{ background: `${LEG_COLORS[i]}0d`, border: `1px solid ${LEG_COLORS[i]}25` }}>
+              <span className="text-xs font-black uppercase tracking-wide" style={{ color: LEG_COLORS[i] }}>
+                Casa {i + 1} — {LEG_LABELS[i]}
+              </span>
+              <div className="grid grid-cols-2 gap-2">
+                <label className="col-span-2 flex flex-col gap-1">
+                  <span className="text-[10px] font-bold uppercase text-slate-500">Casa</span>
+                  <select value={leg.ho} onChange={e => setLeg(i, { ...leg, ho: e.target.value })} style={SELECT_S}>
+                    <option value="">Qual casa?</option>
+                    {ALL_HOUSES.map(h => <option key={h} value={h}>{h}</option>)}
+                  </select>
+                </label>
+                <label className="flex flex-col gap-1">
+                  <span className="text-[10px] font-bold uppercase text-slate-500">Odd</span>
+                  <input value={leg.od} onChange={e => setLeg(i, { ...leg, od: e.target.value })}
+                    placeholder="2.10" className="font-mono" style={INPUT_S} />
+                </label>
+                <label className="flex flex-col gap-1">
+                  <span className="text-[10px] font-bold uppercase text-slate-500">Stake (R$)</span>
+                  <input value={leg.st} onChange={e => setLeg(i, { ...leg, st: e.target.value })}
+                    placeholder="500,00" className="font-mono" style={INPUT_S} />
+                </label>
+                <label className="col-span-2 flex flex-col gap-1">
+                  <span className="text-[10px] font-bold uppercase text-slate-500">Data do Evento</span>
+                  <input type="datetime-local" value={leg.ed} onChange={e => setLeg(i, { ...leg, ed: e.target.value })}
+                    className="font-mono" style={INPUT_S} />
+                </label>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Live preview */}
+        {totalStake > 0 && (
+          <div className="grid grid-cols-3 gap-3 px-3 py-3 rounded-xl"
+            style={{ background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.06)' }}>
+            <div className="flex flex-col gap-0.5">
+              <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: 'var(--t3)' }}>Stake Total</span>
+              <span className="text-sm font-black font-mono" style={{ color: 'var(--t2)' }}>
+                R$ {totalStake.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              </span>
+            </div>
+            <div className="flex flex-col gap-0.5">
+              <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: 'var(--t3)' }}>Retorno Mín.</span>
+              <span className="text-sm font-black font-mono" style={{ color: 'var(--bl)' }}>
+                {minPayout > 0 ? `R$ ${minPayout.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '—'}
+              </span>
+            </div>
+            <div className="flex flex-col gap-0.5">
+              <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: 'var(--t3)' }}>Lucro Est.</span>
+              <span className="text-sm font-black font-mono"
+                style={{ color: estProfit >= 0 ? 'var(--g)' : 'var(--r)' }}>
+                {minPayout > 0 ? `${estProfit >= 0 ? '+' : ''}R$ ${Math.abs(estProfit).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '—'}
+              </span>
+            </div>
+          </div>
+        )}
+
+        <div className="flex justify-end gap-2 pt-3" style={{ borderTop: '1px solid rgba(255,255,255,.06)' }}>
+          <Button variant="ghost" onClick={onClose}>Cancelar</Button>
+          <Button variant="primary" onClick={save}>⚡ Registrar Duplo Green</Button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 // ── Alt op modal (Delay / Duplo Green / Outros) — simplified profit entry ──────
 
 function AltOpModal({ onClose }: { onClose: () => void }) {
@@ -1064,6 +1234,7 @@ export function OperationsPage() {
 
   const [showAdd,     setShowAdd]     = useState(false);
   const [showAltAdd,  setShowAltAdd]  = useState(false);
+  const [showDGAdd,   setShowDGAdd]   = useState(false);
   const [editingOid,  setEditingOid]  = useState<string | null>(null);
   const [search,      setSearch]      = useState('');
   const [onlyFlag,    setOnlyFlag]    = useState(false);
@@ -1200,6 +1371,9 @@ export function OperationsPage() {
           <Button variant="outline" onClick={() => setShowAltAdd(true)}>
             <Shuffle size={14} /> Registrar outros lucros
           </Button>
+          <Button variant="outline" onClick={() => setShowDGAdd(true)}>
+            <Zap size={14} /> Novo Duplo Green
+          </Button>
           <Button variant="primary" onClick={() => setShowAdd(true)}>
             <Plus size={14} /> Nova Surebet
           </Button>
@@ -1302,6 +1476,7 @@ export function OperationsPage() {
 
       {showAdd && <OpModal onClose={() => setShowAdd(false)} />}
       {showAltAdd && <AltOpModal onClose={() => setShowAltAdd(false)} />}
+      {showDGAdd && <DuploGreenModal onClose={() => setShowDGAdd(false)} />}
     </div>
   );
 }

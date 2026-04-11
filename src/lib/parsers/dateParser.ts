@@ -79,9 +79,10 @@ export function parseDT(s: unknown): string | null {
     if (result) return result;
   }
 
-  // dd/mm/yyyy [hh:mm[:ss]]
+  // dd/mm/yyyy or dd-mm-yyyy or dd.mm.yyyy [hh:mm[:ss]]
+  // Handles separator variants that some sheets generate instead of slashes.
   const m1 = raw.match(
-    /^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?/
+    /^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})(?:\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?/
   );
   if (m1) {
     const [, d, mo, y, h = '00', mi = '00', sec = '00'] = m1;
@@ -110,12 +111,21 @@ export function toDateOnly(iso: string): string {
   return iso.slice(0, 10);
 }
 
-/** Returns today as "YYYY-MM-DD" */
+/**
+ * Returns today's date as "YYYY-MM-DD" in Brazil's timezone (America/Sao_Paulo, UTC-3).
+ * Using `sv-SE` locale produces ISO-format output; the timezone option shifts to BRT.
+ * This prevents the UTC midnight rollover from showing the wrong day (e.g. 21h BRT = 00h
+ * UTC next day, which would cause "today" to appear as tomorrow on the dashboard).
+ */
 export function todayStr(): string {
-  return new Date().toISOString().slice(0, 10);
+  return new Date()
+    .toLocaleString('sv-SE', { timeZone: 'America/Sao_Paulo' })
+    .slice(0, 10);
 }
 
-/** Returns current month as "YYYY-MM" */
+/** Returns current month as "YYYY-MM" in Brazil's timezone. */
 export function currentMonth(): string {
-  return new Date().toISOString().slice(0, 7);
+  return new Date()
+    .toLocaleString('sv-SE', { timeZone: 'America/Sao_Paulo' })
+    .slice(0, 7);
 }

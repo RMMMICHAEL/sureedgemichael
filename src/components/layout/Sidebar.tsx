@@ -5,7 +5,7 @@ import type { ViewId } from '@/types';
 import {
   LayoutDashboard, Activity, Building2, Wallet,
   BarChart3, ShieldCheck, Receipt, Users, X,
-  UserCircle, TrendingUp, Clock, LogOut,
+  UserCircle, LogOut,
 } from 'lucide-react';
 
 interface NavItem {
@@ -98,75 +98,6 @@ function SectionLabel({ label }: { label: string }) {
         {label}
       </span>
       <span className="flex-1 h-px" style={{ background: 'var(--b)' }} />
-    </div>
-  );
-}
-
-/** Quick stats strip below the logo */
-function SidebarStats() {
-  const legs       = useStore(s => s.legs);
-  const totalCash  = useStore(s => s.totalCash);
-
-  const currentMonth = new Date().toISOString().slice(0, 7);
-  const monthLegs    = legs.filter(l => (l.bd || '').slice(0, 7) === currentMonth && l.source !== 'import');
-  const monthProfit  = +monthLegs.reduce((s, l) => s + (l.pr ?? 0), 0).toFixed(2);
-  const pendingCount = legs.filter(l => l.re === 'Pendente').length;
-
-  const fmtBRL = (v: number) => {
-    const abs = Math.abs(v);
-    const prefix = v < 0 ? '−' : '+';
-    if (abs >= 1000) return `${prefix}R$${(abs / 1000).toFixed(1)}k`;
-    return `${prefix}R$${abs.toFixed(0)}`;
-  };
-
-  return (
-    <div
-      className="mx-3 mb-2 rounded-xl p-3 grid grid-cols-2 gap-2"
-      style={{
-        background: 'rgba(63,255,33,.04)',
-        border: '1px solid rgba(63,255,33,.1)',
-      }}
-    >
-      {[
-        {
-          icon: <TrendingUp size={11} />,
-          label: 'Lucro mês',
-          value: fmtBRL(monthProfit),
-          color: monthProfit >= 0 ? 'var(--g)' : 'var(--r)',
-        },
-        {
-          icon: <Clock size={11} />,
-          label: 'Pendentes',
-          value: String(pendingCount),
-          color: pendingCount > 0 ? 'var(--y)' : 'var(--t3)',
-        },
-      ].map((s, i) => (
-        <div key={i} className="flex flex-col gap-0.5">
-          <div className="flex items-center gap-1" style={{ color: 'var(--t3)' }}>
-            {s.icon}
-            <span className="text-[9px] font-bold uppercase tracking-wide">{s.label}</span>
-          </div>
-          <span
-            className="text-sm font-black neon-value"
-            style={{ color: s.color, fontSize: 13 }}
-          >
-            {s.value}
-          </span>
-        </div>
-      ))}
-      <div className="col-span-2 pt-1.5" style={{ borderTop: '1px solid rgba(63,255,33,.08)' }}>
-        <div className="flex items-center justify-between">
-          <span className="text-[9px] font-bold uppercase tracking-wide" style={{ color: 'var(--t3)' }}>
-            Saldo total
-          </span>
-          <span
-            className="text-xs font-black neon-value"
-            style={{ color: totalCash >= 0 ? 'var(--g)' : 'var(--r)' }}
-          >
-            {totalCash >= 0 ? '' : '−'}R${Math.abs(totalCash).toLocaleString('pt-BR', { minimumFractionDigits: 0 })}
-          </span>
-        </div>
-      </div>
     </div>
   );
 }
@@ -334,11 +265,6 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
             <X size={14} />
           </button>
         )}
-      </div>
-
-      {/* Stats strip */}
-      <div className="pt-3">
-        <SidebarStats />
       </div>
 
       {/* Nav */}

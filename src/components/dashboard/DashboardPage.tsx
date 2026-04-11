@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { useStore }   from '@/store/useStore';
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
-  BarChart, Bar, Cell,
+  BarChart, Bar, Cell, LineChart, Line,
 } from 'recharts';
 import {
   calcLegProfit, groupLegsIntoOps, filterByDate,
@@ -53,18 +53,6 @@ function profitOfLegs(legs: Leg[]) {
 
 /* ── Design tokens ─────────────────────────────────────────────────────────── */
 
-type ShownOpType = 'surebet' | 'outros';
-
-const OP_CFG: Record<ShownOpType, { label: string; color: string; bg: string; border: string }> = {
-  surebet: { label: 'Surebet', color: '#FFD600', bg: 'rgba(255,214,0,.07)',  border: 'rgba(255,214,0,.15)' },
-  outros:  { label: 'Outros',  color: '#FF8F3D', bg: 'rgba(255,143,61,.07)', border: 'rgba(255,143,61,.15)' },
-};
-
-const OP_ICONS: Record<ShownOpType, React.ReactNode> = {
-  surebet: <Zap size={14} />,
-  outros:  <BarChart3 size={14} />,
-};
-
 const cardStyle: React.CSSProperties = {
   background: 'var(--bg2)',
   border: '1px solid var(--b)',
@@ -90,6 +78,7 @@ interface KPIStat {
   icon: React.ReactNode;
   hidden?: boolean;
   onToggleHide?: () => void;
+  sparkline?: { v: number }[];
 }
 
 function KPIBar({ stats }: { stats: KPIStat[] }) {
@@ -139,6 +128,23 @@ function KPIBar({ stats }: { stats: KPIStat[] }) {
             {s.sub && (
               <div className="text-[11px] font-medium" style={{ color: 'var(--t3)' }}>{s.sub}</div>
             )}
+            {/* Sparkline */}
+            {s.sparkline && s.sparkline.length > 1 && !s.hidden && (
+              <div style={{ marginTop: 2 }}>
+                <ResponsiveContainer width="100%" height={36}>
+                  <LineChart data={s.sparkline} margin={{ top: 2, right: 2, left: 2, bottom: 0 }}>
+                    <Line
+                      type="monotone"
+                      dataKey="v"
+                      stroke={color}
+                      strokeWidth={1.5}
+                      dot={false}
+                      strokeOpacity={0.7}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            )}
           </div>
         );
       })}
@@ -146,9 +152,16 @@ function KPIBar({ stats }: { stats: KPIStat[] }) {
   );
 }
 
-/* ── Profit by operation type (Surebet + Outros only) ──────────────────────── */
+/* ── Profit by operation type (dynamic — uses actual ev description for 'outros') */
 
 type PeriodKey = 'hoje' | 'semana' | 'mes' | 'personalizado';
+
+// Color palette for dynamic categories
+const CAT_COLORS = [
+  '#FFD600', '#4DA6FF', '#3FFF21', '#FF8F3D',
+  '#A78BFA', '#F472B6', '#34D399', '#FB923C',
+  '#38BDF8', '#FCD34D', '#86EFAC', '#C084FC',
+];
 
 function ProfitByType({ legs, period, from, to, onPeriodChange, onFromChange, onToChange }: {
   legs: Leg[];
@@ -161,35 +174,33 @@ function ProfitByType({ legs, period, from, to, onPeriodChange, onFromChange, on
 }) {
   const settled = legs.filter(l => l.re !== 'Pendente' && l.re !== 'Devolvido');
 
-  const byType = useMemo(() => {
-    const map: Record<ShownOpType, { profit: number; count: number }> = {
-      surebet: { profit: 0, count: 0 },
-      outros:  { profit: 0, count: 0 },
-    };
+  // Group by: surebet → 'Surebet', delay → 'Delay', duplo_green → 'Duplo Green',
+  //           outros → use ev (description). If no ev, fallback to 'Outros'
+  const byCategory = useMemo(() => {
+    const map = new Map<string, { profit: number; count: number }>();
     settled.forEach(l => {
-      const raw = (l.opType ?? 'surebet') as OpType;
-      // Map delay and duplo_green into outros
-      const t: ShownOpType = (raw === 'surebet') ? 'surebet' : 'outros';
-      map[t].profit += calcLegProfit(l);
-      map[t].count++;
+      const opT = l.opType ?? 'surebet';
+      let key: string;
+      if (opT === 'surebet')     key = 'Surebet';
+      else if (opT === 'delay')  key = 'Delay';
+      else if (opT === 'duplo_green') key = 'Duplo Green';
+      else key = (l.ev?.trim() || 'Outros');
+      const cur = map.get(key) ?? { profit: 0, count: 0 };
+      map.set(key, { profit: cur.profit + calcLegProfit(l), count: cur.count + 1 });
     });
-    (Object.keys(map) as ShownOpType[]).forEach(k => {
-      map[k].profit = +map[k].profit.toFixed(2);
-    });
-    return map;
+    map.forEach((v, k) => map.set(k, { ...v, profit: +v.profit.toFixed(2) }));
+    return Array.from(map.entries())
+      .map(([name, v]) => ({ name, ...v }))
+      .sort((a, b) => Math.abs(b.profit) - Math.abs(a.profit));
   }, [settled]);
 
-  const chartData = (Object.keys(OP_CFG) as ShownOpType[])
-    .map(t => ({ key: t, name: OP_CFG[t].label, value: byType[t].profit, color: OP_CFG[t].color }))
-    .filter(d => d.value !== 0);
-
-  const maxAbs = Math.max(...chartData.map(d => Math.abs(d.value)), 1);
-  const hasAnyData = settled.length > 0;
+  const maxAbs   = Math.max(...byCategory.map(d => Math.abs(d.profit)), 1);
+  const hasData  = settled.length > 0;
 
   const PERIODS: { key: PeriodKey; label: string }[] = [
-    { key: 'hoje', label: 'Hoje' },
-    { key: 'semana', label: 'Semana' },
-    { key: 'mes', label: 'Mês' },
+    { key: 'hoje',        label: 'Hoje'   },
+    { key: 'semana',      label: 'Semana' },
+    { key: 'mes',         label: 'Mês'    },
     { key: 'personalizado', label: 'Período' },
   ];
 
@@ -197,34 +208,29 @@ function ProfitByType({ legs, period, from, to, onPeriodChange, onFromChange, on
     <div className="rounded-2xl p-5 flex flex-col gap-5" style={cardStyle}>
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h3 className="text-sm font-bold" style={{ color: 'var(--t)', fontFamily: "'Manrope', sans-serif" }}>Lucro por Tipo de Operação</h3>
+          <h3 className="text-sm font-bold" style={{ color: 'var(--t)', fontFamily: "'Manrope', sans-serif" }}>
+            Lucro por Tipo de Operação
+          </h3>
           <p className="text-[11px] mt-0.5" style={{ color: 'var(--t3)' }}>{settled.length} apostas liquidadas</p>
         </div>
         {/* Period selector */}
         <div className="flex items-center gap-2 flex-wrap">
           <div className="flex gap-0.5 p-0.5 rounded-xl" style={{ background: 'var(--sur)' }}>
             {PERIODS.slice(0, 3).map(p => (
-              <button
-                key={p.key}
-                onClick={() => onPeriodChange(p.key)}
+              <button key={p.key} onClick={() => onPeriodChange(p.key)}
                 className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
                 style={period === p.key
                   ? { background: 'var(--g)', color: '#000', borderRadius: 100 }
-                  : { color: 'var(--t3)' }
-                }
-              >
+                  : { color: 'var(--t3)' }}>
                 {p.label}
               </button>
             ))}
           </div>
-          <button
-            onClick={() => onPeriodChange('personalizado')}
+          <button onClick={() => onPeriodChange('personalizado')}
             className="px-3 py-1.5 rounded-xl text-xs font-bold transition-all"
             style={period === 'personalizado'
               ? { background: 'var(--g)', color: '#000', borderRadius: 100 }
-              : { background: 'var(--sur)', color: 'var(--t3)', borderRadius: 100 }
-            }
-          >
+              : { background: 'var(--sur)', color: 'var(--t3)', borderRadius: 100 }}>
             Período
           </button>
           {period === 'personalizado' && (
@@ -241,76 +247,109 @@ function ProfitByType({ legs, period, from, to, onPeriodChange, onFromChange, on
         </div>
       </div>
 
-      {!hasAnyData ? (
+      {!hasData ? (
         <div className="text-center py-8 text-sm" style={{ color: 'var(--t3)' }}>
           Nenhuma operação liquidada ainda
         </div>
       ) : (
-        <>
-          {/* Type cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {(Object.keys(OP_CFG) as ShownOpType[]).map((t, i) => {
-              const cfg = OP_CFG[t];
-              const data = byType[t];
-              const pos = data.profit >= 0;
+        <div className="flex flex-col gap-4">
+          {/* Horizontal bar chart */}
+          <ResponsiveContainer width="100%" height={Math.max(byCategory.length * 52, 80)}>
+            <BarChart
+              data={byCategory}
+              layout="vertical"
+              margin={{ top: 0, right: 72, left: 0, bottom: 0 }}
+              barSize={18}
+            >
+              <CartesianGrid horizontal={false} stroke="rgba(255,255,255,.05)" />
+              <XAxis
+                type="number"
+                tickFormatter={v => `R$${(v / 1000).toFixed(1)}k`}
+                tick={{ fill: '#4A5568', fontSize: 10, fontFamily: "'JetBrains Mono', monospace" }}
+                axisLine={false}
+                tickLine={false}
+              />
+              <YAxis
+                type="category"
+                dataKey="name"
+                width={90}
+                tick={({ x, y, payload }: { x: number; y: number; payload: { value: string } }) => {
+                  const idx = byCategory.findIndex(d => d.name === payload.value);
+                  const color = CAT_COLORS[idx % CAT_COLORS.length];
+                  return (
+                    <text x={x} y={y} dy={4} textAnchor="end" fill={color}
+                      fontSize={10} fontWeight={700} fontFamily="'Manrope', sans-serif"
+                      style={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      {payload.value.length > 11 ? payload.value.slice(0, 10) + '…' : payload.value}
+                    </text>
+                  );
+                }}
+                axisLine={false}
+                tickLine={false}
+              />
+              <Tooltip
+                cursor={{ fill: 'rgba(255,255,255,.04)' }}
+                content={({ active, payload }) => {
+                  if (!active || !payload?.length) return null;
+                  const d = payload[0].payload as { name: string; profit: number; count: number };
+                  const idx = byCategory.findIndex(x => x.name === d.name);
+                  const color = CAT_COLORS[idx % CAT_COLORS.length];
+                  return (
+                    <div className="px-3 py-2 rounded-xl text-xs"
+                      style={{ background: 'var(--bg3)', border: `1px solid ${color}40`,
+                               boxShadow: `0 4px 24px ${color}22` }}>
+                      <div className="font-bold mb-1" style={{ color }}>{d.name}</div>
+                      <div style={{ color: 'var(--t2)' }}>
+                        Lucro: <span className="font-mono font-black" style={{ color: d.profit >= 0 ? 'var(--g)' : 'var(--r)' }}>
+                          {fmtBRL(d.profit)}
+                        </span>
+                      </div>
+                      <div style={{ color: 'var(--t3)' }}>{d.count} {d.count === 1 ? 'aposta' : 'apostas'}</div>
+                    </div>
+                  );
+                }}
+              />
+              <Bar dataKey="profit" radius={[0, 6, 6, 0]} label={{
+                position: 'right',
+                formatter: (v: number) => v === 0 ? '' : fmtBRL(v),
+                fill: '#94A3B8',
+                fontSize: 10,
+                fontFamily: "'JetBrains Mono', monospace",
+                fontWeight: 700,
+              }}>
+                {byCategory.map((entry, i) => (
+                  <Cell
+                    key={entry.name}
+                    fill={entry.profit >= 0
+                      ? CAT_COLORS[i % CAT_COLORS.length]
+                      : 'rgba(255,77,77,.7)'}
+                  />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+
+          {/* Summary pills below chart */}
+          <div className="flex flex-wrap gap-2 pt-1" style={{ borderTop: '1px solid rgba(255,255,255,.06)' }}>
+            {byCategory.map((d, i) => {
+              const color = CAT_COLORS[i % CAT_COLORS.length];
               return (
-                <div
-                  key={t}
-                  className="rounded-xl p-4 flex flex-col gap-2.5 transition-all duration-200 animate-fade-in"
-                  style={{ background: cfg.bg, border: `1px solid ${cfg.border}`, animationDelay: `${i * 50}ms` }}
-                >
-                  <div className="flex items-center gap-2">
-                    <span style={{ color: cfg.color, opacity: 0.7 }}>{OP_ICONS[t]}</span>
-                    <span className="text-[11px] font-bold uppercase tracking-wide" style={{ color: cfg.color, fontFamily: "'Manrope', sans-serif" }}>
-                      {cfg.label}
-                    </span>
-                  </div>
-                  <div
-                    className="text-lg font-black"
-                    style={{ color: data.profit === 0 ? 'var(--t3)' : pos ? cfg.color : 'var(--r)', fontFamily: "'JetBrains Mono', monospace" }}
-                  >
-                    {data.profit === 0 ? '\u2014' : fmtBRL(data.profit)}
-                  </div>
-                  <div className="text-[11px]" style={{ color: 'var(--t3)' }}>
-                    {data.count} {data.count === 1 ? 'aposta' : 'apostas'}
-                  </div>
+                <div key={d.name} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full"
+                  style={{ background: `${color}12`, border: `1px solid ${color}28` }}>
+                  <span className="w-1.5 h-1.5 rounded-full" style={{ background: color }} />
+                  <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color }}>
+                    {d.name}
+                  </span>
+                  <span className="text-[10px] font-black font-mono"
+                    style={{ color: d.profit >= 0 ? color : 'var(--r)' }}>
+                    {fmtBRL(d.profit)}
+                  </span>
+                  <span className="text-[10px]" style={{ color: 'var(--t3)' }}>· {d.count}x</span>
                 </div>
               );
             })}
           </div>
-
-          {/* Horizontal bars */}
-          {chartData.length > 0 && (
-            <div className="flex flex-col gap-2.5 pt-2">
-              {chartData.map(d => {
-                const pct = Math.abs(d.value) / maxAbs * 100;
-                const pos = d.value >= 0;
-                return (
-                  <div key={d.name} className="flex items-center gap-3">
-                    <div className="w-24 text-[11px] font-medium flex-shrink-0" style={{ color: 'var(--t2)' }}>{d.name}</div>
-                    <div className="flex-1 h-[6px] rounded-full overflow-hidden" style={{ background: 'var(--sur)' }}>
-                      <div
-                        className="h-full rounded-full"
-                        style={{
-                          width: `${pct}%`,
-                          background: `linear-gradient(90deg, ${d.color}88, ${d.color})`,
-                          boxShadow: `0 0 8px ${d.color}44`,
-                          transition: 'width 0.8s cubic-bezier(.2,.8,.4,1)',
-                        }}
-                      />
-                    </div>
-                    <div
-                      className="text-[11px] font-bold w-28 text-right flex-shrink-0"
-                      style={{ color: pos ? d.color : 'var(--r)', fontFamily: "'JetBrains Mono', monospace" }}
-                    >
-                      {fmtBRL(d.value)}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </>
+        </div>
       )}
     </div>
   );
@@ -806,7 +845,7 @@ export function DashboardPage() {
     [legs, chartFrom, chartTo],
   );
 
-  // Build DayStat[] from chartLegs over the selected date range
+  // Build DayStat[] — always fill every calendar day in the range (including zeroes)
   const dailyData = useMemo<DayStat[]>(() => {
     const byDay: Record<string, { profit: number; ops: number }> = {};
     chartLegs.forEach(l => {
@@ -814,21 +853,26 @@ export function DashboardPage() {
       if (!byDay[d]) byDay[d] = { profit: 0, ops: 0 };
       byDay[d].profit += calcLegProfit(l);
     });
-    // count ops per day
     groupLegsIntoOps(chartLegs).forEach(op => {
       const d = op.bet_date.slice(0, 10);
       if (byDay[d]) byDay[d].ops++;
     });
 
+    // For the "mes" preset, always show the full month (day 1 → last day of month)
+    const rangeFrom = chartPeriod === '30d' || chartPeriod === '60d' || chartPeriod === '90d'
+      ? chartFrom
+      : chartFrom;
+    const rangeTo = chartTo;
+
     const result: DayStat[] = [];
-    const cursor = new Date(chartFrom + 'T12:00:00');
-    const end    = new Date(chartTo   + 'T12:00:00');
+    const cursor = new Date(rangeFrom + 'T12:00:00');
+    const end    = new Date(rangeTo   + 'T12:00:00');
     while (cursor <= end) {
       const date = cursor.toISOString().slice(0, 10);
-      const mm = date.slice(5, 7), dd = date.slice(8, 10);
+      const dd = date.slice(8, 10);
       const entry = byDay[date];
       result.push({
-        dayLabel: `${dd}/${mm}`,
+        dayLabel: dd,
         date,
         profit: entry ? +entry.profit.toFixed(2) : 0,
         ops:    entry?.ops ?? 0,
@@ -836,10 +880,37 @@ export function DashboardPage() {
       cursor.setDate(cursor.getDate() + 1);
     }
     return result;
-  }, [chartLegs, chartFrom, chartTo]);
+  }, [chartLegs, chartFrom, chartTo, chartPeriod]);
 
   const weeklyData  = useMemo(() => calcWeeklyProfit(chartLegs, 4),  [chartLegs]);
   const sportDist   = useMemo<SportStat[]>(() => calcBySport(chartLegs),     [chartLegs]);
+
+  // Sparklines: daily profit for last 7 days, last 7 days (week), last 30 days (month)
+  const sparkWeek = useMemo(() => {
+    const days: { v: number }[] = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(today + 'T12:00:00');
+      d.setDate(d.getDate() - i);
+      const k = d.toISOString().slice(0, 10);
+      const v = settled.filter(l => l.bd.slice(0, 10) === k).reduce((s, l) => s + calcLegProfit(l), 0);
+      days.push({ v: +v.toFixed(2) });
+    }
+    return days;
+  }, [settled, today]);
+
+  const sparkMonth = useMemo(() => {
+    const byDay: Record<string, number> = {};
+    monthLegs.forEach(l => {
+      const d = l.bd.slice(0, 10);
+      byDay[d] = (byDay[d] ?? 0) + calcLegProfit(l);
+    });
+    const year = today.slice(0, 4), mon = today.slice(5, 7);
+    const daysInMonth = new Date(+year, +mon, 0).getDate();
+    return Array.from({ length: daysInMonth }, (_, i) => {
+      const k = `${year}-${mon}-${String(i + 1).padStart(2, '0')}`;
+      return { v: +(byDay[k] ?? 0).toFixed(2) };
+    });
+  }, [monthLegs, today]);
 
   return (
     <div className="flex flex-col gap-5 animate-fade-in">
@@ -852,6 +923,7 @@ export function DashboardPage() {
           sub: `${settled.filter(l => l.bd.slice(0, 10) === today).length} apostas`,
           positive: profitDay === 0 ? null : profitDay > 0,
           icon: <TrendingUp size={14} />,
+          sparkline: sparkWeek.slice(-1).concat([{ v: profitDay }]),
         },
         {
           label: 'Lucro Semana',
@@ -859,6 +931,7 @@ export function DashboardPage() {
           sub: 'esta semana',
           positive: profitWeek === 0 ? null : profitWeek > 0,
           icon: <Calendar size={14} />,
+          sparkline: sparkWeek,
         },
         {
           label: `Lucro ${monthName}`,
@@ -866,6 +939,7 @@ export function DashboardPage() {
           sub: `${monthLegs.length} apostas`,
           positive: profitMonth === 0 ? null : profitMonth > 0,
           icon: <BarChart3 size={14} />,
+          sparkline: sparkMonth,
         },
         {
           label: 'Capital Total',
@@ -918,7 +992,7 @@ export function DashboardPage() {
               <Activity size={14} style={{ color: '#818cf8' }} />
             </span>
             <div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#f1f5f9' }}>Tendência &amp; Distribuição</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#f1f5f9' }}>Lucro por Dia</div>
               <div style={{ fontSize: 11, color: 'rgba(255,255,255,.3)', marginTop: 1 }}>
                 {chartFrom} → {chartTo} · {chartLegs.length} apostas
               </div>
