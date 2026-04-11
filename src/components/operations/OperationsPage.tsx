@@ -43,7 +43,7 @@ const SPORTS = [
   'Taekwondo','Tênis de Mesa','Tiro com Arco','Triatlo','UFC','Xadrez','Outros',
 ];
 
-const RESULTS: ResultType[] = ['Pendente','Green','Red','Meio Green','Meio Red','Devolvido','Cashout'];
+const RESULTS: ResultType[] = ['Pendente','Green','Red','Meio Green','Meio Red','Devolvido','Cashout','Pagamento Antecipado'];
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 
@@ -77,13 +77,14 @@ const HOUSE_BRAND: Record<string, { color: string; bg: string; border: string }>
 };
 
 const STATUS_CFG: Record<string, { color: string; bg: string; border: string; icon: string }> = {
-  'Green':      { color: '#00FF88', bg: 'rgba(0,255,136,.12)',    border: 'rgba(0,255,136,.28)',   icon: '✅' },
-  'Red':        { color: '#FF4D4D', bg: 'rgba(255,77,77,.12)',    border: 'rgba(255,77,77,.28)',   icon: '❌' },
-  'Meio Green': { color: '#FFD600', bg: 'rgba(255,214,0,.12)',    border: 'rgba(255,214,0,.28)',   icon: '🟡' },
-  'Meio Red':   { color: '#FF8F3D', bg: 'rgba(255,143,61,.12)',   border: 'rgba(255,143,61,.28)',  icon: '🟠' },
-  'Devolvido':  { color: '#4DA6FF', bg: 'rgba(77,166,255,.12)',   border: 'rgba(77,166,255,.28)',  icon: '↩️' },
-  'Cashout':    { color: '#FFBF00', bg: 'rgba(255,191,0,.12)',    border: 'rgba(255,191,0,.28)',   icon: '💰' },
-  'Pendente':   { color: '#94A3B8', bg: 'rgba(148,163,184,.08)', border: 'rgba(148,163,184,.2)', icon: '⏳' },
+  'Green':               { color: '#00FF88', bg: 'rgba(0,255,136,.12)',    border: 'rgba(0,255,136,.28)',   icon: '✅' },
+  'Red':                 { color: '#FF4D4D', bg: 'rgba(255,77,77,.12)',    border: 'rgba(255,77,77,.28)',   icon: '❌' },
+  'Meio Green':          { color: '#FFD600', bg: 'rgba(255,214,0,.12)',    border: 'rgba(255,214,0,.28)',   icon: '🟡' },
+  'Meio Red':            { color: '#FF8F3D', bg: 'rgba(255,143,61,.12)',   border: 'rgba(255,143,61,.28)',  icon: '🟠' },
+  'Devolvido':           { color: '#4DA6FF', bg: 'rgba(77,166,255,.12)',   border: 'rgba(77,166,255,.28)',  icon: '↩️' },
+  'Cashout':             { color: '#FFBF00', bg: 'rgba(255,191,0,.12)',    border: 'rgba(255,191,0,.28)',   icon: '💰' },
+  'Pagamento Antecipado':{ color: '#FFCB2F', bg: 'rgba(255,203,47,.12)',   border: 'rgba(255,203,47,.28)',  icon: '⚡' },
+  'Pendente':            { color: '#94A3B8', bg: 'rgba(148,163,184,.08)', border: 'rgba(148,163,184,.2)', icon: '⏳' },
 };
 
 const OP_TYPE_LABELS: Record<OpType, string> = {
@@ -444,7 +445,7 @@ function OpModal({ editOid, onClose }: OpModalProps) {
 }
 
 // ── Duplo Green modal ─────────────────────────────────────────────────────────
-// 3 legs: Time 1 / Empate / Time 2 — pagamento antecipado pré-jogo
+// 3 legs: Time 1 / Empate / Time 2 — com calculadora de cenários e pagamento antecipado
 
 interface DGLegDraft {
   ho: string; mk: string; od: string; st: string; re: ResultType; ed: string;
@@ -466,144 +467,337 @@ function DuploGreenModal({ onClose }: { onClose: () => void }) {
     makeDGLeg('Empate'),
     makeDGLeg('Time 2 (Fora)'),
   ]);
-
   const setLeg = (i: number, val: DGLegDraft) =>
     setLegs(prev => prev.map((l, idx) => idx === i ? val : l));
 
-  // Live profit preview
-  const totalStake = legs.reduce((s, l) => s + (parseFloat(l.st.replace(',', '.')) || 0), 0);
-  const payouts    = legs.map(l => {
-    const st = parseFloat(l.st.replace(',', '.')) || 0;
-    const od = parseFloat(l.od.replace(',', '.')) || 0;
-    return st * od;
+  // Pagamento Antecipado state
+  const [paActive, setPaActive]   = useState(false);
+  const [paLeg,    setPaLeg]      = useState<0 | 1 | 2>(0);
+  const [paPayout, setPaPayout]   = useState('');
+
+  // Reentrada state
+  const [reActive, setReActive] = useState(false);
+  const [reHo,     setReHo]     = useState('');
+  const [reOd,     setReOd]     = useState('');
+  const [reSt,     setReSt]     = useState('');
+
+  // Numeric helpers
+  const stOf = (l: DGLegDraft) => parseFloat(l.st.replace(',', '.')) || 0;
+  const odOf = (l: DGLegDraft) => parseFloat(l.od.replace(',', '.')) || 0;
+
+  const totalStake  = legs.reduce((s, l) => s + stOf(l), 0);
+  const payouts     = legs.map(l => stOf(l) * odOf(l));
+  const scenarios   = legs.map((_, i) => payouts[i] - totalStake);
+
+  const paPayoutVal       = parseFloat(paPayout.replace(',', '.')) || 0;
+  const resultadoParcial  = paActive && paPayoutVal > 0 ? paPayoutVal - totalStake : null;
+
+  const reOdVal = parseFloat(reOd.replace(',', '.')) || 0;
+  const reStVal = parseFloat(reSt.replace(',', '.')) || 0;
+
+  // Scenarios after PA + optional reentrada
+  const finalScenarios = legs.map((_, i): number | null => {
+    if (resultadoParcial === null) return null;
+    if (!reActive || reStVal === 0 || reOdVal === 0) return resultadoParcial;
+    return i === paLeg
+      ? resultadoParcial + (reOdVal - 1) * reStVal   // reentrada wins
+      : resultadoParcial - reStVal;                   // reentrada loses
   });
-  const minPayout  = payouts.some(p => p > 0) ? Math.min(...payouts.filter(p => p > 0)) : 0;
-  const estProfit  = +(minPayout - totalStake).toFixed(2);
 
   function save() {
-    if (!ev.trim()) { toastFn('Preencha o evento', 'wrn'); return; }
+    if (!ev.trim())          { toastFn('Preencha o evento', 'wrn'); return; }
     if (legs.some(l => !l.ho)) { toastFn('Selecione a casa para cada perna', 'wrn'); return; }
-    if (legs.some(l => !parseFloat(l.od.replace(',', '.')))) { toastFn('Preencha as odds', 'wrn'); return; }
+    if (legs.some(l => !odOf(l))) { toastFn('Preencha as odds', 'wrn'); return; }
+
     const oid = `dg_${Date.now()}`;
     legs.forEach((draft, i) => {
-      const edVal = draft.ed || bd;
+      const re: ResultType    = paActive && i === paLeg ? 'Pagamento Antecipado' : draft.re;
+      const cov: number | undefined = paActive && i === paLeg && paPayoutVal > 0 ? paPayoutVal : undefined;
       const leg: Leg = {
-        id: `l_dg_${Date.now()}_${i}`, oid, bd, ed: edVal,
+        id: `l_dg_${Date.now()}_${i}`, oid, bd, ed: draft.ed || bd,
         sp, ev: ev.trim(), ho: draft.ho, mk: draft.mk,
-        od: parseFloat(draft.od.replace(',', '.')) || 0,
-        st: parseFloat(draft.st.replace(',', '.')) || 0,
-        re: draft.re, pc: 0, pr: 0, fl: [],
+        od: odOf(draft), st: stOf(draft),
+        re, pc: 0, pr: 0, fl: [],
         source: 'manual', signal: 'pre', opType: 'duplo_green',
+        ...(cov !== undefined && { cashoutValue: cov }),
       };
       leg.pr = calcLegProfit(leg);
       addLeg(leg);
     });
+
+    if (reActive && reOdVal > 0 && reStVal > 0) {
+      const releg: Leg = {
+        id: `l_dg_re_${Date.now()}`, oid, bd, ed: bd,
+        sp, ev: `${ev.trim()} (Reentrada)`,
+        ho: reHo || legs[paLeg].ho, mk: legs[paLeg].mk,
+        od: reOdVal, st: reStVal,
+        re: 'Pendente', pc: 0, pr: 0, fl: [],
+        source: 'manual', signal: 'pre', opType: 'duplo_green',
+      };
+      addLeg(releg);
+    }
+
     toastFn('Duplo Green registrado', 'ok');
     onClose();
   }
 
-  const LEG_LABELS = ['Time 1 (Casa)', 'Empate', 'Time 2 (Fora)'];
+  const LEG_LABELS = ['Time 1', 'Empate', 'Time 2'];
   const LEG_COLORS = ['#4DA6FF', '#FFCB2F', '#FF8F3D'];
+  const fmt = (n: number) =>
+    Math.abs(n).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const fmtProfit = (n: number) =>
+    `${n >= 0 ? '+' : '−'}R$ ${fmt(n)}`;
 
   return (
     <Modal title="Novo Duplo Green" onClose={onClose} size="xl">
-      <div className="flex flex-col gap-4">
-        {/* Info banner */}
-        <div className="flex items-start gap-3 px-3 py-2.5 rounded-xl text-xs"
-          style={{ background: 'rgba(255,203,47,.07)', border: '1px solid rgba(255,203,47,.2)', color: '#FFCB2F' }}>
-          <span className="text-base flex-shrink-0">⚡</span>
-          <div>
-            <div className="font-bold mb-0.5">Pagamento Antecipado — Pré-Jogo</div>
-            <div style={{ color: 'rgba(255,203,47,.75)' }}>
-              Apostas em 3 casas diferentes (Time 1 / Empate / Time 2). Quando um time abrir 2 gols de vantagem,
-              uma das pernas é resolvida automaticamente pela casa. As demais permanecem em aberto.
-              Após o pagamento, edite a operação para registrar o resultado de cada perna.
-            </div>
+      <div className="flex flex-col gap-5">
+
+        {/* ── Detalhes ───────────────────────────────────────────────── */}
+        <div className="flex flex-col gap-2">
+          <span className="text-[10px] font-black uppercase tracking-wider" style={{ color: 'var(--t3)' }}>Detalhes</span>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <label className="flex flex-col gap-1">
+              <span className="text-[10px] font-bold uppercase text-slate-500">Esporte</span>
+              <select value={sp} onChange={e => setSp(e.target.value)} style={SELECT_S}>
+                {SPORTS.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-[10px] font-bold uppercase text-slate-500">Data da Aposta</span>
+              <input type="datetime-local" value={bd} onChange={e => setBd(e.target.value)}
+                className="font-mono" style={INPUT_S} />
+            </label>
+            <label className="col-span-2 sm:col-span-1 flex flex-col gap-1">
+              <span className="text-[10px] font-bold uppercase text-slate-500">Evento</span>
+              <input value={ev} onChange={e => setEv(e.target.value)}
+                placeholder="Ex: Real Madrid vs Barcelona" style={INPUT_S} />
+            </label>
           </div>
         </div>
 
-        {/* Common fields */}
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          <label className="flex flex-col gap-1">
-            <span className="text-xs font-bold uppercase text-slate-500">Esporte</span>
-            <select value={sp} onChange={e => setSp(e.target.value)} style={SELECT_S}>
-              {SPORTS.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="text-xs font-bold uppercase text-slate-500">Data da Aposta</span>
-            <input type="datetime-local" value={bd} onChange={e => setBd(e.target.value)}
-              className="font-mono" style={INPUT_S} />
-          </label>
-          <label className="col-span-2 sm:col-span-1 flex flex-col gap-1">
-            <span className="text-xs font-bold uppercase text-slate-500">Evento</span>
-            <input value={ev} onChange={e => setEv(e.target.value)}
-              placeholder="Ex: Real Madrid vs Barcelona" style={INPUT_S} />
-          </label>
-        </div>
-
-        {/* 3 legs */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-          {legs.map((leg, i) => (
-            <div key={i} className="rounded-xl p-3 flex flex-col gap-2"
-              style={{ background: `${LEG_COLORS[i]}0d`, border: `1px solid ${LEG_COLORS[i]}25` }}>
-              <span className="text-xs font-black uppercase tracking-wide" style={{ color: LEG_COLORS[i] }}>
-                Casa {i + 1} — {LEG_LABELS[i]}
-              </span>
-              <div className="grid grid-cols-2 gap-2">
-                <label className="col-span-2 flex flex-col gap-1">
-                  <span className="text-[10px] font-bold uppercase text-slate-500">Casa</span>
-                  <select value={leg.ho} onChange={e => setLeg(i, { ...leg, ho: e.target.value })} style={SELECT_S}>
-                    <option value="">Qual casa?</option>
-                    {ALL_HOUSES.map(h => <option key={h} value={h}>{h}</option>)}
-                  </select>
-                </label>
-                <label className="flex flex-col gap-1">
-                  <span className="text-[10px] font-bold uppercase text-slate-500">Odd</span>
-                  <input value={leg.od} onChange={e => setLeg(i, { ...leg, od: e.target.value })}
-                    placeholder="2.10" className="font-mono" style={INPUT_S} />
-                </label>
-                <label className="flex flex-col gap-1">
-                  <span className="text-[10px] font-bold uppercase text-slate-500">Stake (R$)</span>
-                  <input value={leg.st} onChange={e => setLeg(i, { ...leg, st: e.target.value })}
-                    placeholder="500,00" className="font-mono" style={INPUT_S} />
-                </label>
-                <label className="col-span-2 flex flex-col gap-1">
-                  <span className="text-[10px] font-bold uppercase text-slate-500">Data do Evento</span>
-                  <input type="datetime-local" value={leg.ed} onChange={e => setLeg(i, { ...leg, ed: e.target.value })}
-                    className="font-mono" style={INPUT_S} />
-                </label>
+        {/* ── 3 Pernas ───────────────────────────────────────────────── */}
+        <div className="flex flex-col gap-2">
+          <span className="text-[10px] font-black uppercase tracking-wider" style={{ color: 'var(--t3)' }}>Pernas</span>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+            {legs.map((leg, i) => (
+              <div key={i} className="rounded-xl p-3 flex flex-col gap-2"
+                style={{ background: `${LEG_COLORS[i]}0d`, border: `1px solid ${LEG_COLORS[i]}25` }}>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-black uppercase tracking-wide" style={{ color: LEG_COLORS[i] }}>
+                    {LEG_LABELS[i]}
+                  </span>
+                  {stOf(leg) > 0 && odOf(leg) > 0 && (
+                    <span className="text-[10px] font-mono" style={{ color: `${LEG_COLORS[i]}bb` }}>
+                      ↩ R$ {fmt(stOf(leg) * odOf(leg))}
+                    </span>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="col-span-2 flex flex-col gap-1">
+                    <span className="text-[10px] font-bold uppercase text-slate-500">Casa</span>
+                    <select value={leg.ho} onChange={e => setLeg(i, { ...leg, ho: e.target.value })} style={SELECT_S}>
+                      <option value="">Qual casa?</option>
+                      {ALL_HOUSES.map(h => <option key={h} value={h}>{h}</option>)}
+                    </select>
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[10px] font-bold uppercase text-slate-500">Odd</span>
+                    <input value={leg.od} onChange={e => setLeg(i, { ...leg, od: e.target.value })}
+                      placeholder="2.10" className="font-mono" style={INPUT_S} />
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[10px] font-bold uppercase text-slate-500">Stake (R$)</span>
+                    <input value={leg.st} onChange={e => setLeg(i, { ...leg, st: e.target.value })}
+                      placeholder="500,00" className="font-mono" style={INPUT_S} />
+                  </label>
+                  <label className="col-span-2 flex flex-col gap-1">
+                    <span className="text-[10px] font-bold uppercase text-slate-500">Data do Evento</span>
+                    <input type="datetime-local" value={leg.ed} onChange={e => setLeg(i, { ...leg, ed: e.target.value })}
+                      className="font-mono" style={INPUT_S} />
+                  </label>
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
 
-        {/* Live preview */}
+        {/* ── Calculadora de Cenários ────────────────────────────────── */}
         {totalStake > 0 && (
-          <div className="grid grid-cols-3 gap-3 px-3 py-3 rounded-xl"
-            style={{ background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.06)' }}>
-            <div className="flex flex-col gap-0.5">
-              <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: 'var(--t3)' }}>Stake Total</span>
-              <span className="text-sm font-black font-mono" style={{ color: 'var(--t2)' }}>
-                R$ {totalStake.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-              </span>
-            </div>
-            <div className="flex flex-col gap-0.5">
-              <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: 'var(--t3)' }}>Retorno Mín.</span>
-              <span className="text-sm font-black font-mono" style={{ color: 'var(--bl)' }}>
-                {minPayout > 0 ? `R$ ${minPayout.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '—'}
-              </span>
-            </div>
-            <div className="flex flex-col gap-0.5">
-              <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: 'var(--t3)' }}>Lucro Est.</span>
-              <span className="text-sm font-black font-mono"
-                style={{ color: estProfit >= 0 ? 'var(--g)' : 'var(--r)' }}>
-                {minPayout > 0 ? `${estProfit >= 0 ? '+' : ''}R$ ${Math.abs(estProfit).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '—'}
-              </span>
+          <div className="flex flex-col gap-2">
+            <span className="text-[10px] font-black uppercase tracking-wider" style={{ color: 'var(--t3)' }}>Calculadora</span>
+            <div className="rounded-xl overflow-hidden" style={{ border: '1px solid rgba(255,255,255,.08)' }}>
+              <div className="grid grid-cols-4 px-3 py-2 text-[10px] font-black uppercase tracking-wide"
+                style={{ background: 'rgba(255,255,255,.03)', color: 'var(--t3)' }}>
+                <span>Cenário</span>
+                <span className="text-right">Stake Total</span>
+                <span className="text-right">Retorno</span>
+                <span className="text-right">Lucro</span>
+              </div>
+              {legs.map((_, i) => {
+                const payout = payouts[i];
+                const profit = scenarios[i];
+                const hasData = payout > 0;
+                return (
+                  <div key={i} className="grid grid-cols-4 items-center px-3 py-2.5 border-t"
+                    style={{ borderColor: 'rgba(255,255,255,.05)' }}>
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: LEG_COLORS[i] }} />
+                      <span className="text-xs font-bold" style={{ color: 'var(--t2)' }}>{LEG_LABELS[i]} ganha</span>
+                    </span>
+                    <span className="text-right text-xs font-mono" style={{ color: 'var(--t3)' }}>
+                      R$ {fmt(totalStake)}
+                    </span>
+                    <span className="text-right text-xs font-mono" style={{ color: 'var(--t2)' }}>
+                      {hasData ? `R$ ${fmt(payout)}` : '—'}
+                    </span>
+                    <span className="text-right text-xs font-mono font-bold"
+                      style={{ color: hasData ? (profit >= 0 ? 'var(--g)' : 'var(--r)') : 'var(--t3)' }}>
+                      {hasData ? fmtProfit(profit) : '—'}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
 
+        {/* ── Pagamento Antecipado ───────────────────────────────────── */}
+        <div className="flex flex-col gap-2">
+          <button
+            type="button"
+            onClick={() => { setPaActive(v => !v); if (paActive) { setReActive(false); setPaPayout(''); } }}
+            className="flex items-center gap-2 text-xs font-black uppercase tracking-wide w-fit px-3 py-1.5 rounded-lg transition-all duration-150"
+            style={{
+              background: paActive ? 'rgba(255,203,47,.15)' : 'rgba(255,255,255,.05)',
+              border: `1px solid ${paActive ? 'rgba(255,203,47,.35)' : 'rgba(255,255,255,.1)'}`,
+              color: paActive ? '#FFCB2F' : 'var(--t3)',
+            }}
+          >
+            <span>{paActive ? '✅' : '⚡'}</span>
+            Pagamento Antecipado
+          </button>
+
+          {paActive && (
+            <div className="rounded-xl p-4 flex flex-col gap-3"
+              style={{ background: 'rgba(255,203,47,.05)', border: '1px solid rgba(255,203,47,.2)' }}>
+              <p className="text-xs" style={{ color: 'rgba(255,203,47,.75)' }}>
+                A casa liquidou uma das pernas antecipadamente. Selecione qual resultado foi pago e informe o valor recebido.
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <label className="flex flex-col gap-1">
+                  <span className="text-[10px] font-bold uppercase text-slate-500">Resultado Liquidado</span>
+                  <select value={paLeg} onChange={e => setPaLeg(+e.target.value as 0 | 1 | 2)} style={SELECT_S}>
+                    {LEG_LABELS.map((l, i) => (
+                      <option key={i} value={i}>{l}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="flex flex-col gap-1">
+                  <span className="text-[10px] font-bold uppercase text-slate-500">Valor Recebido (R$)</span>
+                  <input value={paPayout} onChange={e => setPaPayout(e.target.value)}
+                    placeholder="980,00" className="font-mono" style={INPUT_S} />
+                </label>
+              </div>
+              {resultadoParcial !== null && (
+                <div className="flex items-center justify-between px-3 py-2.5 rounded-lg"
+                  style={{ background: 'rgba(0,0,0,.25)', border: '1px solid rgba(255,255,255,.06)' }}>
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: 'var(--t3)' }}>Resultado Parcial Garantido</span>
+                    <span className="text-[10px]" style={{ color: 'var(--t3)' }}>
+                      R$ {fmt(paPayoutVal)} recebido − R$ {fmt(totalStake)} investido
+                    </span>
+                  </div>
+                  <span className="text-base font-black font-mono"
+                    style={{ color: resultadoParcial >= 0 ? 'var(--g)' : 'var(--r)' }}>
+                    {fmtProfit(resultadoParcial)}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* ── Reentrada ─────────────────────────────────────────────── */}
+        {paActive && resultadoParcial !== null && (
+          <div className="flex flex-col gap-2">
+            <button
+              type="button"
+              onClick={() => setReActive(v => !v)}
+              className="flex items-center gap-2 text-xs font-black uppercase tracking-wide w-fit px-3 py-1.5 rounded-lg transition-all duration-150"
+              style={{
+                background: reActive ? 'rgba(77,166,255,.15)' : 'rgba(255,255,255,.05)',
+                border: `1px solid ${reActive ? 'rgba(77,166,255,.35)' : 'rgba(255,255,255,.1)'}`,
+                color: reActive ? '#4DA6FF' : 'var(--t3)',
+              }}
+            >
+              <span>🔄</span>
+              Reentrada
+            </button>
+
+            {reActive && (
+              <div className="rounded-xl p-4 flex flex-col gap-3"
+                style={{ background: 'rgba(77,166,255,.05)', border: '1px solid rgba(77,166,255,.2)' }}>
+                <p className="text-xs" style={{ color: 'rgba(77,166,255,.75)' }}>
+                  Nova aposta realizada após o pagamento antecipado para proteger o resultado.
+                </p>
+                <div className="grid grid-cols-3 gap-3">
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[10px] font-bold uppercase text-slate-500">Casa</span>
+                    <select value={reHo} onChange={e => setReHo(e.target.value)} style={SELECT_S}>
+                      <option value="">Mesma casa</option>
+                      {ALL_HOUSES.map(h => <option key={h} value={h}>{h}</option>)}
+                    </select>
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[10px] font-bold uppercase text-slate-500">Odd</span>
+                    <input value={reOd} onChange={e => setReOd(e.target.value)}
+                      placeholder="2.10" className="font-mono" style={INPUT_S} />
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[10px] font-bold uppercase text-slate-500">Stake (R$)</span>
+                    <input value={reSt} onChange={e => setReSt(e.target.value)}
+                      placeholder="200,00" className="font-mono" style={INPUT_S} />
+                  </label>
+                </div>
+
+                {reStVal > 0 && reOdVal > 0 && (
+                  <div className="rounded-lg overflow-hidden" style={{ border: '1px solid rgba(77,166,255,.2)' }}>
+                    <div className="px-3 py-1.5 text-[10px] font-black uppercase tracking-wide"
+                      style={{ background: 'rgba(77,166,255,.08)', color: '#4DA6FF' }}>
+                      Cenários com Reentrada
+                    </div>
+                    {legs.map((_, i) => {
+                      const s = finalScenarios[i];
+                      if (s === null) return null;
+                      const isReWin = i === paLeg;
+                      return (
+                        <div key={i} className="flex items-center justify-between px-3 py-2 border-t text-xs"
+                          style={{ borderColor: 'rgba(77,166,255,.1)' }}>
+                          <span className="flex items-center gap-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: LEG_COLORS[i] }} />
+                            <span style={{ color: 'var(--t2)' }}>{LEG_LABELS[i]} ganha</span>
+                            {isReWin && (
+                              <span className="text-[9px] px-1.5 py-0.5 rounded"
+                                style={{ background: 'rgba(77,166,255,.15)', color: '#4DA6FF' }}>
+                                reentrada ganha
+                              </span>
+                            )}
+                          </span>
+                          <span className="font-black font-mono"
+                            style={{ color: s >= 0 ? 'var(--g)' : 'var(--r)' }}>
+                            {fmtProfit(s)}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Actions ───────────────────────────────────────────────── */}
         <div className="flex justify-end gap-2 pt-3" style={{ borderTop: '1px solid rgba(255,255,255,.06)' }}>
           <Button variant="ghost" onClick={onClose}>Cancelar</Button>
           <Button variant="primary" onClick={save}>⚡ Registrar Duplo Green</Button>

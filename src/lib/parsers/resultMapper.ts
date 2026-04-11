@@ -28,21 +28,23 @@ export function mapResult(value: unknown): ResultType {
 }
 
 export const RESULT_LABELS: Record<ResultType, string> = {
-  Green:        'Green',
-  Red:          'Red',
-  'Meio Green': 'Meio Green',
-  'Meio Red':   'Meio Red',
-  Devolvido:    'Devolvido',
-  Cashout:      'Cashout',
-  Pendente:     'Pendente',
+  Green:                  'Green',
+  Red:                    'Red',
+  'Meio Green':           'Meio Green',
+  'Meio Red':             'Meio Red',
+  Devolvido:              'Devolvido',
+  Cashout:                'Cashout',
+  'Pagamento Antecipado': 'Pgto. Antecipado',
+  Pendente:               'Pendente',
 };
 
 export const RESULT_COLORS: Record<ResultType, string> = {
-  Green:        '#3DFF8F',
-  Red:          '#FF4545',
-  'Meio Green': '#FFCB2F',
-  'Meio Red':   '#FF8F3D',
-  Devolvido:    '#4DA6FF',
-  Cashout:      '#FFBF00',
-  Pendente:     '#7A90B0',
+  Green:                  '#3DFF8F',
+  Red:                    '#FF4545',
+  'Meio Green':           '#FFCB2F',
+  'Meio Red':             '#FF8F3D',
+  Devolvido:              '#4DA6FF',
+  Cashout:                '#FFBF00',
+  'Pagamento Antecipado': '#FFCB2F',
+  Pendente:               '#7A90B0',
 };

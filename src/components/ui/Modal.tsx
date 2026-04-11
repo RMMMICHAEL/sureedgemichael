@@ -45,35 +45,47 @@ export function Modal({ title, onClose, children, size = 'md' }: ModalProps) {
 
   return (
     /**
-     * Single fixed overlay — handles backdrop + centering.
-     * z-[200] ensures it's above all page content.
-     * Clicking the overlay (not the modal panel) closes it.
+     * Two-layer overlay pattern for correct viewport centering:
+     *
+     * Layer 1 (backdrop): fixed inset-0 + overflow-y-auto
+     *   Handles the semi-transparent backdrop and provides a scroll container
+     *   for very tall modals (rare). MUST NOT have flex on it — adding flex+overflow
+     *   together causes centering to be relative to the scroll content, not viewport.
+     *
+     * Layer 2 (flex wrapper): min-h-full flex items-center justify-center
+     *   Fills the full viewport height (min-h-full relative to the fixed parent),
+     *   then flex-centers the panel. On tall content, the wrapper grows with its
+     *   child and the scroll in layer 1 takes over — modal stays centered.
      */
     <div
-      className="fixed inset-0 z-[200] flex items-center justify-center overflow-y-auto p-4"
+      className="fixed inset-0 z-[200] overflow-y-auto"
       style={{
-        background: show ? 'rgba(0,0,0,0.45)' : 'rgba(0,0,0,0)',
+        background: show ? 'rgba(0,0,0,0.5)' : 'rgba(0,0,0,0)',
         transition: 'background 0.2s ease',
       }}
       onClick={e => {
-        // Only close when clicking the backdrop, not the panel
         if (e.target === e.currentTarget) onClose();
       }}
     >
+      {/* Flex centering wrapper — separate from the scroll container */}
+      <div
+        className="flex min-h-full items-center justify-center p-4"
+        onClick={e => {
+          if (e.target === e.currentTarget) onClose();
+        }}
+      >
       {/* Modal panel */}
       <div
         className={clsx('w-full flex flex-col rounded-2xl', SIZE_CLASSES[size])}
         style={{
-          background:  'var(--bg3)',
-          border:      '1px solid var(--b2)',
-          boxShadow:   '0 20px 60px rgba(0,0,0,0.45), 0 0 0 1px rgba(63,255,33,0.04)',
-          maxHeight:   'min(90dvh, 90vh)',
-          marginBottom: 'env(safe-area-inset-bottom, 12px)',
-          opacity:     show ? 1 : 0,
-          transform:   show ? 'translateY(0) scale(1)' : 'translateY(14px) scale(0.97)',
-          transition:  'opacity 0.22s ease, transform 0.22s cubic-bezier(0.2,0.8,0.4,1)',
+          background: 'var(--bg3)',
+          border:     '1px solid var(--b2)',
+          boxShadow:  '0 24px 64px rgba(0,0,0,0.5), 0 0 0 1px rgba(63,255,33,0.04)',
+          maxHeight:  'min(90dvh, 90vh)',
+          opacity:    show ? 1 : 0,
+          transform:  show ? 'translateY(0) scale(1)' : 'translateY(16px) scale(0.97)',
+          transition: 'opacity 0.22s ease, transform 0.22s cubic-bezier(0.2,0.8,0.4,1)',
         }}
-        // Stop clicks from bubbling to the overlay
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
@@ -104,6 +116,7 @@ export function Modal({ title, onClose, children, size = 'md' }: ModalProps) {
           {children}
         </div>
       </div>
+      </div>{/* end flex wrapper */}
     </div>
   );
 }
