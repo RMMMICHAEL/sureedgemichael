@@ -9,11 +9,11 @@
  * ETAPA E — filtro:     current month only (default behaviour)
  *
  * GROUPING RULE:
- *   Rows sharing the same `bd` at minute precision ("YYYY-MM-DDTHH:MM") are
- *   grouped into the same operation. SureEdge records all legs at the same
- *   moment, so this key is deterministic and handles 2-leg (Surebet/Delay)
- *   and 3-leg (Duplo Green) operations correctly.
- *   Groups with > 5 rows fall back to sequential pairing (date-only exports).
+ *   Sequential pairing by sheet position: every 2 rows = 1 operation.
+ *   Duplo Green (3 legs) is detected when 3 consecutive rows share the same
+ *   bd minute and grouped as one operation.
+ *   Root cause of past "trocadas" bug was parseDT silently skipping legs
+ *   with dd-mm-yyyy date format — fixed in parseDT, not in grouping logic.
  *
  * NO POSITIONAL FALLBACKS:
  *   All field extraction uses only the header-derived colMap.
@@ -449,46 +449,52 @@ export function commitRows(rows: ImportRow[], opts: CommitOptions): CommitResult
     ? rows
     : rows.filter(r => !r.flags.some(f => f.code === 'sport_suspect'));
 
-  // ── Group rows into operations: timestamp-based grouping ─────────────────
+  // ── Group rows into operations: sequential pairing ──────────────────────
   //
-  // PRIMARY RULE: rows sharing the exact same `bd` at minute precision
-  // ("YYYY-MM-DDTHH:MM") belong to the same operation. SureEdge registers
-  // all legs of an operation at the same moment, so the minute key is
-  // deterministic. This approach correctly handles 2-leg (Surebet/Delay) and
-  // 3-leg (Duplo Green) operations without positional assumptions.
+  // Rows come in from the sheet in operation order: every 2 rows = 1 operation
+  // (leg1 then leg2 for the same surebet). For Duplo Green (3 legs) the sheet
+  // would list 3 consecutive rows; handled by the variable-size pairing below.
   //
-  // SAFETY CAP: if a timestamp group exceeds 5 rows, the data likely comes
-  // from a bulk export with date-only values (no time component). In that
-  // case, the group is split sequentially into pairs — preserving the old
-  // behaviour as a fallback while avoiding false "giant operation" collapsing.
+  // Why sequential pairing (not timestamp grouping):
+  //   The scanner records ALL bets placed in the same session with the same
+  //   registration timestamp. Grouping by timestamp would merge legs from
+  //   DIFFERENT operations into one (e.g. 4 legs from 2 simultaneous surebets
+  //   all registered at "22:11" would collapse into one giant fake operation).
+  //   Sequential position in the sheet is the authoritative grouping signal.
   //
-  // Why NOT pure sequential pairing:
-  //   Any extra row (summary line, formula cell, or 3-leg DuploGreen) causes
-  //   a one-position offset that permanently misaligns ALL subsequent pairs,
-  //   resulting in legs from different operations being grouped together
-  //   ("trocadas"). Timestamp grouping is immune to this.
-
-  const tsMap = new Map<string, ImportRow[]>();
-  toProcess.forEach(r => {
-    const key = r.bd.slice(0, 16); // minute precision: "YYYY-MM-DDTHH:MM"
-    if (!tsMap.has(key)) tsMap.set(key, []);
-    tsMap.get(key)!.push(r);
-  });
+  // The historical "trocadas" bug was caused by parseDT returning null for
+  // dates formatted with dashes ("dd-mm-yyyy"), silently skipping one leg and
+  // shifting all subsequent pairs. That root cause is now fixed in parseDT
+  // (accepts / - . as date separators), so sequential pairing is safe again.
+  //
+  // Duplo Green detection: if rows i and i+1 and i+2 all share the same
+  // bd (minute precision), treat them as a 3-leg operation.
 
   const ops: ImportRow[][] = [];
-  tsMap.forEach(group => {
-    if (group.length <= 5) {
-      // Normal case: 2-leg surebet, 3-leg duplo_green, or 1-leg alt op
-      ops.push(group);
+  let i = 0;
+  while (i < toProcess.length) {
+    const curr = toProcess[i];
+    const next = toProcess[i + 1];
+    const after = toProcess[i + 2];
+
+    // 3-leg Duplo Green: three consecutive rows with same bd minute
+    if (
+      next && after &&
+      curr.bd.slice(0, 16) === next.bd.slice(0, 16) &&
+      curr.bd.slice(0, 16) === after.bd.slice(0, 16)
+    ) {
+      ops.push([curr, next, after]);
+      i += 3;
+    } else if (next) {
+      // Standard 2-leg operation
+      ops.push([curr, next]);
+      i += 2;
     } else {
-      // Fallback: date-only rows — split into sequential pairs
-      for (let i = 0; i < group.length; i += 2) {
-        const pair: ImportRow[] = [group[i]];
-        if (group[i + 1]) pair.push(group[i + 1]);
-        ops.push(pair);
-      }
+      // Single-leg (alt op or orphaned leg)
+      ops.push([curr]);
+      i += 1;
     }
-  });
+  }
 
   const newLegs:   Leg[]       = [];
   const newHouses: Set<string> = new Set();
