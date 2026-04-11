@@ -110,6 +110,14 @@ const SELECT_S: React.CSSProperties = {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+/** Current datetime in BRT (America/Sao_Paulo) formatted for datetime-local inputs. */
+function nowBRT(): string {
+  return new Date()
+    .toLocaleString('sv-SE', { timeZone: 'America/Sao_Paulo' })
+    .slice(0, 16)
+    .replace(' ', 'T');
+}
+
 function fmtBRL(v: number) {
   const sign = v < 0 ? '−' : '+';
   return `${sign} R$ ${Math.abs(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -304,7 +312,7 @@ function OpModal({ editOid, onClose }: OpModalProps) {
   const existingLegs = editOid ? legs.filter(l => l.oid === editOid) : [];
   const [sp, setSp]  = useState(existingLegs[0]?.sp ?? 'Futebol');
   const [ev, setEv]  = useState(existingLegs[0]?.ev ?? '');
-  const [bd, setBd]  = useState(existingLegs[0]?.bd ?? new Date().toISOString().slice(0, 16));
+  const [bd, setBd]  = useState(existingLegs[0]?.bd ?? nowBRT());
   const [legDrafts, setLegDrafts] = useState<LegDraft[]>(() =>
     existingLegs.length >= 2
       ? existingLegs.map(l => ({ ho: l.ho, mk: l.mk, od: String(l.od), st: String(l.st), re: l.re, ed: l.ed?.slice(0, 16) ?? '' }))
@@ -452,7 +460,7 @@ function DuploGreenModal({ onClose }: { onClose: () => void }) {
 
   const [ev, setEv] = useState('');
   const [sp, setSp] = useState('Futebol');
-  const [bd, setBd] = useState(new Date().toISOString().slice(0, 16));
+  const [bd, setBd] = useState(nowBRT());
   const [legs, setLegs] = useState<DGLegDraft[]>([
     makeDGLeg('Time 1 (Casa)'),
     makeDGLeg('Empate'),
@@ -612,7 +620,7 @@ function AltOpModal({ onClose }: { onClose: () => void }) {
   const toastFn = useStore(s => s.toast);
 
   const [ev,     setEv]     = useState('');
-  const [bd,     setBd]     = useState(new Date().toISOString().slice(0, 16));
+  const [bd,     setBd]     = useState(nowBRT());
   const opType = 'outros' as const;
   const [profit, setProfit] = useState('');
 
@@ -777,6 +785,7 @@ type Op = ReturnType<typeof groupLegsIntoOps>[number];
 interface EditLegDraft {
   id: string; ho: string; mk: string;
   od: string; st: string; re: ResultType; ed: string;
+  manualProfit?: number; // preserved for Delay/Outros/DuploGreen legs
 }
 
 function OpCard({
@@ -800,6 +809,8 @@ function OpCard({
   const [bd,   setBd]             = useState('');
   const [legDrafts, setLegDrafts] = useState<EditLegDraft[]>([]);
   const [cashoutLeg, setCashoutLeg] = useState<Leg | null>(null);
+  // For Delay / Outros / DuploGreen: edit only the profit value
+  const [altProfitEdit, setAltProfitEdit] = useState('');
 
   const opType     = (op.legs[0]?.opType ?? 'surebet') as OpType;
   const isAlt      = opType !== 'surebet';
@@ -816,14 +827,20 @@ function OpCard({
       setEv(op.event ?? '');
       setBd((op.bet_date ?? '').slice(0, 16));
       setLegDrafts(op.legs.map(l => ({
-        id:  l.id,
-        ho:  l.ho,
-        mk:  l.mk,
-        od:  l.od ? String(l.od) : '',
-        st:  l.manualProfit !== undefined ? '' : (l.st ? String(l.st) : ''),
-        re:  l.re,
-        ed:  (l.ed || l.bd).slice(0, 16),
+        id:           l.id,
+        ho:           l.ho,
+        mk:           l.mk,
+        od:           l.od ? String(l.od) : '',
+        st:           l.st ? String(l.st) : '',
+        re:           l.re,
+        ed:           (l.ed || l.bd).slice(0, 16),
+        manualProfit: l.manualProfit,
       })));
+      // For alt ops, pre-fill the profit field with current total profit
+      if (opType !== 'surebet') {
+        const currentProfit = op.legs.reduce((s, l) => s + calcLegProfit(l), 0);
+        setAltProfitEdit(String(+currentProfit.toFixed(2)));
+      }
       setOpen(true);
     }
   }, [isEditing]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -845,30 +862,57 @@ function OpCard({
     const oid = op.id;
     op.legs.forEach(l => deleteLeg(l.id));
 
-    legDrafts.forEach((draft, i) => {
-      const edVal = draft.ed || bd;
+    if (opType !== 'surebet') {
+      // Alt ops (Delay / Outros / DuploGreen): save only the profit, preserve everything else
+      const profitVal = parseFloat(altProfitEdit.replace(',', '.').replace('−', '-'));
+      if (isNaN(profitVal)) { toastFn('Informe o valor do lucro', 'wrn'); return; }
       const leg: Leg = {
-        id:     `l_m_${Date.now()}_${i}`,
+        id:           `l_m_${Date.now()}_0`,
         oid,
         bd,
-        ed:     edVal,
+        ed:           bd,
         sp,
-        ev:     ev.trim(),
-        ho:     draft.ho,
-        mk:     draft.mk,
-        od:     parseFloat(draft.od.replace(',', '.')) || 0,
-        st:     parseFloat(draft.st.replace(',', '.')) || 0,
-        re:     draft.re,
-        pc:     0,
-        pr:     0,
-        fl:     [],
-        source: 'manual',
-        signal: detectSignal(bd, edVal),
+        ev:           ev.trim(),
+        ho:           op.legs[0]?.ho ?? '',
+        mk:           op.legs[0]?.mk ?? '',
+        od:           0,
+        st:           0,
+        re:           profitVal >= 0 ? 'Green' : 'Red',
+        pc:           0,
+        pr:           profitVal,
+        fl:           [],
+        source:       'manual',
+        signal:       'pre',
         opType,
+        manualProfit: profitVal,
       };
-      leg.pr = calcLegProfit(leg);
       addLeg(leg);
-    });
+    } else {
+      legDrafts.forEach((draft, i) => {
+        const edVal = draft.ed || bd;
+        const leg: Leg = {
+          id:     `l_m_${Date.now()}_${i}`,
+          oid,
+          bd,
+          ed:     edVal,
+          sp,
+          ev:     ev.trim(),
+          ho:     draft.ho,
+          mk:     draft.mk,
+          od:     parseFloat(draft.od.replace(',', '.')) || 0,
+          st:     parseFloat(draft.st.replace(',', '.')) || 0,
+          re:     draft.re,
+          pc:     0,
+          pr:     0,
+          fl:     [],
+          source: 'manual',
+          signal: detectSignal(bd, edVal),
+          opType,
+        };
+        leg.pr = calcLegProfit(leg);
+        addLeg(leg);
+      });
+    }
 
     toastFn('Operação atualizada', 'ok');
     onExitEdit();
@@ -1016,62 +1060,86 @@ function OpCard({
           // ── EDIT MODE ─────────────────────────────────────────────────────
           <div className="p-4 flex flex-col gap-4">
 
-            {/* Header fields */}
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-              <label className="flex flex-col gap-1">
-                <span className="text-xs font-bold uppercase" style={{ color: '#4B5563' }}>Esporte</span>
-                <select value={sp} onChange={e => setSp(e.target.value)} style={SELECT_S}>
-                  {SPORTS.map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </label>
-              <label className="flex flex-col gap-1">
-                <span className="text-xs font-bold uppercase" style={{ color: '#4B5563' }}>Data da Aposta</span>
-                <input type="datetime-local" value={bd} onChange={e => setBd(e.target.value)}
-                  className="font-mono" style={INPUT_S} />
-              </label>
-              <label className="col-span-2 sm:col-span-1 flex flex-col gap-1">
-                <span className="text-xs font-bold uppercase" style={{ color: '#4B5563' }}>Evento</span>
-                <input value={ev} onChange={e => setEv(e.target.value)}
-                  placeholder="Ex: Flamengo vs Palmeiras" style={INPUT_S} />
-              </label>
-            </div>
-
-            {/* Divider */}
-            <div style={{ borderTop: '1px solid rgba(255,255,255,.05)' }} />
-
-            {/* Per-leg rows */}
-            {legDrafts.map((draft, i) => (
-              <div key={draft.id} className="rounded-xl p-3 flex flex-col gap-3"
-                style={{ background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.06)' }}>
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold uppercase" style={{ color: '#4B5563' }}>
-                    Operação {i + 1}
-                  </span>
-                  <HouseBadge name={draft.ho || '—'} />
+            {isAlt ? (
+              // ── Alt op edit: only description + profit value ───────────────
+              <div className="flex flex-col gap-3">
+                <div className="text-xs px-3 py-2 rounded-lg"
+                  style={{ background: 'rgba(77,166,255,.07)', color: '#4DA6FF', border: '1px solid rgba(77,166,255,.15)' }}>
+                  Para {OP_TYPE_LABELS[opType]}, edite apenas a descrição e o valor do lucro/prejuízo.
                 </div>
-
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                <div className="grid grid-cols-2 gap-3">
                   <label className="flex flex-col gap-1">
-                    <span className="text-xs font-bold uppercase" style={{ color: '#374151' }}>Data Evento</span>
-                    <input type="datetime-local" value={draft.ed}
-                      onChange={e => setDraft(i, { ed: e.target.value })}
-                      className="font-mono" style={INPUT_S} />
+                    <span className="text-xs font-bold uppercase" style={{ color: '#4B5563' }}>Descrição</span>
+                    <input value={ev} onChange={e => setEv(e.target.value)}
+                      placeholder="Ex: Bônus, Freebets..." style={INPUT_S} autoFocus />
                   </label>
                   <label className="flex flex-col gap-1">
-                    <span className="text-xs font-bold uppercase" style={{ color: '#374151' }}>Casa</span>
-                    <select value={draft.ho}
-                      onChange={e => setDraft(i, { ho: e.target.value })} style={SELECT_S}>
-                      <option value="">Selecionar...</option>
-                      {ALL_HOUSES.map(h => <option key={h} value={h}>{h}</option>)}
+                    <span className="text-xs font-bold uppercase" style={{ color: '#4B5563' }}>Lucro / Prejuízo (R$)</span>
+                    <input
+                      value={altProfitEdit}
+                      onChange={e => setAltProfitEdit(e.target.value)}
+                      placeholder="+50,00 ou -20,00"
+                      className="font-mono"
+                      style={INPUT_S}
+                    />
+                  </label>
+                </div>
+              </div>
+            ) : (
+              // ── Surebet full edit form ─────────────────────────────────────
+              <>
+                {/* Header fields */}
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                  <label className="flex flex-col gap-1">
+                    <span className="text-xs font-bold uppercase" style={{ color: '#4B5563' }}>Esporte</span>
+                    <select value={sp} onChange={e => setSp(e.target.value)} style={SELECT_S}>
+                      {SPORTS.map(s => <option key={s} value={s}>{s}</option>)}
                     </select>
                   </label>
                   <label className="flex flex-col gap-1">
-                    <span className="text-xs font-bold uppercase" style={{ color: '#374151' }}>Mercado</span>
-                    <input value={draft.mk} onChange={e => setDraft(i, { mk: e.target.value })}
-                      placeholder="1X2..." style={INPUT_S} />
+                    <span className="text-xs font-bold uppercase" style={{ color: '#4B5563' }}>Data da Aposta</span>
+                    <input type="datetime-local" value={bd} onChange={e => setBd(e.target.value)}
+                      className="font-mono" style={INPUT_S} />
                   </label>
-                  {!isAlt && (
-                    <>
+                  <label className="col-span-2 sm:col-span-1 flex flex-col gap-1">
+                    <span className="text-xs font-bold uppercase" style={{ color: '#4B5563' }}>Evento</span>
+                    <input value={ev} onChange={e => setEv(e.target.value)}
+                      placeholder="Ex: Flamengo vs Palmeiras" style={INPUT_S} />
+                  </label>
+                </div>
+
+                <div style={{ borderTop: '1px solid rgba(255,255,255,.05)' }} />
+
+                {/* Per-leg rows */}
+                {legDrafts.map((draft, i) => (
+                  <div key={draft.id} className="rounded-xl p-3 flex flex-col gap-3"
+                    style={{ background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.06)' }}>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold uppercase" style={{ color: '#4B5563' }}>
+                        Operação {i + 1}
+                      </span>
+                      <HouseBadge name={draft.ho || '—'} />
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                      <label className="flex flex-col gap-1">
+                        <span className="text-xs font-bold uppercase" style={{ color: '#374151' }}>Data Evento</span>
+                        <input type="datetime-local" value={draft.ed}
+                          onChange={e => setDraft(i, { ed: e.target.value })}
+                          className="font-mono" style={INPUT_S} />
+                      </label>
+                      <label className="flex flex-col gap-1">
+                        <span className="text-xs font-bold uppercase" style={{ color: '#374151' }}>Casa</span>
+                        <select value={draft.ho}
+                          onChange={e => setDraft(i, { ho: e.target.value })} style={SELECT_S}>
+                          <option value="">Selecionar...</option>
+                          {ALL_HOUSES.map(h => <option key={h} value={h}>{h}</option>)}
+                        </select>
+                      </label>
+                      <label className="flex flex-col gap-1">
+                        <span className="text-xs font-bold uppercase" style={{ color: '#374151' }}>Mercado</span>
+                        <input value={draft.mk} onChange={e => setDraft(i, { mk: e.target.value })}
+                          placeholder="1X2..." style={INPUT_S} />
+                      </label>
                       <label className="flex flex-col gap-1">
                         <span className="text-xs font-bold uppercase" style={{ color: '#374151' }}>Odd</span>
                         <input value={draft.od} onChange={e => setDraft(i, { od: e.target.value })}
@@ -1082,19 +1150,19 @@ function OpCard({
                         <input value={draft.st} onChange={e => setDraft(i, { st: e.target.value })}
                           placeholder="100,00" className="font-mono" style={INPUT_S} />
                       </label>
-                    </>
-                  )}
-                  <label className="flex flex-col gap-1">
-                    <span className="text-xs font-bold uppercase" style={{ color: '#374151' }}>Status</span>
-                    <select value={draft.re}
-                      onChange={e => setDraft(i, { re: e.target.value as ResultType })}
-                      style={{ ...SELECT_S, ...(() => { const s = sCfg(draft.re); return { background: s.bg, color: s.color, border: `1px solid ${s.border}` }; })() }}>
-                      {RESULTS.map(r => <option key={r} value={r}>{r}</option>)}
-                    </select>
-                  </label>
-                </div>
-              </div>
-            ))}
+                      <label className="flex flex-col gap-1">
+                        <span className="text-xs font-bold uppercase" style={{ color: '#374151' }}>Status</span>
+                        <select value={draft.re}
+                          onChange={e => setDraft(i, { re: e.target.value as ResultType })}
+                          style={{ ...SELECT_S, ...(() => { const s = sCfg(draft.re); return { background: s.bg, color: s.color, border: `1px solid ${s.border}` }; })() }}>
+                          {RESULTS.map(r => <option key={r} value={r}>{r}</option>)}
+                        </select>
+                      </label>
+                    </div>
+                  </div>
+                ))}
+              </>
+            )}
           </div>
         ) : (
           // ── VIEW MODE ─────────────────────────────────────────────────────
