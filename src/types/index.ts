@@ -9,7 +9,7 @@ export type ResultType =
   | 'Meio Red'
   | 'Devolvido'
   | 'Cashout'
-  | 'Pagamento Antecipado'
+  | 'Green Antecipado'
   | 'Pendente';
 
 export type SignalType = 'live' | 'pre';

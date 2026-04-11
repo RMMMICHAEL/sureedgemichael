@@ -43,7 +43,11 @@ const SPORTS = [
   'Taekwondo','Tênis de Mesa','Tiro com Arco','Triatlo','UFC','Xadrez','Outros',
 ];
 
-const RESULTS: ResultType[] = ['Pendente','Green','Red','Meio Green','Meio Red','Devolvido','Cashout','Pagamento Antecipado'];
+// General results (surebet / delay / outros)
+const RESULTS: ResultType[] = ['Pendente','Green','Red','Meio Green','Meio Red','Devolvido','Cashout'];
+
+// Duplo Green only — simplified set, no half-results
+const DG_RESULTS: ResultType[] = ['Pendente','Green Antecipado','Green','Red','Cashout'];
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 
@@ -83,7 +87,7 @@ const STATUS_CFG: Record<string, { color: string; bg: string; border: string; ic
   'Meio Red':            { color: '#FF8F3D', bg: 'rgba(255,143,61,.12)',   border: 'rgba(255,143,61,.28)',  icon: '🟠' },
   'Devolvido':           { color: '#4DA6FF', bg: 'rgba(77,166,255,.12)',   border: 'rgba(77,166,255,.28)',  icon: '↩️' },
   'Cashout':             { color: '#FFBF00', bg: 'rgba(255,191,0,.12)',    border: 'rgba(255,191,0,.28)',   icon: '💰' },
-  'Pagamento Antecipado':{ color: '#FFCB2F', bg: 'rgba(255,203,47,.12)',   border: 'rgba(255,203,47,.28)',  icon: '⚡' },
+  'Green Antecipado':    { color: '#FFCB2F', bg: 'rgba(255,203,47,.12)',   border: 'rgba(255,203,47,.28)',  icon: '⚡' },
   'Pendente':            { color: '#94A3B8', bg: 'rgba(148,163,184,.08)', border: 'rgba(148,163,184,.2)', icon: '⏳' },
 };
 
@@ -179,14 +183,13 @@ function HouseBadge({ name }: { name: string }) {
   );
 }
 
-/** Status pill — read-only badge or editable segmented button row */
+/** Status pill — read-only badge or editable select dropdown */
 function StatusPill({
-  value, onChange,
-}: { value: string; onChange?: (v: ResultType) => void }) {
+  value, onChange, results = RESULTS,
+}: { value: string; onChange?: (v: ResultType) => void; results?: ResultType[] }) {
   const s = sCfg(value);
 
   if (!onChange) {
-    // Read-only: compact coloured label
     return (
       <span
         className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold whitespace-nowrap"
@@ -198,7 +201,6 @@ function StatusPill({
     );
   }
 
-  // Editable: styled select dropdown with dynamic status colours
   return (
     <select
       value={value}
@@ -206,16 +208,13 @@ function StatusPill({
       onClick={e => e.stopPropagation()}
       className="text-xs font-bold rounded-full cursor-pointer"
       style={{
-        height: 26,
-        padding: '0 8px',
-        background: s.bg,
-        color: s.color,
+        height: 26, padding: '0 8px',
+        background: s.bg, color: s.color,
         border: `1px solid ${s.border}`,
-        outline: 'none',
-        minWidth: 108,
+        outline: 'none', minWidth: 130,
       }}
     >
-      {RESULTS.map(r => (
+      {results.map(r => (
         <option key={r} value={r} style={{ background: '#1a1d24', color: sCfg(r).color }}>
           {sCfg(r).icon} {r}
         </option>
@@ -470,74 +469,32 @@ function DuploGreenModal({ onClose }: { onClose: () => void }) {
   const setLeg = (i: number, val: DGLegDraft) =>
     setLegs(prev => prev.map((l, idx) => idx === i ? val : l));
 
-  // Pagamento Antecipado state
-  const [paActive, setPaActive]   = useState(false);
-  const [paLeg,    setPaLeg]      = useState<0 | 1 | 2>(0);
-  const [paPayout, setPaPayout]   = useState('');
-
-  // Reentrada state
-  const [reActive, setReActive] = useState(false);
-  const [reHo,     setReHo]     = useState('');
-  const [reOd,     setReOd]     = useState('');
-  const [reSt,     setReSt]     = useState('');
-
-  // Numeric helpers
   const stOf = (l: DGLegDraft) => parseFloat(l.st.replace(',', '.')) || 0;
   const odOf = (l: DGLegDraft) => parseFloat(l.od.replace(',', '.')) || 0;
 
-  const totalStake  = legs.reduce((s, l) => s + stOf(l), 0);
-  const payouts     = legs.map(l => stOf(l) * odOf(l));
-  const scenarios   = legs.map((_, i) => payouts[i] - totalStake);
-
-  const paPayoutVal       = parseFloat(paPayout.replace(',', '.')) || 0;
-  const resultadoParcial  = paActive && paPayoutVal > 0 ? paPayoutVal - totalStake : null;
-
-  const reOdVal = parseFloat(reOd.replace(',', '.')) || 0;
-  const reStVal = parseFloat(reSt.replace(',', '.')) || 0;
-
-  // Scenarios after PA + optional reentrada
-  const finalScenarios = legs.map((_, i): number | null => {
-    if (resultadoParcial === null) return null;
-    if (!reActive || reStVal === 0 || reOdVal === 0) return resultadoParcial;
-    return i === paLeg
-      ? resultadoParcial + (reOdVal - 1) * reStVal   // reentrada wins
-      : resultadoParcial - reStVal;                   // reentrada loses
-  });
+  const totalStake = legs.reduce((s, l) => s + stOf(l), 0);
+  const payouts    = legs.map(l => stOf(l) * odOf(l));
+  const scenarios  = legs.map((_, i) => payouts[i] - totalStake);
 
   function save() {
-    if (!ev.trim())          { toastFn('Preencha o evento', 'wrn'); return; }
+    if (!ev.trim())            { toastFn('Preencha o evento', 'wrn'); return; }
     if (legs.some(l => !l.ho)) { toastFn('Selecione a casa para cada perna', 'wrn'); return; }
     if (legs.some(l => !odOf(l))) { toastFn('Preencha as odds', 'wrn'); return; }
 
     const oid = `dg_${Date.now()}`;
     legs.forEach((draft, i) => {
-      const re: ResultType    = paActive && i === paLeg ? 'Pagamento Antecipado' : draft.re;
-      const cov: number | undefined = paActive && i === paLeg && paPayoutVal > 0 ? paPayoutVal : undefined;
       const leg: Leg = {
         id: `l_dg_${Date.now()}_${i}`, oid, bd, ed: draft.ed || bd,
         sp, ev: ev.trim(), ho: draft.ho, mk: draft.mk,
         od: odOf(draft), st: stOf(draft),
-        re, pc: 0, pr: 0, fl: [],
+        re: draft.re, pc: 0, pr: 0, fl: [],
         source: 'manual', signal: 'pre', opType: 'duplo_green',
-        ...(cov !== undefined && { cashoutValue: cov }),
       };
       leg.pr = calcLegProfit(leg);
       addLeg(leg);
     });
 
-    if (reActive && reOdVal > 0 && reStVal > 0) {
-      const releg: Leg = {
-        id: `l_dg_re_${Date.now()}`, oid, bd, ed: bd,
-        sp, ev: `${ev.trim()} (Reentrada)`,
-        ho: reHo || legs[paLeg].ho, mk: legs[paLeg].mk,
-        od: reOdVal, st: reStVal,
-        re: 'Pendente', pc: 0, pr: 0, fl: [],
-        source: 'manual', signal: 'pre', opType: 'duplo_green',
-      };
-      addLeg(releg);
-    }
-
-    toastFn('Duplo Green registrado', 'ok');
+    toastFn('Duplo Green registrado! Edite a operação para registrar o Green Antecipado.', 'ok');
     onClose();
   }
 
@@ -661,141 +618,12 @@ function DuploGreenModal({ onClose }: { onClose: () => void }) {
           </div>
         )}
 
-        {/* ── Pagamento Antecipado ───────────────────────────────────── */}
-        <div className="flex flex-col gap-2">
-          <button
-            type="button"
-            onClick={() => { setPaActive(v => !v); if (paActive) { setReActive(false); setPaPayout(''); } }}
-            className="flex items-center gap-2 text-xs font-black uppercase tracking-wide w-fit px-3 py-1.5 rounded-lg transition-all duration-150"
-            style={{
-              background: paActive ? 'rgba(255,203,47,.15)' : 'rgba(255,255,255,.05)',
-              border: `1px solid ${paActive ? 'rgba(255,203,47,.35)' : 'rgba(255,255,255,.1)'}`,
-              color: paActive ? '#FFCB2F' : 'var(--t3)',
-            }}
-          >
-            <span>{paActive ? '✅' : '⚡'}</span>
-            Pagamento Antecipado
-          </button>
-
-          {paActive && (
-            <div className="rounded-xl p-4 flex flex-col gap-3"
-              style={{ background: 'rgba(255,203,47,.05)', border: '1px solid rgba(255,203,47,.2)' }}>
-              <p className="text-xs" style={{ color: 'rgba(255,203,47,.75)' }}>
-                A casa liquidou uma das pernas antecipadamente. Selecione qual resultado foi pago e informe o valor recebido.
-              </p>
-              <div className="grid grid-cols-2 gap-3">
-                <label className="flex flex-col gap-1">
-                  <span className="text-[10px] font-bold uppercase text-slate-500">Resultado Liquidado</span>
-                  <select value={paLeg} onChange={e => setPaLeg(+e.target.value as 0 | 1 | 2)} style={SELECT_S}>
-                    {LEG_LABELS.map((l, i) => (
-                      <option key={i} value={i}>{l}</option>
-                    ))}
-                  </select>
-                </label>
-                <label className="flex flex-col gap-1">
-                  <span className="text-[10px] font-bold uppercase text-slate-500">Valor Recebido (R$)</span>
-                  <input value={paPayout} onChange={e => setPaPayout(e.target.value)}
-                    placeholder="980,00" className="font-mono" style={INPUT_S} />
-                </label>
-              </div>
-              {resultadoParcial !== null && (
-                <div className="flex items-center justify-between px-3 py-2.5 rounded-lg"
-                  style={{ background: 'rgba(0,0,0,.25)', border: '1px solid rgba(255,255,255,.06)' }}>
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: 'var(--t3)' }}>Resultado Parcial Garantido</span>
-                    <span className="text-[10px]" style={{ color: 'var(--t3)' }}>
-                      R$ {fmt(paPayoutVal)} recebido − R$ {fmt(totalStake)} investido
-                    </span>
-                  </div>
-                  <span className="text-base font-black font-mono"
-                    style={{ color: resultadoParcial >= 0 ? 'var(--g)' : 'var(--r)' }}>
-                    {fmtProfit(resultadoParcial)}
-                  </span>
-                </div>
-              )}
-            </div>
-          )}
+        {/* ── Dica ──────────────────────────────────────────────────── */}
+        <div className="flex items-start gap-2 px-3 py-2 rounded-lg text-xs"
+          style={{ background: 'rgba(255,203,47,.06)', border: '1px solid rgba(255,203,47,.15)', color: 'rgba(255,203,47,.8)' }}>
+          <span className="flex-shrink-0">⚡</span>
+          <span>Após registrar, edite a operação para marcar o <strong>Green Antecipado</strong> e adicionar a reentrada.</span>
         </div>
-
-        {/* ── Reentrada ─────────────────────────────────────────────── */}
-        {paActive && resultadoParcial !== null && (
-          <div className="flex flex-col gap-2">
-            <button
-              type="button"
-              onClick={() => setReActive(v => !v)}
-              className="flex items-center gap-2 text-xs font-black uppercase tracking-wide w-fit px-3 py-1.5 rounded-lg transition-all duration-150"
-              style={{
-                background: reActive ? 'rgba(77,166,255,.15)' : 'rgba(255,255,255,.05)',
-                border: `1px solid ${reActive ? 'rgba(77,166,255,.35)' : 'rgba(255,255,255,.1)'}`,
-                color: reActive ? '#4DA6FF' : 'var(--t3)',
-              }}
-            >
-              <span>🔄</span>
-              Reentrada
-            </button>
-
-            {reActive && (
-              <div className="rounded-xl p-4 flex flex-col gap-3"
-                style={{ background: 'rgba(77,166,255,.05)', border: '1px solid rgba(77,166,255,.2)' }}>
-                <p className="text-xs" style={{ color: 'rgba(77,166,255,.75)' }}>
-                  Nova aposta realizada após o pagamento antecipado para proteger o resultado.
-                </p>
-                <div className="grid grid-cols-3 gap-3">
-                  <label className="flex flex-col gap-1">
-                    <span className="text-[10px] font-bold uppercase text-slate-500">Casa</span>
-                    <select value={reHo} onChange={e => setReHo(e.target.value)} style={SELECT_S}>
-                      <option value="">Mesma casa</option>
-                      {ALL_HOUSES.map(h => <option key={h} value={h}>{h}</option>)}
-                    </select>
-                  </label>
-                  <label className="flex flex-col gap-1">
-                    <span className="text-[10px] font-bold uppercase text-slate-500">Odd</span>
-                    <input value={reOd} onChange={e => setReOd(e.target.value)}
-                      placeholder="2.10" className="font-mono" style={INPUT_S} />
-                  </label>
-                  <label className="flex flex-col gap-1">
-                    <span className="text-[10px] font-bold uppercase text-slate-500">Stake (R$)</span>
-                    <input value={reSt} onChange={e => setReSt(e.target.value)}
-                      placeholder="200,00" className="font-mono" style={INPUT_S} />
-                  </label>
-                </div>
-
-                {reStVal > 0 && reOdVal > 0 && (
-                  <div className="rounded-lg overflow-hidden" style={{ border: '1px solid rgba(77,166,255,.2)' }}>
-                    <div className="px-3 py-1.5 text-[10px] font-black uppercase tracking-wide"
-                      style={{ background: 'rgba(77,166,255,.08)', color: '#4DA6FF' }}>
-                      Cenários com Reentrada
-                    </div>
-                    {legs.map((_, i) => {
-                      const s = finalScenarios[i];
-                      if (s === null) return null;
-                      const isReWin = i === paLeg;
-                      return (
-                        <div key={i} className="flex items-center justify-between px-3 py-2 border-t text-xs"
-                          style={{ borderColor: 'rgba(77,166,255,.1)' }}>
-                          <span className="flex items-center gap-1.5">
-                            <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: LEG_COLORS[i] }} />
-                            <span style={{ color: 'var(--t2)' }}>{LEG_LABELS[i]} ganha</span>
-                            {isReWin && (
-                              <span className="text-[9px] px-1.5 py-0.5 rounded"
-                                style={{ background: 'rgba(77,166,255,.15)', color: '#4DA6FF' }}>
-                                reentrada ganha
-                              </span>
-                            )}
-                          </span>
-                          <span className="font-black font-mono"
-                            style={{ color: s >= 0 ? 'var(--g)' : 'var(--r)' }}>
-                            {fmtProfit(s)}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
 
         {/* ── Actions ───────────────────────────────────────────────── */}
         <div className="flex justify-end gap-2 pt-3" style={{ borderTop: '1px solid rgba(255,255,255,.06)' }}>
@@ -976,10 +804,13 @@ function CashoutModal({
 
 type Op = ReturnType<typeof groupLegsIntoOps>[number];
 
+interface ReentradaDraft { ho: string; od: string; st: string; }
+
 interface EditLegDraft {
   id: string; ho: string; mk: string;
   od: string; st: string; re: ResultType; ed: string;
-  manualProfit?: number; // preserved for Delay/Outros/DuploGreen legs
+  manualProfit?: number;
+  reentrada?: ReentradaDraft; // only for DG legs with Green Antecipado
 }
 
 function OpCard({
@@ -1020,20 +851,37 @@ function OpCard({
       setSp(op.sport ?? 'Futebol');
       setEv(op.event ?? '');
       setBd((op.bet_date ?? '').slice(0, 16));
-      setLegDrafts(op.legs.map(l => ({
-        id:           l.id,
-        ho:           l.ho,
-        mk:           l.mk,
-        od:           l.od ? String(l.od) : '',
-        st:           l.st ? String(l.st) : '',
-        re:           l.re,
-        ed:           (l.ed || l.bd).slice(0, 16),
-        manualProfit: l.manualProfit,
-      })));
-      // For alt ops, pre-fill the profit field with current total profit
-      if (opType !== 'surebet') {
-        const currentProfit = op.legs.reduce((s, l) => s + calcLegProfit(l), 0);
-        setAltProfitEdit(String(+currentProfit.toFixed(2)));
+
+      if (opType === 'duplo_green') {
+        // Separate reentrada legs from main legs
+        const reentradaByMk = new Map<string, Leg>();
+        op.legs.filter(l => l.ev.endsWith('(Reentrada)')).forEach(l => reentradaByMk.set(l.mk, l));
+        const mainLegs = op.legs.filter(l => !l.ev.endsWith('(Reentrada)'));
+        setLegDrafts(mainLegs.map(l => {
+          const reLeg = reentradaByMk.get(l.mk);
+          return {
+            id: l.id, ho: l.ho, mk: l.mk,
+            od: l.od ? String(l.od) : '',
+            st: l.st ? String(l.st) : '',
+            re: l.re, ed: (l.ed || l.bd).slice(0, 16),
+            manualProfit: l.manualProfit,
+            reentrada: (l.re === 'Green Antecipado' || reLeg)
+              ? { ho: reLeg?.ho ?? '', od: reLeg?.od ? String(reLeg.od) : '', st: reLeg?.st ? String(reLeg.st) : '' }
+              : undefined,
+          };
+        }));
+      } else {
+        setLegDrafts(op.legs.map(l => ({
+          id: l.id, ho: l.ho, mk: l.mk,
+          od: l.od ? String(l.od) : '',
+          st: l.st ? String(l.st) : '',
+          re: l.re, ed: (l.ed || l.bd).slice(0, 16),
+          manualProfit: l.manualProfit,
+        })));
+        if (opType !== 'surebet') {
+          const currentProfit = op.legs.reduce((s, l) => s + calcLegProfit(l), 0);
+          setAltProfitEdit(String(+currentProfit.toFixed(2)));
+        }
       }
       setOpen(true);
     }
@@ -1046,8 +894,7 @@ function OpCard({
   function handleSave() {
     if (!ev.trim()) { toastFn('Preencha o evento', 'wrn'); return; }
 
-    // Before deleting, permanently exclude any import-sourced legs so the
-    // spreadsheet sync never re-imports the original row after this edit.
+    // Permanently exclude import-sourced legs from future re-imports
     const importedKeys = op.legs
       .filter(l => l.source === 'import')
       .map(l => `${l.ho}|${l.mk}|${l.bd.slice(0, 16)}`);
@@ -1056,52 +903,60 @@ function OpCard({
     const oid = op.id;
     op.legs.forEach(l => deleteLeg(l.id));
 
-    if (opType !== 'surebet') {
-      // Alt ops (Delay / Outros / DuploGreen): save only the profit, preserve everything else
+    if (opType === 'duplo_green') {
+      // Full DG edit: save each leg individually with reentrada support
+      legDrafts.forEach((draft, i) => {
+        const odVal = parseFloat(draft.od.replace(',', '.')) || 0;
+        const stVal = parseFloat(draft.st.replace(',', '.')) || 0;
+        const edVal = draft.ed || bd;
+        const leg: Leg = {
+          id: `l_dg_${Date.now()}_${i}`, oid, bd, ed: edVal,
+          sp, ev: ev.trim(), ho: draft.ho, mk: draft.mk,
+          od: odVal, st: stVal, re: draft.re, pc: 0, pr: 0, fl: [],
+          source: 'manual', signal: detectSignal(bd, edVal), opType: 'duplo_green',
+        };
+        leg.pr = calcLegProfit(leg);
+        addLeg(leg);
+
+        // Add reentrada leg if filled
+        if (draft.re === 'Green Antecipado' && draft.reentrada) {
+          const reOd = parseFloat(draft.reentrada.od.replace(',', '.')) || 0;
+          const reSt = parseFloat(draft.reentrada.st.replace(',', '.')) || 0;
+          if (reOd > 0 && reSt > 0) {
+            const releg: Leg = {
+              id: `l_dg_re_${Date.now()}_${i}`, oid, bd, ed: edVal,
+              sp, ev: `${ev.trim()} (Reentrada)`,
+              ho: draft.reentrada.ho || draft.ho, mk: draft.mk,
+              od: reOd, st: reSt, re: 'Pendente', pc: 0, pr: 0, fl: [],
+              source: 'manual', signal: 'pre', opType: 'duplo_green',
+            };
+            addLeg(releg);
+          }
+        }
+      });
+    } else if (opType !== 'surebet') {
+      // Alt ops (Delay / Outros): save only the profit
       const profitVal = parseFloat(altProfitEdit.replace(',', '.').replace('−', '-'));
       if (isNaN(profitVal)) { toastFn('Informe o valor do lucro', 'wrn'); return; }
       const leg: Leg = {
-        id:           `l_m_${Date.now()}_0`,
-        oid,
-        bd,
-        ed:           bd,
-        sp,
-        ev:           ev.trim(),
-        ho:           op.legs[0]?.ho ?? '',
-        mk:           op.legs[0]?.mk ?? '',
-        od:           0,
-        st:           0,
-        re:           profitVal >= 0 ? 'Green' : 'Red',
-        pc:           0,
-        pr:           profitVal,
-        fl:           [],
-        source:       'manual',
-        signal:       'pre',
-        opType,
-        manualProfit: profitVal,
+        id: `l_m_${Date.now()}_0`, oid, bd, ed: bd, sp, ev: ev.trim(),
+        ho: op.legs[0]?.ho ?? '', mk: op.legs[0]?.mk ?? '',
+        od: 0, st: 0, re: profitVal >= 0 ? 'Green' : 'Red',
+        pc: 0, pr: profitVal, fl: [],
+        source: 'manual', signal: 'pre', opType, manualProfit: profitVal,
       };
       addLeg(leg);
     } else {
+      // Surebet: full leg edit
       legDrafts.forEach((draft, i) => {
         const edVal = draft.ed || bd;
         const leg: Leg = {
-          id:     `l_m_${Date.now()}_${i}`,
-          oid,
-          bd,
-          ed:     edVal,
-          sp,
-          ev:     ev.trim(),
-          ho:     draft.ho,
-          mk:     draft.mk,
-          od:     parseFloat(draft.od.replace(',', '.')) || 0,
-          st:     parseFloat(draft.st.replace(',', '.')) || 0,
-          re:     draft.re,
-          pc:     0,
-          pr:     0,
-          fl:     [],
-          source: 'manual',
-          signal: detectSignal(bd, edVal),
-          opType,
+          id: `l_m_${Date.now()}_${i}`, oid, bd, ed: edVal, sp, ev: ev.trim(),
+          ho: draft.ho, mk: draft.mk,
+          od: parseFloat(draft.od.replace(',', '.')) || 0,
+          st: parseFloat(draft.st.replace(',', '.')) || 0,
+          re: draft.re, pc: 0, pr: 0, fl: [],
+          source: 'manual', signal: detectSignal(bd, edVal), opType,
         };
         leg.pr = calcLegProfit(leg);
         addLeg(leg);
@@ -1254,7 +1109,135 @@ function OpCard({
           // ── EDIT MODE ─────────────────────────────────────────────────────
           <div className="p-4 flex flex-col gap-4">
 
-            {isAlt ? (
+            {opType === 'duplo_green' ? (
+              // ── Duplo Green edit: per-leg cards with DG statuses + reentrada ──
+              (() => {
+                const LEG_COLORS = ['#4DA6FF', '#FFCB2F', '#FF8F3D'];
+                return (
+                  <div className="flex flex-col gap-3">
+                    {/* Header fields */}
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                      <label className="flex flex-col gap-1">
+                        <span className="text-xs font-bold uppercase" style={{ color: '#4B5563' }}>Esporte</span>
+                        <select value={sp} onChange={e => setSp(e.target.value)} style={SELECT_S}>
+                          {SPORTS.map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                      </label>
+                      <label className="flex flex-col gap-1">
+                        <span className="text-xs font-bold uppercase" style={{ color: '#4B5563' }}>Data da Aposta</span>
+                        <input type="datetime-local" value={bd} onChange={e => setBd(e.target.value)}
+                          className="font-mono" style={INPUT_S} />
+                      </label>
+                      <label className="col-span-2 sm:col-span-1 flex flex-col gap-1">
+                        <span className="text-xs font-bold uppercase" style={{ color: '#4B5563' }}>Evento</span>
+                        <input value={ev} onChange={e => setEv(e.target.value)}
+                          placeholder="Ex: Real Madrid vs Barcelona" style={INPUT_S} />
+                      </label>
+                    </div>
+
+                    {/* Leg cards */}
+                    {legDrafts.map((draft, i) => {
+                      const color = LEG_COLORS[i] ?? '#94A3B8';
+                      const showReentrada = draft.re === 'Green Antecipado';
+                      return (
+                        <div key={draft.id} className="rounded-xl p-3 flex flex-col gap-2"
+                          style={{ background: `${color}0d`, border: `1px solid ${color}30` }}>
+                          <span className="text-xs font-black uppercase tracking-wide" style={{ color }}>
+                            {draft.mk || `Perna ${i + 1}`}
+                          </span>
+                          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                            <label className="flex flex-col gap-1">
+                              <span className="text-[10px] font-bold uppercase" style={{ color: '#4B5563' }}>Casa</span>
+                              <select value={draft.ho} onChange={e => setDraft(i, { ho: e.target.value })} style={SELECT_S}>
+                                <option value="">Selecionar...</option>
+                                {ALL_HOUSES.map(h => <option key={h} value={h}>{h}</option>)}
+                              </select>
+                            </label>
+                            <label className="flex flex-col gap-1">
+                              <span className="text-[10px] font-bold uppercase" style={{ color: '#4B5563' }}>Odd</span>
+                              <input value={draft.od} onChange={e => setDraft(i, { od: e.target.value })}
+                                placeholder="2.10" className="font-mono" style={INPUT_S} />
+                            </label>
+                            <label className="flex flex-col gap-1">
+                              <span className="text-[10px] font-bold uppercase" style={{ color: '#4B5563' }}>Stake (R$)</span>
+                              <input value={draft.st} onChange={e => setDraft(i, { st: e.target.value })}
+                                placeholder="500,00" className="font-mono" style={INPUT_S} />
+                            </label>
+                            <label className="flex flex-col gap-1">
+                              <span className="text-[10px] font-bold uppercase" style={{ color: '#4B5563' }}>Data Evento</span>
+                              <input type="datetime-local" value={draft.ed} onChange={e => setDraft(i, { ed: e.target.value })}
+                                className="font-mono" style={INPUT_S} />
+                            </label>
+                            <label className="col-span-2 sm:col-span-1 flex flex-col gap-1">
+                              <span className="text-[10px] font-bold uppercase" style={{ color: '#4B5563' }}>Status</span>
+                              <select
+                                value={draft.re}
+                                onChange={e => {
+                                  const re = e.target.value as ResultType;
+                                  const patch: Partial<EditLegDraft> = { re };
+                                  if (re === 'Green Antecipado' && !draft.reentrada) {
+                                    patch.reentrada = { ho: '', od: '', st: '' };
+                                  } else if (re !== 'Green Antecipado') {
+                                    patch.reentrada = undefined;
+                                  }
+                                  setDraft(i, patch);
+                                }}
+                                style={{ ...SELECT_S, ...(() => { const s = sCfg(draft.re); return { background: s.bg, color: s.color, border: `1px solid ${s.border}` }; })() }}
+                              >
+                                {DG_RESULTS.map(r => (
+                                  <option key={r} value={r} style={{ background: '#1a1d24', color: sCfg(r).color }}>
+                                    {sCfg(r).icon} {r}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                          </div>
+
+                          {/* Reentrada — auto-shown when Green Antecipado is selected */}
+                          {showReentrada && draft.reentrada && (
+                            <div className="rounded-lg p-3 flex flex-col gap-2 mt-1"
+                              style={{ background: 'rgba(255,203,47,.06)', border: '1px solid rgba(255,203,47,.25)' }}>
+                              <span className="text-[10px] font-black uppercase tracking-wide" style={{ color: '#FFCB2F' }}>
+                                ⚡ Reentrada — nova aposta (opcional)
+                              </span>
+                              <div className="grid grid-cols-3 gap-2">
+                                <label className="flex flex-col gap-1">
+                                  <span className="text-[10px] font-bold uppercase" style={{ color: '#4B5563' }}>Casa</span>
+                                  <select
+                                    value={draft.reentrada.ho}
+                                    onChange={e => setDraft(i, { reentrada: { ...draft.reentrada!, ho: e.target.value } })}
+                                    style={SELECT_S}
+                                  >
+                                    <option value="">Mesma ({draft.ho})</option>
+                                    {ALL_HOUSES.map(h => <option key={h} value={h}>{h}</option>)}
+                                  </select>
+                                </label>
+                                <label className="flex flex-col gap-1">
+                                  <span className="text-[10px] font-bold uppercase" style={{ color: '#4B5563' }}>Odd</span>
+                                  <input
+                                    value={draft.reentrada.od}
+                                    onChange={e => setDraft(i, { reentrada: { ...draft.reentrada!, od: e.target.value } })}
+                                    placeholder="2.10" className="font-mono" style={INPUT_S}
+                                  />
+                                </label>
+                                <label className="flex flex-col gap-1">
+                                  <span className="text-[10px] font-bold uppercase" style={{ color: '#4B5563' }}>Stake (R$)</span>
+                                  <input
+                                    value={draft.reentrada.st}
+                                    onChange={e => setDraft(i, { reentrada: { ...draft.reentrada!, st: e.target.value } })}
+                                    placeholder="200,00" className="font-mono" style={INPUT_S}
+                                  />
+                                </label>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()
+            ) : isAlt ? (
               // ── Alt op edit: only description + profit value ───────────────
               <div className="flex flex-col gap-3">
                 <div className="text-xs px-3 py-2 rounded-lg"
@@ -1405,11 +1388,14 @@ function OpCard({
                         {leg.pc > 0 ? `${leg.pc.toFixed(2)}%` : '—'}
                       </td>
                       <td style={{ padding: '9px 12px', borderBottom: '1px solid rgba(255,255,255,.04)', overflow: 'visible' }}>
-                        <StatusPill value={leg.re}
+                        <StatusPill
+                          value={leg.re}
+                          results={opType === 'duplo_green' ? DG_RESULTS : RESULTS}
                           onChange={re => {
                             if (re === 'Cashout') setCashoutLeg(leg);
                             else onChangeResult(leg.id, re);
-                          }} />
+                          }}
+                        />
                       </td>
                       <td style={{ padding: '9px 12px', borderBottom: '1px solid rgba(255,255,255,.04)', whiteSpace: 'nowrap' }}>
                         {leg.re === 'Cashout' && leg.cashoutValue !== undefined && (
@@ -1445,10 +1431,14 @@ function OpCard({
                           <DollarSign size={10} /> Cashout
                         </button>
                       )}
-                      <StatusPill value={leg.re} onChange={re => {
-                        if (re === 'Cashout') setCashoutLeg(leg);
-                        else onChangeResult(leg.id, re);
-                      }} />
+                      <StatusPill
+                        value={leg.re}
+                        results={opType === 'duplo_green' ? DG_RESULTS : RESULTS}
+                        onChange={re => {
+                          if (re === 'Cashout') setCashoutLeg(leg);
+                          else onChangeResult(leg.id, re);
+                        }}
+                      />
                     </div>
                   </div>
                   <div className="text-xs" style={{ color: '#9CA3AF' }}>

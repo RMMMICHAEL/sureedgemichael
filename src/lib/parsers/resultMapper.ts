@@ -34,7 +34,7 @@ export const RESULT_LABELS: Record<ResultType, string> = {
   'Meio Red':             'Meio Red',
   Devolvido:              'Devolvido',
   Cashout:                'Cashout',
-  'Pagamento Antecipado': 'Pgto. Antecipado',
+  'Green Antecipado':     'Green Antecipado',
   Pendente:               'Pendente',
 };
 
@@ -45,6 +45,6 @@ export const RESULT_COLORS: Record<ResultType, string> = {
   'Meio Red':             '#FF8F3D',
   Devolvido:              '#4DA6FF',
   Cashout:                '#FFBF00',
-  'Pagamento Antecipado': '#FFCB2F',
+  'Green Antecipado':     '#FFCB2F',
   Pendente:               '#7A90B0',
 };

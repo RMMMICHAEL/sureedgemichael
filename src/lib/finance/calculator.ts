@@ -17,10 +17,10 @@ export function calcLegProfit(leg: Pick<Leg, 'st' | 'od' | 're' | 'manualProfit'
     case 'Red':        return -st;
     case 'Meio Red':   return +(-st * 0.5).toFixed(2);
     case 'Devolvido':  return 0;
-    // Cashout / Pagamento Antecipado: profit = cashoutValue received − stake invested
-    case 'Cashout':
-    case 'Pagamento Antecipado':
-                       return leg.cashoutValue !== undefined
+    // Green Antecipado: same calculation as Green (paid early, full profit)
+    case 'Green Antecipado': return +(st * (od - 1)).toFixed(2);
+    // Cashout: profit = cashoutValue received − stake invested
+    case 'Cashout':    return leg.cashoutValue !== undefined
                          ? +(leg.cashoutValue - st).toFixed(2)
                          : 0;
     default:           return 0;  // Pendente
