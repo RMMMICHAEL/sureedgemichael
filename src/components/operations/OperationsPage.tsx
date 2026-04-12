@@ -1638,7 +1638,50 @@ export function OperationsPage() {
         </div>
       </div>
 
-      {/* Filters */}
+      {/* ── Type tabs ── */}
+      <div className="flex items-center gap-1 overflow-x-auto pb-0.5"
+        style={{ borderBottom: '1px solid rgba(255,255,255,.06)' }}>
+        {([
+          { key: 'all',         label: 'Todos',       color: '#8899AA', bg: 'rgba(136,153,170,.12)', border: 'rgba(136,153,170,.28)' },
+          { key: 'surebet',     label: 'Surebet',     color: '#FFD600', bg: 'rgba(255,214,0,.12)',   border: 'rgba(255,214,0,.28)'   },
+          { key: 'duplo_green', label: 'Duplo Green', color: '#3FFF21', bg: 'rgba(63,255,33,.12)',   border: 'rgba(63,255,33,.28)'   },
+          { key: 'delay',       label: 'Delay',       color: '#4DA6FF', bg: 'rgba(77,166,255,.12)',  border: 'rgba(77,166,255,.28)'  },
+          { key: 'outros',      label: 'Outros',      color: '#FF8F3D', bg: 'rgba(255,143,61,.12)',  border: 'rgba(255,143,61,.28)'  },
+        ] as { key: OpType | 'all'; label: string; color: string; bg: string; border: string }[])
+          .filter(t => t.key === 'all' || usedOpTypes.includes(t.key as OpType))
+          .map(tab => {
+            const count = tab.key === 'all'
+              ? allOps.length
+              : allOps.filter(op => (op.legs[0]?.opType ?? 'surebet') === tab.key).length;
+            const active = filterOpType === tab.key;
+            return (
+              <button
+                key={tab.key}
+                onClick={() => setFilterOpType(tab.key)}
+                className="relative flex items-center gap-2 px-4 py-2.5 text-xs font-bold transition-all whitespace-nowrap flex-shrink-0"
+                style={{ color: active ? tab.color : 'var(--t3)', background: 'transparent', border: 'none' }}
+              >
+                {tab.label}
+                <span className="px-1.5 py-0.5 rounded-full text-[10px] font-black"
+                  style={{
+                    background: active ? `${tab.color}22` : 'rgba(255,255,255,.06)',
+                    color: active ? tab.color : 'var(--t3)',
+                  }}>
+                  {count}
+                </span>
+                {/* Active indicator */}
+                {active && (
+                  <span style={{
+                    position: 'absolute', bottom: -1, left: 0, right: 0, height: 2,
+                    background: tab.color, borderRadius: '2px 2px 0 0',
+                  }} />
+                )}
+              </button>
+            );
+          })}
+      </div>
+
+      {/* ── Filters ── */}
       <div className="flex flex-wrap gap-2 items-center">
         <input
           value={search}
@@ -1647,8 +1690,6 @@ export function OperationsPage() {
           className="px-3 py-2 rounded-lg text-sm flex-1 min-w-48"
           style={{ background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.08)', color: '#E2E8F0' }}
         />
-
-        {/* Month filter — pre-filled with current month */}
         <input type="month" value={filterMonth} onChange={e => setFilterMonth(e.target.value)}
           title="Filtrar por mês" className="px-3 py-2 rounded-lg text-sm font-mono"
           style={{
@@ -1656,12 +1697,9 @@ export function OperationsPage() {
             border: `1px solid ${filterMonth ? 'rgba(63,255,33,.25)' : 'rgba(255,255,255,.08)'}`,
             color: filterMonth ? 'var(--g)' : '#E2E8F0',
           }} />
-
         <input type="date" value={filterDate} onChange={e => setFilterDate(e.target.value)}
           title="Filtrar por data" className="px-3 py-2 rounded-lg text-sm font-mono"
           style={{ background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.08)', color: '#E2E8F0' }} />
-
-        {/* Ver todos os meses */}
         {filterMonth && (
           <button onClick={() => { setFilterMonth(''); setFilterDate(''); }}
             className="px-3 py-2 rounded-lg text-xs font-bold whitespace-nowrap"
@@ -1669,23 +1707,6 @@ export function OperationsPage() {
             Ver todos os meses
           </button>
         )}
-
-        {usedOpTypes.length > 1 && (
-          <>
-            <button {...filterBtn(filterOpType === 'all', 'Todos')} onClick={() => setFilterOpType('all')}>Todos</button>
-            {usedOpTypes.map(t => {
-              const cfg = OP_TYPE_CFG[t];
-              return (
-                <button key={t}
-                  {...filterBtn(filterOpType === t, OP_TYPE_LABELS[t], { active: cfg.color, activeBg: cfg.bg, activeBorder: cfg.border })}
-                  onClick={() => setFilterOpType(t)}>
-                  {OP_TYPE_LABELS[t]}
-                </button>
-              );
-            })}
-          </>
-        )}
-
         <button
           {...filterBtn(onlyPend, 'Pendentes', { active: '#FFCB2F', activeBg: 'rgba(255,203,47,.12)', activeBorder: 'rgba(255,203,47,.25)' })}
           onClick={() => setOnlyPend(v => !v)}>
@@ -1701,7 +1722,6 @@ export function OperationsPage() {
           }}>
           <AlertTriangle size={11} /> Anomalias
         </button>
-
         {filterDate && (
           <button onClick={() => setFilterDate('')}
             className="px-3 py-2 rounded-lg text-xs font-bold"
