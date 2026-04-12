@@ -233,10 +233,10 @@ function makeLeg(): LegDraft {
 }
 
 function LegRow({
-  n, leg, onChange, onCopyFromPrev, showCopy,
+  n, leg, onChange, onCopyFromPrev, showCopy, hideEventDate,
 }: {
   n: number; leg: LegDraft; onChange: (l: LegDraft) => void;
-  onCopyFromPrev?: () => void; showCopy?: boolean;
+  onCopyFromPrev?: () => void; showCopy?: boolean; hideEventDate?: boolean;
 }) {
   const set = (k: keyof LegDraft) => (v: string) => onChange({ ...leg, [k]: v });
   const [imgErr, setImgErr] = useState(false);
@@ -264,11 +264,13 @@ function LegRow({
         )}
       </div>
       <div className="grid grid-cols-2 gap-2">
-        <label className="flex flex-col gap-1 col-span-2">
-          <span className="text-xs font-bold uppercase text-slate-500">Data do Evento</span>
-          <input type="datetime-local" value={leg.ed} onChange={e => set('ed')(e.target.value)}
-            className="font-mono" style={INPUT_S} />
-        </label>
+        {!hideEventDate && (
+          <label className="flex flex-col gap-1 col-span-2">
+            <span className="text-xs font-bold uppercase text-slate-500">Data do Evento</span>
+            <input type="datetime-local" value={leg.ed} onChange={e => set('ed')(e.target.value)}
+              className="font-mono" style={INPUT_S} />
+          </label>
+        )}
         <label className="flex flex-col gap-1">
           <span className="text-xs font-bold uppercase text-slate-500">Casa</span>
           <select value={leg.ho} onChange={e => set('ho')(e.target.value)} style={SELECT_S}>
@@ -313,6 +315,7 @@ function OpModal({ editOid, onClose }: OpModalProps) {
   const [sp, setSp]  = useState(existingLegs[0]?.sp ?? 'Futebol');
   const [ev, setEv]  = useState(existingLegs[0]?.ev ?? '');
   const [bd, setBd]  = useState(existingLegs[0]?.bd ?? nowBRT());
+  const [ed, setEd]  = useState(existingLegs[0]?.ed?.slice(0, 16) ?? '');
   const [legDrafts, setLegDrafts] = useState<LegDraft[]>(() =>
     existingLegs.length >= 2
       ? existingLegs.map(l => ({ ho: l.ho, mk: l.mk, od: String(l.od), st: String(l.st), re: l.re, ed: l.ed?.slice(0, 16) ?? '' }))
@@ -325,7 +328,7 @@ function OpModal({ editOid, onClose }: OpModalProps) {
     const oid = editOid ?? `manual_${Date.now()}`;
     if (editOid) existingLegs.forEach(l => deleteLeg(l.id));
     legDrafts.forEach((draft, i) => {
-      const edVal = draft.ed || bd;
+      const edVal = ed || draft.ed || bd;
       const leg: Leg = {
         id: `l_m_${Date.now()}_${i}`, oid, bd, ed: edVal, sp, ev: ev.trim(),
         ho: draft.ho, mk: draft.mk,
@@ -345,7 +348,7 @@ function OpModal({ editOid, onClose }: OpModalProps) {
     <Modal title={editOid ? 'Editar Surebet' : 'Nova Surebet'} onClose={onClose} size="xl">
       <div className="flex flex-col gap-4">
         {/* Common fields */}
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <label className="flex flex-col gap-1">
             <span className="text-xs font-bold uppercase text-slate-500">Esporte</span>
             <select value={sp} onChange={e => setSp(e.target.value)} style={SELECT_S}>
@@ -355,6 +358,11 @@ function OpModal({ editOid, onClose }: OpModalProps) {
           <label className="flex flex-col gap-1">
             <span className="text-xs font-bold uppercase text-slate-500">Data da Aposta</span>
             <input type="datetime-local" value={bd} onChange={e => setBd(e.target.value)}
+              className="font-mono" style={INPUT_S} />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-bold uppercase text-slate-500">Data do Evento</span>
+            <input type="datetime-local" value={ed} onChange={e => setEd(e.target.value)}
               className="font-mono" style={INPUT_S} />
           </label>
           <label className="col-span-2 sm:col-span-1 flex flex-col gap-1">
@@ -373,7 +381,7 @@ function OpModal({ editOid, onClose }: OpModalProps) {
           <div className="flex flex-col lg:flex-row items-stretch gap-3">
             {/* CASA 1 */}
             <div className="flex-1 min-w-0">
-              <LegRow n={1} leg={legDrafts[0]}
+              <LegRow n={1} leg={legDrafts[0]} hideEventDate
                 onChange={val => setLegDrafts(prev => prev.map((l, idx) => idx === 0 ? val : l))}
               />
             </div>
@@ -407,7 +415,7 @@ function OpModal({ editOid, onClose }: OpModalProps) {
 
             {/* CASA 2 */}
             <div className="flex-1 min-w-0">
-              <LegRow n={2} leg={legDrafts[1]}
+              <LegRow n={2} leg={legDrafts[1]} hideEventDate
                 onChange={val => setLegDrafts(prev => prev.map((l, idx) => idx === 1 ? val : l))}
               />
             </div>
@@ -419,11 +427,8 @@ function OpModal({ editOid, onClose }: OpModalProps) {
           const i = extraIdx + 2;
           return (
             <div key={i} className="relative">
-              <LegRow n={i + 1} leg={leg}
+              <LegRow n={i + 1} leg={leg} hideEventDate
                 onChange={val => setLegDrafts(prev => prev.map((l, idx) => idx === i ? val : l))}
-                showCopy onCopyFromPrev={() =>
-                  setLegDrafts(prev => prev.map((l, idx) => idx === i ? { ...l, ed: prev[0].ed } : l))
-                }
               />
               <button type="button" onClick={() => setLegDrafts(prev => prev.filter((_, idx) => idx !== i))}
                 className="absolute top-3 right-3 w-6 h-6 rounded-lg flex items-center justify-center"
@@ -461,6 +466,7 @@ function DuploGreenModal({ onClose }: { onClose: () => void }) {
   const [ev, setEv] = useState('');
   const [sp, setSp] = useState('Futebol');
   const [bd, setBd] = useState(nowBRT());
+  const [ed, setEd] = useState('');
   const [legs, setLegs] = useState<DGLegDraft[]>([
     makeDGLeg('Time 1 (Casa)'),
     makeDGLeg('Empate'),
@@ -484,7 +490,7 @@ function DuploGreenModal({ onClose }: { onClose: () => void }) {
     const oid = `dg_${Date.now()}`;
     legs.forEach((draft, i) => {
       const leg: Leg = {
-        id: `l_dg_${Date.now()}_${i}`, oid, bd, ed: draft.ed || bd,
+        id: `l_dg_${Date.now()}_${i}`, oid, bd, ed: ed || bd,
         sp, ev: ev.trim(), ho: draft.ho, mk: draft.mk,
         od: odOf(draft), st: stOf(draft),
         re: draft.re, pc: 0, pr: 0, fl: [],
@@ -512,7 +518,7 @@ function DuploGreenModal({ onClose }: { onClose: () => void }) {
         {/* ── Detalhes ───────────────────────────────────────────────── */}
         <div className="flex flex-col gap-2">
           <span className="text-[10px] font-black uppercase tracking-wider" style={{ color: 'var(--t3)' }}>Detalhes</span>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <label className="flex flex-col gap-1">
               <span className="text-[10px] font-bold uppercase text-slate-500">Esporte</span>
               <select value={sp} onChange={e => setSp(e.target.value)} style={SELECT_S}>
@@ -522,6 +528,11 @@ function DuploGreenModal({ onClose }: { onClose: () => void }) {
             <label className="flex flex-col gap-1">
               <span className="text-[10px] font-bold uppercase text-slate-500">Data da Aposta</span>
               <input type="datetime-local" value={bd} onChange={e => setBd(e.target.value)}
+                className="font-mono" style={INPUT_S} />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-[10px] font-bold uppercase text-slate-500">Data do Evento</span>
+              <input type="datetime-local" value={ed} onChange={e => setEd(e.target.value)}
                 className="font-mono" style={INPUT_S} />
             </label>
             <label className="col-span-2 sm:col-span-1 flex flex-col gap-1">
@@ -566,11 +577,6 @@ function DuploGreenModal({ onClose }: { onClose: () => void }) {
                     <span className="text-[10px] font-bold uppercase text-slate-500">Stake (R$)</span>
                     <input value={leg.st} onChange={e => setLeg(i, { ...leg, st: e.target.value })}
                       placeholder="500,00" className="font-mono" style={INPUT_S} />
-                  </label>
-                  <label className="col-span-2 flex flex-col gap-1">
-                    <span className="text-[10px] font-bold uppercase text-slate-500">Data do Evento</span>
-                    <input type="datetime-local" value={leg.ed} onChange={e => setLeg(i, { ...leg, ed: e.target.value })}
-                      className="font-mono" style={INPUT_S} />
                   </label>
                 </div>
               </div>
