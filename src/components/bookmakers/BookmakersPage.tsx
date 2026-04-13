@@ -383,7 +383,7 @@ function BMForm({ existing, presetName, presetColor, onClose }: BMFormProps) {
 
   const [name,    setName]    = useState(existing?.name    ?? presetName  ?? '');
   const [color,   setColor]   = useState(existing?.color   ?? presetColor ?? '#374151');
-  const [balance, setBalance] = useState(existing ? String(existing.initial_balance) : '');
+  const [balance, setBalance] = useState(existing ? String(existing.balance) : '');
   const [notes,   setNotes]   = useState(existing?.notes   ?? '');
   const [status,  setStatus]  = useState<Bookmaker['status']>(existing?.status ?? 'ativa');
   const [username, setUsername] = useState(existing?.credentials?.username ?? '');
@@ -394,7 +394,12 @@ function BMForm({ existing, presetName, presetColor, onClose }: BMFormProps) {
 
   function save() {
     if (!name.trim()) { toastFn('Nome obrigatório', 'wrn'); return; }
-    const initial_balance = parseFloat(balance.replace(',', '.')) || 0;
+    const newBalance = parseFloat(balance.replace(',', '.')) || 0;
+    // When editing, preserve the profit delta so the displayed balance equals what the user typed.
+    // initial_balance = newDisplayedBalance - existingProfit
+    const initial_balance = existing
+      ? newBalance - (existing.balance - existing.initial_balance)
+      : newBalance;
     const credentials: BookmakerCredentials | undefined =
       username.trim() ? { username: username.trim(), password, notes: credNotes } : undefined;
     if (existing) {
@@ -428,10 +433,14 @@ function BMForm({ existing, presetName, presetColor, onClose }: BMFormProps) {
         </div>
 
         <label className="flex flex-col gap-1.5">
-          <span className="text-xs font-bold" style={labelStyle}>SALDO INICIAL (R$)</span>
+          <span className="text-xs font-bold" style={labelStyle}>{existing ? 'SALDO ATUAL (R$)' : 'SALDO INICIAL (R$)'}</span>
           <input value={balance} onChange={e => setBalance(e.target.value)} placeholder="0,00"
             className="px-3 py-2.5 rounded-lg text-sm font-mono" style={inputStyle} />
-          <span className="text-xs" style={labelStyle}>Valor atualmente depositado. Manual — não é afetado por dados importados.</span>
+          <span className="text-xs" style={labelStyle}>
+            {existing
+              ? 'Saldo real atual na casa. Operações manuais continuarão movimentando a partir deste valor.'
+              : 'Valor atualmente depositado. Manual — não é afetado por dados importados.'}
+          </span>
         </label>
 
         <label className="flex flex-col gap-1.5">

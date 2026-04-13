@@ -155,6 +155,7 @@ function ExpenseForm({ existing, onClose }: ExpenseFormProps) {
 
 export function GastosPage() {
   const expenses      = useStore(s => s.expenses);
+  const addExpense    = useStore(s => s.addExpense);
   const deleteExpense = useStore(s => s.deleteExpense);
   const toast         = useStore(s => s.toast);
 
@@ -348,14 +349,36 @@ export function GastosPage() {
                   </div>
                 )}
                 {e.isPrevisto && (
-                  <button
-                    onClick={() => { setEditing(e); setShowForm(true); }}
-                    className="flex items-center gap-1 text-xs px-2 py-1.5 rounded-lg font-bold shrink-0"
-                    style={{ background: 'rgba(255,191,0,.1)', color: '#FFBF00', border: '1px solid rgba(255,191,0,.2)' }}
-                    title="Editar gasto recorrente"
-                  >
-                    ✏️ Editar
-                  </button>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      onClick={() => {
+                        addExpense({
+                          date:        todayStr(),
+                          category:    e.category,
+                          description: e.description,
+                          amount:      e.amount,
+                          notes:       e.notes ?? '',
+                          recurring:   false,
+                        });
+                        toast(`Pagamento de "${e.description}" registrado`, 'ok');
+                      }}
+                      className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg font-bold"
+                      style={{ background: 'rgba(0,255,136,.1)', color: 'var(--g)', border: '1px solid rgba(0,255,136,.2)' }}
+                      title="Registrar pagamento deste mês"
+                    >
+                      ✓ Pago
+                    </button>
+                    <button
+                      onClick={() => { setEditing(e); setShowForm(true); }}
+                      className="w-7 h-7 rounded-lg flex items-center justify-center text-xs"
+                      style={{ color: 'var(--t3)' }}
+                      title="Editar gasto recorrente"
+                      onMouseEnter={el => { (el.currentTarget as HTMLElement).style.background = 'var(--sur)'; }}
+                      onMouseLeave={el => { (el.currentTarget as HTMLElement).style.background = ''; }}
+                    >
+                      ✏️
+                    </button>
+                  </div>
                 )}
               </div>
             ))}

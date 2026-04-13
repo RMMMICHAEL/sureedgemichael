@@ -167,29 +167,72 @@ export function MonthChart({ data }: { data: MonthPoint[] }) {
   );
 }
 
-// ── Sport horizontal bar chart ────────────────────────────────────────────────
+// ── Sport profit list (clean, sign-aware) ─────────────────────────────────────
 
-const SP_COLORS = ['#818cf8', '#34d399', '#f59e0b', '#60a5fa', '#f472b6', '#a3e635'];
+function sportEmoji(sp: string): string {
+  const s = (sp || '').toLowerCase();
+  if (s.includes('futebol') && !s.includes('amer')) return '⚽';
+  if (s.includes('americano'))  return '🏈';
+  if (s.includes('tênis') || s.includes('tenis')) return '🎾';
+  if (s.includes('basquete'))   return '🏀';
+  if (s.includes('hockey'))     return '🏒';
+  if (s.includes('e-') || s.includes('esport')) return '🎮';
+  if (s.includes('volei') || s.includes('vôlei')) return '🏐';
+  if (s.includes('baseball'))   return '⚾';
+  if (s.includes('mma') || s.includes('ufc')) return '🥊';
+  return '🎯';
+}
 
 export function SportChart({ data }: { data: SportStat[] }) {
-  const top = data.slice(0, 6);
+  const top    = data.slice(0, 8);
+  const maxAbs = Math.max(...top.map(d => Math.abs(d.profit)), 1);
+
   return (
     <div style={card}>
       <ChartTitle>Lucro por Esporte</ChartTitle>
       {!top.length ? <EmptyState h={140} /> : (
-        <ResponsiveContainer width="100%" height={Math.max(140, top.length * 38)}>
-          <BarChart layout="vertical" data={top} barCategoryGap="28%">
-            <CartesianGrid horizontal={false} stroke="rgba(255,255,255,.03)" />
-            <XAxis type="number" axisLine={false} tickLine={false} tickFormatter={fmtBRLShort} tick={AXIS} />
-            <YAxis type="category" dataKey="sport" axisLine={false} tickLine={false} width={90} tick={AXIS} />
-            <Tooltip formatter={(v: number) => [fmtBRL(v), 'Lucro']} contentStyle={tip} />
-            <Bar dataKey="profit" radius={[0, 5, 5, 0]}>
-              {top.map((_, i) => (
-                <Cell key={i} fill={SP_COLORS[i % SP_COLORS.length]} fillOpacity={0.9} />
-              ))}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {top.map((d, i) => {
+            const isPos  = d.profit >= 0;
+            const color  = isPos ? '#3DFF8F' : '#FF4545';
+            const pct    = (Math.abs(d.profit) / maxAbs) * 100;
+            return (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                {/* Sport label */}
+                <div style={{
+                  width: 110, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6,
+                  overflow: 'hidden',
+                }}>
+                  <span style={{ fontSize: 14, flexShrink: 0 }}>{sportEmoji(d.sport)}</span>
+                  <span style={{
+                    fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,.65)',
+                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                  }}>
+                    {d.sport || 'Outros'}
+                  </span>
+                </div>
+                {/* Bar track */}
+                <div style={{ flex: 1, height: 5, borderRadius: 3, background: 'rgba(255,255,255,.06)' }}>
+                  <div style={{
+                    height: '100%', borderRadius: 3,
+                    width: `${pct}%`,
+                    background: color,
+                    opacity: 0.6,
+                    transition: 'width .4s ease',
+                  }} />
+                </div>
+                {/* Value */}
+                <div style={{
+                  width: 84, textAlign: 'right', flexShrink: 0,
+                  fontSize: 12, fontWeight: 700, color,
+                  fontFamily: "'JetBrains Mono',monospace",
+                }}>
+                  {isPos ? '+' : '−'}R${Math.abs(d.profit).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       )}
     </div>
   );

@@ -4,9 +4,10 @@ import { useState, useRef, useMemo } from 'react';
 import { useStore } from '@/store/useStore';
 import { groupLegsIntoOps, calcLegProfit, calcBySport } from '@/lib/finance/calculator';
 import { currentMonth, todayStr } from '@/lib/parsers/dateParser';
+import { getSupabaseClient } from '@/lib/supabase/client';
 import {
   Camera, Shield, User, Phone, Mail, Edit3, Check, X,
-  TrendingUp, BarChart3, Settings,
+  TrendingUp, BarChart3, Lock, LogOut,
 } from 'lucide-react';
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -230,120 +231,143 @@ function PerformanceTab() {
 
 function SecurityTab() {
   const toast = useStore(s => s.toast);
-  const [saved,   setSaved]   = useState(false);
-  const [pin,     setPin]     = useState('');
-  const [pinConf, setPinConf] = useState('');
 
-  function savePin() {
-    if (pin.length < 4) { toast('PIN deve ter ao menos 4 dígitos', 'wrn'); return; }
-    if (pin !== pinConf) { toast('PINs não coincidem', 'wrn'); return; }
-    setSaved(true);
-    setPin('');
-    setPinConf('');
-    setTimeout(() => setSaved(false), 3000);
+  const [newPw,    setNewPw]    = useState('');
+  const [confPw,   setConfPw]   = useState('');
+  const [pwLoading, setPwLoading] = useState(false);
+
+  const [newEmail,    setNewEmail]    = useState('');
+  const [emailLoading, setEmailLoading] = useState(false);
+
+  const inputStyle = { background: 'var(--sur)', border: '1px solid var(--b2)', color: 'var(--t)', outline: 'none' };
+
+  async function changePassword() {
+    if (newPw.length < 6) { toast('Senha deve ter ao menos 6 caracteres', 'wrn'); return; }
+    if (newPw !== confPw) { toast('Senhas não coincidem', 'wrn'); return; }
+    setPwLoading(true);
+    try {
+      const { error } = await getSupabaseClient().auth.updateUser({ password: newPw });
+      if (error) throw error;
+      toast('Senha alterada com sucesso', 'ok');
+      setNewPw(''); setConfPw('');
+    } catch (err: unknown) {
+      toast((err as { message?: string }).message ?? 'Erro ao alterar senha', 'err');
+    } finally {
+      setPwLoading(false);
+    }
+  }
+
+  async function changeEmail() {
+    if (!newEmail.trim()) { toast('Informe o novo e-mail', 'wrn'); return; }
+    setEmailLoading(true);
+    try {
+      const { error } = await getSupabaseClient().auth.updateUser({ email: newEmail.trim() });
+      if (error) throw error;
+      toast('Verifique sua caixa de entrada para confirmar o novo e-mail', 'ok');
+      setNewEmail('');
+    } catch (err: unknown) {
+      toast((err as { message?: string }).message ?? 'Erro ao alterar e-mail', 'err');
+    } finally {
+      setEmailLoading(false);
+    }
+  }
+
+  async function signOut() {
+    await getSupabaseClient().auth.signOut();
+    window.location.href = '/login';
   }
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Info banner */}
-      <div className="rounded-xl px-4 py-3 text-xs"
-        style={{ background: 'rgba(192,132,252,.06)', color: '#C084FC', border: '1px solid rgba(192,132,252,.12)' }}>
-        Os dados desta aplicação são armazenados localmente no seu dispositivo. Não há conta de acesso online.
-      </div>
 
-      {/* Contact update */}
+      {/* Change password */}
       <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--b)' }}>
-        <div className="px-4 py-3" style={{ background: 'var(--bg2)', borderBottom: '1px solid var(--b)' }}>
+        <div className="px-4 py-3 flex items-center gap-2" style={{ background: 'var(--bg2)', borderBottom: '1px solid var(--b)' }}>
+          <Lock size={13} style={{ color: 'var(--t3)' }} />
           <div className="text-xs font-bold uppercase tracking-widest" style={{ color: 'var(--t3)' }}>
-            Dados de Contato
+            Alterar Senha
           </div>
         </div>
         <div className="px-4 py-4 flex flex-col gap-3" style={{ background: 'var(--bg2)' }}>
           <label className="flex flex-col gap-1.5">
-            <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--t3)' }}>
-              Novo E-mail
-            </span>
+            <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--t3)' }}>Nova Senha</span>
+            <input
+              type="password"
+              value={newPw}
+              onChange={e => setNewPw(e.target.value)}
+              placeholder="mínimo 6 caracteres"
+              className="px-3 py-2 rounded-lg text-sm"
+              style={inputStyle}
+            />
+          </label>
+          <label className="flex flex-col gap-1.5">
+            <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--t3)' }}>Confirmar Senha</span>
+            <input
+              type="password"
+              value={confPw}
+              onChange={e => setConfPw(e.target.value)}
+              placeholder="repita a senha"
+              className="px-3 py-2 rounded-lg text-sm"
+              style={{ ...inputStyle, border: `1px solid ${confPw && newPw !== confPw ? 'var(--r)' : 'var(--b2)'}` }}
+            />
+          </label>
+          <button
+            type="button"
+            onClick={changePassword}
+            disabled={pwLoading}
+            className="px-4 py-2 rounded-lg text-sm font-bold self-start transition-all"
+            style={{ background: 'rgba(0,255,136,.08)', color: 'var(--g)', border: '1px solid rgba(0,255,136,.15)', opacity: pwLoading ? 0.6 : 1 }}
+          >
+            {pwLoading ? 'Salvando…' : 'Alterar senha'}
+          </button>
+        </div>
+      </div>
+
+      {/* Change email */}
+      <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--b)' }}>
+        <div className="px-4 py-3 flex items-center gap-2" style={{ background: 'var(--bg2)', borderBottom: '1px solid var(--b)' }}>
+          <Mail size={13} style={{ color: 'var(--t3)' }} />
+          <div className="text-xs font-bold uppercase tracking-widest" style={{ color: 'var(--t3)' }}>
+            Alterar E-mail
+          </div>
+        </div>
+        <div className="px-4 py-4 flex flex-col gap-3" style={{ background: 'var(--bg2)' }}>
+          <label className="flex flex-col gap-1.5">
+            <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--t3)' }}>Novo E-mail</span>
             <input
               type="email"
+              value={newEmail}
+              onChange={e => setNewEmail(e.target.value)}
               placeholder="novo@email.com"
               className="px-3 py-2 rounded-lg text-sm"
-              style={{ background: 'var(--sur)', border: '1px solid var(--b2)', color: 'var(--t)', outline: 'none' }}
+              style={inputStyle}
             />
           </label>
-          <label className="flex flex-col gap-1.5">
-            <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--t3)' }}>
-              Novo Telefone
-            </span>
-            <input
-              type="tel"
-              placeholder="+55 11 99999-9999"
-              className="px-3 py-2 rounded-lg text-sm"
-              style={{ background: 'var(--sur)', border: '1px solid var(--b2)', color: 'var(--t)', outline: 'none' }}
-            />
-          </label>
+          <p className="text-xs" style={{ color: 'var(--t3)' }}>
+            Um link de confirmação será enviado para o novo endereço.
+          </p>
+          <button
+            type="button"
+            onClick={changeEmail}
+            disabled={emailLoading}
+            className="px-4 py-2 rounded-lg text-sm font-bold self-start transition-all"
+            style={{ background: 'rgba(0,255,136,.08)', color: 'var(--g)', border: '1px solid rgba(0,255,136,.15)', opacity: emailLoading ? 0.6 : 1 }}
+          >
+            {emailLoading ? 'Enviando…' : 'Alterar e-mail'}
+          </button>
         </div>
       </div>
 
-      {/* PIN */}
-      <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--b)' }}>
-        <div className="px-4 py-3" style={{ background: 'var(--bg2)', borderBottom: '1px solid var(--b)' }}>
-          <div className="text-xs font-bold uppercase tracking-widest" style={{ color: 'var(--t3)' }}>
-            PIN de Acesso
-          </div>
-          <div className="text-xs mt-0.5" style={{ color: 'var(--t3)' }}>Opcional — mínimo 4 dígitos</div>
-        </div>
-        <div className="px-4 py-4 flex flex-col gap-3" style={{ background: 'var(--bg2)' }}>
-          <div className="grid grid-cols-2 gap-3">
-            <label className="flex flex-col gap-1.5">
-              <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--t3)' }}>PIN</span>
-              <input
-                type="password"
-                maxLength={8}
-                value={pin}
-                onChange={e => setPin(e.target.value.replace(/\D/g, ''))}
-                placeholder="••••"
-                className="px-3 py-2 rounded-lg text-sm font-mono text-center"
-                style={{ background: 'var(--sur)', border: '1px solid var(--b2)', color: 'var(--t)', outline: 'none' }}
-              />
-            </label>
-            <label className="flex flex-col gap-1.5">
-              <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--t3)' }}>
-                Confirmar PIN
-              </span>
-              <input
-                type="password"
-                maxLength={8}
-                value={pinConf}
-                onChange={e => setPinConf(e.target.value.replace(/\D/g, ''))}
-                placeholder="••••"
-                className="px-3 py-2 rounded-lg text-sm font-mono text-center"
-                style={{
-                  background: 'var(--sur)',
-                  border: `1px solid ${pinConf && pin !== pinConf ? 'var(--r)' : 'var(--b2)'}`,
-                  color: 'var(--t)', outline: 'none',
-                }}
-              />
-            </label>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={savePin}
-              className="px-4 py-2 rounded-lg text-sm font-bold transition-all"
-              style={{
-                background: saved ? 'rgba(0,255,136,.1)' : 'rgba(0,255,136,.08)',
-                color: saved ? 'var(--g)' : 'var(--g)',
-                border: `1px solid ${saved ? 'rgba(0,255,136,.3)' : 'rgba(0,255,136,.15)'}`,
-              }}
-            >
-              {saved ? 'Configurações salvas' : 'Salvar'}
-            </button>
-            {pinConf && pin !== pinConf && (
-              <span className="text-xs" style={{ color: 'var(--r)' }}>PINs não coincidem</span>
-            )}
-          </div>
-        </div>
-      </div>
+      {/* Sign out */}
+      <button
+        type="button"
+        onClick={signOut}
+        className="flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-bold self-start transition-all"
+        style={{ background: 'var(--rd)', color: 'var(--r)', border: '1px solid rgba(255,69,69,.2)' }}
+      >
+        <LogOut size={14} />
+        Sair da conta
+      </button>
     </div>
   );
 }

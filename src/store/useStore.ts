@@ -14,6 +14,7 @@ import type {
   Client, PurchasedAccount, UserProfile,
 } from '@/types';
 import { loadDB, persistDB } from '@/lib/storage/db';
+import { loadFromSupabase, scheduleSaveToSupabase } from '@/lib/supabase/sync';
 import { recalcBookmakers, normHouse, bmColor, bmAbbr } from '@/lib/finance/reconciler';
 import { calcLegProfit } from '@/lib/finance/calculator';
 import type { CommitResult } from '@/lib/import/importEngine';
@@ -107,6 +108,12 @@ function recalc(state: Pick<AppDB, 'bms' | 'legs' | 'banks'>): { bms: Bookmaker[
 
 let toastSeq = 0;
 
+// ── Persist helper: localStorage + background Supabase sync ──────────────────
+function persist(db: AppDB): void {
+  persistDB(db);
+  scheduleSaveToSupabase(db);
+}
+
 // ── Store ────────────────────────────────────────────────────────────────────
 
 export const useStore = create<StoreState>()((set, get) => ({
@@ -134,25 +141,34 @@ export const useStore = create<StoreState>()((set, get) => ({
 
   // ── init ──────────────────────────────────────────────────────────────────
   init() {
-    const db = loadDB();
+    // 1. Load from localStorage immediately so the app is usable right away
+    const localDb = loadDB();
 
-    // Migration: legs saved before `source` field existed
-    const legs = db.legs.map(l => ({
-      ...l,
-      source: l.source ?? (l.oid?.startsWith('imp_') ? 'import' : 'manual'),
-    }));
+    function applyDB(db: AppDB) {
+      const legs = db.legs.map(l => ({
+        ...l,
+        source: l.source ?? (l.oid?.startsWith('imp_') ? 'import' : 'manual'),
+      }));
+      const expenses        = db.expenses        ?? [];
+      const partnerAccounts = db.partnerAccounts ?? [];
+      const clients         = db.clients         ?? [];
+      const targetHouses    = db.targetHouses    ?? [];
+      const sheetSync       = db.sheetSync;
+      const excludedImportKeys = db.excludedImportKeys ?? [];
+      const migrated = { ...db, legs, expenses, partnerAccounts, clients, targetHouses, sheetSync, excludedImportKeys };
+      const { bms, totalCash } = recalc(migrated);
+      set({ ...migrated, bms, totalCash, initialized: true });
+    }
 
-    // Migration: ensure new fields exist in persisted data
-    const expenses        = (db as AppDB).expenses        ?? [];
-    const partnerAccounts = (db as AppDB).partnerAccounts ?? [];
-    const clients         = (db as AppDB).clients         ?? [];
-    const targetHouses    = (db as AppDB).targetHouses    ?? [];
-    const sheetSync       = (db as AppDB).sheetSync;
+    applyDB(localDb);
 
-    const excludedImportKeys = (db as AppDB).excludedImportKeys ?? [];
-    const migrated = { ...db, legs, expenses, partnerAccounts, clients, targetHouses, sheetSync, excludedImportKeys };
-    const { bms, totalCash } = recalc(migrated);
-    set({ ...migrated, bms, totalCash, initialized: true });
+    // 2. Try to load fresher data from Supabase in the background
+    loadFromSupabase().then(remoteDb => {
+      if (!remoteDb) return; // not logged in or no remote data yet
+      // Persist remote data to localStorage and apply to store
+      persist(remoteDb);
+      applyDB(remoteDb);
+    });
   },
 
   // ── legs ──────────────────────────────────────────────────────────────────
@@ -160,7 +176,7 @@ export const useStore = create<StoreState>()((set, get) => ({
     set(s => {
       const legs = [...s.legs, { ...leg, pr: calcLegProfit(leg) }];
       const { bms, totalCash } = recalc({ ...s, legs });
-      persistDB({ ...s, legs, bms });
+      persist({ ...s, legs, bms });
       return { legs, bms, totalCash };
     });
   },
@@ -174,7 +190,7 @@ export const useStore = create<StoreState>()((set, get) => ({
         return updated;
       });
       const { bms, totalCash } = recalc({ ...s, legs });
-      persistDB({ ...s, legs, bms });
+      persist({ ...s, legs, bms });
       return { legs, bms, totalCash };
     });
   },
@@ -183,7 +199,7 @@ export const useStore = create<StoreState>()((set, get) => ({
     set(s => {
       const legs = s.legs.filter(l => l.id !== id);
       const { bms, totalCash } = recalc({ ...s, legs });
-      persistDB({ ...s, legs, bms });
+      persist({ ...s, legs, bms });
       return { legs, bms, totalCash };
     });
   },
@@ -230,7 +246,7 @@ export const useStore = create<StoreState>()((set, get) => ({
         ? { ...s.sheetSync, lastSync: new Date().toISOString() }
         : s.sheetSync;
 
-      persistDB({ ...s, legs, bms, import_log, sheetSync });
+      persist({ ...s, legs, bms, import_log, sheetSync });
       return { legs, bms, totalCash: recalced.totalCash, import_log, sheetSync };
     });
   },
@@ -246,7 +262,7 @@ export const useStore = create<StoreState>()((set, get) => ({
       };
       const bms = recalcBookmakers([...s.bms, newBM], s.legs);
       const totalCash = [...bms.map(b => b.balance), ...s.banks.map(b => b.balance)].reduce((a, v) => a + v, 0);
-      persistDB({ ...s, bms });
+      persist({ ...s, bms });
       return { bms, totalCash };
     });
   },
@@ -258,7 +274,7 @@ export const useStore = create<StoreState>()((set, get) => ({
         s.legs
       );
       const totalCash = [...bms.map(b => b.balance), ...s.banks.map(b => b.balance)].reduce((a, v) => a + v, 0);
-      persistDB({ ...s, bms });
+      persist({ ...s, bms });
       return { bms, totalCash };
     });
   },
@@ -266,7 +282,7 @@ export const useStore = create<StoreState>()((set, get) => ({
   deleteBookmaker(id) {
     set(s => {
       const bms = s.bms.filter(b => b.id !== id);
-      persistDB({ ...s, bms });
+      persist({ ...s, bms });
       return { bms };
     });
   },
@@ -275,7 +291,7 @@ export const useStore = create<StoreState>()((set, get) => ({
   addBank(bank) {
     set(s => {
       const banks = [...s.banks, { ...bank, id: `bank_${Date.now()}` }];
-      persistDB({ ...s, banks });
+      persist({ ...s, banks });
       const totalCash = [...s.bms.map(b => b.balance), ...banks.map(b => b.balance)].reduce((a, v) => a + v, 0);
       return { banks, totalCash };
     });
@@ -284,7 +300,7 @@ export const useStore = create<StoreState>()((set, get) => ({
   deleteBank(id) {
     set(s => {
       const banks = s.banks.filter(b => b.id !== id);
-      persistDB({ ...s, banks });
+      persist({ ...s, banks });
       const totalCash = [...s.bms.map(b => b.balance), ...banks.map(b => b.balance)].reduce((a, v) => a + v, 0);
       return { banks, totalCash };
     });
@@ -294,7 +310,7 @@ export const useStore = create<StoreState>()((set, get) => ({
   addExpense(expense) {
     set(s => {
       const expenses = [...s.expenses, { ...expense, id: `exp_${Date.now()}` }];
-      persistDB({ ...s, expenses });
+      persist({ ...s, expenses });
       return { expenses };
     });
   },
@@ -302,7 +318,7 @@ export const useStore = create<StoreState>()((set, get) => ({
   updateExpense(id, patch) {
     set(s => {
       const expenses = s.expenses.map(e => e.id === id ? { ...e, ...patch } : e);
-      persistDB({ ...s, expenses });
+      persist({ ...s, expenses });
       return { expenses };
     });
   },
@@ -310,7 +326,7 @@ export const useStore = create<StoreState>()((set, get) => ({
   deleteExpense(id) {
     set(s => {
       const expenses = s.expenses.filter(e => e.id !== id);
-      persistDB({ ...s, expenses });
+      persist({ ...s, expenses });
       return { expenses };
     });
   },
@@ -326,7 +342,7 @@ export const useStore = create<StoreState>()((set, get) => ({
         transactions:   [],
       };
       const partnerAccounts = [...s.partnerAccounts, newAcc];
-      persistDB({ ...s, partnerAccounts });
+      persist({ ...s, partnerAccounts });
       return { partnerAccounts };
     });
   },
@@ -334,7 +350,7 @@ export const useStore = create<StoreState>()((set, get) => ({
   updatePartnerAccount(id, patch) {
     set(s => {
       const partnerAccounts = s.partnerAccounts.map(a => a.id === id ? { ...a, ...patch } : a);
-      persistDB({ ...s, partnerAccounts });
+      persist({ ...s, partnerAccounts });
       return { partnerAccounts };
     });
   },
@@ -342,7 +358,7 @@ export const useStore = create<StoreState>()((set, get) => ({
   deletePartnerAccount(id) {
     set(s => {
       const partnerAccounts = s.partnerAccounts.filter(a => a.id !== id);
-      persistDB({ ...s, partnerAccounts });
+      persist({ ...s, partnerAccounts });
       return { partnerAccounts };
     });
   },
@@ -357,7 +373,7 @@ export const useStore = create<StoreState>()((set, get) => ({
         const totalWithdrawn = transactions.filter(t => t.type === 'saque').reduce((sum, t) => sum + t.amount, 0);
         return { ...a, transactions, totalDeposited, totalWithdrawn };
       });
-      persistDB({ ...s, partnerAccounts });
+      persist({ ...s, partnerAccounts });
       return { partnerAccounts };
     });
   },
@@ -371,7 +387,7 @@ export const useStore = create<StoreState>()((set, get) => ({
         const totalWithdrawn = transactions.filter(t => t.type === 'saque').reduce((sum, t) => sum + t.amount, 0);
         return { ...a, transactions, totalDeposited, totalWithdrawn };
       });
-      persistDB({ ...s, partnerAccounts });
+      persist({ ...s, partnerAccounts });
       return { partnerAccounts };
     });
   },
@@ -381,7 +397,7 @@ export const useStore = create<StoreState>()((set, get) => ({
     set(s => {
       const newClient: Client = { ...client, id: `cli_${Date.now()}`, purchasedAccounts: [] };
       const clients = [...s.clients, newClient];
-      persistDB({ ...s, clients });
+      persist({ ...s, clients });
       return { clients };
     });
   },
@@ -389,7 +405,7 @@ export const useStore = create<StoreState>()((set, get) => ({
   updateClient(id, patch) {
     set(s => {
       const clients = s.clients.map(c => c.id === id ? { ...c, ...patch } : c);
-      persistDB({ ...s, clients });
+      persist({ ...s, clients });
       return { clients };
     });
   },
@@ -397,7 +413,7 @@ export const useStore = create<StoreState>()((set, get) => ({
   deleteClient(id) {
     set(s => {
       const clients = s.clients.filter(c => c.id !== id);
-      persistDB({ ...s, clients });
+      persist({ ...s, clients });
       return { clients };
     });
   },
@@ -427,7 +443,7 @@ export const useStore = create<StoreState>()((set, get) => ({
         ];
       }
 
-      persistDB({ ...s, clients, expenses });
+      persist({ ...s, clients, expenses });
       return { clients, expenses };
     });
   },
@@ -438,7 +454,7 @@ export const useStore = create<StoreState>()((set, get) => ({
         if (c.id !== clientId) return c;
         return { ...c, purchasedAccounts: c.purchasedAccounts.map(a => a.id === accId ? { ...a, ...patch } : a) };
       });
-      persistDB({ ...s, clients });
+      persist({ ...s, clients });
       return { clients };
     });
   },
@@ -449,14 +465,14 @@ export const useStore = create<StoreState>()((set, get) => ({
         if (c.id !== clientId) return c;
         return { ...c, purchasedAccounts: c.purchasedAccounts.filter(a => a.id !== accId) };
       });
-      persistDB({ ...s, clients });
+      persist({ ...s, clients });
       return { clients };
     });
   },
 
   setTargetHouses(houses) {
     set(s => {
-      persistDB({ ...s, targetHouses: houses });
+      persist({ ...s, targetHouses: houses });
       return { targetHouses: houses };
     });
   },
@@ -464,7 +480,7 @@ export const useStore = create<StoreState>()((set, get) => ({
   // ── sheet sync ────────────────────────────────────────────────────────────
   setSheetSync(cfg) {
     set(s => {
-      persistDB({ ...s, sheetSync: cfg });
+      persist({ ...s, sheetSync: cfg });
       return { sheetSync: cfg };
     });
   },
@@ -478,7 +494,7 @@ export const useStore = create<StoreState>()((set, get) => ({
       const existing = new Set(s.excludedImportKeys ?? []);
       keys.forEach(k => existing.add(k));
       const excludedImportKeys = Array.from(existing);
-      persistDB({ ...s, excludedImportKeys });
+      persist({ ...s, excludedImportKeys });
       return { excludedImportKeys };
     });
   },
@@ -487,7 +503,7 @@ export const useStore = create<StoreState>()((set, get) => ({
   updateProfile(patch) {
     set(s => {
       const profile = { ...(s.profile ?? { name: '', email: '', phone: '' }), ...patch };
-      persistDB({ ...s, profile });
+      persist({ ...s, profile });
       return { profile };
     });
   },
@@ -495,14 +511,14 @@ export const useStore = create<StoreState>()((set, get) => ({
   // ── onboarding ───────────────────────────────────────────────────────────
   completeOnboardingStep(step) {
     set(s => {
-      persistDB({ ...s, onboarding_step: step });
+      persist({ ...s, onboarding_step: step });
       return { onboarding_step: step };
     });
   },
 
   finishOnboarding() {
     set(s => {
-      persistDB({ ...s, onboarding_done: true, onboarding_step: 'done' });
+      persist({ ...s, onboarding_done: true, onboarding_step: 'done' });
       return { onboarding_done: true, onboarding_step: 'done' };
     });
   },
