@@ -8,10 +8,11 @@ import { groupLegsIntoOps, calcLegProfit } from '@/lib/finance/calculator';
 import { currentMonth } from '@/lib/parsers/dateParser';
 import {
   Trash2, Plus, AlertTriangle, Zap, Clock, ChevronDown,
-  Pencil, Check, X, Copy, Shuffle, DollarSign,
+  Pencil, Check, X, Copy, Shuffle, DollarSign, Calculator,
 } from 'lucide-react';
 import type { Leg, ResultType, OpType } from '@/types';
 import { houseFavicon } from '@/lib/bookmakers/logos';
+import { SurebetCalc } from '@/components/calcalendario/SurebetCalc';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -1497,7 +1498,7 @@ export function OperationsPage() {
   const [search,      setSearch]      = useState('');
   const [onlyFlag,    setOnlyFlag]    = useState(false);
   const [onlyPend,    setOnlyPend]    = useState(false);
-  const [filterOpType, setFilterOpType] = useState<OpType | 'all'>('all');
+  const [filterOpType, setFilterOpType] = useState<OpType | 'all' | 'calculadora'>('all');
   // Default to current month so the list isn't overwhelmingly long
   const [filterMonth,  setFilterMonth]  = useState(currentMonth());
   const [filterDate,   setFilterDate]   = useState('');
@@ -1551,7 +1552,7 @@ export function OperationsPage() {
     }
     if (onlyFlag)              out = out.filter(op => op.hasFlag);
     if (onlyPend)              out = out.filter(op => op.pending);
-    if (filterOpType !== 'all') {
+    if (filterOpType !== 'all' && filterOpType !== 'calculadora') {
       out = out.filter(op => (op.legs[0]?.opType ?? 'surebet') === filterOpType);
     }
     if (filterMonth) out = out.filter(op => (op.bet_date || '').slice(0, 7) === filterMonth);
@@ -1626,6 +1627,9 @@ export function OperationsPage() {
           </p>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setFilterOpType('calculadora')}>
+            <Calculator size={14} /> Calculadora
+          </Button>
           <Button variant="outline" onClick={() => setShowAltAdd(true)}>
             <Shuffle size={14} /> Registrar outros lucros
           </Button>
@@ -1642,16 +1646,19 @@ export function OperationsPage() {
       <div className="flex items-center gap-1 overflow-x-auto pb-0.5"
         style={{ borderBottom: '1px solid rgba(255,255,255,.06)' }}>
         {([
-          { key: 'all',         label: 'Todos',       color: '#8899AA', bg: 'rgba(136,153,170,.12)', border: 'rgba(136,153,170,.28)' },
-          { key: 'surebet',     label: 'Surebet',     color: '#FFD600', bg: 'rgba(255,214,0,.12)',   border: 'rgba(255,214,0,.28)'   },
-          { key: 'duplo_green', label: 'Duplo Green', color: '#3FFF21', bg: 'rgba(63,255,33,.12)',   border: 'rgba(63,255,33,.28)'   },
-          { key: 'delay',       label: 'Delay',       color: '#4DA6FF', bg: 'rgba(77,166,255,.12)',  border: 'rgba(77,166,255,.28)'  },
-          { key: 'outros',      label: 'Outros',      color: '#FF8F3D', bg: 'rgba(255,143,61,.12)',  border: 'rgba(255,143,61,.28)'  },
-        ] as { key: OpType | 'all'; label: string; color: string; bg: string; border: string }[])
-          .filter(t => t.key === 'all' || usedOpTypes.includes(t.key as OpType))
+          { key: 'all',          label: 'Todos',        color: '#8899AA', bg: 'rgba(136,153,170,.12)', border: 'rgba(136,153,170,.28)' },
+          { key: 'surebet',      label: 'Surebet',      color: '#FFD600', bg: 'rgba(255,214,0,.12)',   border: 'rgba(255,214,0,.28)'   },
+          { key: 'duplo_green',  label: 'Duplo Green',  color: '#3FFF21', bg: 'rgba(63,255,33,.12)',   border: 'rgba(63,255,33,.28)'   },
+          { key: 'delay',        label: 'Delay',        color: '#4DA6FF', bg: 'rgba(77,166,255,.12)',  border: 'rgba(77,166,255,.28)'  },
+          { key: 'outros',       label: 'Outros',       color: '#FF8F3D', bg: 'rgba(255,143,61,.12)',  border: 'rgba(255,143,61,.28)'  },
+          { key: 'calculadora',  label: '🧮 Calculadora', color: '#C084FC', bg: 'rgba(192,132,252,.12)', border: 'rgba(192,132,252,.28)' },
+        ] as { key: OpType | 'all' | 'calculadora'; label: string; color: string; bg: string; border: string }[])
+          .filter(t => t.key === 'all' || t.key === 'calculadora' || usedOpTypes.includes(t.key as OpType))
           .map(tab => {
             const count = tab.key === 'all'
               ? allOps.length
+              : tab.key === 'calculadora'
+              ? null
               : allOps.filter(op => (op.legs[0]?.opType ?? 'surebet') === tab.key).length;
             const active = filterOpType === tab.key;
             return (
@@ -1662,13 +1669,15 @@ export function OperationsPage() {
                 style={{ color: active ? tab.color : 'var(--t3)', background: 'transparent', border: 'none' }}
               >
                 {tab.label}
-                <span className="px-1.5 py-0.5 rounded-full text-[10px] font-black"
-                  style={{
-                    background: active ? `${tab.color}22` : 'rgba(255,255,255,.06)',
-                    color: active ? tab.color : 'var(--t3)',
-                  }}>
-                  {count}
-                </span>
+                {count !== null && (
+                  <span className="px-1.5 py-0.5 rounded-full text-[10px] font-black"
+                    style={{
+                      background: active ? `${tab.color}22` : 'rgba(255,255,255,.06)',
+                      color: active ? tab.color : 'var(--t3)',
+                    }}>
+                    {count}
+                  </span>
+                )}
                 {/* Active indicator */}
                 {active && (
                   <span style={{
@@ -1681,7 +1690,11 @@ export function OperationsPage() {
           })}
       </div>
 
-      {/* ── Filters ── */}
+      {/* ── Calculator view ── */}
+      {filterOpType === 'calculadora' && <SurebetCalc />}
+
+      {/* ── Filters + Cards (hidden when calculator tab active) ── */}
+      {filterOpType !== 'calculadora' && <>
       <div className="flex flex-wrap gap-2 items-center">
         <input
           value={search}
@@ -1751,6 +1764,7 @@ export function OperationsPage() {
           ))}
         </div>
       )}
+      </>}
 
       {showAdd && <OpModal onClose={() => setShowAdd(false)} />}
       {showAltAdd && <AltOpModal onClose={() => setShowAltAdd(false)} />}
