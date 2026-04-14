@@ -221,12 +221,37 @@ export function calculate(
       freeIdxs.forEach((fi, idx) => { stakes[fi] = sol[idx]; });
     }
 
-    // Apply rounding to free stakes (never round the fixed stake)
+    // Apply rounding
     if (roundTo && roundTo > 0) {
-      activeIdxs.forEach(i => {
-        if (fixedIdx !== 'sum' && i === (activeIdxs[fixedIdx as number] ?? -1)) return;
-        stakes[i] = Math.round(stakes[i] / roundTo) * roundTo;
-      });
+      if (fixedIdx === 'sum') {
+        // ── Largest-remainder method: round all stakes down, then distribute
+        // the remaining units to stakes with the biggest fractional parts.
+        // This guarantees sum(rounded stakes) == anchor exactly
+        // (when anchor is a multiple of roundTo; otherwise within ±roundTo/2).
+        const floors    = activeIdxs.map(i => Math.floor(stakes[i] / roundTo) * roundTo);
+        const fractions = activeIdxs.map((i, j) => stakes[i] - floors[j]);
+        const sumFloors = floors.reduce((a, b) => a + b, 0);
+        // Number of roundTo-units to redistribute to recover the deficit
+        const extraUnits = Math.round((anchor - sumFloors) / roundTo);
+        // Give extra units to the stakes with the largest fractional remainders
+        const order = fractions
+          .map((rem, j) => ({ j, rem }))
+          .sort((a, b) => b.rem - a.rem);
+        const extras = new Array(activeIdxs.length).fill(0);
+        for (let k = 0; k < extraUnits && k < order.length; k++) {
+          extras[order[k].j] = roundTo;
+        }
+        activeIdxs.forEach((origIdx, j) => {
+          stakes[origIdx] = floors[j] + extras[j];
+        });
+      } else {
+        // Fixed-stake mode: only round the free stakes (fixed stake stays as-is)
+        const fixedOrig = activeIdxs[fixedIdx as number] ?? activeIdxs[0];
+        activeIdxs.forEach(i => {
+          if (i === fixedOrig) return;
+          stakes[i] = Math.round(stakes[i] / roundTo) * roundTo;
+        });
+      }
     }
 
     const profits    = calcProfits(stakes, matrix);
