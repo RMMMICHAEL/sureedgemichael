@@ -844,27 +844,29 @@ export function DashboardPage() {
     [legs, chartFrom, chartTo],
   );
 
+  // Settled legs only (same criterion as the KPI cards)
+  const chartSettled = useMemo(
+    () => chartLegs.filter(l => l.re !== 'Pendente' && l.re !== 'Devolvido'),
+    [chartLegs],
+  );
+
   // Build DayStat[] — always fill every calendar day in the range (including zeroes)
   const dailyData = useMemo<DayStat[]>(() => {
     const byDay: Record<string, { profit: number; ops: number }> = {};
-    chartLegs.forEach(l => {
+    chartSettled.forEach(l => {
       const d = l.bd.slice(0, 10);
       if (!byDay[d]) byDay[d] = { profit: 0, ops: 0 };
       byDay[d].profit += calcLegProfit(l);
     });
-    groupLegsIntoOps(chartLegs).forEach(op => {
+    groupLegsIntoOps(chartSettled).forEach(op => {
       const d = op.bet_date.slice(0, 10);
       if (byDay[d]) byDay[d].ops++;
     });
 
-    // For the "mes" preset, always show the full month (day 1 → last day of month)
-    const rangeFrom = chartPeriod === '30d' || chartPeriod === '60d' || chartPeriod === '90d'
-      ? chartFrom
-      : chartFrom;
     const rangeTo = chartTo;
 
     const result: DayStat[] = [];
-    const cursor = new Date(rangeFrom + 'T12:00:00');
+    const cursor = new Date(chartFrom + 'T12:00:00');
     const end    = new Date(rangeTo   + 'T12:00:00');
     while (cursor <= end) {
       const date = cursor.toISOString().slice(0, 10);
@@ -879,10 +881,10 @@ export function DashboardPage() {
       cursor.setDate(cursor.getDate() + 1);
     }
     return result;
-  }, [chartLegs, chartFrom, chartTo, chartPeriod]);
+  }, [chartSettled, chartFrom, chartTo, chartPeriod]);
 
-  const weeklyData  = useMemo(() => calcWeeklyProfit(chartLegs, 4),  [chartLegs]);
-  const sportDist   = useMemo<SportStat[]>(() => calcBySport(chartLegs),     [chartLegs]);
+  const weeklyData  = useMemo(() => calcWeeklyProfit(chartSettled, 4),  [chartSettled]);
+  const sportDist   = useMemo<SportStat[]>(() => calcBySport(chartSettled),  [chartSettled]);
 
   // Sparklines: daily profit for last 7 days, last 7 days (week), last 30 days (month)
   const sparkWeek = useMemo(() => {
