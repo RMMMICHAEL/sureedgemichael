@@ -389,6 +389,10 @@ function DailyChart({ legs, from, to, period, onPeriodChange, onFromChange, onTo
               </span>
             )}
           </div>
+          <p className="text-[10px] mt-0.5" style={{ color: 'rgba(148,163,184,.45)', fontFamily: "'Manrope',sans-serif" }}>
+            bruto de apostas · gastos não deduzidos
+          </p>
+          </div>
         </div>
 
         {/* Period pills */}
@@ -937,7 +941,7 @@ export function DashboardPage() {
         {
           label: `Lucro ${monthName}`,
           value: fmtBRL(profitMonth),
-          sub: `${monthLegs.length} apostas`,
+          sub: `${monthLegs.length} apostas · líquido (c/ gastos)`,
           positive: profitMonth === 0 ? null : profitMonth > 0,
           icon: <BarChart3 size={14} />,
           sparkline: sparkMonth,
