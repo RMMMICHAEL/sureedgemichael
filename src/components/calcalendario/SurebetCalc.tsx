@@ -270,6 +270,14 @@ export function SurebetCalc() {
     );
   }, [odds, numOutcomes, formulaOpt, anchor, fixedMode, distribute, roundEnabled, roundToStr]);
 
+  // Theoretical % — computed from odds alone (anchor=100, no rounding).
+  // This never changes when the user edits the stake value; only changes with odds/formula.
+  const theoreticalPct = useMemo(() => {
+    const parsedOdds = odds.slice(0, numOutcomes).map(s => parseFloat(s.replace(',', '.')) || 0);
+    const dist = distribute.slice(0, numOutcomes);
+    return calculate(parsedOdds, formulaOpt.formula, 100, fixedMode, dist, null).profitPct;
+  }, [odds, numOutcomes, formulaOpt, fixedMode, distribute]);
+
   function toggleDistribute(i: number) {
     setDistribute(prev => prev.map((d, idx) => idx === i ? !d : d));
   }
@@ -286,8 +294,9 @@ export function SurebetCalc() {
 
   // ── Derived display ───────────────────────────────────────────────────────
 
-  const profitPct     = result.profitPct;
-  const isSurebet     = result.isSurebet;
+  // Use theoretical % for the badge — fixed by odds, immune to stake/rounding changes
+  const profitPct     = theoreticalPct;
+  const isSurebet     = result.isSurebet || theoreticalPct > 0;
   const profitColor   = isSurebet ? '#3DFF8F' : profitPct < -5 ? '#FF4545' : '#FFBF00';
   const profitBg      = isSurebet ? 'rgba(61,255,143,.1)' : profitPct < -5 ? 'rgba(255,69,69,.1)' : 'rgba(255,191,0,.1)';
   const profitBorder  = isSurebet ? 'rgba(61,255,143,.25)' : profitPct < -5 ? 'rgba(255,69,69,.25)' : 'rgba(255,191,0,.25)';
