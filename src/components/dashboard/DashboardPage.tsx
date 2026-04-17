@@ -392,7 +392,6 @@ function DailyChart({ legs, from, to, period, onPeriodChange, onFromChange, onTo
           <p className="text-[10px] mt-0.5" style={{ color: 'rgba(148,163,184,.45)', fontFamily: "'Manrope',sans-serif" }}>
             bruto de apostas · gastos não deduzidos
           </p>
-          </div>
         </div>
 
         {/* Period pills */}
