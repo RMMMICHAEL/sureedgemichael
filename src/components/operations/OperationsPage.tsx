@@ -13,7 +13,6 @@ import {
 import type { Leg, ResultType, OpType } from '@/types';
 import { houseFavicon } from '@/lib/bookmakers/logos';
 import { SurebetCalc } from '@/components/calcalendario/SurebetCalc';
-import { NovaOperacaoForm } from '@/components/calcalendario/NovaOperacaoForm';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -1679,7 +1678,6 @@ export function OperationsPage() {
   const [onlyFlag,    setOnlyFlag]    = useState(false);
   const [onlyPend,    setOnlyPend]    = useState(false);
   const [filterOpType, setFilterOpType] = useState<OpType | 'all' | 'calculadora'>('all');
-  const [calcTab,      setCalcTab]      = useState<'calc' | 'surebet' | 'duplo_green'>('calc');
   // Default to current month so the list isn't overwhelmingly long
   const [filterMonth,  setFilterMonth]  = useState(currentMonth());
   const [filterDate,   setFilterDate]   = useState('');
@@ -1872,33 +1870,7 @@ export function OperationsPage() {
       </div>
 
       {/* ── Calculator view ── */}
-      {filterOpType === 'calculadora' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-          {/* Sub-tabs */}
-          <div style={{ display: 'flex', gap: 6 }}>
-            {([
-              { key: 'calc',        label: 'Calculadora',  color: '#C084FC', bg: 'rgba(192,132,252,.14)', border: 'rgba(192,132,252,.3)' },
-              { key: 'surebet',     label: 'Nova Surebet', color: '#4DA6FF', bg: 'rgba(77,166,255,.14)',  border: 'rgba(77,166,255,.3)'  },
-              { key: 'duplo_green', label: 'Duplo Green',  color: '#3DFF8F', bg: 'rgba(61,255,143,.14)',  border: 'rgba(61,255,143,.3)'  },
-            ] as const).map(t => (
-              <button key={t.key} onClick={() => setCalcTab(t.key)}
-                style={{
-                  padding: '7px 18px', borderRadius: 9, fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                  background: calcTab === t.key ? t.bg : 'rgba(255,255,255,.04)',
-                  color:      calcTab === t.key ? t.color : '#6B7280',
-                  border:     `1px solid ${calcTab === t.key ? t.border : 'rgba(255,255,255,.08)'}`,
-                  transition: 'all .15s',
-                }}>
-                {t.label}
-              </button>
-            ))}
-          </div>
-
-          {calcTab === 'calc'        && <SurebetCalc />}
-          {calcTab === 'surebet'     && <NovaOperacaoForm opType="surebet" />}
-          {calcTab === 'duplo_green' && <NovaOperacaoForm opType="duplo_green" />}
-        </div>
-      )}
+      {filterOpType === 'calculadora' && <SurebetCalc />}
 
       {/* ── Filters + Cards (hidden when calculator tab active) ── */}
       {filterOpType !== 'calculadora' && <>
