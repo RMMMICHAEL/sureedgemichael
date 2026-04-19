@@ -14,7 +14,7 @@ import type {
   Client, PurchasedAccount, UserProfile,
 } from '@/types';
 import { loadDB, persistDB } from '@/lib/storage/db';
-import { loadFromSupabase, scheduleSaveToSupabase } from '@/lib/supabase/sync';
+import { loadFromSupabase, saveToSupabase, scheduleSaveToSupabase } from '@/lib/supabase/sync';
 import { recalcBookmakers, normHouse, bmColor, bmAbbr } from '@/lib/finance/reconciler';
 import { calcLegProfit } from '@/lib/finance/calculator';
 import type { CommitResult } from '@/lib/import/importEngine';
@@ -164,7 +164,13 @@ export const useStore = create<StoreState>()((set, get) => ({
 
     // 2. Try to load fresher data from Supabase in the background
     loadFromSupabase().then(remoteDb => {
-      if (!remoteDb) return; // not logged in or no remote data yet
+      if (!remoteDb) {
+        // Supabase está vazio ou usuário não está logado.
+        // Se temos dados locais, migramos para o Supabase agora (migração única).
+        const hasLocalData = localDb.legs.length > 0 || localDb.bms.length > 0 || localDb.banks.length > 0;
+        if (hasLocalData) saveToSupabase(localDb);
+        return;
+      }
       // Persist remote data to localStorage and apply to store
       persist(remoteDb);
       applyDB(remoteDb);

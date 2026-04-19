@@ -391,6 +391,7 @@ export function PerfilPage() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [tab, setTab] = useState<TabId>('dados');
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   const name   = profile?.name  ?? '';
   const email  = profile?.email ?? '';
@@ -398,18 +399,46 @@ export function PerfilPage() {
   const role   = profile?.role  ?? '';
   const avatar = profile?.avatarDataUrl;
 
-  function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!file.type.startsWith('image/')) { toast('Selecione uma imagem', 'wrn'); return; }
     if (file.size > 2 * 1024 * 1024) { toast('Imagem muito grande (máx. 2MB)', 'wrn'); return; }
-    const reader = new FileReader();
-    reader.onload = ev => {
-      updateProfile({ avatarDataUrl: ev.target?.result as string });
-      toast('Foto atualizada', 'ok');
-    };
-    reader.readAsDataURL(file);
+
     e.target.value = '';
+
+    const supabase = getSupabaseClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (user) {
+      // Upload para Supabase Storage e salva a URL pública
+      setUploadingAvatar(true);
+      try {
+        const ext  = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg';
+        const path = `${user.id}/avatar.${ext}`;
+        const { error } = await supabase.storage.from('avatars').upload(path, file, {
+          upsert: true,
+          contentType: file.type,
+        });
+        if (error) throw error;
+        const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(path);
+        // Cache-bust para evitar imagem desatualizada após troca
+        updateProfile({ avatarDataUrl: `${publicUrl}?t=${Date.now()}` });
+        toast('Foto atualizada', 'ok');
+      } catch {
+        toast('Erro ao enviar foto — tente novamente', 'err');
+      } finally {
+        setUploadingAvatar(false);
+      }
+    } else {
+      // Fallback: base64 quando não há sessão Supabase
+      const reader = new FileReader();
+      reader.onload = ev => {
+        updateProfile({ avatarDataUrl: ev.target?.result as string });
+        toast('Foto atualizada', 'ok');
+      };
+      reader.readAsDataURL(file);
+    }
   }
 
   return (
@@ -433,12 +462,15 @@ export function PerfilPage() {
             <Avatar dataUrl={avatar} name={name} size={88} />
             <button
               type="button"
-              onClick={() => fileInputRef.current?.click()}
+              onClick={() => !uploadingAvatar && fileInputRef.current?.click()}
+              disabled={uploadingAvatar}
               className="absolute bottom-0 right-0 w-7 h-7 rounded-full flex items-center justify-center"
-              style={{ background: 'rgba(77,166,255,.9)', border: '2px solid var(--bg2)', color: '#fff' }}
+              style={{ background: uploadingAvatar ? 'rgba(148,163,184,.6)' : 'rgba(77,166,255,.9)', border: '2px solid var(--bg2)', color: '#fff' }}
               title="Alterar foto"
             >
-              <Camera size={12} />
+              {uploadingAvatar
+                ? <span style={{ fontSize: 9, fontWeight: 900 }}>...</span>
+                : <Camera size={12} />}
             </button>
           </div>
           <input
@@ -450,11 +482,12 @@ export function PerfilPage() {
           />
           <button
             type="button"
-            onClick={() => fileInputRef.current?.click()}
+            onClick={() => !uploadingAvatar && fileInputRef.current?.click()}
+            disabled={uploadingAvatar}
             className="text-xs font-semibold px-3 py-1.5 rounded-lg transition-all"
-            style={{ background: 'rgba(255,255,255,.05)', color: 'var(--t3)', border: '1px solid var(--b)' }}
+            style={{ background: 'rgba(255,255,255,.05)', color: 'var(--t3)', border: '1px solid var(--b)', opacity: uploadingAvatar ? 0.5 : 1 }}
           >
-            Alterar foto
+            {uploadingAvatar ? 'Enviando...' : 'Alterar foto'}
           </button>
           {avatar && (
             <button

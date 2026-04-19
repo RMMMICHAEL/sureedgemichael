@@ -58,6 +58,7 @@ export function loadDB(): AppDB {
     onboarding_step: load('onboarding_step', 'bookmakers' as OnboardingStep),
     sheetSync:           load('sheetSync',           undefined),
     excludedImportKeys:  load('excludedImportKeys',  [] as string[]),
+    profile:             load('profile',             undefined),
   };
 }
 
@@ -76,6 +77,7 @@ export function persistDB(db: AppDB): void {
   save('onboarding_step', db.onboarding_step);
   if (db.sheetSync) save('sheetSync', db.sheetSync);
   if (db.excludedImportKeys) save('excludedImportKeys', db.excludedImportKeys);
+  if (db.profile !== undefined) save('profile', db.profile);
 }
 
 // ── Wipe all data (for testing / reset) ────────────────────────────────────
