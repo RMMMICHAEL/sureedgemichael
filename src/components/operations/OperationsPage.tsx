@@ -156,6 +156,22 @@ function detectSignal(bd: string, ed: string): 'live' | 'pre' {
   return bd.slice(0, 10) === ed.slice(0, 10) ? 'live' : 'pre';
 }
 
+// Distribui stake total proporcionalmente: stake_i = total / (odd_i × Σ(1/odd_j))
+// Usa maior-resto para arredondar preservando a soma exata.
+function distributeEqually(total: number, odds: number[], roundTo: number | null): number[] {
+  const margin = odds.reduce((s, o) => s + (o > 0 ? 1 / o : 0), 0);
+  if (!margin) return odds.map(() => 0);
+  const raw = odds.map(o => o > 0 ? total / (o * margin) : 0);
+  if (!roundTo) return raw;
+  const floors  = raw.map(s => Math.floor(s / roundTo) * roundTo);
+  const fracs   = raw.map((s, i) => s - floors[i]);
+  const extra   = Math.round((total - floors.reduce((a, b) => a + b, 0)) / roundTo);
+  const order   = fracs.map((r, j) => ({ j, r })).sort((a, b) => b.r - a.r);
+  const bonuses = new Array(raw.length).fill(0);
+  for (let k = 0; k < extra && k < order.length; k++) bonuses[order[k].j] = roundTo;
+  return floors.map((f, i) => f + bonuses[i]);
+}
+
 function hBrand(name: string) {
   return HOUSE_BRAND[name] ?? { color: '#6B7280', bg: 'rgba(107,114,128,.12)', border: 'rgba(107,114,128,.2)' };
 }
@@ -324,6 +340,30 @@ function OpModal({ editOid, onClose }: OpModalProps) {
       : [makeLeg(), makeLeg()]
   );
 
+  // ── Calc strip state ──────────────────────────────────────────────────────
+  const [calcAnchor,  setCalcAnchor]  = useState('');
+  const [calcRound,   setCalcRound]   = useState(false);
+  const [calcRoundTo, setCalcRoundTo] = useState('5');
+
+  function applyCalcStakesSB() {
+    const total = parseFloat(calcAnchor.replace(',', '.'));
+    if (!total || total <= 0) return;
+    const odds   = legDrafts.map(l => parseFloat(l.od.replace(',', '.')) || 0);
+    const roundTo = calcRound ? (parseFloat(calcRoundTo) || null) : null;
+    const stakes = distributeEqually(total, odds, roundTo);
+    setLegDrafts(prev => prev.map((l, i) =>
+      stakes[i] > 0 ? { ...l, st: stakes[i].toFixed(2) } : l
+    ));
+  }
+
+  // Live profit % from odds (theoretical, no rounding bias)
+  const sbProfitPct = useMemo(() => {
+    const odds = legDrafts.map(l => parseFloat(l.od.replace(',', '.')) || 0);
+    if (odds.some(o => o <= 0)) return null;
+    const margin = odds.reduce((s, o) => s + 1 / o, 0);
+    return (1 - margin) / margin * 100;
+  }, [legDrafts]);
+
   function save() {
     if (!ev.trim()) { toastFn('Preencha o evento', 'wrn'); return; }
     if (legDrafts.some(l => !l.ho)) { toastFn('Selecione a casa para cada operação', 'wrn'); return; }
@@ -372,6 +412,64 @@ function OpModal({ editOid, onClose }: OpModalProps) {
             <input value={ev} onChange={e => setEv(e.target.value)}
               placeholder="Ex: Real Madrid vs Barcelona" style={INPUT_S} />
           </label>
+        </div>
+
+        {/* ── Faixa de cálculo de stakes ─────────────────────────────── */}
+        <div className="flex flex-wrap items-center gap-2 px-3 py-2.5 rounded-xl"
+          style={{ background: 'rgba(192,132,252,.07)', border: '1px solid rgba(192,132,252,.22)' }}>
+          <span className="text-[10px] font-black uppercase tracking-wider flex-shrink-0"
+            style={{ color: '#C084FC' }}>Distribuir Stakes</span>
+
+          <div className="flex items-center gap-2 flex-wrap flex-1">
+            <label className="flex items-center gap-1.5 text-[11px]" style={{ color: 'rgba(148,163,184,.75)' }}>
+              Total (R$):
+              <input
+                style={{ ...INPUT_S, width: 100, fontFamily: "'JetBrains Mono',monospace" }}
+                inputMode="decimal"
+                value={calcAnchor}
+                onChange={e => setCalcAnchor(e.target.value)}
+                placeholder="200"
+              />
+            </label>
+
+            <label className="flex items-center gap-1.5 cursor-pointer text-[11px]"
+              style={{ color: 'rgba(148,163,184,.75)' }}>
+              <input type="checkbox" checked={calcRound} onChange={e => setCalcRound(e.target.checked)}
+                style={{ accentColor: '#C084FC', width: 13, height: 13 }} />
+              Arredondar a cada
+              <input
+                style={{ ...INPUT_S, width: 52, display: calcRound ? 'block' : 'none', fontFamily: "'JetBrains Mono',monospace" }}
+                inputMode="decimal"
+                value={calcRoundTo}
+                onChange={e => setCalcRoundTo(e.target.value)}
+                placeholder="5"
+              />
+              {calcRound && <span style={{ fontSize: 11, color: 'rgba(148,163,184,.5)' }}>R$</span>}
+            </label>
+          </div>
+
+          <div className="flex items-center gap-3 flex-shrink-0">
+            {sbProfitPct !== null && (
+              <span style={{
+                fontSize: 12, fontWeight: 800, fontFamily: "'JetBrains Mono',monospace",
+                color: sbProfitPct >= 0 ? '#3DFF8F' : '#FFBF00',
+              }}>
+                {sbProfitPct >= 0 ? '+' : ''}{sbProfitPct.toFixed(2)}%
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={applyCalcStakesSB}
+              disabled={!calcAnchor}
+              style={{
+                padding: '5px 14px', borderRadius: 7, border: '1px solid rgba(192,132,252,.4)',
+                background: calcAnchor ? 'rgba(192,132,252,.18)' : 'rgba(255,255,255,.04)',
+                color: calcAnchor ? '#C084FC' : '#4B5563',
+                fontSize: 11, fontWeight: 800, cursor: calcAnchor ? 'pointer' : 'default',
+              }}>
+              ↓ Aplicar
+            </button>
+          </div>
         </div>
 
         <span className="text-xs font-bold uppercase text-slate-500">
@@ -480,6 +578,29 @@ function DuploGreenModal({ onClose }: { onClose: () => void }) {
   const stOf = (l: DGLegDraft) => parseFloat(l.st.replace(',', '.')) || 0;
   const odOf = (l: DGLegDraft) => parseFloat(l.od.replace(',', '.')) || 0;
 
+  // ── Calc strip state ──────────────────────────────────────────────────────
+  const [dgCalcAnchor,  setDgCalcAnchor]  = useState('');
+  const [dgCalcRound,   setDgCalcRound]   = useState(false);
+  const [dgCalcRoundTo, setDgCalcRoundTo] = useState('5');
+
+  function applyCalcStakesDG() {
+    const total = parseFloat(dgCalcAnchor.replace(',', '.'));
+    if (!total || total <= 0) return;
+    const odds   = legs.map(odOf);
+    const roundTo = dgCalcRound ? (parseFloat(dgCalcRoundTo) || null) : null;
+    const stakes = distributeEqually(total, odds, roundTo);
+    setLegs(prev => prev.map((l, i) =>
+      stakes[i] > 0 ? { ...l, st: stakes[i].toFixed(2) } : l
+    ));
+  }
+
+  const dgProfitPct = useMemo(() => {
+    const odds = legs.map(odOf);
+    if (odds.some(o => o <= 0)) return null;
+    const margin = odds.reduce((s, o) => s + 1 / o, 0);
+    return (1 - margin) / margin * 100;
+  }, [legs]);
+
   const totalStake = legs.reduce((s, l) => s + stOf(l), 0);
   const payouts    = legs.map(l => stOf(l) * odOf(l));
   const scenarios  = legs.map((_, i) => payouts[i] - totalStake);
@@ -586,6 +707,64 @@ function DuploGreenModal({ onClose }: { onClose: () => void }) {
           </div>
         </div>
 
+        {/* ── Faixa de cálculo de stakes ─────────────────────────────── */}
+        <div className="flex flex-wrap items-center gap-2 px-3 py-2.5 rounded-xl"
+          style={{ background: 'rgba(255,203,47,.07)', border: '1px solid rgba(255,203,47,.22)' }}>
+          <span className="text-[10px] font-black uppercase tracking-wider flex-shrink-0"
+            style={{ color: '#FFCB2F' }}>Distribuir Stakes</span>
+
+          <div className="flex items-center gap-2 flex-wrap flex-1">
+            <label className="flex items-center gap-1.5 text-[11px]" style={{ color: 'rgba(148,163,184,.75)' }}>
+              Total (R$):
+              <input
+                style={{ ...INPUT_S, width: 100, fontFamily: "'JetBrains Mono',monospace" }}
+                inputMode="decimal"
+                value={dgCalcAnchor}
+                onChange={e => setDgCalcAnchor(e.target.value)}
+                placeholder="600"
+              />
+            </label>
+
+            <label className="flex items-center gap-1.5 cursor-pointer text-[11px]"
+              style={{ color: 'rgba(148,163,184,.75)' }}>
+              <input type="checkbox" checked={dgCalcRound} onChange={e => setDgCalcRound(e.target.checked)}
+                style={{ accentColor: '#FFCB2F', width: 13, height: 13 }} />
+              Arredondar a cada
+              <input
+                style={{ ...INPUT_S, width: 52, display: dgCalcRound ? 'block' : 'none', fontFamily: "'JetBrains Mono',monospace" }}
+                inputMode="decimal"
+                value={dgCalcRoundTo}
+                onChange={e => setDgCalcRoundTo(e.target.value)}
+                placeholder="5"
+              />
+              {dgCalcRound && <span style={{ fontSize: 11, color: 'rgba(148,163,184,.5)' }}>R$</span>}
+            </label>
+          </div>
+
+          <div className="flex items-center gap-3 flex-shrink-0">
+            {dgProfitPct !== null && (
+              <span style={{
+                fontSize: 12, fontWeight: 800, fontFamily: "'JetBrains Mono',monospace",
+                color: dgProfitPct >= 0 ? '#3DFF8F' : '#FFBF00',
+              }}>
+                {dgProfitPct >= 0 ? '+' : ''}{dgProfitPct.toFixed(2)}%
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={applyCalcStakesDG}
+              disabled={!dgCalcAnchor}
+              style={{
+                padding: '5px 14px', borderRadius: 7, border: '1px solid rgba(255,203,47,.4)',
+                background: dgCalcAnchor ? 'rgba(255,203,47,.18)' : 'rgba(255,255,255,.04)',
+                color: dgCalcAnchor ? '#FFCB2F' : '#4B5563',
+                fontSize: 11, fontWeight: 800, cursor: dgCalcAnchor ? 'pointer' : 'default',
+              }}>
+              ↓ Aplicar
+            </button>
+          </div>
+        </div>
+
         {/* ── Calculadora de Cenários ────────────────────────────────── */}
         {totalStake > 0 && (
           <div className="flex flex-col gap-2">
@@ -636,7 +815,7 @@ function DuploGreenModal({ onClose }: { onClose: () => void }) {
         {/* ── Actions ───────────────────────────────────────────────── */}
         <div className="flex justify-end gap-2 pt-3" style={{ borderTop: '1px solid rgba(255,255,255,.06)' }}>
           <Button variant="ghost" onClick={onClose}>Cancelar</Button>
-          <Button variant="primary" onClick={save}>⚡ Registrar Duplo Green</Button>
+          <Button variant="primary" onClick={save}>Registrar Duplo Green</Button>
         </div>
       </div>
     </Modal>
@@ -1653,7 +1832,7 @@ export function OperationsPage() {
           { key: 'duplo_green',  label: 'Duplo Green',  color: '#3FFF21', bg: 'rgba(63,255,33,.12)',   border: 'rgba(63,255,33,.28)'   },
           { key: 'delay',        label: 'Delay',        color: '#4DA6FF', bg: 'rgba(77,166,255,.12)',  border: 'rgba(77,166,255,.28)'  },
           { key: 'outros',       label: 'Outros',       color: '#FF8F3D', bg: 'rgba(255,143,61,.12)',  border: 'rgba(255,143,61,.28)'  },
-          { key: 'calculadora',  label: '🧮 Calculadora', color: '#C084FC', bg: 'rgba(192,132,252,.12)', border: 'rgba(192,132,252,.28)' },
+          { key: 'calculadora',  label: 'Calculadora', color: '#C084FC', bg: 'rgba(192,132,252,.12)', border: 'rgba(192,132,252,.28)' },
         ] as { key: OpType | 'all' | 'calculadora'; label: string; color: string; bg: string; border: string }[])
           .filter(t => t.key === 'all' || t.key === 'calculadora' || usedOpTypes.includes(t.key as OpType))
           .map(tab => {
@@ -1698,9 +1877,9 @@ export function OperationsPage() {
           {/* Sub-tabs */}
           <div style={{ display: 'flex', gap: 6 }}>
             {([
-              { key: 'calc',        label: '🧮 Calculadora',   color: '#C084FC', bg: 'rgba(192,132,252,.14)', border: 'rgba(192,132,252,.3)' },
-              { key: 'surebet',     label: '⚡ Nova Surebet',   color: '#4DA6FF', bg: 'rgba(77,166,255,.14)',  border: 'rgba(77,166,255,.3)'  },
-              { key: 'duplo_green', label: '🟢 Duplo Green',   color: '#3DFF8F', bg: 'rgba(61,255,143,.14)',  border: 'rgba(61,255,143,.3)'  },
+              { key: 'calc',        label: 'Calculadora',  color: '#C084FC', bg: 'rgba(192,132,252,.14)', border: 'rgba(192,132,252,.3)' },
+              { key: 'surebet',     label: 'Nova Surebet', color: '#4DA6FF', bg: 'rgba(77,166,255,.14)',  border: 'rgba(77,166,255,.3)'  },
+              { key: 'duplo_green', label: 'Duplo Green',  color: '#3DFF8F', bg: 'rgba(61,255,143,.14)',  border: 'rgba(61,255,143,.3)'  },
             ] as const).map(t => (
               <button key={t.key} onClick={() => setCalcTab(t.key)}
                 style={{

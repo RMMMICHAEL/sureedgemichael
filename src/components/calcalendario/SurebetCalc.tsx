@@ -441,7 +441,7 @@ export function SurebetCalc() {
           textAlign: 'center', minWidth: 110,
         }}>
           <div style={{ fontSize: 10, fontWeight: 700, color: profitColor, opacity: .7, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-            {isSurebet ? 'Surebet ✓' : 'Lucro'}
+            {isSurebet ? 'Surebet' : 'Lucro'}
           </div>
           <div style={{
             fontSize: 22, fontWeight: 900, color: profitColor,
