@@ -30,17 +30,20 @@ export async function loadFromSupabase(): Promise<AppDB | null> {
 
 // ── Save (upsert) ─────────────────────────────────────────────────────────────
 
-export async function saveToSupabase(db: AppDB): Promise<void> {
+export async function saveToSupabase(db: AppDB): Promise<{ ok: boolean; error?: string }> {
   try {
     const supabase = getSupabaseClient();
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!user) return { ok: false, error: 'Usuário não autenticado' };
 
-    await supabase
+    const { error } = await supabase
       .from('user_data')
       .upsert({ user_id: user.id, data: db }, { onConflict: 'user_id' });
-  } catch {
-    // Silent fail — localStorage is always the source of truth locally
+
+    if (error) return { ok: false, error: error.message };
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: (e as Error).message ?? 'Erro desconhecido' };
   }
 }
 

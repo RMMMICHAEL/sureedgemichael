@@ -7,8 +7,9 @@ import { currentMonth, todayStr } from '@/lib/parsers/dateParser';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import {
   Camera, Shield, User, Phone, Mail, Edit3, Check, X,
-  TrendingUp, BarChart3, Lock, LogOut,
+  TrendingUp, BarChart3, Lock, LogOut, CloudUpload, CheckCircle2, AlertCircle,
 } from 'lucide-react';
+import { saveToSupabase } from '@/lib/supabase/sync';
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -239,7 +240,37 @@ function SecurityTab() {
   const [newEmail,    setNewEmail]    = useState('');
   const [emailLoading, setEmailLoading] = useState(false);
 
+  const [syncLoading, setSyncLoading] = useState(false);
+  const [syncResult,  setSyncResult]  = useState<'ok' | 'err' | null>(null);
+
   const inputStyle = { background: 'var(--sur)', border: '1px solid var(--b2)', color: 'var(--t)', outline: 'none' };
+
+  async function forceSyncToCloud() {
+    setSyncLoading(true);
+    setSyncResult(null);
+    try {
+      const s = useStore.getState();
+      const db = {
+        legs: s.legs, bms: s.bms, banks: s.banks,
+        expenses: s.expenses, partnerAccounts: s.partnerAccounts,
+        clients: s.clients, targetHouses: s.targetHouses,
+        import_log: s.import_log, onboarding_done: s.onboarding_done,
+        onboarding_step: s.onboarding_step, sheetSync: s.sheetSync,
+        excludedImportKeys: s.excludedImportKeys, profile: s.profile,
+      };
+      const result = await saveToSupabase(db);
+      if (result.ok) {
+        setSyncResult('ok');
+        toast('Dados sincronizados com sucesso na nuvem!', 'ok');
+      } else {
+        setSyncResult('err');
+        toast(result.error ?? 'Erro ao sincronizar', 'err');
+      }
+    } finally {
+      setSyncLoading(false);
+      setTimeout(() => setSyncResult(null), 4000);
+    }
+  }
 
   async function changePassword() {
     if (newPw.length < 6) { toast('Senha deve ter ao menos 6 caracteres', 'wrn'); return; }
@@ -354,6 +385,43 @@ function SecurityTab() {
             style={{ background: 'rgba(0,255,136,.08)', color: 'var(--g)', border: '1px solid rgba(0,255,136,.15)', opacity: emailLoading ? 0.6 : 1 }}
           >
             {emailLoading ? 'Enviando…' : 'Alterar e-mail'}
+          </button>
+        </div>
+      </div>
+
+      {/* Sync to cloud */}
+      <div className="rounded-xl overflow-hidden" style={{ border: '1px solid rgba(77,166,255,.25)' }}>
+        <div className="px-4 py-3 flex items-center gap-2" style={{ background: 'rgba(77,166,255,.06)', borderBottom: '1px solid rgba(77,166,255,.15)' }}>
+          <CloudUpload size={13} style={{ color: '#4DA6FF' }} />
+          <div className="text-xs font-bold uppercase tracking-widest" style={{ color: '#4DA6FF' }}>
+            Sincronizar dados na nuvem
+          </div>
+        </div>
+        <div className="px-4 py-4 flex flex-col gap-3" style={{ background: 'var(--bg2)' }}>
+          <p className="text-xs leading-relaxed" style={{ color: 'var(--t2)' }}>
+            Salva todos os seus dados atuais (operações, casas, caixa, etc.) na sua conta do Supabase.
+            Após sincronizar, qualquer dispositivo onde você fizer login terá acesso aos mesmos dados.
+          </p>
+          <button
+            type="button"
+            onClick={forceSyncToCloud}
+            disabled={syncLoading}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold self-start transition-all"
+            style={{
+              background: syncResult === 'ok' ? 'rgba(61,255,143,.12)' : syncResult === 'err' ? 'rgba(255,69,69,.1)' : 'rgba(77,166,255,.1)',
+              color: syncResult === 'ok' ? 'var(--g)' : syncResult === 'err' ? 'var(--r)' : '#4DA6FF',
+              border: `1px solid ${syncResult === 'ok' ? 'rgba(61,255,143,.25)' : syncResult === 'err' ? 'rgba(255,69,69,.25)' : 'rgba(77,166,255,.25)'}`,
+              opacity: syncLoading ? 0.6 : 1,
+            }}
+          >
+            {syncLoading
+              ? <><span className="animate-spin inline-block w-3 h-3 border-2 border-current border-t-transparent rounded-full" /> Sincronizando...</>
+              : syncResult === 'ok'
+                ? <><CheckCircle2 size={14} /> Sincronizado!</>
+                : syncResult === 'err'
+                  ? <><AlertCircle size={14} /> Erro — tente novamente</>
+                  : <><CloudUpload size={14} /> Salvar tudo na nuvem agora</>
+            }
           </button>
         </div>
       </div>
