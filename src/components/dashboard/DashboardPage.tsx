@@ -376,7 +376,7 @@ function DailyChart({ legs, from, to, period, onPeriodChange, onFromChange, onTo
       <div className="flex items-start justify-between mb-4 flex-wrap gap-3">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-widest mb-1" style={{ color: 'var(--t3)', fontFamily: "'Manrope',sans-serif" }}>
-            Lucro por Dia — {periodLabel}
+            FATURAMENTO DO MÊS — {periodLabel}
           </p>
           <div className="flex items-baseline gap-3">
             <span className="text-3xl font-black" style={{ color: profitColor, fontFamily: "'JetBrains Mono',monospace" }}>
