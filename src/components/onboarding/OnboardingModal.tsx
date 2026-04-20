@@ -7,7 +7,7 @@ import { bmColor, bmAbbr } from '@/lib/finance/reconciler';
 import { parseSheetUrl, syncFromSheet } from '@/lib/import/sheetsSync';
 import {
   Building2, Plus, Trash2, FileSpreadsheet,
-  ChevronRight, CheckCircle2, AlertTriangle, Link2, RefreshCw,
+  ChevronRight, CheckCircle2, AlertTriangle, Link2, RefreshCw, Send,
 } from 'lucide-react';
 
 // ── Step 1: Connect Google Sheet ────────────────────────────────────────────
@@ -62,17 +62,20 @@ function StepSheet({ onNext }: { onNext: () => void }) {
       {/* Info box */}
       <div
         className="rounded-xl p-4 flex gap-3"
-        style={{ background: 'rgba(77,166,255,.07)', border: '1px solid rgba(77,166,255,.2)' }}
+        style={{ background: 'rgba(61,255,143,.06)', border: '1px solid rgba(61,255,143,.2)' }}
       >
-        <FileSpreadsheet size={18} style={{ color: 'var(--bl)', flexShrink: 0, marginTop: 2 }} />
+        <FileSpreadsheet size={18} style={{ color: 'var(--g)', flexShrink: 0, marginTop: 2 }} />
         <div>
           <p className="text-sm font-bold mb-1" style={{ color: 'var(--t)' }}>
-            Conecte sua planilha Google Sheets
+            Conecte sua planilha Green Surebet
           </p>
           <p className="text-xs leading-relaxed" style={{ color: 'var(--t2)' }}>
-            Cole o link da sua planilha abaixo. O SureEdge irá ler as operações
-            automaticamente e importar para o painel. Certifique-se de que a planilha
-            está compartilhada publicamente (ou com permissão de leitura).
+            Se você usa a <strong style={{ color: 'var(--g)' }}>Green Surebet</strong> para organizar
+            suas operações, conecte o link da sua planilha logo abaixo. O SureEdge irá ler
+            suas apostas automaticamente e importar para o painel.
+          </p>
+          <p className="text-xs leading-relaxed mt-1.5" style={{ color: 'var(--t2)' }}>
+            Certifique-se de que a planilha está <strong>compartilhada publicamente</strong> (ou com permissão de leitura).
           </p>
         </div>
       </div>
@@ -80,7 +83,7 @@ function StepSheet({ onNext }: { onNext: () => void }) {
       {/* URL input */}
       <div className="flex flex-col gap-2">
         <label className="text-xs font-bold" style={{ color: 'var(--t3)' }}>
-          LINK DA PLANILHA (Google Sheets)
+          LINK DA PLANILHA GREEN SUREBET (Google Sheets)
         </label>
         <div className="flex gap-2">
           <input
@@ -109,6 +112,31 @@ function StepSheet({ onNext }: { onNext: () => void }) {
         <p className="text-xs" style={{ color: 'var(--t3)' }}>
           Como obter o link: Abra a planilha → Compartilhar → Copiar link
         </p>
+      </div>
+
+      {/* Telegram support */}
+      <div
+        className="rounded-xl p-4 flex items-center justify-between gap-3"
+        style={{ background: 'rgba(77,166,255,.07)', border: '1px solid rgba(77,166,255,.2)' }}
+      >
+        <div>
+          <p className="text-sm font-bold" style={{ color: 'var(--t)' }}>
+            Ainda não tem o link da planilha?
+          </p>
+          <p className="text-xs mt-0.5" style={{ color: 'var(--t2)' }}>
+            Entre em contato com o suporte da Green Surebet pelo Telegram e solicite o seu acesso.
+          </p>
+        </div>
+        <a
+          href="https://t.me/greensurebet"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold flex-shrink-0 transition-opacity hover:opacity-80"
+          style={{ background: '#229ED9', color: '#fff' }}
+        >
+          <Send size={13} />
+          @greensurebet
+        </a>
       </div>
 
       {/* Warning box */}
@@ -285,7 +313,7 @@ export function OnboardingModal() {
   }
 
   const STEP_TITLES = {
-    1: 'Bem-vindo ao SureEdge — Conecte sua planilha',
+    1: 'Bem-vindo ao SureEdge — Conecte sua planilha Green Surebet',
     2: 'Casas de aposta',
   };
 
