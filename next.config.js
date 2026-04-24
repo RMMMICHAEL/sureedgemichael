@@ -22,8 +22,8 @@ const securityHeaders = [
       "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
       // Supabase (auth, storage), Google Sheets, TheSportsDB, Telegram
       "connect-src 'self' https://*.supabase.co https://docs.google.com https://www.thesportsdb.com https://t.me",
-      // Imagens: self + Supabase storage + logos de times/ligas
-      "img-src 'self' data: blob: https://*.supabase.co https://www.thesportsdb.com",
+      // Imagens: self + Supabase storage + logos de times/ligas + favicons dos bookmakers (Google)
+      "img-src 'self' data: blob: https://*.supabase.co https://www.thesportsdb.com https://www.google.com",
       "style-src 'self' 'unsafe-inline'",
       "font-src 'self'",
       "frame-src 'none'",
