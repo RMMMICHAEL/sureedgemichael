@@ -7,6 +7,8 @@
  * Two modes:
  *   GET ?sheetId=X&gid=Y           → CSV export (one tab) — fast, used for incremental syncs
  *   GET ?sheetId=X&format=xlsx     → XLSX export (ALL tabs) — used for full-history import
+ *
+ * Auth is enforced by middleware — only authenticated users reach this route.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -17,24 +19,7 @@ const BOT_UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
   '(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
 
-// Permite apenas chamadas vindas do próprio domínio do site
-function isAllowedOrigin(req: NextRequest): boolean {
-  const origin  = req.headers.get('origin')  ?? '';
-  const referer = req.headers.get('referer') ?? '';
-
-  const allowed = [
-    process.env.NEXT_PUBLIC_APP_URL ?? '',
-    'http://localhost:3000',
-    'http://localhost:3001',
-  ].filter(Boolean);
-
-  // Em dev sem NEXT_PUBLIC_APP_URL, permite sem origin (chamadas server-side)
-  if (!origin && !referer) return true;
-
-  return allowed.some(u => origin.startsWith(u) || referer.startsWith(u));
-}
-
-// Rate limiting por IP em memória (edge — por instância; bom o suficiente para abuso básico)
+// Rate limiting por IP em memória (edge — por instância; protege contra abuso básico)
 const _rateMap = new Map<string, { count: number; resetAt: number }>();
 const RATE_WINDOW_MS = 60_000; // 1 minuto
 const RATE_MAX       = 30;     // 30 requisições por minuto por IP
@@ -51,11 +36,6 @@ function checkRateLimit(ip: string): boolean {
 }
 
 export async function GET(req: NextRequest) {
-  // Bloqueia origem externa
-  if (!isAllowedOrigin(req)) {
-    return NextResponse.json({ error: 'Acesso não autorizado' }, { status: 403 });
-  }
-
   // Rate limiting
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0].trim() ?? 'unknown';
   if (!checkRateLimit(ip)) {
@@ -114,9 +94,6 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  // Origem restrita ao próprio site
-  const allowedOrigin = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
-
   if (fmt === 'xlsx') {
     const buf = await response.arrayBuffer();
     return new NextResponse(buf, {
@@ -124,8 +101,6 @@ export async function GET(req: NextRequest) {
       headers: {
         'Content-Type':  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         'Cache-Control': 'no-store, max-age=0',
-        'Access-Control-Allow-Origin': allowedOrigin,
-        'Vary': 'Origin',
       },
     });
   }
@@ -136,8 +111,6 @@ export async function GET(req: NextRequest) {
     headers: {
       'Content-Type':  'text/csv; charset=utf-8',
       'Cache-Control': 'no-store, max-age=0',
-      'Access-Control-Allow-Origin': allowedOrigin,
-      'Vary': 'Origin',
     },
   });
 }
