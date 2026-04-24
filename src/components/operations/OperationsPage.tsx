@@ -1202,7 +1202,7 @@ function OpCard({
         </div>
 
         {/* Right: badges + actions + profit */}
-        <div className="flex items-center gap-2 shrink-0" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end" onClick={e => e.stopPropagation()}>
 
           {/* Op type badge */}
           <span
@@ -1227,8 +1227,8 @@ function OpCard({
 
           {/* Profit chip */}
           <span
-            className="text-xs font-bold font-mono px-3 py-1 rounded shrink-0"
-            style={{ background: profitBg, color: profitColor, minWidth: 96, textAlign: 'center' }}
+            className="text-xs font-bold font-mono px-2 py-1 rounded shrink-0"
+            style={{ background: profitBg, color: profitColor, minWidth: 72, textAlign: 'center' }}
           >
             {fmtBRL(profit)}
           </span>
@@ -1238,17 +1238,17 @@ function OpCard({
             <>
               <button
                 onClick={handleSave}
-                className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-lg shrink-0 transition-all"
+                className="flex items-center gap-1 text-xs font-bold px-2 py-1.5 rounded-lg shrink-0 transition-all"
                 style={{ background: 'rgba(61,255,143,.14)', color: '#3DFF8F', border: '1px solid rgba(61,255,143,.25)' }}
               >
-                <Check size={12} /> Salvar
+                <Check size={12} /><span className="hidden sm:inline">Salvar</span>
               </button>
               <button
                 onClick={handleCancel}
-                className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-lg shrink-0 transition-all"
+                className="flex items-center gap-1 text-xs font-bold px-2 py-1.5 rounded-lg shrink-0 transition-all"
                 style={{ background: 'rgba(255,255,255,.05)', color: '#9CA3AF', border: '1px solid rgba(255,255,255,.08)' }}
               >
-                <X size={12} /> Cancelar
+                <X size={12} /><span className="hidden sm:inline">Cancelar</span>
               </button>
               <button
                 onClick={() => { if (confirm('Remover esta operação?')) { onDeleteOp(op.id); onExitEdit(); } }}
@@ -1805,18 +1805,18 @@ export function OperationsPage() {
             {allOps.length} operações · {ops.length} exibidas
           </p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setFilterOpType('calculadora')}>
-            <Calculator size={14} /> Calculadora
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" variant="outline" onClick={() => setFilterOpType('calculadora')}>
+            <Calculator size={13} /><span className="hidden sm:inline">Calculadora</span>
           </Button>
-          <Button variant="outline" onClick={() => setShowAltAdd(true)}>
-            <Shuffle size={14} /> Registrar outros lucros
+          <Button size="sm" variant="outline" onClick={() => setShowAltAdd(true)}>
+            <Shuffle size={13} /><span className="hidden sm:inline">Outros lucros</span>
           </Button>
-          <Button variant="outline" onClick={() => setShowDGAdd(true)}>
-            <Zap size={14} /> Novo Duplo Green
+          <Button size="sm" variant="outline" onClick={() => setShowDGAdd(true)}>
+            <Zap size={13} /><span className="hidden sm:inline">Duplo Green</span>
           </Button>
-          <Button variant="primary" onClick={() => setShowAdd(true)}>
-            <Plus size={14} /> Nova Surebet
+          <Button size="sm" variant="primary" onClick={() => setShowAdd(true)}>
+            <Plus size={13} /><span className="hidden sm:inline">Nova Surebet</span><span className="sm:hidden">Nova</span>
           </Button>
         </div>
       </div>
