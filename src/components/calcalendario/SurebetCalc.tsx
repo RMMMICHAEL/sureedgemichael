@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import {
   calculate,
+  getMatrix,
   FORMULA_OPTIONS_2WAY,
   FORMULA_OPTIONS_3WAY,
   type FormulaOption,
@@ -79,7 +80,8 @@ const LABEL: React.CSSProperties = {
 };
 
 // Grid template: Desfecho | PM | Odd/Preço | Stake | D | C | Lucro
-const COLS = '90px 40px 1fr 1fr 36px 36px 100px';
+const COLS      = '90px 40px 1fr 1fr 36px 36px 100px';
+const COLS_MOB  = '70px 1fr 1fr 28px 28px 72px'; // mobile: no PM column
 
 // ── Add-to-panel modal ────────────────────────────────────────────────────────
 
@@ -277,14 +279,56 @@ export function SurebetCalc() {
     const roundTo = roundEnabled ? (parseFloat(roundToStr) || null) : null;
     const anchorVal = parseFloat(anchor.replace(',', '.')) || 0;
     const dist = distribute.slice(0, numOutcomes);
-    return calculate(effectiveOdds, formulaOpt.formula, anchorVal, fixedMode, dist, roundTo);
+
+    // Break-even mode: D=false legs get stake = total/odd (0/0 if that outcome wins)
+    // Only applies when fixedMode='sum' (total is the anchor)
+    const hasBreakEven = fixedMode === 'sum' && dist.some(d => !d);
+    if (!hasBreakEven) {
+      return calculate(effectiveOdds, formulaOpt.formula, anchorVal, fixedMode, dist, roundTo);
+    }
+
+    const total = anchorVal;
+    const stakes: number[] = Array(numOutcomes).fill(0);
+    let remaining = total;
+
+    // Step 1: break-even stakes for D=false legs — stake_i = total/odd_i
+    for (let i = 0; i < numOutcomes; i++) {
+      if (!dist[i] && effectiveOdds[i] > 0) {
+        stakes[i] = total / effectiveOdds[i];
+        remaining -= stakes[i];
+      }
+    }
+
+    // Step 2: calculate D=true legs with remaining budget
+    if (remaining > 0.01) {
+      const sub = calculate(effectiveOdds, formulaOpt.formula, remaining, 'sum', dist, roundTo);
+      for (let i = 0; i < numOutcomes; i++) {
+        if (dist[i]) stakes[i] = sub.stakes[i] ?? 0;
+      }
+    }
+
+    // Step 3: compute profits using full stakes
+    const matrix = getMatrix(formulaOpt.formula, effectiveOdds);
+    const profits = Array(numOutcomes).fill(0).map((_, i) =>
+      (matrix[i] ?? []).reduce((sum: number, coeff: number, k: number) => sum + coeff * (stakes[k] ?? 0), 0)
+    );
+
+    const totalBet = stakes.reduce((s, v) => s + v, 0);
+    const profitLegIdxs = dist.map((d, i) => d ? i : -1).filter(i => i >= 0 && i < numOutcomes);
+    const minProfit = profitLegIdxs.length > 0 ? Math.min(...profitLegIdxs.map(i => profits[i])) : 0;
+    const profitPct = totalBet > 0.001 ? (minProfit / totalBet) * 100 : 0;
+    const margin = profitLegIdxs.reduce((s, i) => s + 1 / (effectiveOdds[i] || 1), 0);
+
+    return { stakes, profits, totalBet, profitPct, margin, isSurebet: minProfit > 1e-6 };
   }, [effectiveOdds, numOutcomes, formulaOpt, anchor, fixedMode, distribute, roundEnabled, roundToStr]);
 
   // Theoretical % — computed from odds alone (anchor=100, no rounding); immune to stake edits
   const theoreticalPct = useMemo(() => {
     const dist = distribute.slice(0, numOutcomes);
-    return calculate(effectiveOdds, formulaOpt.formula, 100, fixedMode, dist, null).profitPct;
-  }, [effectiveOdds, numOutcomes, formulaOpt, fixedMode, distribute]);
+    const hasBreakEven = dist.some(d => !d);
+    if (hasBreakEven) return result.profitPct;
+    return calculate(effectiveOdds, formulaOpt.formula, 100, 'sum', dist, null).profitPct;
+  }, [effectiveOdds, numOutcomes, formulaOpt, distribute, result.profitPct]);
 
   // Polymarket per-row calculations
   const pmCalcs = useMemo(() => {
@@ -328,7 +372,19 @@ export function SurebetCalc() {
   }
 
   function toggleFixed(i: number | 'sum') {
-    setFixedMode(prev => (prev === i ? 'sum' : i) as 'sum' | 0 | 1 | 2);
+    if (fixedMode === i) {
+      // Deactivate — return to total mode, keep current total as anchor
+      const tot = result.totalBet > 0 ? result.totalBet.toFixed(2) : anchor;
+      setAnchor(tot);
+      setFixedMode('sum');
+    } else {
+      // Activate — capture current calculated value as anchor
+      if (typeof i === 'number') {
+        const cur = result.stakes[i] ?? 0;
+        if (cur > 0) setAnchor(cur.toFixed(2));
+      }
+      setFixedMode(i as 'sum' | 0 | 1 | 2);
+    }
   }
 
   function togglePM(i: number) {
@@ -343,11 +399,19 @@ export function SurebetCalc() {
     setQuotePrices(prev => prev.map((p, idx) => idx === i ? val : p));
   }
 
-  // Any stake cell is now editable — typing in cell i makes it the anchor
+  // Stake cells only update anchor when C is already active for that cell
   function handleStakeInput(i: number | 'sum', val: string) {
-    setFixedMode(i as 'sum' | 0 | 1 | 2);
-    setAnchor(val);
+    if (fixedMode === i) setAnchor(val);
   }
+
+  // Mobile detection
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 600);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
 
   // ── Derived display ────────────────────────────────────────────────────────
   const profitPct    = theoreticalPct;
@@ -380,7 +444,8 @@ export function SurebetCalc() {
                 if (fixedMode !== 'sum' && (fixedMode as number) >= n) setFixedMode('sum');
               }}
                 style={{
-                  padding: '5px 14px', borderRadius: 7, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                  padding: isMobile ? '4px 10px' : '5px 14px',
+                  borderRadius: 7, fontSize: isMobile ? 11 : 12, fontWeight: 700, cursor: 'pointer',
                   background: numOutcomes === n ? 'rgba(77,166,255,.18)' : 'rgba(255,255,255,.04)',
                   color: numOutcomes === n ? '#4DA6FF' : '#6B7280',
                   border: `1px solid ${numOutcomes === n ? 'rgba(77,166,255,.3)' : 'rgba(255,255,255,.08)'}`,
@@ -460,15 +525,15 @@ export function SurebetCalc() {
 
         {/* Header */}
         <div style={{
-          display: 'grid', gridTemplateColumns: COLS,
-          gap: 8, padding: '10px 14px',
+          display: 'grid', gridTemplateColumns: isMobile && !anyPM ? COLS_MOB : COLS,
+          gap: isMobile ? 4 : 8, padding: isMobile ? '8px 10px' : '10px 14px',
           background: 'rgba(255,255,255,.03)',
           borderBottom: '1px solid rgba(255,255,255,.07)',
           fontSize: 10, fontWeight: 800, textTransform: 'uppercase',
           letterSpacing: '0.07em', color: 'rgba(148,163,184,.6)',
         }}>
           <span>Desfecho</span>
-          <span style={{ textAlign: 'center', color: anyPM ? '#4DA6FF' : undefined }}>PM</span>
+          {(!isMobile || anyPM) && <span style={{ textAlign: 'center', color: anyPM ? '#4DA6FF' : undefined }}>PM</span>}
           <span>{anyPM ? 'Odd / Preço (¢)' : 'Odd'}</span>
           <span>Stake</span>
           <span style={{ textAlign: 'center' }}>D</span>
@@ -495,12 +560,11 @@ export function SurebetCalc() {
             <div key={i}>
               {/* Main row */}
               <div style={{
-                display: 'grid', gridTemplateColumns: COLS,
-                gap: 8, padding: '10px 14px',
+                display: 'grid', gridTemplateColumns: isMobile && !anyPM ? COLS_MOB : COLS,
+                gap: isMobile ? 4 : 8, padding: isMobile ? '8px 10px' : '10px 14px',
                 borderBottom: isPM && pm ? 'none' : '1px solid rgba(255,255,255,.04)',
                 alignItems: 'center',
-                opacity: active ? 1 : 0.4,
-                background: isPM ? 'rgba(77,166,255,.03)' : 'transparent',
+                background: !active ? 'rgba(255,191,0,.02)' : isPM ? 'rgba(77,166,255,.03)' : 'transparent',
               }}>
                 {/* Label */}
                 <span style={{
@@ -513,20 +577,22 @@ export function SurebetCalc() {
                   {label}
                 </span>
 
-                {/* PM toggle */}
-                <button
-                  onClick={() => togglePM(i)}
-                  title={isPM ? 'Desativar Polymarket' : 'Ativar Polymarket para este desfecho'}
-                  style={{
-                    width: 32, height: 28, borderRadius: 6, cursor: 'pointer',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    background: isPM ? 'rgba(77,166,255,.2)' : 'rgba(255,255,255,.04)',
-                    border: `1px solid ${isPM ? 'rgba(77,166,255,.5)' : 'rgba(255,255,255,.08)'}`,
-                    color: isPM ? '#4DA6FF' : '#4B5563',
-                    fontSize: 9, fontWeight: 900, letterSpacing: '0.02em',
-                  }}>
-                  PM
-                </button>
+                {/* PM toggle — hidden on mobile unless anyPM */}
+                {(!isMobile || anyPM) && (
+                  <button
+                    onClick={() => togglePM(i)}
+                    title={isPM ? 'Desativar Polymarket' : 'Ativar Polymarket para este desfecho'}
+                    style={{
+                      width: 32, height: 28, borderRadius: 6, cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      background: isPM ? 'rgba(77,166,255,.2)' : 'rgba(255,255,255,.04)',
+                      border: `1px solid ${isPM ? 'rgba(77,166,255,.5)' : 'rgba(255,255,255,.08)'}`,
+                      color: isPM ? '#4DA6FF' : '#4B5563',
+                      fontSize: 9, fontWeight: 900, letterSpacing: '0.02em',
+                    }}>
+                    PM
+                  </button>
+                )}
 
                 {/* Odd input OR Quote Price input */}
                 {isPM ? (
@@ -551,7 +617,7 @@ export function SurebetCalc() {
                   />
                 )}
 
-                {/* Stake — always editable; typing makes this cell the anchor */}
+                {/* Stake — editable only when C is active for this row */}
                 <input
                   style={{
                     ...INPUT,
@@ -561,34 +627,37 @@ export function SurebetCalc() {
                         ? '1px solid rgba(77,166,255,.25)'
                         : '1px solid rgba(255,255,255,.1)',
                     color: isFixed ? '#FFBF00' : '#E2E8F0',
+                    cursor: isFixed ? 'text' : 'default',
+                    opacity: isFixed ? 1 : 0.85,
                   }}
                   inputMode="decimal"
+                  readOnly={!isFixed}
                   value={stakeDisplayVal}
                   onChange={e => handleStakeInput(i, e.target.value)}
                   placeholder="0.00"
                 />
 
-                {/* D toggle (distribute) */}
+                {/* D toggle (distribute / break-even) */}
                 <button
                   onClick={() => toggleDistribute(i)}
-                  title="Distribuir stake neste desfecho"
+                  title={active ? 'Clique para definir esta aposta como 0/0 (sem lucro)' : 'Aposta em 0/0 — clique para incluir no lucro'}
                   style={{
-                    width: 28, height: 28, borderRadius: 6, cursor: 'pointer',
+                    width: isMobile ? 24 : 28, height: isMobile ? 24 : 28, borderRadius: 6, cursor: 'pointer',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    background: active ? 'rgba(61,255,143,.15)' : 'rgba(255,255,255,.04)',
-                    border: `1px solid ${active ? 'rgba(61,255,143,.3)' : 'rgba(255,255,255,.08)'}`,
-                    color: active ? '#3DFF8F' : '#4B5563',
-                    fontSize: 12, fontWeight: 800,
+                    background: active ? 'rgba(61,255,143,.15)' : 'rgba(255,191,0,.12)',
+                    border: `1px solid ${active ? 'rgba(61,255,143,.3)' : 'rgba(255,191,0,.4)'}`,
+                    color: active ? '#3DFF8F' : '#FFBF00',
+                    fontSize: isMobile ? 10 : 12, fontWeight: 800,
                   }}>
-                  {active ? '✓' : '–'}
+                  {active ? '✓' : '0'}
                 </button>
 
-                {/* C toggle (fix/anchor this leg's stake) */}
+                {/* C toggle — only clicking C allows editing this stake */}
                 <button
                   onClick={() => toggleFixed(i)}
-                  title={isFixed ? 'Desfixar stake' : 'Fixar stake deste desfecho'}
+                  title={isFixed ? 'Descongelar stake' : 'Congelar: clique para editar este valor'}
                   style={{
-                    width: 28, height: 28, borderRadius: 6, cursor: 'pointer',
+                    width: isMobile ? 24 : 28, height: isMobile ? 24 : 28, borderRadius: 6, cursor: 'pointer',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     background: isFixed ? 'rgba(255,191,0,.15)' : 'rgba(255,255,255,.04)',
                     border: `1px solid ${isFixed ? 'rgba(255,191,0,.4)' : 'rgba(255,255,255,.08)'}`,
@@ -598,13 +667,15 @@ export function SurebetCalc() {
                   C
                 </button>
 
-                {/* Profit */}
+                {/* Profit — D=false shows 0/0 indicator */}
                 <span style={{
-                  textAlign: 'right', fontSize: 12, fontWeight: 700,
+                  textAlign: 'right', fontSize: isMobile ? 11 : 12, fontWeight: 700,
                   fontFamily: "'JetBrains Mono', monospace",
-                  color: active && stake > 0 ? profC : '#4B5563',
+                  color: !active ? '#FFBF00' : stake > 0 ? profC : '#4B5563',
                 }}>
-                  {active && stake > 0 ? fmtBRL(profit) : '—'}
+                  {!active
+                    ? (stake > 0 ? '0/0' : '—')
+                    : stake > 0 ? fmtBRL(profit) : '—'}
                 </span>
               </div>
 
@@ -665,8 +736,8 @@ export function SurebetCalc() {
 
         {/* Total row */}
         <div style={{
-          display: 'grid', gridTemplateColumns: COLS,
-          gap: 8, padding: '10px 14px',
+          display: 'grid', gridTemplateColumns: isMobile && !anyPM ? COLS_MOB : COLS,
+          gap: isMobile ? 4 : 8, padding: isMobile ? '8px 10px' : '10px 14px',
           background: 'rgba(255,255,255,.02)',
           alignItems: 'center',
         }}>
@@ -677,13 +748,13 @@ export function SurebetCalc() {
             Total
           </span>
 
-          {/* PM col — empty */}
-          <span />
+          {/* PM col — hidden on mobile unless anyPM */}
+          {(!isMobile || anyPM) && <span />}
 
           {/* Empty (Odd col) */}
           <span />
 
-          {/* Total stake — always editable */}
+          {/* Total stake — always editable (it's the main anchor) */}
           <input
             style={{
               ...INPUT,
@@ -705,9 +776,9 @@ export function SurebetCalc() {
           {/* C for "fix total" */}
           <button
             onClick={() => toggleFixed('sum')}
-            title="Fixar valor total da aposta"
+            title={fixedMode === 'sum' ? 'Total fixado como âncora' : 'Voltar a usar total como âncora'}
             style={{
-              width: 28, height: 28, borderRadius: 6, cursor: 'pointer',
+              width: isMobile ? 24 : 28, height: isMobile ? 24 : 28, borderRadius: 6, cursor: 'pointer',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               background: fixedMode === 'sum' ? 'rgba(77,166,255,.15)' : 'rgba(255,255,255,.04)',
               border: `1px solid ${fixedMode === 'sum' ? 'rgba(77,166,255,.4)' : 'rgba(255,255,255,.08)'}`,
@@ -774,24 +845,26 @@ export function SurebetCalc() {
           onClick={() => setShowAdd(true)}
           disabled={result.totalBet <= 0}
           style={{
-            padding: '10px 22px', borderRadius: 9, border: 'none', cursor: 'pointer',
+            padding: isMobile ? '8px 14px' : '10px 22px',
+            borderRadius: 9, border: 'none', cursor: 'pointer',
             background: isSurebet
               ? 'linear-gradient(135deg,#3DFF8F,#00BBFF)'
               : 'rgba(255,255,255,.08)',
             color: isSurebet ? '#0D1117' : '#6B7280',
-            fontWeight: 800, fontSize: 13,
+            fontWeight: 800, fontSize: isMobile ? 12 : 13,
             opacity: result.totalBet <= 0 ? 0.4 : 1,
+            whiteSpace: 'nowrap',
           }}>
-          + Adicionar ao Painel
+          {isMobile ? '+ Painel' : '+ Adicionar ao Painel'}
         </button>
       </div>
 
       {/* ── Legend ───────────────────────────────────────────────────────── */}
       <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
         {[
-          { label: 'PM',          desc: 'ativa cálculo Polymarket (preço em centavos)' },
-          { label: 'D = Distribuir', desc: 'inclui este desfecho no cálculo' },
-          { label: 'C = Congelar',   desc: 'fixa o valor desta stake como âncora (qualquer campo de stake é editável)' },
+          { label: 'PM',  desc: 'ativa cálculo Polymarket (preço em centavos)' },
+          { label: 'D',   desc: 'As apostas onde o lucro será distribuído — desativar deixa a aposta em 0/0 (sem lucro se bater, sem perda)' },
+          { label: 'C',   desc: 'Congelar — clique para editar manualmente o valor desta stake; clique novamente para descongelar' },
         ].map(({ label, desc }) => (
           <div key={label} style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
             <span style={{ fontSize: 11, fontWeight: 800, color: '#4DA6FF' }}>{label}</span>
