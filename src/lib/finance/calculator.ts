@@ -205,7 +205,8 @@ export interface SportStat {
 
 export function calcBySport(legs: Leg[]): SportStat[] {
   const map: Record<string, SportStat> = {};
-  legs.forEach(l => {
+  // "Outros Lucros" (opType === 'outros') não são apostas esportivas — excluir distribuição por esporte
+  legs.filter(l => l.opType !== 'outros').forEach(l => {
     const sp = l.sp || 'Outros';
     if (!map[sp]) map[sp] = { sport: sp, profit: 0, legs: 0 };
     map[sp].profit += calcLegProfit(l);

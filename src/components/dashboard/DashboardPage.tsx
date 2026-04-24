@@ -536,8 +536,9 @@ function MonthlyComparisonChart({ legs }: { legs: Leg[] }) {
 
 function TopHousesCard({ legs }: { legs: Leg[] }) {
   const byHouse: Record<string, number> = {};
-  legs.forEach(l => {
-    byHouse[l.ho || 'Outros'] = (byHouse[l.ho || 'Outros'] || 0) + 1;
+  // "Outros Lucros" (opType === 'outros') não são operações em casas de apostas
+  legs.filter(l => l.opType !== 'outros' && l.ho).forEach(l => {
+    byHouse[l.ho] = (byHouse[l.ho] || 0) + 1;
   });
   const sorted = Object.entries(byHouse)
     .map(([h, count]) => ({ house: h, count }))
