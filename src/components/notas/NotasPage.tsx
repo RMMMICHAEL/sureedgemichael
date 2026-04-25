@@ -60,11 +60,11 @@ const CSS = `
   to   { opacity: 1; }
 }
 .nota-card {
-  animation: notaIn .38s cubic-bezier(0.34,1.12,0.64,1) both;
+  animation: notaIn .38s cubic-bezier(0.2,0.8,0.4,1) both;
 }
 .nota-card:hover {
-  transform: scale(1.025) translateY(-2px);
-  transition: transform .22s cubic-bezier(0.34,1.2,0.64,1), box-shadow .22s ease;
+  transform: scale(1.02) translateY(-2px);
+  transition: transform .22s cubic-bezier(0.2,0.8,0.4,1), box-shadow .22s ease;
 }
 .nota-card-exit {
   animation: notaOut .28s cubic-bezier(0.4,0,1,1) forwards;
@@ -76,20 +76,28 @@ const CSS = `
   animation: sheetDown .32s cubic-bezier(0.4,0,1,1) forwards;
 }
 .nota-fab {
-  transition: transform .2s cubic-bezier(0.34,1.56,0.64,1), box-shadow .2s ease;
+  transition: transform .2s cubic-bezier(0.2,0.8,0.4,1), box-shadow .2s ease;
 }
 .nota-fab:hover {
-  transform: scale(1.1);
+  transform: scale(1.08);
   box-shadow: 0 8px 32px rgba(255,214,10,.45);
 }
 .nota-fab:active {
   transform: scale(.93);
 }
 .nota-color-dot {
-  transition: transform .18s cubic-bezier(0.34,1.56,0.64,1);
+  transition: transform .18s cubic-bezier(0.2,0.8,0.4,1);
 }
 .nota-color-dot:hover { transform: scale(1.3); }
 .nota-color-dot.selected { transform: scale(1.35); }
+@media (prefers-reduced-motion: reduce) {
+  .nota-card { animation: none; opacity: 1; }
+  .nota-card-exit { animation: none; }
+  .nota-sheet { animation: none; }
+  .nota-sheet-exit { animation: none; }
+  .nota-fab { transition: none; }
+  .nota-color-dot { transition: none; }
+}
 `;
 
 // ── Note Card ─────────────────────────────────────────────────────────────────
@@ -152,20 +160,22 @@ function NoteCard({
         {/* Action buttons — visible on hover */}
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150 shrink-0 -mt-0.5">
           <button
+            type="button"
             onClick={e => { e.stopPropagation(); onTogglePin(); }}
-            className="w-6 h-6 flex items-center justify-center rounded-full"
+            className="w-8 h-8 flex items-center justify-center rounded-full"
             style={{ background: note.pinned ? `${col.accent}22` : 'rgba(255,255,255,.06)', color: note.pinned ? col.accent : 'var(--t3)' }}
-            title={note.pinned ? 'Desafixar' : 'Fixar'}
+            aria-label={note.pinned ? 'Desafixar nota' : 'Fixar nota'}
           >
-            <Pin size={11} fill={note.pinned ? col.accent : 'none'} />
+            <Pin size={12} fill={note.pinned ? col.accent : 'none'} />
           </button>
           <button
+            type="button"
             onClick={e => { e.stopPropagation(); onDelete(); }}
-            className="w-6 h-6 flex items-center justify-center rounded-full"
+            className="w-8 h-8 flex items-center justify-center rounded-full"
             style={{ background: 'rgba(255,55,95,.10)', color: '#FF375F' }}
-            title="Apagar"
+            aria-label="Apagar nota"
           >
-            <Trash2 size={11} />
+            <Trash2 size={12} />
           </button>
         </div>
       </div>
@@ -288,9 +298,11 @@ function NoteEditor({
         {/* Toolbar */}
         <div className="flex items-center gap-2 px-4 py-3" style={{ borderBottom: '1px solid rgba(255,255,255,.06)' }}>
           <button
+            type="button"
             onClick={handleClose}
             className="flex items-center gap-1 text-sm font-semibold"
             style={{ color: col.accent }}
+            aria-label="Voltar para notas"
           >
             <ChevronLeft size={18} />
             Notas
@@ -300,8 +312,11 @@ function NoteEditor({
 
           {/* Color picker toggle */}
           <button
+            type="button"
             onClick={() => setShowColors(v => !v)}
             className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold"
+            aria-label="Escolher cor da nota"
+            aria-expanded={showColors}
             style={{
               background: showColors ? `${col.accent}22` : 'rgba(255,255,255,.06)',
               color: col.accent,
@@ -314,8 +329,10 @@ function NoteEditor({
 
           {/* Delete */}
           <button
+            type="button"
             onClick={handleDelete}
-            className="w-8 h-8 flex items-center justify-center rounded-full"
+            className="w-10 h-10 flex items-center justify-center rounded-full"
+            aria-label="Apagar nota"
             style={{ background: 'rgba(255,55,95,.10)', color: '#FF375F' }}
           >
             <Trash2 size={15} />
@@ -334,7 +351,10 @@ function NoteEditor({
             {COLORS.map(c => (
               <button
                 key={c.id}
+                type="button"
                 className={`nota-color-dot${color === c.id ? ' selected' : ''}`}
+                aria-label={`Cor ${c.id}`}
+                aria-pressed={color === c.id}
                 onClick={() => {
                   setColor(c.id as ColorId);
                   scheduleSave({ color: c.id, title, body });
@@ -358,6 +378,7 @@ function NoteEditor({
           <input
             value={title}
             onChange={e => { setTitle(e.target.value); scheduleSave({ title: e.target.value, body, color }); }}
+            aria-label="Título da nota"
             placeholder="Título"
             autoFocus={!note.title}
             style={{
@@ -384,6 +405,7 @@ function NoteEditor({
             ref={bodyRef}
             value={body}
             onChange={e => { setBody(e.target.value); scheduleSave({ title, body: e.target.value, color }); }}
+            aria-label="Conteúdo da nota"
             placeholder="Comece a escrever sua nota aqui..."
             style={{
               width: '100%',
@@ -556,6 +578,7 @@ export function NotasPage() {
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
+              aria-label="Pesquisar nas notas"
               placeholder="Pesquisar nas notas"
               style={{
                 flex: 1,
@@ -568,7 +591,7 @@ export function NotasPage() {
               }}
             />
             {search && (
-              <button onClick={() => setSearch('')} style={{ color: 'var(--t3)' }}>
+              <button type="button" onClick={() => setSearch('')} style={{ color: 'var(--t3)', padding: 4 }} aria-label="Limpar pesquisa">
                 <X size={14} />
               </button>
             )}
@@ -579,7 +602,7 @@ export function NotasPage() {
         {notes.length === 0 && (
           <div
             className="flex flex-col items-center justify-center py-24 gap-5"
-            style={{ animation: 'notaIn .5s cubic-bezier(0.34,1.12,0.64,1) both' }}
+            style={{ animation: 'notaIn .5s cubic-bezier(0.2,0.8,0.4,1) both' }}
           >
             <div
               style={{
@@ -616,7 +639,9 @@ export function NotasPage() {
 
       {/* ── FAB */}
       <button
+        type="button"
         onClick={handleNew}
+        aria-label="Nova nota"
         className="nota-fab"
         style={{
           position: 'fixed',

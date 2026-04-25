@@ -127,7 +127,9 @@ export function Topbar({ onMenuClick }: TopbarProps) {
     >
       {/* Mobile hamburger */}
       <button
+        type="button"
         onClick={onMenuClick}
+        aria-label="Abrir menu"
         className="md:hidden w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 transition-all"
         style={{
           border: '1px solid var(--b)',
@@ -200,6 +202,7 @@ export function Topbar({ onMenuClick }: TopbarProps) {
                   onKeyDown={e => e.key === 'Enter' && handleSaveUrl()}
                   placeholder="Cole o link do Google Sheets..."
                   autoFocus
+                  aria-label="URL do Google Sheets"
                   className="px-3 py-1.5 rounded-lg text-sm w-56 md:w-72"
                   style={{
                     background: 'var(--sur)',
@@ -208,6 +211,7 @@ export function Topbar({ onMenuClick }: TopbarProps) {
                   }}
                 />
                 <button
+                  type="button"
                   onClick={handleSaveUrl}
                   disabled={isSyncing}
                   className="px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5"
@@ -222,8 +226,10 @@ export function Topbar({ onMenuClick }: TopbarProps) {
                   {isSyncing ? 'Sincronizando...' : 'Sincronizar'}
                 </button>
                 <button
+                  type="button"
                   onClick={() => setShowInput(false)}
-                  className="w-7 h-7 rounded-lg flex items-center justify-center transition-colors"
+                  aria-label="Cancelar"
+                  className="w-9 h-9 rounded-lg flex items-center justify-center transition-colors"
                   style={{ color: 'var(--t3)', background: 'rgba(255,255,255,.05)' }}
                 >
                   <X size={13} />
@@ -234,6 +240,7 @@ export function Topbar({ onMenuClick }: TopbarProps) {
             {/* Link button */}
             {!showInput && (
               <button
+                type="button"
                 onClick={() => setShowInput(true)}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
                 style={{
@@ -254,10 +261,11 @@ export function Topbar({ onMenuClick }: TopbarProps) {
             {/* Sync now */}
             {sheetSync?.url && !showInput && (
               <button
+                type="button"
                 onClick={() => handleSync()}
                 disabled={isSyncing}
-                title="Sincronizar agora"
-                className="w-8 h-8 rounded-lg flex items-center justify-center transition-all"
+                aria-label="Sincronizar agora"
+                className="w-9 h-9 rounded-lg flex items-center justify-center transition-all"
                 style={{
                   border: '1px solid var(--b)',
                   color: isSyncing ? 'var(--g)' : 'var(--t2)',

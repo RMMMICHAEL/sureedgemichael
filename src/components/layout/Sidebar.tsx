@@ -52,6 +52,7 @@ function NavButton({ item, onClose }: { item: NavItem; onClose?: () => void }) {
 
   return (
     <button
+      type="button"
       onClick={() => { setView(item.id); onClose?.(); }}
       className={`nav-item ${isOn ? 'active' : ''}`}
     >
@@ -259,8 +260,10 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
         {/* Close button — mobile only */}
         {onClose && (
           <button
+            type="button"
             onClick={onClose}
-            className="ml-auto w-7 h-7 rounded-lg flex items-center justify-center transition-colors"
+            aria-label="Fechar menu"
+            className="ml-auto w-9 h-9 rounded-lg flex items-center justify-center transition-colors"
             style={{ color: 'var(--t3)', background: 'rgba(255,255,255,.04)' }}
           >
             <X size={14} />

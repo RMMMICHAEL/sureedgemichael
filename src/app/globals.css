@@ -35,7 +35,7 @@
   /* ── Text hierarchy ── */
   --t:    #F0F4F8;
   --t2:   #8899AA;
-  --t3:   #445566;
+  --t3:   #6A7E8E;
 
   /* ── Semantic accents ── */
   --r:    #FF4D6D;
@@ -136,15 +136,6 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 .card:hover {
   border-color: rgba(255,255,255,.10);
   box-shadow: 0 8px 32px rgba(0,0,0,.4);
-}
-
-/* Glassmorphism card */
-.glass-card {
-  background: rgba(13,17,23,.75);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  border: 1px solid rgba(255,255,255,.07);
-  border-radius: var(--radius-lg);
 }
 
 /* Gradient border card via pseudo-element */
@@ -350,6 +341,16 @@ tr:hover td { background: rgba(255,255,255,.025); }
 .animate-float       { animation: float 3s ease-in-out infinite; }
 .animate-glow-pulse  { animation: glow-pulse 2.5s ease-in-out infinite; }
 
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in,
+  .animate-slide-up,
+  .animate-slide-left,
+  .animate-scale-in { animation: none; opacity: 1; }
+  .animate-float,
+  .animate-glow-pulse { animation: none; }
+  .skeleton { animation: none; background: var(--sur); }
+}
+
 /* Stagger delays */
 .stagger-1 { animation-delay: 50ms; }
 .stagger-2 { animation-delay: 100ms; }
@@ -422,14 +423,6 @@ tr:hover td { background: rgba(255,255,255,.025); }
 /* ══════════════════════════════════════════════════════════════════════════════
    MISC UTILITIES
    ══════════════════════════════════════════════════════════════════════════════ */
-
-/* Gradient text */
-.gradient-text {
-  background: linear-gradient(135deg, var(--g) 0%, #7BFFAA 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
 
 /* Pill badge */
 .pill {

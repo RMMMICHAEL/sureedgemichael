@@ -103,10 +103,11 @@ function KPIBar({ stats }: { stats: KPIStat[] }) {
               <div className="flex items-center gap-1">
                 {s.onToggleHide && (
                   <button
+                    type="button"
                     onClick={s.onToggleHide}
-                    className="w-6 h-6 rounded-md flex items-center justify-center transition-all"
+                    className="w-8 h-8 rounded-md flex items-center justify-center transition-all"
                     style={{ color: 'var(--t3)' }}
-                    title={s.hidden ? 'Mostrar valor' : 'Ocultar valor'}
+                    aria-label={s.hidden ? 'Mostrar valor' : 'Ocultar valor'}
                   >
                     {s.hidden ? <Eye size={13} /> : <EyeOff size={13} />}
                   </button>
@@ -233,9 +234,6 @@ function ProfitByType({ legs }: { legs: Leg[] }) {
                     border: `1px solid ${barClr}20`,
                   }}
                 >
-                  {/* Left accent */}
-                  <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: barClr, borderRadius: '12px 0 0 12px' }} />
-
                   {/* Rank */}
                   <span className="text-[11px] font-black w-4 flex-shrink-0 text-center"
                     style={{ color: `${barClr}80`, fontFamily: "'JetBrains Mono',monospace" }}>
@@ -254,10 +252,11 @@ function ProfitByType({ legs }: { legs: Leg[] }) {
                     </div>
                     <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,.06)' }}>
                       <div style={{
-                        height: '100%', width: `${pct}%`,
+                        height: '100%', width: '100%',
                         background: `linear-gradient(90deg, ${barClr}60, ${barClr})`,
-                        borderRadius: 9999,
-                        transition: 'width .8s cubic-bezier(.4,0,.2,1)',
+                        transform: `scaleX(${pct / 100})`,
+                        transformOrigin: 'left center',
+                        transition: 'transform .8s cubic-bezier(.4,0,.2,1)',
                       }} />
                     </div>
                   </div>
@@ -397,7 +396,7 @@ function DailyChart({ legs, from, to, period, onPeriodChange, onFromChange, onTo
         {/* Period pills */}
         <div className="flex gap-0.5 p-0.5 rounded-xl flex-shrink-0" style={{ background: 'var(--sur)' }}>
           {DAILY_PERIODS.map(p => (
-            <button key={p.key} onClick={() => onPeriodChange(p.key)}
+            <button key={p.key} type="button" onClick={() => onPeriodChange(p.key)}
               className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
               style={period === p.key
                 ? { background: positive ? 'rgba(63,255,33,.15)' : 'rgba(255,69,69,.15)', color: positive ? 'var(--g)' : 'var(--r)', boxShadow: `0 0 0 1px ${positive ? 'rgba(63,255,33,.25)' : 'rgba(255,69,69,.25)'}` }
@@ -567,11 +566,12 @@ function TopHousesCard({ legs }: { legs: Leg[] }) {
               <div className="flex-1 h-[5px] rounded-full overflow-hidden" style={{ background: 'var(--sur)' }}>
                 <div
                   style={{
-                    width: `${h.count / maxCount * 100}%`,
+                    width: '100%',
                     background: `linear-gradient(90deg, ${BAR_COLORS[i % BAR_COLORS.length]}66, ${BAR_COLORS[i % BAR_COLORS.length]})`,
                     height: '100%',
-                    borderRadius: 9999,
-                    transition: 'width 0.6s ease',
+                    transform: `scaleX(${h.count / maxCount})`,
+                    transformOrigin: 'left center',
+                    transition: 'transform 0.6s ease',
                   }}
                 />
               </div>
@@ -728,7 +728,7 @@ function ExpensesChart({ expenses, from, to }: { expenses: Expense[]; from: stri
                   <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: color }} />
                   <span className="text-[11px] flex-1 truncate" style={{ color: 'var(--t2)' }}>{item.cat}</span>
                   <div className="flex-1 h-[4px] rounded-full overflow-hidden" style={{ background: 'var(--sur)' }}>
-                    <div className="h-full rounded-full" style={{ width: `${pct}%`, background: color, transition: 'width 0.6s ease' }} />
+                    <div className="h-full" style={{ width: '100%', background: color, transform: `scaleX(${pct / 100})`, transformOrigin: 'left center', transition: 'transform 0.6s ease' }} />
                   </div>
                   <span className="text-[11px] font-mono font-bold w-20 text-right flex-shrink-0" style={{ color }}>
                     − {fmtBRL(item.total, false)}
@@ -1010,6 +1010,7 @@ export function DashboardPage() {
               {CHART_PERIODS.slice(0, 3).map(p => (
                 <button
                   key={p.key}
+                  type="button"
                   onClick={() => setChartPeriod(p.key)}
                   style={{
                     padding: '5px 14px', borderRadius: 7, fontSize: 11, fontWeight: 700,
@@ -1023,6 +1024,7 @@ export function DashboardPage() {
                 </button>
               ))}
               <button
+                type="button"
                 onClick={() => setChartPeriod('custom')}
                 style={{
                   padding: '5px 14px', borderRadius: 7, fontSize: 11, fontWeight: 700,
