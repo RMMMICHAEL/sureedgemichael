@@ -79,11 +79,11 @@ const CSS = `
   transition: transform .2s cubic-bezier(0.2,0.8,0.4,1), box-shadow .2s ease;
 }
 .nota-fab:hover {
-  transform: scale(1.08);
-  box-shadow: 0 8px 32px rgba(255,214,10,.45);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 32px rgba(255,214,10,.5);
 }
 .nota-fab:active {
-  transform: scale(.93);
+  transform: translateY(0) scale(.96);
 }
 .nota-color-dot {
   transition: transform .18s cubic-bezier(0.2,0.8,0.4,1);
@@ -641,27 +641,30 @@ export function NotasPage() {
       <button
         type="button"
         onClick={handleNew}
-        aria-label="Nova nota"
+        aria-label="Registrar nota"
         className="nota-fab"
         style={{
           position: 'fixed',
           bottom: 28,
           right: 28,
-          width: 58,
-          height: 58,
-          borderRadius: '50%',
+          height: 50,
+          paddingLeft: 20,
+          paddingRight: 22,
+          borderRadius: 25,
           background: 'linear-gradient(135deg, #FFD60A, #FF9F0A)',
           border: 'none',
           cursor: 'pointer',
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'center',
+          gap: 8,
           boxShadow: '0 4px 24px rgba(255,214,10,.4), 0 2px 8px rgba(0,0,0,.3)',
           zIndex: 30,
         }}
-        title="Nova nota"
       >
-        <Plus size={26} color="#1a1200" strokeWidth={2.8} />
+        <Plus size={20} color="#1a1200" strokeWidth={2.8} />
+        <span style={{ fontSize: 13, fontWeight: 800, color: '#1a1200', letterSpacing: '-0.01em', whiteSpace: 'nowrap' }}>
+          Registrar nota
+        </span>
       </button>
 
       {/* ── Editor */}

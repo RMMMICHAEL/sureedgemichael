@@ -6,16 +6,17 @@ import { useState, useEffect } from 'react';
 import { parseSheetUrl, syncFromSheet } from '@/lib/import/sheetsSync';
 import { commitRows } from '@/lib/import/importEngine';
 
-const VIEW_META: Record<string, { label: string; icon: string; desc: string }> = {
-  dash:    { label: 'Dashboard',       icon: '⬡', desc: 'Visão geral do portfólio' },
-  ops:     { label: 'Operações',       icon: '⚡', desc: 'Gestão de apostas' },
-  bm:      { label: 'Casas de Aposta', icon: '🏠', desc: 'Saldos e status' },
-  caixa:   { label: 'Caixa',          icon: '💳', desc: 'Contas bancárias' },
-  gastos:  { label: 'Gastos',         icon: '📊', desc: 'Despesas e custos' },
-  contas:  { label: 'Contas',         icon: '👥', desc: 'Contas parceiras' },
-  analise: { label: 'Análise',        icon: '📈', desc: 'Estatísticas avançadas' },
-  admin:   { label: 'Admin',          icon: '⚙', desc: 'Configurações do sistema' },
-  perfil:  { label: 'Perfil',         icon: '👤', desc: 'Sua conta' },
+const VIEW_META: Record<string, { label: string; desc: string }> = {
+  dash:    { label: 'Dashboard',       desc: 'Visão geral do portfólio' },
+  ops:     { label: 'Operações',       desc: 'Gestão de apostas' },
+  bm:      { label: 'Casas de Aposta', desc: 'Saldos e status' },
+  caixa:   { label: 'Caixa',          desc: 'Contas bancárias' },
+  gastos:  { label: 'Gastos',         desc: 'Despesas e custos' },
+  contas:  { label: 'Contas',         desc: 'Contas parceiras' },
+  analise: { label: 'Análise',        desc: 'Estatísticas avançadas' },
+  notas:   { label: 'Notas',          desc: 'Anotações e registros' },
+  admin:   { label: 'Admin',          desc: 'Configurações do sistema' },
+  perfil:  { label: 'Perfil',         desc: 'Sua conta' },
 };
 
 interface TopbarProps {
@@ -58,7 +59,7 @@ export function Topbar({ onMenuClick }: TopbarProps) {
   const [showInput, setShowInput] = useState(false);
   const [urlInput,  setUrlInput]  = useState(sheetSync?.url ?? '');
 
-  const meta = VIEW_META[view] ?? { label: view, icon: '•', desc: '' };
+  const meta = VIEW_META[view] ?? { label: view, desc: '' };
 
   async function handleSync(url?: string) {
     const targetUrl = url ?? sheetSync?.url;
@@ -145,12 +146,6 @@ export function Topbar({ onMenuClick }: TopbarProps) {
 
       {/* Page title area */}
       <div className="flex items-center gap-2.5 flex-1 min-w-0">
-        <span
-          className="text-base hidden sm:block"
-          style={{ color: 'var(--t3)', opacity: .6 }}
-        >
-          {meta.icon}
-        </span>
         <div className="flex flex-col leading-none min-w-0">
           <h1
             className="text-sm font-bold truncate"

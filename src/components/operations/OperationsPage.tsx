@@ -375,7 +375,7 @@ function OpModal({ editOid, onClose }: OpModalProps) {
         ho: draft.ho, mk: draft.mk,
         od: parseFloat(draft.od.replace(',', '.')) || 0,
         st: parseFloat(draft.st.replace(',', '.')) || 0,
-        re: draft.re, pc: 0, pr: 0, fl: [],
+        re: draft.re, pc: sbProfitPct ?? 0, pr: 0, fl: [],
         source: 'manual', signal: detectSignal(bd, edVal), opType: 'surebet',
       };
       leg.pr = calcLegProfit(leg);
@@ -615,7 +615,7 @@ function DuploGreenModal({ onClose }: { onClose: () => void }) {
         id: `l_dg_${Date.now()}_${i}`, oid, bd, ed: ed || bd,
         sp, ev: ev.trim(), ho: draft.ho, mk: draft.mk,
         od: odOf(draft), st: stOf(draft),
-        re: draft.re, pc: 0, pr: 0, fl: [],
+        re: draft.re, pc: totalStake > 0 ? (scenarios[i] / totalStake) * 100 : 0, pr: 0, fl: [],
         source: 'manual', signal: 'pre', opType: 'duplo_green',
       };
       leg.pr = calcLegProfit(leg);
@@ -999,6 +999,179 @@ interface EditLegDraft {
   reentrada?: ReentradaDraft; // only for DG legs with Green Antecipado
 }
 
+// ── Reentrada Modal ───────────────────────────────────────────────────────────
+
+interface ReentradaModalProps {
+  legMk: string;
+  defaultHo: string;
+  lockedProfit: number;
+  existing?: ReentradaDraft;
+  onSave: (re: ReentradaDraft) => void;
+  onClose: () => void;
+}
+
+function ReentradaModal({ legMk, defaultHo, lockedProfit, existing, onSave, onClose }: ReentradaModalProps) {
+  const [ho, setHo] = useState(existing?.ho ?? '');
+  const [od, setOd] = useState(existing?.od ?? '');
+  const [st, setSt] = useState(existing?.st ?? '');
+
+  const reOd = parseFloat(od.replace(',', '.')) || 0;
+  const reSt = parseFloat(st.replace(',', '.')) || 0;
+
+  const hasPreview = reOd > 1 && reSt > 0;
+  const ifWin  = lockedProfit + (reOd - 1) * reSt;
+  const ifLose = lockedProfit - reSt;
+  const suggested = reOd > 1 && lockedProfit > 0 ? lockedProfit / (reOd - 1) : null;
+
+  const fmtR = (n: number) => {
+    const sign = n >= 0 ? '+' : '−';
+    return `${sign} R$ ${Math.abs(n).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  };
+
+  return (
+    <Modal title={`Reentrada — ${legMk || 'Perna'}`} onClose={onClose}>
+      <div className="flex flex-col gap-5">
+
+        {/* Locked profit banner */}
+        <div className="flex items-center gap-3 px-4 py-3 rounded-xl"
+          style={{ background: 'rgba(255,203,47,.06)', border: '1px solid rgba(255,203,47,.22)' }}>
+          <Zap size={16} style={{ color: '#FFCB2F', flexShrink: 0 }} />
+          <div>
+            <div className="text-xs font-bold" style={{ color: '#FFCB2F' }}>Green Antecipado confirmado</div>
+            <div className="text-xs mt-0.5" style={{ color: 'rgba(255,203,47,.7)' }}>
+              Lucro bloqueado:&nbsp;
+              <span className="font-mono font-bold">{fmtR(lockedProfit)}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* New bet inputs */}
+        <div className="flex flex-col gap-3">
+          <span className="text-[10px] font-black uppercase tracking-wider" style={{ color: 'var(--t3)' }}>
+            Nova aposta
+          </span>
+          <label className="flex flex-col gap-1">
+            <span className="text-[10px] font-bold uppercase" style={{ color: '#4B5563' }}>Casa (opcional)</span>
+            <select value={ho} onChange={e => setHo(e.target.value)} style={SELECT_S}>
+              <option value="">Mesma ({defaultHo})</option>
+              {ALL_HOUSES.map(h => <option key={h} value={h}>{h}</option>)}
+            </select>
+          </label>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="flex flex-col gap-1">
+              <span className="text-[10px] font-bold uppercase" style={{ color: '#4B5563' }}>Odd</span>
+              <input
+                value={od}
+                onChange={e => setOd(e.target.value)}
+                placeholder="2.10"
+                className="font-mono"
+                style={INPUT_S}
+                autoFocus
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-[10px] font-bold uppercase" style={{ color: '#4B5563' }}>Stake (R$)</span>
+              <div className="flex gap-1.5">
+                <input
+                  value={st}
+                  onChange={e => setSt(e.target.value)}
+                  placeholder="200,00"
+                  className="font-mono flex-1"
+                  style={{ ...INPUT_S, minWidth: 0 }}
+                />
+                {suggested !== null && (
+                  <button
+                    type="button"
+                    onClick={() => setSt(suggested.toFixed(2))}
+                    title={`Stake equilibrado: R$ ${suggested.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                    className="px-2.5 rounded-lg text-xs font-black shrink-0 transition-all"
+                    style={{ background: 'rgba(63,255,33,.1)', color: 'var(--g)', border: '1px solid rgba(63,255,33,.2)' }}
+                  >
+                    ≡
+                  </button>
+                )}
+              </div>
+            </label>
+          </div>
+        </div>
+
+        {/* Profit preview */}
+        <div className="flex flex-col gap-2">
+          <span className="text-[10px] font-black uppercase tracking-wider" style={{ color: 'var(--t3)' }}>
+            Prévia de resultado
+          </span>
+          {hasPreview ? (
+            <div className="grid grid-cols-2 gap-2">
+              <div className="flex flex-col gap-1 px-4 py-3 rounded-xl"
+                style={{
+                  background: ifWin >= 0 ? 'rgba(61,255,143,.07)' : 'rgba(255,69,69,.07)',
+                  border: `1px solid ${ifWin >= 0 ? 'rgba(61,255,143,.2)' : 'rgba(255,69,69,.2)'}`,
+                }}>
+                <span className="text-[9px] font-black uppercase tracking-wider"
+                  style={{ color: ifWin >= 0 ? '#3DFF8F' : '#FF4545' }}>
+                  Se ganhar
+                </span>
+                <span className="text-sm font-mono font-bold mt-1"
+                  style={{ color: ifWin >= 0 ? '#3DFF8F' : '#FF4545' }}>
+                  {fmtR(ifWin)}
+                </span>
+              </div>
+              <div className="flex flex-col gap-1 px-4 py-3 rounded-xl"
+                style={{
+                  background: ifLose >= 0 ? 'rgba(61,255,143,.07)' : 'rgba(255,69,69,.07)',
+                  border: `1px solid ${ifLose >= 0 ? 'rgba(61,255,143,.2)' : 'rgba(255,69,69,.2)'}`,
+                }}>
+                <span className="text-[9px] font-black uppercase tracking-wider"
+                  style={{ color: ifLose >= 0 ? '#3DFF8F' : '#FF4545' }}>
+                  Se perder
+                </span>
+                <span className="text-sm font-mono font-bold mt-1"
+                  style={{ color: ifLose >= 0 ? '#3DFF8F' : '#FF4545' }}>
+                  {fmtR(ifLose)}
+                </span>
+              </div>
+            </div>
+          ) : (
+            <div className="px-4 py-3 rounded-xl text-xs"
+              style={{ background: 'rgba(255,255,255,.04)', color: 'var(--t3)', border: '1px solid var(--b)' }}>
+              Preencha a odd e o stake para ver a prévia
+            </div>
+          )}
+        </div>
+
+        {/* Actions */}
+        <div className="flex items-center justify-end gap-2 pt-1">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 rounded-lg text-sm font-semibold transition-all"
+            style={{ background: 'rgba(255,255,255,.05)', color: 'var(--t3)', border: '1px solid var(--b)' }}
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={() => onSave({ ho, od, st })}
+            disabled={!od.trim()}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold transition-all"
+            style={{
+              background: od.trim() ? 'rgba(255,203,47,.12)' : 'rgba(255,255,255,.04)',
+              color: od.trim() ? '#FFCB2F' : 'var(--t3)',
+              border: `1px solid ${od.trim() ? 'rgba(255,203,47,.3)' : 'var(--b)'}`,
+            }}
+          >
+            <Zap size={13} />
+            Registrar Reentrada
+          </button>
+        </div>
+
+      </div>
+    </Modal>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 function OpCard({
   op, isEditing, onEnterEdit, onExitEdit, onDeleteOp, onChangeResult,
 }: {
@@ -1014,12 +1187,13 @@ function OpCard({
   const toastFn                = useStore(s => s.toast);
   const addExcludedImportKeys  = useStore(s => s.addExcludedImportKeys);
 
-  const [open, setOpen]           = useState(false);
-  const [sp,   setSp]             = useState('');
-  const [ev,   setEv]             = useState('');
-  const [bd,   setBd]             = useState('');
-  const [legDrafts, setLegDrafts] = useState<EditLegDraft[]>([]);
-  const [cashoutLeg, setCashoutLeg] = useState<Leg | null>(null);
+  const [open, setOpen]                   = useState(false);
+  const [sp,   setSp]                     = useState('');
+  const [ev,   setEv]                     = useState('');
+  const [bd,   setBd]                     = useState('');
+  const [legDrafts, setLegDrafts]         = useState<EditLegDraft[]>([]);
+  const [cashoutLeg, setCashoutLeg]       = useState<Leg | null>(null);
+  const [reentradaLegIdx, setReentradaLegIdx] = useState<number | null>(null);
   // For Delay / Outros / DuploGreen: edit only the profit value
   const [altProfitEdit, setAltProfitEdit] = useState('');
 
@@ -1091,14 +1265,20 @@ function OpCard({
 
     if (opType === 'duplo_green') {
       // Full DG edit: save each leg individually with reentrada support
+      const dgOdVals  = legDrafts.map(d => parseFloat(d.od.replace(',', '.')) || 0);
+      const dgStVals  = legDrafts.map(d => parseFloat(d.st.replace(',', '.')) || 0);
+      const dgTotal   = dgStVals.reduce((s, v) => s + v, 0);
+      const dgPayouts = dgOdVals.map((o, k) => o * dgStVals[k]);
+      const dgScens   = dgOdVals.map((_, k) => dgPayouts[k] - dgTotal);
+
       legDrafts.forEach((draft, i) => {
-        const odVal = parseFloat(draft.od.replace(',', '.')) || 0;
-        const stVal = parseFloat(draft.st.replace(',', '.')) || 0;
+        const odVal = dgOdVals[i];
+        const stVal = dgStVals[i];
         const edVal = draft.ed || bd;
         const leg: Leg = {
           id: `l_dg_${Date.now()}_${i}`, oid, bd, ed: edVal,
           sp, ev: ev.trim(), ho: draft.ho, mk: draft.mk,
-          od: odVal, st: stVal, re: draft.re, pc: 0, pr: 0, fl: [],
+          od: odVal, st: stVal, re: draft.re, pc: dgTotal > 0 ? (dgScens[i] / dgTotal) * 100 : 0, pr: 0, fl: [],
           source: 'manual', signal: detectSignal(bd, edVal), opType: 'duplo_green',
         };
         leg.pr = calcLegProfit(leg);
@@ -1134,14 +1314,17 @@ function OpCard({
       addLeg(leg);
     } else {
       // Surebet: full leg edit
+      const sbOdds   = legDrafts.map(d => parseFloat(d.od.replace(',', '.')) || 0);
+      const sbMargin = sbOdds.every(o => o > 0) ? sbOdds.reduce((s, o) => s + 1 / o, 0) : 0;
+      const sbPc     = sbMargin > 0 ? (1 - sbMargin) / sbMargin * 100 : 0;
       legDrafts.forEach((draft, i) => {
         const edVal = draft.ed || bd;
         const leg: Leg = {
           id: `l_m_${Date.now()}_${i}`, oid, bd, ed: edVal, sp, ev: ev.trim(),
           ho: draft.ho, mk: draft.mk,
-          od: parseFloat(draft.od.replace(',', '.')) || 0,
+          od: sbOdds[i],
           st: parseFloat(draft.st.replace(',', '.')) || 0,
-          re: draft.re, pc: 0, pr: 0, fl: [],
+          re: draft.re, pc: sbPc, pr: 0, fl: [],
           source: 'manual', signal: detectSignal(bd, edVal), opType,
         };
         leg.pr = calcLegProfit(leg);
@@ -1379,44 +1562,46 @@ function OpCard({
                             </label>
                           </div>
 
-                          {/* Reentrada — auto-shown when Green Antecipado is selected */}
-                          {showReentrada && draft.reentrada && (
-                            <div className="rounded-lg p-3 flex flex-col gap-2 mt-1"
-                              style={{ background: 'rgba(255,203,47,.06)', border: '1px solid rgba(255,203,47,.25)' }}>
-                              <span className="text-[10px] font-black uppercase tracking-wide" style={{ color: '#FFCB2F' }}>
-                                ⚡ Reentrada — nova aposta (opcional)
-                              </span>
-                              <div className="grid grid-cols-3 gap-2">
-                                <label className="flex flex-col gap-1">
-                                  <span className="text-[10px] font-bold uppercase" style={{ color: '#4B5563' }}>Casa</span>
-                                  <select
-                                    value={draft.reentrada.ho}
-                                    onChange={e => setDraft(i, { reentrada: { ...draft.reentrada!, ho: e.target.value } })}
-                                    style={SELECT_S}
-                                  >
-                                    <option value="">Mesma ({draft.ho})</option>
-                                    {ALL_HOUSES.map(h => <option key={h} value={h}>{h}</option>)}
-                                  </select>
-                                </label>
-                                <label className="flex flex-col gap-1">
-                                  <span className="text-[10px] font-bold uppercase" style={{ color: '#4B5563' }}>Odd</span>
-                                  <input
-                                    value={draft.reentrada.od}
-                                    onChange={e => setDraft(i, { reentrada: { ...draft.reentrada!, od: e.target.value } })}
-                                    placeholder="2.10" className="font-mono" style={INPUT_S}
-                                  />
-                                </label>
-                                <label className="flex flex-col gap-1">
-                                  <span className="text-[10px] font-bold uppercase" style={{ color: '#4B5563' }}>Stake (R$)</span>
-                                  <input
-                                    value={draft.reentrada.st}
-                                    onChange={e => setDraft(i, { reentrada: { ...draft.reentrada!, st: e.target.value } })}
-                                    placeholder="200,00" className="font-mono" style={INPUT_S}
-                                  />
-                                </label>
+                          {/* Reentrada — button to open modal when Green Antecipado */}
+                          {showReentrada && (() => {
+                            const dgOds  = legDrafts.map(d => parseFloat(d.od.replace(',', '.')) || 0);
+                            const dgSts  = legDrafts.map(d => parseFloat(d.st.replace(',', '.')) || 0);
+                            const dgTot  = dgSts.reduce((s, v) => s + v, 0);
+                            const locked = dgOds[i] * dgSts[i] - dgTot;
+                            const hasRe  = draft.reentrada && (draft.reentrada.od || draft.reentrada.st);
+                            return (
+                              <div className="flex items-center gap-2 mt-1">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (!draft.reentrada) setDraft(i, { reentrada: { ho: '', od: '', st: '' } });
+                                    setReentradaLegIdx(i);
+                                  }}
+                                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
+                                  style={{
+                                    background: hasRe ? 'rgba(255,203,47,.12)' : 'rgba(255,203,47,.07)',
+                                    color: '#FFCB2F',
+                                    border: `1px solid ${hasRe ? 'rgba(255,203,47,.35)' : 'rgba(255,203,47,.22)'}`,
+                                  }}
+                                >
+                                  <Zap size={11} />
+                                  {hasRe ? 'Editar Reentrada' : 'Adicionar Reentrada'}
+                                </button>
+                                {hasRe && (
+                                  <span className="text-[10px] font-mono" style={{ color: 'rgba(255,203,47,.6)' }}>
+                                    od {draft.reentrada!.od} · R$ {draft.reentrada!.st}
+                                  </span>
+                                )}
+                                {/* Computed locked profit display */}
+                                {locked !== 0 && (
+                                  <span className="ml-auto text-[10px] font-mono shrink-0"
+                                    style={{ color: locked >= 0 ? 'rgba(61,255,143,.6)' : 'rgba(255,69,69,.6)' }}>
+                                    bloqueado: {locked >= 0 ? '+' : '−'}R$ {Math.abs(locked).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                  </span>
+                                )}
                               </div>
-                            </div>
-                          )}
+                            );
+                          })()}
                         </div>
                       );
                     })}
@@ -1658,6 +1843,28 @@ function OpCard({
           onClose={() => setCashoutLeg(null)}
         />
       )}
+
+      {reentradaLegIdx !== null && legDrafts[reentradaLegIdx] && (() => {
+        const idx    = reentradaLegIdx;
+        const draft  = legDrafts[idx];
+        const dgOds  = legDrafts.map(d => parseFloat(d.od.replace(',', '.')) || 0);
+        const dgSts  = legDrafts.map(d => parseFloat(d.st.replace(',', '.')) || 0);
+        const dgTot  = dgSts.reduce((s, v) => s + v, 0);
+        const locked = dgOds[idx] * dgSts[idx] - dgTot;
+        return (
+          <ReentradaModal
+            legMk={draft.mk}
+            defaultHo={draft.ho}
+            lockedProfit={locked}
+            existing={draft.reentrada}
+            onSave={re => {
+              setDraft(idx, { reentrada: re });
+              setReentradaLegIdx(null);
+            }}
+            onClose={() => setReentradaLegIdx(null)}
+          />
+        );
+      })()}
     </div>
   );
 }
