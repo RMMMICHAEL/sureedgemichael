@@ -321,8 +321,8 @@ function LegRow({
   );
 }
 
-interface OpModalProps { editOid?: string; onClose: () => void; }
-function OpModal({ editOid, onClose }: OpModalProps) {
+interface OpModalProps { editOid?: string; onClose: () => void; onOpenCalc?: () => void; }
+function OpModal({ editOid, onClose, onOpenCalc }: OpModalProps) {
   const addLeg    = useStore(s => s.addLeg);
   const deleteLeg = useStore(s => s.deleteLeg);
   const legs      = useStore(s => s.legs);
@@ -413,63 +413,25 @@ function OpModal({ editOid, onClose }: OpModalProps) {
           </label>
         </div>
 
-        {/* ── Faixa de cálculo de stakes ─────────────────────────────── */}
-        <div className="flex flex-wrap items-center gap-2 px-3 py-2.5 rounded-xl"
-          style={{ background: 'rgba(192,132,252,.07)', border: '1px solid rgba(192,132,252,.22)' }}>
-          <span className="text-[10px] font-black uppercase tracking-wider flex-shrink-0"
-            style={{ color: '#C084FC' }}>Distribuir Stakes</span>
-
-          <div className="flex items-center gap-2 flex-wrap flex-1">
-            <label className="flex items-center gap-1.5 text-[11px]" style={{ color: 'rgba(148,163,184,.75)' }}>
-              Total (R$):
-              <input
-                style={{ ...INPUT_S, width: 100, fontFamily: "'JetBrains Mono',monospace" }}
-                inputMode="decimal"
-                value={calcAnchor}
-                onChange={e => setCalcAnchor(e.target.value)}
-                placeholder="200"
-              />
-            </label>
-
-            <label className="flex items-center gap-1.5 cursor-pointer text-[11px]"
-              style={{ color: 'rgba(148,163,184,.75)' }}>
-              <input type="checkbox" checked={calcRound} onChange={e => setCalcRound(e.target.checked)}
-                style={{ accentColor: '#C084FC', width: 13, height: 13 }} />
-              Arredondar a cada
-              <input
-                style={{ ...INPUT_S, width: 52, display: calcRound ? 'block' : 'none', fontFamily: "'JetBrains Mono',monospace" }}
-                inputMode="decimal"
-                value={calcRoundTo}
-                onChange={e => setCalcRoundTo(e.target.value)}
-                placeholder="5"
-              />
-              {calcRound && <span style={{ fontSize: 11, color: 'rgba(148,163,184,.5)' }}>R$</span>}
-            </label>
-          </div>
-
-          <div className="flex items-center gap-3 flex-shrink-0">
+        {/* ── Calculadora de stakes ──────────────────────────────────── */}
+        {onOpenCalc && (
+          <div className="flex items-center justify-between">
             {sbProfitPct !== null && (
-              <span style={{
-                fontSize: 12, fontWeight: 800, fontFamily: "'JetBrains Mono',monospace",
-                color: sbProfitPct >= 0 ? '#3DFF8F' : '#FFBF00',
-              }}>
+              <span style={{ fontSize: 12, fontWeight: 800, fontFamily: "'JetBrains Mono',monospace", color: sbProfitPct >= 0 ? '#3DFF8F' : '#FFBF00' }}>
                 {sbProfitPct >= 0 ? '+' : ''}{sbProfitPct.toFixed(2)}%
               </span>
             )}
             <button
               type="button"
-              onClick={applyCalcStakesSB}
-              disabled={!calcAnchor}
-              style={{
-                padding: '5px 14px', borderRadius: 7, border: '1px solid rgba(192,132,252,.4)',
-                background: calcAnchor ? 'rgba(192,132,252,.18)' : 'rgba(255,255,255,.04)',
-                color: calcAnchor ? '#C084FC' : '#4B5563',
-                fontSize: 11, fontWeight: 800, cursor: calcAnchor ? 'pointer' : 'default',
-              }}>
-              ↓ Aplicar
+              onClick={onOpenCalc}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold transition-all ml-auto"
+              style={{ background: 'rgba(192,132,252,.1)', color: '#C084FC', border: '1px solid rgba(192,132,252,.25)' }}
+            >
+              <Calculator size={13} />
+              Abrir Calculadora
             </button>
           </div>
-        </div>
+        )}
 
         <span className="text-xs font-bold uppercase text-slate-500">
           Casas ({legDrafts.length})
@@ -558,7 +520,7 @@ function makeDGLeg(mk: string): DGLegDraft {
   return { ho: '', mk, od: '', st: '', re: 'Pendente', ed: '' };
 }
 
-function DuploGreenModal({ onClose }: { onClose: () => void }) {
+function DuploGreenModal({ onClose, onOpenCalc }: { onClose: () => void; onOpenCalc?: () => void }) {
   const addLeg  = useStore(s => s.addLeg);
   const toastFn = useStore(s => s.toast);
 
@@ -707,62 +669,25 @@ function DuploGreenModal({ onClose }: { onClose: () => void }) {
         </div>
 
         {/* ── Faixa de cálculo de stakes ─────────────────────────────── */}
-        <div className="flex flex-wrap items-center gap-2 px-3 py-2.5 rounded-xl"
-          style={{ background: 'rgba(255,203,47,.07)', border: '1px solid rgba(255,203,47,.22)' }}>
-          <span className="text-[10px] font-black uppercase tracking-wider flex-shrink-0"
-            style={{ color: '#FFCB2F' }}>Distribuir Stakes</span>
-
-          <div className="flex items-center gap-2 flex-wrap flex-1">
-            <label className="flex items-center gap-1.5 text-[11px]" style={{ color: 'rgba(148,163,184,.75)' }}>
-              Total (R$):
-              <input
-                style={{ ...INPUT_S, width: 100, fontFamily: "'JetBrains Mono',monospace" }}
-                inputMode="decimal"
-                value={dgCalcAnchor}
-                onChange={e => setDgCalcAnchor(e.target.value)}
-                placeholder="600"
-              />
-            </label>
-
-            <label className="flex items-center gap-1.5 cursor-pointer text-[11px]"
-              style={{ color: 'rgba(148,163,184,.75)' }}>
-              <input type="checkbox" checked={dgCalcRound} onChange={e => setDgCalcRound(e.target.checked)}
-                style={{ accentColor: '#FFCB2F', width: 13, height: 13 }} />
-              Arredondar a cada
-              <input
-                style={{ ...INPUT_S, width: 52, display: dgCalcRound ? 'block' : 'none', fontFamily: "'JetBrains Mono',monospace" }}
-                inputMode="decimal"
-                value={dgCalcRoundTo}
-                onChange={e => setDgCalcRoundTo(e.target.value)}
-                placeholder="5"
-              />
-              {dgCalcRound && <span style={{ fontSize: 11, color: 'rgba(148,163,184,.5)' }}>R$</span>}
-            </label>
-          </div>
-
-          <div className="flex items-center gap-3 flex-shrink-0">
+        {/* ── Calculadora de stakes ──────────────────────────────────── */}
+        {onOpenCalc && (
+          <div className="flex items-center justify-between">
             {dgProfitPct !== null && (
-              <span style={{
-                fontSize: 12, fontWeight: 800, fontFamily: "'JetBrains Mono',monospace",
-                color: dgProfitPct >= 0 ? '#3DFF8F' : '#FFBF00',
-              }}>
+              <span style={{ fontSize: 12, fontWeight: 800, fontFamily: "'JetBrains Mono',monospace", color: dgProfitPct >= 0 ? '#3DFF8F' : '#FFBF00' }}>
                 {dgProfitPct >= 0 ? '+' : ''}{dgProfitPct.toFixed(2)}%
               </span>
             )}
             <button
               type="button"
-              onClick={applyCalcStakesDG}
-              disabled={!dgCalcAnchor}
-              style={{
-                padding: '5px 14px', borderRadius: 7, border: '1px solid rgba(255,203,47,.4)',
-                background: dgCalcAnchor ? 'rgba(255,203,47,.18)' : 'rgba(255,255,255,.04)',
-                color: dgCalcAnchor ? '#FFCB2F' : '#4B5563',
-                fontSize: 11, fontWeight: 800, cursor: dgCalcAnchor ? 'pointer' : 'default',
-              }}>
-              ↓ Aplicar
+              onClick={onOpenCalc}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold transition-all ml-auto"
+              style={{ background: 'rgba(255,203,47,.1)', color: '#FFCB2F', border: '1px solid rgba(255,203,47,.25)' }}
+            >
+              <Calculator size={13} />
+              Abrir Calculadora
             </button>
           </div>
-        </div>
+        )}
 
         {/* ── Calculadora de Cenários ────────────────────────────────── */}
         {totalStake > 0 && (
@@ -1016,17 +941,7 @@ function ReentradaModal({ legMk, defaultHo, lockedProfit, existing, onSave, onCl
   const [st, setSt] = useState(existing?.st ?? '');
 
   const reOd = parseFloat(od.replace(',', '.')) || 0;
-  const reSt = parseFloat(st.replace(',', '.')) || 0;
-
-  const hasPreview = reOd > 1 && reSt > 0;
-  const ifWin  = lockedProfit + (reOd - 1) * reSt;
-  const ifLose = lockedProfit - reSt;
   const suggested = reOd > 1 && lockedProfit > 0 ? lockedProfit / (reOd - 1) : null;
-
-  const fmtR = (n: number) => {
-    const sign = n >= 0 ? '+' : '−';
-    return `${sign} R$ ${Math.abs(n).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  };
 
   return (
     <Modal title={`Reentrada — ${legMk || 'Perna'}`} onClose={onClose}>
@@ -1040,7 +955,7 @@ function ReentradaModal({ legMk, defaultHo, lockedProfit, existing, onSave, onCl
             <div className="text-xs font-bold" style={{ color: '#FFCB2F' }}>Green Antecipado confirmado</div>
             <div className="text-xs mt-0.5" style={{ color: 'rgba(255,203,47,.7)' }}>
               Lucro bloqueado:&nbsp;
-              <span className="font-mono font-bold">{fmtR(lockedProfit)}</span>
+              <span className="font-mono font-bold">{lockedProfit >= 0 ? '+' : '−'} R$ {Math.abs(lockedProfit).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
             </div>
           </div>
         </div>
@@ -1093,50 +1008,6 @@ function ReentradaModal({ legMk, defaultHo, lockedProfit, existing, onSave, onCl
               </div>
             </label>
           </div>
-        </div>
-
-        {/* Profit preview */}
-        <div className="flex flex-col gap-2">
-          <span className="text-[10px] font-black uppercase tracking-wider" style={{ color: 'var(--t3)' }}>
-            Prévia de resultado
-          </span>
-          {hasPreview ? (
-            <div className="grid grid-cols-2 gap-2">
-              <div className="flex flex-col gap-1 px-4 py-3 rounded-xl"
-                style={{
-                  background: ifWin >= 0 ? 'rgba(61,255,143,.07)' : 'rgba(255,69,69,.07)',
-                  border: `1px solid ${ifWin >= 0 ? 'rgba(61,255,143,.2)' : 'rgba(255,69,69,.2)'}`,
-                }}>
-                <span className="text-[9px] font-black uppercase tracking-wider"
-                  style={{ color: ifWin >= 0 ? '#3DFF8F' : '#FF4545' }}>
-                  Se ganhar
-                </span>
-                <span className="text-sm font-mono font-bold mt-1"
-                  style={{ color: ifWin >= 0 ? '#3DFF8F' : '#FF4545' }}>
-                  {fmtR(ifWin)}
-                </span>
-              </div>
-              <div className="flex flex-col gap-1 px-4 py-3 rounded-xl"
-                style={{
-                  background: ifLose >= 0 ? 'rgba(61,255,143,.07)' : 'rgba(255,69,69,.07)',
-                  border: `1px solid ${ifLose >= 0 ? 'rgba(61,255,143,.2)' : 'rgba(255,69,69,.2)'}`,
-                }}>
-                <span className="text-[9px] font-black uppercase tracking-wider"
-                  style={{ color: ifLose >= 0 ? '#3DFF8F' : '#FF4545' }}>
-                  Se perder
-                </span>
-                <span className="text-sm font-mono font-bold mt-1"
-                  style={{ color: ifLose >= 0 ? '#3DFF8F' : '#FF4545' }}>
-                  {fmtR(ifLose)}
-                </span>
-              </div>
-            </div>
-          ) : (
-            <div className="px-4 py-3 rounded-xl text-xs"
-              style={{ background: 'rgba(255,255,255,.04)', color: 'var(--t3)', border: '1px solid var(--b)' }}>
-              Preencha a odd e o stake para ver a prévia
-            </div>
-          )}
         </div>
 
         {/* Actions */}
@@ -1202,6 +1073,25 @@ function OpCard({
   const isAlt      = opType !== 'surebet';
   const { profit } = op;
   const sig        = op.signal ?? detectSignal(op.bet_date, op.legs[0]?.ed ?? '');
+
+  // Live pc per leg — computed from actual odds (works for imported legs where pc=0)
+  const computedLegPc = useMemo(() => {
+    const mainLegs = op.legs.filter(l => !l.ev.endsWith('(Reentrada)'));
+    if (opType === 'surebet') {
+      const odds = mainLegs.map(l => l.od || 0);
+      const margin = odds.every(o => o > 0) ? odds.reduce((s, o) => s + 1 / o, 0) : 0;
+      const pc = margin > 0 ? (1 - margin) / margin * 100 : 0;
+      return new Map(op.legs.map(l => [l.id, pc]));
+    }
+    if (opType === 'duplo_green') {
+      const total = mainLegs.reduce((s, l) => s + (l.st || 0), 0);
+      return new Map(op.legs.map(l => {
+        if (l.ev.endsWith('(Reentrada)') || total === 0) return [l.id, null] as [string, number | null];
+        return [l.id, ((l.st || 0) * (l.od || 0) - total) / total * 100] as [string, number | null];
+      }));
+    }
+    return new Map<string, number | null>(op.legs.map(l => [l.id, null]));
+  }, [op.legs, opType]);
 
   const profitColor = profit > 0 ? '#3DFF8F' : profit < 0 ? '#FF4545' : '#6B7280';
   const profitBg    = profit > 0 ? 'rgba(61,255,143,.12)' : profit < 0 ? 'rgba(255,69,69,.12)' : 'rgba(107,114,128,.08)';
@@ -1732,11 +1622,13 @@ function OpCard({
                   </tr>
                 </thead>
                 <tbody>
-                  {op.legs.map((leg, i) => (
+                  {op.legs.map((leg, i) => {
+                    const isRe = leg.ev.endsWith('(Reentrada)');
+                    return (
                     <tr key={leg.id}
-                      style={{ background: i % 2 === 1 ? 'rgba(255,255,255,.015)' : 'transparent' }}
-                      onMouseEnter={e => { (e.currentTarget as HTMLTableRowElement).style.background = 'rgba(255,255,255,.03)'; }}
-                      onMouseLeave={e => { (e.currentTarget as HTMLTableRowElement).style.background = i % 2 === 1 ? 'rgba(255,255,255,.015)' : 'transparent'; }}
+                      style={{ background: isRe ? 'rgba(255,203,47,.06)' : i % 2 === 1 ? 'rgba(255,255,255,.015)' : 'transparent' }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLTableRowElement).style.background = isRe ? 'rgba(255,203,47,.1)' : 'rgba(255,255,255,.03)'; }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLTableRowElement).style.background = isRe ? 'rgba(255,203,47,.06)' : i % 2 === 1 ? 'rgba(255,255,255,.015)' : 'transparent'; }}
                     >
                       <td style={{ padding: '9px 12px', fontSize: 12, color: '#6B7280', whiteSpace: 'nowrap', borderBottom: '1px solid rgba(255,255,255,.04)' }}>
                         {fmtDate(leg.ed || leg.bd)}
@@ -1745,7 +1637,15 @@ function OpCard({
                         <HouseBadge name={leg.ho} />
                       </td>
                       <td style={{ padding: '9px 12px', fontSize: 12, color: '#9CA3AF', maxWidth: 180, borderBottom: '1px solid rgba(255,255,255,.04)' }}>
-                        <span className="truncate block" title={leg.mk}>{leg.mk || '—'}</span>
+                        <div className="flex items-center gap-1.5">
+                          {isRe && (
+                            <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase px-1.5 py-0.5 rounded flex-shrink-0"
+                              style={{ background: 'rgba(255,203,47,.15)', color: '#FFCB2F', border: '1px solid rgba(255,203,47,.25)' }}>
+                              <Zap size={8} />reentrada
+                            </span>
+                          )}
+                          <span className="truncate" title={leg.mk}>{leg.mk || '—'}</span>
+                        </div>
                       </td>
                       <td style={{ padding: '9px 12px', fontSize: 12, color: '#E2E8F0', fontFamily: 'monospace', whiteSpace: 'nowrap', borderBottom: '1px solid rgba(255,255,255,.04)' }}>
                         {leg.od || '—'}
@@ -1757,7 +1657,7 @@ function OpCard({
                         }
                       </td>
                       <td style={{ padding: '9px 12px', fontSize: 12, color: '#6B7280', fontFamily: 'monospace', borderBottom: '1px solid rgba(255,255,255,.04)' }}>
-                        {leg.pc > 0 ? `${leg.pc.toFixed(2)}%` : '—'}
+                        {(() => { const pc = computedLegPc.get(leg.id); return pc != null && pc !== 0 ? `${pc.toFixed(2)}%` : '—'; })()}
                       </td>
                       <td style={{ padding: '9px 12px', borderBottom: '1px solid rgba(255,255,255,.04)', overflow: 'visible' }}>
                         <StatusPill
@@ -1792,7 +1692,7 @@ function OpCard({
                         )}
                       </td>
                     </tr>
-                  ))}
+                  ); })}
                 </tbody>
               </table>
             </div>
@@ -2208,9 +2108,9 @@ export function OperationsPage() {
       )}
       </>}
 
-      {showAdd && <OpModal onClose={() => setShowAdd(false)} />}
+      {showAdd && <OpModal onClose={() => setShowAdd(false)} onOpenCalc={() => { setShowAdd(false); setFilterOpType('calculadora'); }} />}
       {showAltAdd && <AltOpModal onClose={() => setShowAltAdd(false)} />}
-      {showDGAdd && <DuploGreenModal onClose={() => setShowDGAdd(false)} />}
+      {showDGAdd && <DuploGreenModal onClose={() => setShowDGAdd(false)} onOpenCalc={() => { setShowDGAdd(false); setFilterOpType('calculadora'); }} />}
     </div>
   );
 }
