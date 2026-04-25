@@ -1690,6 +1690,18 @@ function OpCard({
                             Reentrada
                           </button>
                         )}
+                        {isRe && (
+                          <button
+                            type="button"
+                            onClick={() => deleteLeg(leg.id)}
+                            title="Remover reentrada"
+                            className="inline-flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-lg transition-all"
+                            style={{ background: 'rgba(255,69,69,.08)', color: '#FF4545', border: '1px solid rgba(255,69,69,.18)' }}
+                          >
+                            <Trash2 size={10} />
+                            Remover
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ); })}
@@ -1722,6 +1734,16 @@ function OpCard({
                           style={{ background: 'rgba(255,203,47,.1)', color: '#FFCB2F', border: '1px solid rgba(255,203,47,.25)' }}
                         >
                           <Zap size={10} /> Reentrada
+                        </button>
+                      )}
+                      {leg.ev.endsWith('(Reentrada)') && (
+                        <button
+                          type="button"
+                          onClick={() => deleteLeg(leg.id)}
+                          className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg font-bold"
+                          style={{ background: 'rgba(255,69,69,.08)', color: '#FF4545', border: '1px solid rgba(255,69,69,.18)' }}
+                        >
+                          <Trash2 size={10} /> Remover
                         </button>
                       )}
                       <StatusPill
