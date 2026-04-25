@@ -85,67 +85,93 @@ function KPIBar({ stats }: { stats: KPIStat[] }) {
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
       {stats.map((s, i) => {
-        const color =
-          s.positive === null ? 'var(--t2)' :
-          s.positive           ? 'var(--g)' : 'var(--r)';
+        const isPos = s.positive === true;
+        const isNeg = s.positive === false;
+        const colorVar = isNeg ? 'var(--r)' : isPos ? 'var(--g)' : 'var(--bl)';
+        const colorHex = isNeg ? '#FF4D6D' : isPos ? '#3FFF21' : '#4DA6FF';
         return (
           <div
             key={s.label}
-            className="rounded-2xl p-5 flex flex-col gap-2 transition-all duration-200 animate-fade-in"
-            style={{ ...cardStyle, animationDelay: `${i * 60}ms` }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--b2)'; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--b)'; }}
+            className="relative rounded-xl overflow-hidden flex flex-col animate-fade-in"
+            style={{
+              background: 'var(--bg2)',
+              border: '1px solid var(--b)',
+              animationDelay: `${i * 60}ms`,
+              transition: 'border-color .25s ease, box-shadow .25s ease',
+            }}
+            onMouseEnter={e => {
+              (e.currentTarget as HTMLElement).style.borderColor = `${colorHex}35`;
+              (e.currentTarget as HTMLElement).style.boxShadow = `0 0 0 1px ${colorHex}12, 0 12px 40px ${colorHex}12`;
+            }}
+            onMouseLeave={e => {
+              (e.currentTarget as HTMLElement).style.borderColor = 'var(--b)';
+              (e.currentTarget as HTMLElement).style.boxShadow = '';
+            }}
           >
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-semibold uppercase tracking-widest" style={{ color: 'var(--t3)', fontFamily: "'Manrope', sans-serif" }}>
-                {s.label}
-              </span>
-              <div className="flex items-center gap-1">
+            {/* Color-coded top accent */}
+            <div style={{
+              height: 2,
+              background: `linear-gradient(90deg, ${colorHex}E0 0%, ${colorHex}55 45%, transparent 80%)`,
+              flexShrink: 0,
+            }} />
+
+            <div className="flex flex-col gap-3 p-4 pt-3.5 flex-1">
+              {/* Label + hide toggle */}
+              <div className="flex items-center justify-between gap-2">
+                <span
+                  className="text-[9px] font-black uppercase leading-none"
+                  style={{ color: 'var(--t3)', fontFamily: "'Manrope', sans-serif", letterSpacing: '.16em' }}
+                >
+                  {s.label}
+                </span>
                 {s.onToggleHide && (
                   <button
                     type="button"
                     onClick={s.onToggleHide}
-                    className="w-8 h-8 rounded-md flex items-center justify-center transition-all"
+                    className="w-7 h-7 flex items-center justify-center rounded-md transition-colors flex-shrink-0"
                     style={{ color: 'var(--t3)' }}
                     aria-label={s.hidden ? 'Mostrar valor' : 'Ocultar valor'}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = colorVar; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--t3)'; }}
                   >
-                    {s.hidden ? <Eye size={13} /> : <EyeOff size={13} />}
+                    {s.hidden ? <Eye size={12} /> : <EyeOff size={12} />}
                   </button>
                 )}
-                <span
-                  className="w-7 h-7 rounded-lg flex items-center justify-center"
-                  style={{ background: 'var(--gd)', color: 'var(--t3)' }}
-                >
-                  {s.icon}
-                </span>
               </div>
-            </div>
-            <div
-              className="text-2xl font-black tracking-tight"
-              style={{ color, fontFamily: "'JetBrains Mono', monospace" }}
-            >
-              {s.hidden ? '••••••' : s.value}
-            </div>
-            {s.sub && (
-              <div className="text-[11px] font-medium" style={{ color: 'var(--t3)' }}>{s.sub}</div>
-            )}
-            {/* Sparkline */}
-            {s.sparkline && s.sparkline.length > 1 && !s.hidden && (
-              <div style={{ marginTop: 2 }}>
-                <ResponsiveContainer width="100%" height={36}>
-                  <LineChart data={s.sparkline} margin={{ top: 2, right: 2, left: 2, bottom: 0 }}>
-                    <Line
-                      type="monotone"
-                      dataKey="v"
-                      stroke={color}
-                      strokeWidth={1.5}
-                      dot={false}
-                      strokeOpacity={0.7}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
+
+              {/* Big number — hero */}
+              <div
+                className="text-2xl font-black tracking-tight leading-none"
+                style={{ color: colorVar, fontFamily: "'JetBrains Mono', monospace" }}
+              >
+                {s.hidden ? '••••••' : s.value}
               </div>
-            )}
+
+              {/* Sub text */}
+              {s.sub && (
+                <div className="text-[10px] font-medium leading-tight" style={{ color: 'var(--t3)' }}>
+                  {s.sub}
+                </div>
+              )}
+
+              {/* Sparkline — floats to bottom */}
+              {s.sparkline && s.sparkline.length > 1 && !s.hidden && (
+                <div className="mt-auto -mx-1">
+                  <ResponsiveContainer width="100%" height={34}>
+                    <LineChart data={s.sparkline} margin={{ top: 3, right: 4, left: 4, bottom: 0 }}>
+                      <Line
+                        type="monotone"
+                        dataKey="v"
+                        stroke={colorHex}
+                        strokeWidth={1.5}
+                        dot={false}
+                        strokeOpacity={0.5}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </div>
           </div>
         );
       })}
@@ -234,9 +260,14 @@ function ProfitByType({ legs }: { legs: Leg[] }) {
                     border: `1px solid ${barClr}20`,
                   }}
                 >
-                  {/* Rank */}
-                  <span className="text-[11px] font-black w-4 flex-shrink-0 text-center"
-                    style={{ color: `${barClr}80`, fontFamily: "'JetBrains Mono',monospace" }}>
+                  {/* Rank badge */}
+                  <span style={{
+                    fontSize: 10, fontWeight: 900, width: 24, height: 24, borderRadius: 7,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    background: `${barClr}18`, color: `${barClr}CC`,
+                    fontFamily: "'JetBrains Mono',monospace", flexShrink: 0,
+                    border: `1px solid ${barClr}28`,
+                  }}>
                     {rank}
                   </span>
 
@@ -990,15 +1021,17 @@ export function DashboardPage() {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <span style={{
-              width: 30, height: 30, borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center',
-              background: 'linear-gradient(135deg, rgba(99,102,241,.25), rgba(99,102,241,.08))',
-              border: '1px solid rgba(99,102,241,.2)',
+              width: 28, height: 28, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: 'rgba(63,255,33,.1)',
+              border: '1px solid rgba(63,255,33,.2)',
             }}>
-              <Activity size={14} style={{ color: '#818cf8' }} />
+              <Activity size={13} style={{ color: 'var(--g)' }} />
             </span>
             <div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#f1f5f9' }}>Lucro por Dia</div>
-              <div style={{ fontSize: 11, color: 'rgba(255,255,255,.3)', marginTop: 1 }}>
+              <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--t)', letterSpacing: '-.01em' }}>
+                Tendência &amp; Distribuição
+              </div>
+              <div style={{ fontSize: 10, color: 'var(--t3)', marginTop: 2, fontFamily: "'JetBrains Mono',monospace" }}>
                 {chartFrom} → {chartTo} · {chartLegs.length} apostas
               </div>
             </div>

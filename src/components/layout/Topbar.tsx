@@ -119,10 +119,11 @@ export function Topbar({ onMenuClick }: TopbarProps) {
       className="flex items-center px-4 md:px-5 gap-3 sticky top-0 z-20 flex-shrink-0"
       style={{
         height: 60,
-        background: 'rgba(13,17,23,.9)',
-        borderBottom: '1px solid var(--b)',
-        backdropFilter: 'blur(20px)',
-        WebkitBackdropFilter: 'blur(20px)',
+        background: 'rgba(11,17,23,.92)',
+        borderBottom: '1px solid rgba(63,255,33,.07)',
+        backdropFilter: 'blur(24px)',
+        WebkitBackdropFilter: 'blur(24px)',
+        boxShadow: '0 1px 0 rgba(63,255,33,.04)',
       }}
     >
       {/* Mobile hamburger */}

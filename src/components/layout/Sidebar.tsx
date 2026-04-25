@@ -93,13 +93,14 @@ function NavButton({ item, onClose }: { item: NavItem; onClose?: () => void }) {
 function SectionLabel({ label }: { label: string }) {
   return (
     <div className="px-3 pt-5 pb-1.5 flex items-center gap-2">
+      <span style={{ width: 4, height: 4, borderRadius: '50%', background: 'var(--g)', opacity: .4, flexShrink: 0 }} />
       <span
-        className="text-[9px] font-black tracking-[.14em] uppercase"
-        style={{ color: 'var(--t3)' }}
+        className="text-[9px] font-black tracking-[.16em] uppercase"
+        style={{ color: 'var(--t3)', fontFamily: "'Manrope', sans-serif" }}
       >
         {label}
       </span>
-      <span className="flex-1 h-px" style={{ background: 'var(--b)' }} />
+      <span className="flex-1 h-px" style={{ background: 'linear-gradient(90deg, rgba(255,255,255,.07), transparent)' }} />
     </div>
   );
 }
@@ -226,8 +227,8 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
         className="flex items-center gap-3 px-4 flex-shrink-0"
         style={{
           height: 60,
-          borderBottom: '1px solid var(--b)',
-          background: 'linear-gradient(180deg, rgba(63,255,33,.04) 0%, transparent 100%)',
+          borderBottom: '1px solid rgba(63,255,33,.08)',
+          background: 'linear-gradient(180deg, rgba(63,255,33,.09) 0%, transparent 100%)',
         }}
       >
         {/* Icon */}
@@ -237,7 +238,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
             borderRadius: 10,
             background: 'linear-gradient(135deg, var(--g) 0%, #00CC6E 100%)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 0 20px rgba(63,255,33,.4), 0 0 40px rgba(63,255,33,.12)',
+            boxShadow: '0 0 24px rgba(63,255,33,.55), 0 0 60px rgba(63,255,33,.18), inset 0 1px 0 rgba(255,255,255,.25)',
             flexShrink: 0,
           }}
         >
