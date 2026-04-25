@@ -1,7 +1,44 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(npm install:*)",
+      "mcp__supabase__list_tables",
+      "mcp__supabase__apply_migration",
+      "Read(//c/Users/rmmic/OneDrive/Documentos/suredge-app/**)",
+      "Bash(npm run:*)",
+      "Bash(npx --prefix \"C:\\\\\\\\Users\\\\\\\\rmmic\\\\\\\\OneDrive\\\\\\\\Documentos\\\\\\\\suredge-app\" tsc --noEmit --skipLibCheck)",
+      "Bash(node_modules/.bin/tsc --noEmit --skipLibCheck)",
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(npx skills:*)",
+      "Bash(echo \"EXIT:$?\")",
+      "Bash(cmd /c \"cd /d C:\\\\Users\\\\rmmic\\\\OneDrive\\\\Documentos\\\\suredge-app && npx tsc --noEmit 2>&1\")",
+      "Bash(cmd /c \"cd /d C:\\\\Users\\\\rmmic\\\\OneDrive\\\\Documentos\\\\suredge-app && npx tsc --noEmit\")",
+      "Bash(npx next:*)",
+      "Bash(node node_modules/typescript/bin/tsc --noEmit)",
+      "Bash(python -c ':*)",
+      "Bash(mkdir -p graphify-out)",
+      "mcp__supabase__list_projects",
+      "Bash(git add:*)",
+      "Bash(git commit -m ':*)",
+      "Bash(git push:*)",
+      "Bash(git commit -m ' *)",
+      "Bash(git commit *)",
+      "Bash(grep -v \"^$\")",
+      "Bash(gh repo *)",
+      "Bash(curl -s https://raw.githubusercontent.com/pbakaus/impeccable/main/README.md)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(curl -s \"https://api.github.com/repos/pbakaus/impeccable/git/trees/main?recursive=1\")",
+      "Bash(python3 -c \"import sys,json; [print\\(f['path']\\) for f in json.load\\(sys.stdin\\)['tree'] if f['type']=='blob' and 'source/skills' in f['path']]\")",
+      "Bash(node -e \"const d=require\\('fs'\\).readFileSync\\('/dev/stdin','utf8'\\); JSON.parse\\(d\\).tree.filter\\(f=>f.type==='blob'&&f.path.includes\\('source/skills'\\)\\).forEach\\(f=>console.log\\(f.path\\)\\)\")",
+      "Skill(impeccable)",
+      "Skill(impeccable:*)",
+      "Bash(node .claude/skills/impeccable/scripts/load-context.mjs)",
+      "Bash(grep -v \"//.*#\")"
     ]
-  }
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "supabase"
+  ]
 }

@@ -1,0 +1,810 @@
+{
+  "version": 1,
+  "skills": {
+    "ab-test-setup": {
+      "source": "coreyhaines31/marketingskills",
+      "sourceType": "github",
+      "computedHash": "1312ab5ad54674a4cc14df9106161239573e7837641ccf4ea55e4dfc3c8a0a6c"
+    },
+    "ad-creative": {
+      "source": "coreyhaines31/marketingskills",
+      "sourceType": "github",
+      "computedHash": "5d8f869c7e683e4d4fc7aa7a2b0d370b0ad54a81d9cffb48736ffc47759b3f4d"
+    },
+    "ads": {
+      "source": "agricidaniel/claude-ads",
+      "sourceType": "github",
+      "computedHash": "4baf3ded4ed7127a243ed30d8a414396ded88558aeb151756cbf592f890e7548"
+    },
+    "ads-apple": {
+      "source": "agricidaniel/claude-ads",
+      "sourceType": "github",
+      "computedHash": "05db1419c0ea062924b1244aea5d3e29d3699b6e6f406e25d5f9ccf775ba2b1b"
+    },
+    "ads-audit": {
+      "source": "agricidaniel/claude-ads",
+      "sourceType": "github",
+      "computedHash": "e56a10249d1133498de6f66ded895007fecbe381abf1d02cd156a34c880a95e0"
+    },
+    "ads-budget": {
+      "source": "agricidaniel/claude-ads",
+      "sourceType": "github",
+      "computedHash": "f8308e691b2b0823ad987997be5a49680a18a023f8aa84170dbe731fa225fa6c"
+    },
+    "ads-competitor": {
+      "source": "agricidaniel/claude-ads",
+      "sourceType": "github",
+      "computedHash": "63677a947bee400d36bb1ec192bf97ae0d462ecd0d200777390820987a27a60d"
+    },
+    "ads-create": {
+      "source": "agricidaniel/claude-ads",
+      "sourceType": "github",
+      "computedHash": "11779677682efd2856863c2b4215afdfa202b1bb9c7652a76d8e0352f3e28388"
+    },
+    "ads-creative": {
+      "source": "agricidaniel/claude-ads",
+      "sourceType": "github",
+      "computedHash": "91f780128d02740d0b095507fec7dee6c718a327f6e9a58b4f565c0c43ed2d78"
+    },
+    "ads-dna": {
+      "source": "agricidaniel/claude-ads",
+      "sourceType": "github",
+      "computedHash": "f9d8962567e99ae153ff88c4441e6e6bbedfb9cc4bb595356d8f19d417bbaaf7"
+    },
+    "ads-generate": {
+      "source": "agricidaniel/claude-ads",
+      "sourceType": "github",
+      "computedHash": "87dcac75d61d72903a6f114b368cb9bcac0a1691fa925beb3f95284a59161f19"
+    },
+    "ads-google": {
+      "source": "agricidaniel/claude-ads",
+      "sourceType": "github",
+      "computedHash": "b183ab467dc91364acbcf48d4a981267f2b7538de2097343b320c7988a057b89"
+    },
+    "ads-landing": {
+      "source": "agricidaniel/claude-ads",
+      "sourceType": "github",
+      "computedHash": "28e2ddd984b39089db5e2476fdf7d93cce5eac6ee58a1f1887e08ccee3c0aace"
+    },
+    "ads-linkedin": {
+      "source": "agricidaniel/claude-ads",
+      "sourceType": "github",
+      "computedHash": "515e1e25afd3b32dedde68094d5df76aa04b943c4f5ff3902d1a2df8d6318825"
+    },
+    "ads-meta": {
+      "source": "agricidaniel/claude-ads",
+      "sourceType": "github",
+      "computedHash": "d23032bacb8b96c0ed2faaa6d08e86a481c71cb3fa4639bcf2f44d9893b865dc"
+    },
+    "ads-microsoft": {
+      "source": "agricidaniel/claude-ads",
+      "sourceType": "github",
+      "computedHash": "25c794ab317e1a351c393c033290e5723e73907d512e718743ec2a3e0ba4760b"
+    },
+    "ads-photoshoot": {
+      "source": "agricidaniel/claude-ads",
+      "sourceType": "github",
+      "computedHash": "3123dbfff22a9ac4b5c411100f4735cbc1fe40036a64ea2bf83bd8fcbc4090c4"
+    },
+    "ads-plan": {
+      "source": "agricidaniel/claude-ads",
+      "sourceType": "github",
+      "computedHash": "825ee3af0702675f3959a6be5dc1f1603ee4ef85f6d1a7783fd85cc8f047abe0"
+    },
+    "ads-tiktok": {
+      "source": "agricidaniel/claude-ads",
+      "sourceType": "github",
+      "computedHash": "0eb779276e8d8e50e247c3f7e43e63bdcf1ac360f1c5c1dad5397e4406e8ac92"
+    },
+    "ads-youtube": {
+      "source": "agricidaniel/claude-ads",
+      "sourceType": "github",
+      "computedHash": "8d0a41254cf668ad91f118739788aa17a12a3e569900355abac26c7d1eb969e3"
+    },
+    "adversarial-review": {
+      "source": "poteto/noodle",
+      "sourceType": "github",
+      "computedHash": "f6c911a45bf080b6c7dcf274b0e22a93d7730ec0efebf2a58934c5be0cd8ac4e"
+    },
+    "agent-browser": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "17341f4dbda0b7a9b5c1a7fb54e2f9baa54efae3ab5a4c3d7e8e9beeca9967b5"
+    },
+    "agent-tools": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "b7dc4bc5a5fe0aee778ed86e3a24cbf8c26377cf0c7e57c7b5cba63f6a23bb00"
+    },
+    "agent-ui": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "574ed4914de3fa1410add0e93513c55e0ac5a4a4ad874df92a9aa51c8b5fd40f"
+    },
+    "ai-automation-workflows": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "270c77f02d718c57b178349542de9452d3e8afe6111457436e312f3db040a651"
+    },
+    "ai-avatar-video": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "13ad971effbcbe5744e02246e8e3173909b1ba64c0e09c1b1fc89a1585b68c90"
+    },
+    "ai-content-pipeline": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "96063110fe85c41049b915273e41ee5755e2bd5ba475bc1c5141dcd2b05e4ba3"
+    },
+    "ai-image-generation": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "e45c0ee94791e67e355130109fd827bd8b4bd0fb1d6b2ff8f782eb566d435174"
+    },
+    "ai-marketing-videos": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "7dad814592c1ccb9b5cbffbdd4624b5e3e250dd53ede4d515f7d9d80789d71e0"
+    },
+    "ai-music-generation": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "94390d92f942131443d324336910ebce4b696fb34246a7e6e16be5cdfb559f7e"
+    },
+    "ai-podcast-creation": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "30303500e8af4a6010485b06011497f4e79d93c914ccdf5c46d857772c82234e"
+    },
+    "ai-product-photography": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "d4497e6aa6f5b95c715be07fcfc9e8831bfdeacb774dc1da127510af7d0e195f"
+    },
+    "ai-rag-pipeline": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "0a094c7b4f3bfab05b1a1b31aa93d9e11c85e7310c00272a21a6fe28e0b9bde8"
+    },
+    "ai-seo": {
+      "source": "coreyhaines31/marketingskills",
+      "sourceType": "github",
+      "computedHash": "0bda4a0839dbb8ecb19b40707299c2558ddc7b63164d1d8008209ce6d03772b7"
+    },
+    "ai-social-media-content": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "114e97ac954ea251b92b13f3e7bcebc80f1e750a3356dd8c8b8914ae8a80d688"
+    },
+    "ai-video-generation": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "6fedc9632f486cef1f562b83563b0b38f135f5bc691445dabea2ee1a905b7712"
+    },
+    "ai-voice-cloning": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "5ca20b20c3cddabc8de09cea10dd817a22ec31e20826f0b0ee4cf294ec0722d1"
+    },
+    "analytics-tracking": {
+      "source": "coreyhaines31/marketingskills",
+      "sourceType": "github",
+      "computedHash": "1ad3893d31e5df78cb4b4e16801f49acbdf82daed5f775748859ca7dc638d6d0"
+    },
+    "app-store-screenshots": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "073a3f0c6cb31a2205fdf2b9a69f3044ea7b739b0d102c011dd004d08f4218b4"
+    },
+    "ast-grep": {
+      "source": "poteto/noodle",
+      "sourceType": "github",
+      "computedHash": "02c4c0e5b61af2427e2b108d80198fd9c20ffe00cd1ef791a38bd983e8eb3a06"
+    },
+    "background-removal": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "daa7b7216f48cd32abeea0ecc8595d9d6d2fe608db8efdf8590c7528c3f2752c"
+    },
+    "book-cover-design": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "cd226a439f8220163253d5abe46d4a3853b83dae4473c8d38790534d6afa8156"
+    },
+    "brain": {
+      "source": "poteto/noodle",
+      "sourceType": "github",
+      "computedHash": "55bb8641fb0c2ef1145dcafc0c3350f252a46d01dc11f571cbbcae66860a7e74"
+    },
+    "building-inferencesh-apps": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "f66b50cd79296f1730c3a96e4e6ea7c8f8b8d6a93999a3b8f2dec1f2ace4b3f3"
+    },
+    "case-study-writing": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "8f30c45b5830823eac51d9d2a3a59ca35eabc5843810a76775601aaca9281121"
+    },
+    "character-design-sheet": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "e731a10cb8be0a9a316229433451905b8cdc26f11567f2b74b82433fe3b55d52"
+    },
+    "chat-ui": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "5628ac2ae8967ab7ff24ddfd8386ee746cd04d4ec907407690daa9f371b9df6b"
+    },
+    "churn-prevention": {
+      "source": "coreyhaines31/marketingskills",
+      "sourceType": "github",
+      "computedHash": "ce389baf7e32cc942143503ecba7068784ca2c790460824c1e5a306d83d1283f"
+    },
+    "codex": {
+      "source": "poteto/noodle",
+      "sourceType": "github",
+      "computedHash": "59cd12b1b33756c15845b8bdc63ea9ddba86827d4b1cbf6098a38107bff503ae"
+    },
+    "cold-email": {
+      "source": "coreyhaines31/marketingskills",
+      "sourceType": "github",
+      "computedHash": "6b2c73ca8ee9f2104958476078f50f92ac61ab1b63880762b52816c968a6fea6"
+    },
+    "commit": {
+      "source": "poteto/noodle",
+      "sourceType": "github",
+      "computedHash": "29f654b5bce384f947fbf8ccbb4f42e9f8b844ce218ba5b5bf9e56a7e46f499b"
+    },
+    "competitor-alternatives": {
+      "source": "coreyhaines31/marketingskills",
+      "sourceType": "github",
+      "computedHash": "bbaf0d378114c7f1581ec63218c9061da983afc1e30887af69ba6ce7ce9cd4c1"
+    },
+    "competitor-teardown": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "e26ff583ae036c40728b4f807dbf256641fffdea2d5bf5c9f6e32084d6e838d5"
+    },
+    "content-repurposing": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "c209bd90a6644ac5e292868253d2b817045be4043e4bad8e9b6cdcab1854d166"
+    },
+    "content-strategy": {
+      "source": "coreyhaines31/marketingskills",
+      "sourceType": "github",
+      "computedHash": "be124f3733b037fb8d859f275454ecd1c590759ef9ab184bea35ba1a0a38e14c"
+    },
+    "copy-editing": {
+      "source": "coreyhaines31/marketingskills",
+      "sourceType": "github",
+      "computedHash": "f1a31dc20a44b62d9a8b0e2c976e4cfaf12dd87e1c8a4ee8344bbf5aa8a73f63"
+    },
+    "copywriting": {
+      "source": "coreyhaines31/marketingskills",
+      "sourceType": "github",
+      "computedHash": "2e83eda2221e97166172a0798e9b0379e34080595e107e2fc0cf580e9b3bbf7b"
+    },
+    "customer-persona": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "04f6cd108da7d83a9a8a4fe94d9db801c06f4695d84196b45db7a3eb11e028aa"
+    },
+    "customer-research": {
+      "source": "coreyhaines31/marketingskills",
+      "sourceType": "github",
+      "computedHash": "62fa7be6f387c021c2ced299b9b37b6a5dbfb938fd9325de461e31abd067ccbf"
+    },
+    "data-visualization": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "19ffdfb67a9e9dc7231f4fdebd58b5fb040e7f383a89765e33f3c706a8bcbbc8"
+    },
+    "debugging": {
+      "source": "poteto/noodle",
+      "sourceType": "github",
+      "computedHash": "67515a1c5460a50d6482f2425f18aafb303bbdb1edd0c36a2d236717b55789f1"
+    },
+    "dialogue-audio": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "566898a7ae801ccfd9fbb9f392c0de604bc15b9da9b7b4407c488d0b41748b2a"
+    },
+    "elevenlabs-dialogue": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "b8e25497fdf63c7d0aea35ee4b2900b71c76918ad8624d9853839b9ddd086c16"
+    },
+    "elevenlabs-dubbing": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "efb8329254dafb063ded9574d6fdafbc87ff458d4accd88d37e42530c31ef96f"
+    },
+    "elevenlabs-music": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "1c5e90ff78fb564cd97a1c381d96f78dcbdf708307b6f4a7d124b57e629a5698"
+    },
+    "elevenlabs-sound-effects": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "569e0af5a42370278094fce82084e1598edde787253aa0c399a7ab4a850a4336"
+    },
+    "elevenlabs-stt": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "020f46a2037d8d0d3bd28b3d9fd5394dc99cd01337833f85565b4e79ee9a5875"
+    },
+    "elevenlabs-tts": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "d4f43c5fa865590bf0b8f70994b1901022ce21cba1f45ff373bf60ed96a5433c"
+    },
+    "elevenlabs-voice-changer": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "2f481387c46c7f2db6cd32acad6d3de9957c6592060aa6a5d4e452ee4fce53f0"
+    },
+    "elevenlabs-voice-isolator": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "2201bf1cb23198ac6ba4d5a82ca255487224435ef6fee02b11d3ed94d3ec9afe"
+    },
+    "email-design": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "32e4ebb0f91e9aa9c0cf3c5b866a423460f94cab9386194aead0bf2718d4ac3b"
+    },
+    "email-sequence": {
+      "source": "coreyhaines31/marketingskills",
+      "sourceType": "github",
+      "computedHash": "49c9d1795813eec119a1fd9344e763fc911c05616411a68117b30d77204fa399"
+    },
+    "execute": {
+      "source": "poteto/noodle",
+      "sourceType": "github",
+      "computedHash": "ae9dd81a75349b4c5b84e4dd708b2a5db4ca666106f21db7935645157964e450"
+    },
+    "explainer-video-guide": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "a748607aae40673c875dbaf4b6ae75885d5b063c1d25d872d6a07376c313dab4"
+    },
+    "find-skills": {
+      "source": "poteto/noodle",
+      "sourceType": "github",
+      "computedHash": "dcbde82d3a424a85b3ad1d40131e2b617dea62a74b6ee1c2d5faf012f6277475"
+    },
+    "flux-image": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "f7ea61d8209d5131afa72dd31cf7a00b718c2ff70e0f16e93655b734e4def627"
+    },
+    "form-cro": {
+      "source": "coreyhaines31/marketingskills",
+      "sourceType": "github",
+      "computedHash": "d6d5dcc076f4042b333a34bb707b3bde22bf1a67f9acfb598cb4d4bf1199f3d5"
+    },
+    "free-tool-strategy": {
+      "source": "coreyhaines31/marketingskills",
+      "sourceType": "github",
+      "computedHash": "de49a0fd426d4710fc05b2759244588c6f5b5014d9cd9331a0d54dc655f023bc"
+    },
+    "frontend-design": {
+      "source": "poteto/noodle",
+      "sourceType": "github",
+      "computedHash": "2f7e10f19f9c6e9776968405e5a1ffc49664c83244dbc256a2544b8412321472"
+    },
+    "go-best-practices": {
+      "source": "poteto/noodle",
+      "sourceType": "github",
+      "computedHash": "094ce9a94e3bdca9dd5d30786d141bc73ae382b695e470655d3b2aacd3c810af"
+    },
+    "google-veo": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "ad01028deb55c0149d5bd4b570b272c4ab04ec19ddc969c402f48c694d566db8"
+    },
+    "image-to-video": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "231068def6d8e80e440e0839725bd6578f99de39d30a17fa085f6912208a19c9"
+    },
+    "image-upscaling": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "490c3ecb605a419579df906e50683596895b6c33272466fa8ba46e440b90b069"
+    },
+    "infsh-cli": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "6259217ff4c9268a34dd953a7415acffceeeeb67f9e5b3c9db364efb7d653ada"
+    },
+    "interaction-design": {
+      "source": "poteto/noodle",
+      "sourceType": "github",
+      "computedHash": "d29062841009508cb37fc4e5d8d132b8c872e7609aa16dfccca1c3fc8fe07276"
+    },
+    "javascript-sdk": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "ba7cd3d49643061b48c88b764c6abb6f84ff6b555fcc685d52ab8fe78fa0b8f3"
+    },
+    "landing-page-design": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "081e388a6bd35c8e11a7b08de47fea59e64fc5422bf1bb898f2d94175ab0eda3"
+    },
+    "launch-strategy": {
+      "source": "coreyhaines31/marketingskills",
+      "sourceType": "github",
+      "computedHash": "7f4783f7dd813e76684185f397c148b362147267c370331a7a9cf6e778189d8c"
+    },
+    "lead-magnets": {
+      "source": "coreyhaines31/marketingskills",
+      "sourceType": "github",
+      "computedHash": "b71ffc7be2d96e4887ccedf457d02c395f78e68723dab59bd8d6a2a9959ec6c4"
+    },
+    "linkedin-content": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "e5147cb713ce5ca56754edfcf494f57d582837dcb555477e92ada133dabf003e"
+    },
+    "llm-models": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "f7a4498fa41354d27613b5462049fce7f4cea654d962dd7808cc36febe420b5b"
+    },
+    "logo-design-guide": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "88b6dab119da5e33c7a669f53cb3416ce1655f29c080c646c7e21cecd9198a81"
+    },
+    "make-interfaces-feel-better": {
+      "source": "poteto/noodle",
+      "sourceType": "github",
+      "computedHash": "fb0b7d8df9c608a9a68a398be70bff6d25f596aa12696dd7a69deb7c272eed88"
+    },
+    "marketing-ideas": {
+      "source": "coreyhaines31/marketingskills",
+      "sourceType": "github",
+      "computedHash": "6463f11419704994d58248c398b99c6b097eac24f72f4c86bea1565e435e222e"
+    },
+    "marketing-psychology": {
+      "source": "coreyhaines31/marketingskills",
+      "sourceType": "github",
+      "computedHash": "ddec844d01d102687f89749e1d3a9f7a9019010dce1039a7d442189f39726ad4"
+    },
+    "meditate": {
+      "source": "poteto/noodle",
+      "sourceType": "github",
+      "computedHash": "ff3734644dccb81138aefe002fa1bde54e71a4afd801ffe20ad758e1de63bf7b"
+    },
+    "nano-banana": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "89d22b63f7090a03e805e18a0a2dd2cb1b2d6f0080082883100b5f3b85b108a8"
+    },
+    "nano-banana-2": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "af61905de3e03307321a64988d36327dcb4af1171d3bbfd3c0e3c9f757f6a040"
+    },
+    "newsletter-curation": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "10a2ea6210027b9020ac328d28b2b7d43cb47875a7622d0a857138bd15cb39ec"
+    },
+    "noodle": {
+      "source": "poteto/noodle",
+      "sourceType": "github",
+      "computedHash": "5cb317a80c7932b57f24220316777a1a9b72206ba4a36e3bb95009d806bf2f1b"
+    },
+    "og-image-design": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "e2bdbe4d11bad5e385f853c740dfdde9818bbade8e4b9a039b09256bd4a7f107"
+    },
+    "onboarding-cro": {
+      "source": "coreyhaines31/marketingskills",
+      "sourceType": "github",
+      "computedHash": "9d935c024e0768c8b805852fbf9419c2e8c56be2b9e62e89d43a390008bd1229"
+    },
+    "oops": {
+      "source": "poteto/noodle",
+      "sourceType": "github",
+      "computedHash": "167a5db77dc53ddde997430257a494397f5ccf0cf5c60f9ea44ff0b6f600a3ef"
+    },
+    "p-image": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "c8c30929e19736913a50f4496a7dc5389687bdbea2f26e19f3d3a3799e0851c3"
+    },
+    "p-video": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "b7ad074bd84fb46bc629237899a4bcdaeab9578e00a810d08c08b5008bae98e4"
+    },
+    "page-cro": {
+      "source": "coreyhaines31/marketingskills",
+      "sourceType": "github",
+      "computedHash": "9505748dba2319487b285f8ab8c1e5417fce38a512d596e1c9e2e87b34b196e1"
+    },
+    "paid-ads": {
+      "source": "coreyhaines31/marketingskills",
+      "sourceType": "github",
+      "computedHash": "74be53d9e279bafaf1f53e2612cbba0d9e4750df4116496732d877782f0c3a48"
+    },
+    "paywall-upgrade-cro": {
+      "source": "coreyhaines31/marketingskills",
+      "sourceType": "github",
+      "computedHash": "f3955bea72dc22cf5b8e2387ee310a519302ab02518498e045055b1b9bd62a0f"
+    },
+    "pitch-deck-visuals": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "b76edbbd1705c5c01729537572e0125fb20347478893b3cb371da1a1d9c747d2"
+    },
+    "plan": {
+      "source": "poteto/noodle",
+      "sourceType": "github",
+      "computedHash": "e4c7033ae034754142b8e54355d4e2d97a7e493eeeb1a9daeabd596e17bda2f4"
+    },
+    "popup-cro": {
+      "source": "coreyhaines31/marketingskills",
+      "sourceType": "github",
+      "computedHash": "5b97d79f11192e1fff0b6797629ccdd7515c82f57d1502b761e58679df2b56e5"
+    },
+    "press-release-writing": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "eea69fc9ffe96f3ed3dc43412c932a04b88f6408c7b130f23648871919d03d9d"
+    },
+    "pricing-strategy": {
+      "source": "coreyhaines31/marketingskills",
+      "sourceType": "github",
+      "computedHash": "4312095789cc328883428b1f9bd61549ca44b376aeda8d62bb977efad017e594"
+    },
+    "product-changelog": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "9ac4cfae7002e30edd83945cbde61db20f43a37dd17ce28b2048c6d086289c69"
+    },
+    "product-hunt-launch": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "3dcf6b69c3b890f05230eacb6864ffae17326f481f87c4bd4d4203e90a7203f4"
+    },
+    "product-marketing-context": {
+      "source": "coreyhaines31/marketingskills",
+      "sourceType": "github",
+      "computedHash": "21dd05f970ba54406d7405f92240853f809d0fed09ef6ca2a9204abcdd21548a"
+    },
+    "product-photography": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "af7f6defb823fdc8de485a80ee25161a7ae0b6e6e8408de3852f8ba07a109022"
+    },
+    "programmatic-seo": {
+      "source": "coreyhaines31/marketingskills",
+      "sourceType": "github",
+      "computedHash": "40b8fe29a6c9cb0606e6fa77aff227cf275e3808adf66e5ef69e02dcf60a7303"
+    },
+    "prompt-engineering": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "f577bd86f62dcd0cba96fdc330efb05a3626179a1dc8e6cd405d4b857712e0b3"
+    },
+    "python-executor": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "2979857a8ffb1b1a64665dc611caa4fa9669c47edbf242261b27a6b15638d08c"
+    },
+    "python-sdk": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "c2b779bc845089d0ac9109f976a5686dc0f10a8b9450792e9a85d9404b2f2f3e"
+    },
+    "quality": {
+      "source": "poteto/noodle",
+      "sourceType": "github",
+      "computedHash": "2631463a7a01f0dd61819c3d89ae41f840127755273e9676f7aeb0c63c94a5e7"
+    },
+    "qwen-image-2": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "0d2487f0ed089632b225ee922f1aa3ba7a4044d31a16c4deb561e9fa88d00fe9"
+    },
+    "qwen-image-2-pro": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "137f84f88a87e71bcc41081b1674e1b76e4309a9fcbdd1bf24c59eb94f780fe4"
+    },
+    "react-best-practices": {
+      "source": "poteto/noodle",
+      "sourceType": "github",
+      "computedHash": "4fbe0a3acd9812bbd18b4c5332cc6eb37279e620a976daca24d9e5762403d60c"
+    },
+    "referral-program": {
+      "source": "coreyhaines31/marketingskills",
+      "sourceType": "github",
+      "computedHash": "baefa6ed79c591d16e3056f3d8544fa2d60b896a618b931f37bf89da7af518d3"
+    },
+    "refine": {
+      "source": "poteto/noodle",
+      "sourceType": "github",
+      "computedHash": "0efce32b64060846062e6a5640152c0e7ef59a5a94bfa6281244ec267df7516e"
+    },
+    "reflect": {
+      "source": "poteto/noodle",
+      "sourceType": "github",
+      "computedHash": "0e66ad7744b9fc970ac77373019a3d972ae05f55944acad21031316f6c9407a8"
+    },
+    "related-skill": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "1f93d04c8c715555023c55bcff48d93ef9948c6e8a7f19d559ecce53a846904a"
+    },
+    "remotion-render": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "305754fdc357ed2856d08ee2f2c9d9a8d45bcaa2a7aa34f297cf6c2c8d184857"
+    },
+    "review": {
+      "source": "poteto/noodle",
+      "sourceType": "github",
+      "computedHash": "b6d22d23fb6b21a52df926aed3fab784120d986516958981a1992ebc9988df70"
+    },
+    "revops": {
+      "source": "coreyhaines31/marketingskills",
+      "sourceType": "github",
+      "computedHash": "3d80242e14a9824d2c33b9b5e957fc47c190f522f8f5f13c7cd9612784053a58"
+    },
+    "ruminate": {
+      "source": "poteto/noodle",
+      "sourceType": "github",
+      "computedHash": "04bf74a62d7e682fe75bdff4aa2ad6e5150472b890c6012bc96a55f5bbff6617"
+    },
+    "sales-enablement": {
+      "source": "coreyhaines31/marketingskills",
+      "sourceType": "github",
+      "computedHash": "7447155639ac2677bc23ef826b079bbf8e415ec35900f6a3c7b25c33e6ad856a"
+    },
+    "schedule": {
+      "source": "poteto/noodle",
+      "sourceType": "github",
+      "computedHash": "5f31c1bbcbe286161a2de16656a3c331e3995046df5580c14add1b909f7ef50f"
+    },
+    "schema-markup": {
+      "source": "coreyhaines31/marketingskills",
+      "sourceType": "github",
+      "computedHash": "6319ded25235292939050de1c51a98c6633d79f793396506eda2fa8265343758"
+    },
+    "seo-audit": {
+      "source": "coreyhaines31/marketingskills",
+      "sourceType": "github",
+      "computedHash": "1eef04180a5278a6869fab117c75fa2acf512bfda0a4b16569409b88b7bcb343"
+    },
+    "seo-content-brief": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "36a3cf9a457463ada0365111d9a61931d0239991570d4eeaed1b5db663ab6928"
+    },
+    "signup-flow-cro": {
+      "source": "coreyhaines31/marketingskills",
+      "sourceType": "github",
+      "computedHash": "8c4b9ce342ccb721eed9a4c1eb0d1ea647e5f1a77db8609509181c62636acf61"
+    },
+    "site-architecture": {
+      "source": "coreyhaines31/marketingskills",
+      "sourceType": "github",
+      "computedHash": "4cdfd1ba49925184462a7524586a5ec0b127668498e7bf2972ef0d4c112e9585"
+    },
+    "skill-creator": {
+      "source": "poteto/noodle",
+      "sourceType": "github",
+      "computedHash": "9b03bb78ec5c81c4e0546dbb78cfc970368c72dcae5482e8c59690175abbc8e7"
+    },
+    "social-content": {
+      "source": "coreyhaines31/marketingskills",
+      "sourceType": "github",
+      "computedHash": "c9d7ec3d297cdae52bd0279b226fd027664abc74aedc5f574c2d87a8f836045e"
+    },
+    "social-media-carousel": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "54851ee4bff619823e5a6ba91ea040ce41248f7eedcf830f4359433c65065287"
+    },
+    "speech-to-text": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "c7035e823c5d30c3ae8aa3bfdc947cb25a4df4af5635bad88b86e18ae9051301"
+    },
+    "storyboard-creation": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "f68fcff9beb3ef534bfe3768d3359994f4ff2846c274050d5cd702b4d1262f59"
+    },
+    "talking-head-production": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "687793437efb36e320327fb1d573cec5037ec576f8f17e05f2af32ff25c1a0ae"
+    },
+    "technical-blog-writing": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "833ef303857d5770ff2c197c89065b2087813717f136e1ca7ee1fcad6b1b25c7"
+    },
+    "testing": {
+      "source": "poteto/noodle",
+      "sourceType": "github",
+      "computedHash": "54fc94e3c8658a0039819f899dc3d0c48fb1c07ad5a41d2d1533ea237aa0c4fb"
+    },
+    "text-to-speech": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "75e0fd225dcb895bb6d18b7f97840a63e9db0b6c1d11875da54f5aabca8e5d2d"
+    },
+    "todo": {
+      "source": "poteto/noodle",
+      "sourceType": "github",
+      "computedHash": "dcdd0f18f75b05a3af4c795e47182db13c033802765a67731c72542c38c6aa9a"
+    },
+    "tools-ui": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "04454c0b2dfb6277717a704005afdc822aadddcad423404764e6381127cf7eba"
+    },
+    "ts-best-practices": {
+      "source": "poteto/noodle",
+      "sourceType": "github",
+      "computedHash": "8912564b1e2c9a954d242716c2e3714f2a221fc726d947c448f1378a9a6c2b01"
+    },
+    "twitter-automation": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "2f2f7645e961e0734c93b14a40bc0ff0dacd711c9d2bca272587b74e7bea2b56"
+    },
+    "twitter-thread-creation": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "a0fc1b9530d0136cfb151e8589c7e8a1a0b92d0806344854552d764646e3525d"
+    },
+    "unslop": {
+      "source": "poteto/noodle",
+      "sourceType": "github",
+      "computedHash": "96ca1f318c41bd0e4adaffc1c881a85555a736b5824d1a9a6ee6139d5851774a"
+    },
+    "video-ad-specs": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "29ade01cc227be26d9436d665941bf5c3d8aa48c0a530532640cc80c9d4f75c5"
+    },
+    "video-prompting-guide": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "995fe853b245b30a966184d0c114cd8a83904f04146db14bdd35c9dc2dbe1ee2"
+    },
+    "web-search": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "0556bd6038a5632fc387158c48921e68aa15d5b1227174d2ed8da95322d13809"
+    },
+    "widgets-ui": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "9d1c4d81afefbca4b2e06e1a8deef4aa85b5ab3819b027775d1ecc712601c52d"
+    },
+    "worktree": {
+      "source": "poteto/noodle",
+      "sourceType": "github",
+      "computedHash": "e0f76c1a6808fb416ec1e993e6b528eaf574877ddb3e483a35a5d0a882dd9897"
+    },
+    "youtube-thumbnail-design": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "1a4d4ca9b66da93aa7f43ce366ba92f3b1d33d4c7edf7906f93cb99ee1ce054e"
+    }
+  }
+}
