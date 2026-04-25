@@ -11,7 +11,7 @@ import { create } from 'zustand';
 import type {
   AppDB, Bookmaker, Bank, Leg, ImportLog, OnboardingStep, ViewId,
   Expense, PartnerAccount, AccountTransaction, SheetSync,
-  Client, PurchasedAccount, UserProfile,
+  Client, PurchasedAccount, UserProfile, Note,
 } from '@/types';
 import { loadDB, persistDB } from '@/lib/storage/db';
 import { loadFromSupabase, saveToSupabase, scheduleSaveToSupabase } from '@/lib/supabase/sync';
@@ -80,6 +80,11 @@ interface StoreState extends AppDB {
   setSyncing:    (v: boolean) => void;
   addExcludedImportKeys: (keys: string[]) => void;
 
+  // Actions — Notes
+  addNote:    (note: Omit<Note, 'id' | 'created_at' | 'updated_at'>) => void;
+  updateNote: (id: string, patch: Partial<Note>) => void;
+  deleteNote: (id: string) => void;
+
   // Actions — User profile
   updateProfile: (patch: Partial<UserProfile>) => void;
 
@@ -129,6 +134,7 @@ export const useStore = create<StoreState>()((set, get) => ({
   onboarding_done:     false,
   onboarding_step:     'bookmakers',
   sheetSync:           undefined,
+  notes:               [],
   excludedImportKeys:  [],
   totalCash:           0,
   initialized:         false,
@@ -155,7 +161,8 @@ export const useStore = create<StoreState>()((set, get) => ({
       const targetHouses    = db.targetHouses    ?? [];
       const sheetSync       = db.sheetSync;
       const excludedImportKeys = db.excludedImportKeys ?? [];
-      const migrated = { ...db, legs, expenses, partnerAccounts, clients, targetHouses, sheetSync, excludedImportKeys };
+      const notes              = db.notes             ?? [];
+      const migrated = { ...db, legs, expenses, partnerAccounts, clients, targetHouses, sheetSync, excludedImportKeys, notes };
       const { bms, totalCash } = recalc(migrated);
       set({ ...migrated, bms, totalCash, initialized: true });
     }
@@ -511,6 +518,35 @@ export const useStore = create<StoreState>()((set, get) => ({
       const profile = { ...(s.profile ?? { name: '', email: '', phone: '' }), ...patch };
       persist({ ...s, profile });
       return { profile };
+    });
+  },
+
+  // ── notes ────────────────────────────────────────────────────────────────
+  addNote(note) {
+    set(s => {
+      const now = new Date().toISOString();
+      const newNote: Note = { ...note, id: `note_${Date.now()}`, created_at: now, updated_at: now };
+      const notes = [newNote, ...(s.notes ?? [])];
+      persist({ ...s, notes });
+      return { notes };
+    });
+  },
+
+  updateNote(id, patch) {
+    set(s => {
+      const notes = (s.notes ?? []).map(n =>
+        n.id === id ? { ...n, ...patch, updated_at: new Date().toISOString() } : n
+      );
+      persist({ ...s, notes });
+      return { notes };
+    });
+  },
+
+  deleteNote(id) {
+    set(s => {
+      const notes = (s.notes ?? []).filter(n => n.id !== id);
+      persist({ ...s, notes });
+      return { notes };
     });
   },
 

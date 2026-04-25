@@ -5,7 +5,7 @@ import type { ViewId } from '@/types';
 import {
   LayoutDashboard, Activity, Building2, Wallet,
   BarChart3, ShieldCheck, Receipt, Users, X,
-  UserCircle, LogOut,
+  UserCircle, LogOut, NotebookPen,
 } from 'lucide-react';
 
 interface NavItem {
@@ -27,9 +27,10 @@ const NAV_FINANCE: NavItem[] = [
 ];
 
 const NAV_OTHER: NavItem[] = [
-  { id: 'analise', label: 'Análise', icon: <BarChart3   size={15} strokeWidth={2} /> },
-  { id: 'admin',   label: 'Admin',   icon: <ShieldCheck size={15} strokeWidth={2} /> },
-  { id: 'perfil',  label: 'Perfil',  icon: <UserCircle  size={15} strokeWidth={2} /> },
+  { id: 'analise', label: 'Análise', icon: <BarChart3    size={15} strokeWidth={2} /> },
+  { id: 'notas',   label: 'Notas',   icon: <NotebookPen  size={15} strokeWidth={2} /> },
+  { id: 'admin',   label: 'Admin',   icon: <ShieldCheck  size={15} strokeWidth={2} /> },
+  { id: 'perfil',  label: 'Perfil',  icon: <UserCircle   size={15} strokeWidth={2} /> },
 ];
 
 interface SidebarProps {

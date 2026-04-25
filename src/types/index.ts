@@ -220,6 +220,7 @@ export interface AppDB {
   onboarding_step: OnboardingStep;
   sheetSync?: SheetSync;
   profile?: UserProfile;
+  notes?: Note[];
   /**
    * Set of "ho|mk|bd.slice(0,16)" keys for import rows manually
    * edited/overridden. commitRows() skips these on re-import.
@@ -236,6 +237,17 @@ export interface UserProfile {
   role?: string;            // e.g. "Apostador", "Gerente"
 }
 
+// ── Notes ────────────────────────────────────────────────
+export interface Note {
+  id: string;
+  title: string;
+  body: string;
+  color: string;       // color key: 'default' | 'yellow' | 'orange' | 'green' | 'blue' | 'pink' | 'purple'
+  pinned: boolean;
+  created_at: string;  // ISO
+  updated_at: string;  // ISO
+}
+
 // ── View / navigation ────────────────────────────────────
 export type ViewId =
   | 'dash'
@@ -246,4 +258,5 @@ export type ViewId =
   | 'contas'
   | 'analise'
   | 'admin'
-  | 'perfil';
+  | 'perfil'
+  | 'notas';
