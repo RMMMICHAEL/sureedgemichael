@@ -622,7 +622,7 @@ function DuploGreenModal({ onClose }: { onClose: () => void }) {
       addLeg(leg);
     });
 
-    toastFn('Duplo Green registrado! Edite a operação para registrar o Green Antecipado.', 'ok');
+    toastFn('Duplo Green registrado! Selecione Green Antecipado para registrar a reentrada.', 'ok');
     onClose();
   }
 
@@ -1194,6 +1194,7 @@ function OpCard({
   const [legDrafts, setLegDrafts]         = useState<EditLegDraft[]>([]);
   const [cashoutLeg, setCashoutLeg]       = useState<Leg | null>(null);
   const [reentradaLegIdx, setReentradaLegIdx] = useState<number | null>(null);
+  const [viewReentradaLeg, setViewReentradaLeg] = useState<Leg | null>(null);
   // For Delay / Outros / DuploGreen: edit only the profit value
   const [altProfitEdit, setAltProfitEdit] = useState('');
 
@@ -1778,6 +1779,17 @@ function OpCard({
                             R$ {leg.cashoutValue.toFixed(2)}
                           </span>
                         )}
+                        {opType === 'duplo_green' && leg.re === 'Green Antecipado' && !leg.ev.endsWith('(Reentrada)') && (
+                          <button
+                            type="button"
+                            onClick={() => setViewReentradaLeg(leg)}
+                            className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-lg transition-all"
+                            style={{ background: 'rgba(255,203,47,.1)', color: '#FFCB2F', border: '1px solid rgba(255,203,47,.25)' }}
+                          >
+                            <Zap size={10} />
+                            Reentrada
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -1800,6 +1812,16 @@ function OpCard({
                           style={{ background: 'rgba(255,191,0,.1)', color: '#FFBF00', border: '1px solid rgba(255,191,0,.2)' }}
                         >
                           <DollarSign size={10} /> Cashout
+                        </button>
+                      )}
+                      {opType === 'duplo_green' && leg.re === 'Green Antecipado' && !leg.ev.endsWith('(Reentrada)') && (
+                        <button
+                          type="button"
+                          onClick={() => setViewReentradaLeg(leg)}
+                          className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg font-bold"
+                          style={{ background: 'rgba(255,203,47,.1)', color: '#FFCB2F', border: '1px solid rgba(255,203,47,.25)' }}
+                        >
+                          <Zap size={10} /> Reentrada
                         </button>
                       )}
                       <StatusPill
@@ -1843,6 +1865,40 @@ function OpCard({
           onClose={() => setCashoutLeg(null)}
         />
       )}
+
+      {viewReentradaLeg && (() => {
+        const mainLegs  = op.legs.filter(l => !l.ev.endsWith('(Reentrada)'));
+        const totalSt   = mainLegs.reduce((s, l) => s + (l.st || 0), 0);
+        const locked    = (viewReentradaLeg.st || 0) * (viewReentradaLeg.od || 0) - totalSt;
+        const existingRe = op.legs.find(l => l.ev.endsWith('(Reentrada)') && l.mk === viewReentradaLeg.mk);
+        return (
+          <ReentradaModal
+            legMk={viewReentradaLeg.mk}
+            defaultHo={viewReentradaLeg.ho}
+            lockedProfit={locked}
+            existing={existingRe ? { ho: existingRe.ho, od: String(existingRe.od), st: String(existingRe.st) } : undefined}
+            onSave={re => {
+              const reOd = parseFloat(re.od.replace(',', '.')) || 0;
+              const reSt = parseFloat(re.st.replace(',', '.')) || 0;
+              if (reOd > 0 && reSt > 0) {
+                if (existingRe) deleteLeg(existingRe.id);
+                const releg: Leg = {
+                  id: `l_dg_re_${Date.now()}`, oid: viewReentradaLeg.oid,
+                  bd: viewReentradaLeg.bd, ed: viewReentradaLeg.ed,
+                  sp: viewReentradaLeg.sp, ev: `${op.event ?? viewReentradaLeg.ev} (Reentrada)`,
+                  ho: re.ho || viewReentradaLeg.ho, mk: viewReentradaLeg.mk,
+                  od: reOd, st: reSt, re: 'Pendente', pc: 0, pr: 0, fl: [],
+                  source: 'manual', signal: 'pre', opType: 'duplo_green',
+                };
+                addLeg(releg);
+                toastFn('Reentrada registrada!', 'ok');
+              }
+              setViewReentradaLeg(null);
+            }}
+            onClose={() => setViewReentradaLeg(null)}
+          />
+        );
+      })()}
 
       {reentradaLegIdx !== null && legDrafts[reentradaLegIdx] && (() => {
         const idx    = reentradaLegIdx;
