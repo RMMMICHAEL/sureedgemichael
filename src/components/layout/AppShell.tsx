@@ -111,9 +111,12 @@ export function AppShell() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialized, onboardingDone, sheetSync?.url]);
 
-  // Subscription gate: show pricing page if subscription is not active.
-  // subChecked prevents a flash of the pricing page during initial load.
-  if (subChecked && !subActive) {
+  // Blank screen while checking — prevents flash of full app before gate resolves
+  if (!subChecked) {
+    return <div style={{ minHeight: '100vh', background: 'var(--bg)' }} />;
+  }
+
+  if (!subActive) {
     return (
       <>
         <PricingPage />

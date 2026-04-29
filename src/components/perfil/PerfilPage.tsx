@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useStore } from '@/store/useStore';
 import { getSupabaseClient } from '@/lib/supabase/client';
-import { Camera, LogOut } from 'lucide-react';
+import { getMySubscription, PLAN_LABELS, type Subscription } from '@/lib/supabase/subscription';
+import { Camera, LogOut, AlertTriangle } from 'lucide-react';
 
 // ── Avatar ────────────────────────────────────────────────────────────────────
 
@@ -46,6 +47,21 @@ export function PerfilPage() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [sub, setSub] = useState<Subscription | null>(null);
+
+  useEffect(() => {
+    getMySubscription().then(setSub);
+  }, []);
+
+  const expiresAt   = sub?.expires_at ? new Date(sub.expires_at) : null;
+  const daysLeft    = expiresAt ? Math.ceil((expiresAt.getTime() - Date.now()) / 86_400_000) : null;
+  const isExpiring  = daysLeft !== null && daysLeft <= 7 && daysLeft > 0;
+  const isExpired   = sub?.status === 'expired' || sub?.status === 'cancelled' || (daysLeft !== null && daysLeft <= 0);
+  const planLabel   = sub ? PLAN_LABELS[sub.plan] : '—';
+  const statusLabel = isExpired ? 'Expirado' : sub?.status === 'active' ? 'Ativo' : '—';
+  const expiryText  = expiresAt
+    ? expiresAt.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    : sub?.status === 'active' ? 'Vitalício' : '—';
 
   const name   = profile?.name  ?? '';
   const role   = profile?.role  ?? 'Apostador';
@@ -150,54 +166,73 @@ export function PerfilPage() {
           </div>
 
           {/* Plan info row */}
-          <div
-            className="flex items-center gap-0 rounded-xl w-full overflow-hidden"
-            style={{ border: '1px solid rgba(63,255,33,.14)' }}
-          >
+          <div className="flex flex-col gap-2 w-full">
             <div
-              className="flex flex-col gap-1 flex-1 px-5 py-4"
-              style={{ background: 'rgba(63,255,33,.05)' }}
+              className="flex items-center gap-0 rounded-xl w-full overflow-hidden"
+              style={{
+                border: isExpired
+                  ? '1px solid rgba(255,69,69,.25)'
+                  : isExpiring
+                    ? '1px solid rgba(255,180,0,.25)'
+                    : '1px solid rgba(63,255,33,.14)',
+              }}
             >
-              <span
-                className="text-[9px] font-black uppercase tracking-[.16em]"
-                style={{ color: 'var(--t3)' }}
+              <div
+                className="flex flex-col gap-1 flex-1 px-5 py-4"
+                style={{ background: isExpired ? 'rgba(255,69,69,.05)' : 'rgba(63,255,33,.05)' }}
               >
-                Plano atual
-              </span>
-              <div className="flex items-center gap-2 mt-0.5">
-                <span className="text-sm font-bold" style={{ color: 'var(--t)' }}>Pro</span>
+                <span className="text-[9px] font-black uppercase tracking-[.16em]" style={{ color: 'var(--t3)' }}>
+                  Plano atual
+                </span>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <span className="text-sm font-bold" style={{ color: 'var(--t)' }}>{planLabel}</span>
+                  <span
+                    className="text-[9px] px-2 py-0.5 rounded-md font-black uppercase tracking-wider"
+                    style={
+                      isExpired
+                        ? { background: 'rgba(255,69,69,.12)', color: 'var(--r)', border: '1px solid rgba(255,69,69,.2)' }
+                        : { background: 'rgba(63,255,33,.12)', color: 'var(--g)', border: '1px solid rgba(63,255,33,.2)' }
+                    }
+                  >
+                    {statusLabel}
+                  </span>
+                </div>
+              </div>
+
+              <div style={{ width: 1, alignSelf: 'stretch', background: isExpired ? 'rgba(255,69,69,.15)' : 'rgba(63,255,33,.12)' }} />
+
+              <div className="flex flex-col gap-1 flex-1 px-5 py-4" style={{ background: 'rgba(63,255,33,.03)' }}>
+                <span className="text-[9px] font-black uppercase tracking-[.16em]" style={{ color: 'var(--t3)' }}>
+                  Vencimento
+                </span>
                 <span
-                  className="text-[9px] px-2 py-0.5 rounded-md font-black uppercase tracking-wider"
-                  style={{
-                    background: 'rgba(63,255,33,.12)',
-                    color: 'var(--g)',
-                    border: '1px solid rgba(63,255,33,.2)',
-                  }}
+                  className="text-sm font-mono font-bold mt-0.5"
+                  style={{ color: isExpired ? 'var(--r)' : isExpiring ? 'rgba(255,180,0,1)' : 'var(--t2)' }}
                 >
-                  Ativo
+                  {expiryText}
                 </span>
               </div>
             </div>
 
-            <div style={{ width: 1, alignSelf: 'stretch', background: 'rgba(63,255,33,.12)' }} />
-
-            <div
-              className="flex flex-col gap-1 flex-1 px-5 py-4"
-              style={{ background: 'rgba(63,255,33,.03)' }}
-            >
-              <span
-                className="text-[9px] font-black uppercase tracking-[.16em]"
-                style={{ color: 'var(--t3)' }}
+            {/* Renewal reminder */}
+            {isExpiring && !isExpired && (
+              <div
+                className="flex items-center gap-2 px-4 py-3 rounded-xl text-xs font-bold"
+                style={{ background: 'rgba(255,180,0,.08)', border: '1px solid rgba(255,180,0,.22)', color: 'rgba(255,180,0,1)' }}
               >
-                Vencimento
-              </span>
-              <span
-                className="text-sm font-mono font-bold mt-0.5"
-                style={{ color: 'var(--t2)' }}
+                <AlertTriangle size={13} style={{ flexShrink: 0 }} />
+                Seu plano vence em {daysLeft} dia{daysLeft !== 1 ? 's' : ''} — renove para não perder o acesso.
+              </div>
+            )}
+            {isExpired && (
+              <div
+                className="flex items-center gap-2 px-4 py-3 rounded-xl text-xs font-bold"
+                style={{ background: 'rgba(255,69,69,.08)', border: '1px solid rgba(255,69,69,.22)', color: 'var(--r)' }}
               >
-                —
-              </span>
-            </div>
+                <AlertTriangle size={13} style={{ flexShrink: 0 }} />
+                Plano expirado — renove para recuperar o acesso completo.
+              </div>
+            )}
           </div>
         </div>
       </div>
