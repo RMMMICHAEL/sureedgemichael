@@ -64,7 +64,7 @@ export const PLAN_PRICES: Record<PlanId, number> = {
 
 export const ADMIN_EMAILS = [
   'michael.martins.trader@gmail.com',
-  'michaelrodrifues04@gmail.com',
+  'rmmichael20@gmail.com',
 ];
 
 export function isAdminEmail(email: string | null | undefined): boolean {
