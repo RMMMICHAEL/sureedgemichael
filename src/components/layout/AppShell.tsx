@@ -17,8 +17,10 @@ import { AnalisePage }     from '@/components/analise/AnalisePage';
 import { AdminPage }       from '@/components/admin/AdminPage';
 import { PerfilPage }      from '@/components/perfil/PerfilPage';
 import { NotasPage }       from '@/components/notas/NotasPage';
+import { PricingPage }     from '@/components/pricing/PricingPage';
 import { syncFromSheet }   from '@/lib/import/sheetsSync';
 import { commitRows }      from '@/lib/import/importEngine';
+import { getMySubscription, isSubscriptionActive } from '@/lib/supabase/subscription';
 
 export function AppShell() {
   const view           = useStore(s => s.view);
@@ -32,7 +34,17 @@ export function AppShell() {
   const setSyncing          = useStore(s => s.setSyncing);
   const toastFn             = useStore(s => s.toast);
 
-  const [mobileOpen, setMobileOpen] = useState(false);
+  const [mobileOpen,    setMobileOpen]    = useState(false);
+  const [subChecked,    setSubChecked]    = useState(false);
+  const [subActive,     setSubActive]     = useState(false);
+
+  // ── Subscription gate ─────────────────────────────────────────────────────
+  useEffect(() => {
+    getMySubscription().then(sub => {
+      setSubActive(isSubscriptionActive(sub));
+      setSubChecked(true);
+    });
+  }, []);
 
   // ── Auto-refresh: sync on mount + every 60 s ────────────────────────────────
   const legsRef = useRef(legs);
@@ -98,6 +110,17 @@ export function AppShell() {
     return () => clearInterval(id);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialized, onboardingDone, sheetSync?.url]);
+
+  // Subscription gate: show pricing page if subscription is not active.
+  // subChecked prevents a flash of the pricing page during initial load.
+  if (subChecked && !subActive) {
+    return (
+      <>
+        <PricingPage />
+        <ToastStack />
+      </>
+    );
+  }
 
   return (
     <div className="flex min-h-screen" style={{ background: 'var(--bg)' }}>

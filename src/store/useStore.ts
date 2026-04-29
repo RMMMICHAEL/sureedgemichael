@@ -52,6 +52,7 @@ interface StoreState extends AppDB {
   updateBookmaker: (id: string, patch: Partial<Bookmaker>) => void;
   deleteBookmaker: (id: string) => void;
   addBank:         (bank: Omit<Bank, 'id'>) => void;
+  updateBank:      (id: string, patch: Partial<Omit<Bank, 'id'>>) => void;
   deleteBank:      (id: string) => void;
 
   // Actions — Expenses
@@ -304,6 +305,15 @@ export const useStore = create<StoreState>()((set, get) => ({
   addBank(bank) {
     set(s => {
       const banks = [...s.banks, { ...bank, id: `bank_${Date.now()}` }];
+      persist({ ...s, banks });
+      const totalCash = [...s.bms.map(b => b.balance), ...banks.map(b => b.balance)].reduce((a, v) => a + v, 0);
+      return { banks, totalCash };
+    });
+  },
+
+  updateBank(id, patch) {
+    set(s => {
+      const banks = s.banks.map(b => b.id === id ? { ...b, ...patch } : b);
       persist({ ...s, banks });
       const totalCash = [...s.bms.map(b => b.balance), ...banks.map(b => b.balance)].reduce((a, v) => a + v, 0);
       return { banks, totalCash };

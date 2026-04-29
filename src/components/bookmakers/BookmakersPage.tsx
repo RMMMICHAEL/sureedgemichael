@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import type { Bookmaker, BookmakerCredentials, Bank } from '@/types';
 import { houseFavicon } from '@/lib/bookmakers/logos';
+import { calcBmLegProfit } from '@/lib/finance/reconciler';
 
 // ── Clone groups data ─────────────────────────────────────────────────────────
 
@@ -395,18 +396,14 @@ function BMForm({ existing, presetName, presetColor, onClose }: BMFormProps) {
   function save() {
     if (!name.trim()) { toastFn('Nome obrigatório', 'wrn'); return; }
     const newBalance = parseFloat(balance.replace(',', '.')) || 0;
-    // When editing, preserve the profit delta so the displayed balance equals what the user typed.
-    // initial_balance = newDisplayedBalance - existingProfit
-    const initial_balance = existing
-      ? newBalance - (existing.balance - existing.initial_balance)
-      : newBalance;
     const credentials: BookmakerCredentials | undefined =
       username.trim() ? { username: username.trim(), password, notes: credNotes } : undefined;
     if (existing) {
-      updateBookmaker(existing.id, { name: name.trim(), color, initial_balance, notes, status, credentials });
+      // balance is stored directly — no auto-calculation from legs
+      updateBookmaker(existing.id, { name: name.trim(), color, balance: newBalance, initial_balance: newBalance, notes, status, credentials });
       toastFn('Casa atualizada', 'ok');
     } else {
-      addBookmaker({ name: name.trim(), abbr: abbr(name), color, initial_balance, status, notes, credentials });
+      addBookmaker({ name: name.trim(), abbr: abbr(name), color, initial_balance: newBalance, status, notes, credentials });
       toastFn('Casa adicionada', 'ok');
     }
     onClose();
@@ -433,13 +430,11 @@ function BMForm({ existing, presetName, presetColor, onClose }: BMFormProps) {
         </div>
 
         <label className="flex flex-col gap-1.5">
-          <span className="text-xs font-bold" style={labelStyle}>{existing ? 'SALDO ATUAL (R$)' : 'SALDO INICIAL (R$)'}</span>
+          <span className="text-xs font-bold" style={labelStyle}>SALDO ATUAL (R$)</span>
           <input value={balance} onChange={e => setBalance(e.target.value)} placeholder="0,00"
             className="px-3 py-2.5 rounded-lg text-sm font-mono" style={inputStyle} />
           <span className="text-xs" style={labelStyle}>
-            {existing
-              ? 'Saldo real atual na casa. Operações manuais continuarão movimentando a partir deste valor.'
-              : 'Valor atualmente depositado. Manual — não é afetado por dados importados.'}
+            Saldo real que você tem na casa agora. Atualize manualmente quando necessário — não é alterado automaticamente por apostas.
           </span>
         </label>
 
@@ -508,7 +503,7 @@ function BMForm({ existing, presetName, presetColor, onClose }: BMFormProps) {
 
 function BankForm({ existing, onClose }: { existing?: Bank; onClose: () => void }) {
   const addBank    = useStore(s => s.addBank);
-  const deleteBank = useStore(s => s.deleteBank);
+  const updateBank = useStore(s => s.updateBank);
   const toastFn    = useStore(s => s.toast);
 
   const [name,    setName]    = useState(existing?.name    ?? '');
@@ -519,13 +514,19 @@ function BankForm({ existing, onClose }: { existing?: Bank; onClose: () => void 
 
   function save() {
     if (!name.trim()) { toastFn('Nome obrigatório', 'wrn'); return; }
-    addBank({ name: name.trim(), balance: parseFloat(balance.replace(',', '.')) || 0, notes });
-    toastFn('Banco adicionado', 'ok');
+    const bal = parseFloat(balance.replace(',', '.')) || 0;
+    if (existing) {
+      updateBank(existing.id, { name: name.trim(), balance: bal, notes });
+      toastFn('Banco atualizado', 'ok');
+    } else {
+      addBank({ name: name.trim(), balance: bal, notes });
+      toastFn('Banco adicionado', 'ok');
+    }
     onClose();
   }
 
   return (
-    <Modal title="Adicionar Banco" onClose={onClose} size="sm">
+    <Modal title={existing ? 'Editar Banco' : 'Adicionar Banco'} onClose={onClose} size="sm">
       <div className="flex flex-col gap-3">
         <label className="flex flex-col gap-1.5">
           <span className="text-xs font-bold" style={{ color: 'var(--t3)' }}>NOME DO BANCO</span>
@@ -533,7 +534,7 @@ function BankForm({ existing, onClose }: { existing?: Bank; onClose: () => void 
             className="px-3 py-2.5 rounded-lg text-sm" style={inputStyle} autoFocus />
         </label>
         <label className="flex flex-col gap-1.5">
-          <span className="text-xs font-bold" style={{ color: 'var(--t3)' }}>SALDO (R$)</span>
+          <span className="text-xs font-bold" style={{ color: 'var(--t3)' }}>SALDO ATUAL (R$)</span>
           <input value={balance} onChange={e => setBalance(e.target.value)} placeholder="0,00"
             className="px-3 py-2.5 rounded-lg text-sm font-mono" style={inputStyle} />
         </label>
@@ -545,7 +546,7 @@ function BankForm({ existing, onClose }: { existing?: Bank; onClose: () => void 
       </div>
       <div className="flex justify-end gap-2 mt-5 pt-4" style={{ borderTop: '1px solid var(--b)' }}>
         <Button variant="ghost" onClick={onClose}>Cancelar</Button>
-        <Button variant="primary" onClick={save}>Adicionar</Button>
+        <Button variant="primary" onClick={save}>{existing ? 'Salvar' : 'Adicionar'}</Button>
       </div>
     </Modal>
   );
@@ -631,19 +632,21 @@ function CloneGroupCard({ group, open, onToggle }: { group: CloneGroup; open: bo
 export function BookmakersPage() {
   const bms             = useStore(s => s.bms);
   const banks           = useStore(s => s.banks);
+  const legs            = useStore(s => s.legs);
   const deleteBookmaker = useStore(s => s.deleteBookmaker);
   const deleteBank      = useStore(s => s.deleteBank);
   const toastFn         = useStore(s => s.toast);
 
-  const [tab,         setTab]         = useState<'minhas' | 'clones'>('minhas');
-  const [showCatalog, setShowCatalog] = useState(false);
-  const [showForm,    setShowForm]    = useState(false);
-  const [showBankForm,setShowBankForm]= useState(false);
-  const [editing,     setEditing]     = useState<Bookmaker | undefined>(undefined);
-  const [presetName,  setPresetName]  = useState('');
-  const [presetColor, setPresetColor] = useState('');
-  const [cloneSearch, setCloneSearch] = useState('');
-  const [openCloneId, setOpenCloneId] = useState<string | null>(null);
+  const [tab,          setTab]          = useState<'minhas' | 'clones'>('minhas');
+  const [showCatalog,  setShowCatalog]  = useState(false);
+  const [showForm,     setShowForm]     = useState(false);
+  const [showBankForm, setShowBankForm] = useState(false);
+  const [editing,      setEditing]      = useState<Bookmaker | undefined>(undefined);
+  const [editingBank,  setEditingBank]  = useState<Bank | undefined>(undefined);
+  const [presetName,   setPresetName]   = useState('');
+  const [presetColor,  setPresetColor]  = useState('');
+  const [cloneSearch,  setCloneSearch]  = useState('');
+  const [openCloneId,  setOpenCloneId]  = useState<string | null>(null);
 
   const totalBmCash   = bms.reduce((s, b) => s + b.balance, 0);
   const totalBankCash = banks.reduce((s, b) => s + b.balance, 0);
@@ -655,6 +658,10 @@ export function BookmakersPage() {
 
   function openEdit(bm: Bookmaker) {
     setEditing(bm); setPresetName(''); setPresetColor(''); setShowForm(true);
+  }
+
+  function openBankEdit(bank: Bank) {
+    setEditingBank(bank); setShowBankForm(true);
   }
 
   const statusColors: Record<string, string> = { ativa: 'var(--g)', inativa: 'var(--t3)', limitada: 'var(--y)' };
@@ -717,24 +724,16 @@ export function BookmakersPage() {
       {/* ── Tab: Minhas Casas ── */}
       {tab === 'minhas' && (
         <>
-          {/* Observation note */}
-          {bms.length > 0 && (
-            <div className="flex items-start gap-3 px-4 py-3 rounded-xl text-xs"
-              style={{ background: 'rgba(63,255,33,.06)', border: '1px solid rgba(63,255,33,.15)', color: 'var(--t2)' }}>
-              <span style={{ color: 'var(--g)', flexShrink: 0, marginTop: 1 }}>ℹ</span>
-              <span>O site sincronizou as casas mais utilizadas da sua operação. Caso você não tenha alguma das casas abaixo, pode remover e editar!</span>
-            </div>
-          )}
-
           {/* KPIs */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {[
-              { label: 'Saldo em Casas de Apostas', value: fmtBRL(totalBmCash),   color: totalBmCash >= 0   ? 'var(--g)' : 'var(--r)' },
-              { label: 'Saldo em Bancos',           value: fmtBRL(totalBankCash), color: 'var(--bl)' },
+              { label: 'Saldo em Casas de Apostas', value: `R$ ${Math.abs(totalBmCash).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, color: 'var(--g)', sub: 'atualizado manualmente' },
+              { label: 'Saldo em Bancos',           value: `R$ ${Math.abs(totalBankCash).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, color: 'var(--bl)', sub: 'atualizado manualmente' },
             ].map(k => (
               <div key={k.label} className="rounded-2xl p-5" style={{ background: 'var(--bg2)', border: '1px solid var(--b)' }}>
-                <div className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: 'var(--t2)' }}>{k.label}</div>
+                <div className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: 'var(--t3)' }}>{k.label}</div>
                 <div className="text-xl font-extrabold font-mono" style={{ color: k.color }}>{k.value}</div>
+                <div className="text-[10px] mt-1.5" style={{ color: 'var(--t3)' }}>{k.sub}</div>
               </div>
             ))}
           </div>
@@ -751,8 +750,8 @@ export function BookmakersPage() {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
               {bms.map(bm => {
-                const profit = bm.balance - bm.initial_balance;
-                const col    = bm.color || bmColor(bm.name);
+                const col       = bm.color || bmColor(bm.name);
+                const legProfit = calcBmLegProfit(bm.name, legs);
                 return (
                   <div
                     key={bm.id}
@@ -800,12 +799,22 @@ export function BookmakersPage() {
                       </div>
                     </div>
 
-                    <div className="rounded-xl p-3" style={{ background: 'var(--bg3, var(--bg))' }}>
-                      <div className="text-xs mb-0.5" style={{ color: 'var(--t3)' }}>Saldo atual</div>
-                      <div className="text-lg font-extrabold font-mono"
-                        style={{ color: 'var(--g)' }}>
-                        R$ {Math.abs(bm.balance).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    {/* Balance breakdown */}
+                    <div className="flex gap-2">
+                      <div className="flex-1 rounded-xl p-3" style={{ background: 'var(--bg3, var(--bg))' }}>
+                        <div className="text-[10px] font-bold uppercase tracking-wide mb-0.5" style={{ color: 'var(--t3)' }}>Saldo manual</div>
+                        <div className="text-base font-extrabold font-mono" style={{ color: 'var(--g)' }}>
+                          R$ {bm.balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </div>
                       </div>
+                      {legProfit !== 0 && (
+                        <div className="flex-1 rounded-xl p-3" style={{ background: 'var(--bg3, var(--bg))' }}>
+                          <div className="text-[10px] font-bold uppercase tracking-wide mb-0.5" style={{ color: 'var(--t3)' }}>Lucro registrado</div>
+                          <div className="text-base font-extrabold font-mono" style={{ color: legProfit >= 0 ? 'var(--g)' : 'var(--r)' }}>
+                            {legProfit >= 0 ? '+' : '−'}R$ {Math.abs(legProfit).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
@@ -837,6 +846,10 @@ export function BookmakersPage() {
                     <span className="text-sm font-bold font-mono" style={{ color: 'var(--bl)' }}>
                       R$ {bank.balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                     </span>
+                    <button onClick={() => openBankEdit(bank)}
+                      className="w-6 h-6 rounded flex items-center justify-center flex-shrink-0" style={{ color: 'var(--t3)' }}>
+                      <Pencil size={11} />
+                    </button>
                     <button
                       onClick={() => { if (confirm(`Remover ${bank.name}?`)) { deleteBank(bank.id); toastFn('Banco removido', 'ok'); } }}
                       className="w-6 h-6 rounded flex items-center justify-center flex-shrink-0"
@@ -940,7 +953,9 @@ export function BookmakersPage() {
         <BMForm existing={editing} presetName={presetName} presetColor={presetColor}
           onClose={() => { setShowForm(false); setEditing(undefined); }} />
       )}
-      {showBankForm && <BankForm onClose={() => setShowBankForm(false)} />}
+      {showBankForm && (
+        <BankForm existing={editingBank} onClose={() => { setShowBankForm(false); setEditingBank(undefined); }} />
+      )}
     </div>
   );
 }

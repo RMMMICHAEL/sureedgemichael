@@ -52,28 +52,38 @@ export function normHouse(name: string | undefined): string {
   return HOUSE_MAP[trimmed] ?? HOUSE_MAP_LOWER[trimmed.toLowerCase()] ?? trimmed;
 }
 
+/**
+ * Recalculates bookmaker metadata from legs.
+ *
+ * BALANCE MODEL (v2): balance is a MANUAL snapshot set by the user.
+ * It is never auto-derived from leg profits to prevent double-counting when
+ * the user updates the balance after profits have already settled.
+ * Only the ops counter is derived from legs here.
+ *
+ * To compute "profit from bets" for a bookmaker, use calcBmLegProfit().
+ */
 export function recalcBookmakers(bms: Bookmaker[], legs: Leg[]): Bookmaker[] {
-  return bms.map(bm => {
-    // REGRA: apenas operações manuais (source === 'manual' ou undefined antigo)
-    // movimentam o saldo da casa. Legs com source === 'import' são dados
-    // históricos da planilha e NÃO interferem no saldo atual — servem apenas
-    // para análise, dashboard e relatórios.
-    //
-    // Isso garante que importar histórico não "bugue" o saldo atual das casas.
-    const bmLegs = legs.filter(
+  return bms.map(bm => ({
+    ...bm,
+    ops: legs.filter(l => normHouse(l.ho) === bm.name).length,
+  }));
+}
+
+/**
+ * Returns the net profit from settled manual legs for a given bookmaker name.
+ * Use this for display purposes only — it does NOT affect the stored balance.
+ */
+export function calcBmLegProfit(bmName: string, legs: Leg[]): number {
+  return +legs
+    .filter(
       l =>
-        normHouse(l.ho) === bm.name &&
+        normHouse(l.ho) === bmName &&
         l.re !== 'Pendente' &&
         l.re !== 'Devolvido' &&
-        l.source !== 'import'
-    );
-    const totalProfit = bmLegs.reduce((s, l) => s + calcLegProfit(l), 0);
-    return {
-      ...bm,
-      balance: +(bm.initial_balance + totalProfit).toFixed(2),
-      ops: legs.filter(l => normHouse(l.ho) === bm.name).length,
-    };
-  });
+        l.source !== 'import',
+    )
+    .reduce((s, l) => s + calcLegProfit(l), 0)
+    .toFixed(2);
 }
 
 // ── House colours ────────────────────────────────────────────────────────────
