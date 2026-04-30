@@ -274,8 +274,8 @@ export function LoginForm() {
       {/* ═══════════════ RIGHT PANEL — form ═══════════════ */}
       <div style={{
         width: '100%', maxWidth: 480,
-        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-        padding: 'clamp(32px, 6vh, 56px) clamp(20px, 5vw, 40px)',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start',
+        padding: 'clamp(40px, 7vh, 72px) clamp(20px, 5vw, 40px) 32px',
         overflowY: 'auto',
       }}>
         {/* Mobile logo */}
