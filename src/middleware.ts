@@ -45,7 +45,8 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/login') ||
     pathname.startsWith('/auth') ||
     pathname.startsWith('/pricing') ||
-    pathname.startsWith('/api/webhook');
+    pathname.startsWith('/api/webhook') ||
+    pathname.startsWith('/api/subscription');
 
   if (!user && !isPublicRoute) {
     const url = request.nextUrl.clone();
