@@ -181,7 +181,7 @@ export function LoginForm() {
       <div className="hidden lg:flex" style={{
         flex: 1, flexDirection: 'column', padding: 40,
         background: '#060A07', position: 'relative', overflow: 'hidden',
-        borderRight: '1px solid rgba(255,255,255,.05)',
+        borderRight: '1px solid rgba(255,255,255,.09)',
       }}>
         <MiniParticles />
         {/* Ambient glow */}
@@ -190,10 +190,10 @@ export function LoginForm() {
         <div className="dot-grid" style={{ position: 'absolute', inset: 0, opacity: 0.35 }} />
 
         {/* Content */}
-        <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', height: '100%' }}>
+        <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', height: '100%', justifyContent: 'space-between' }}>
 
           {/* Logo */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 56 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 24 }}>
             <div style={{
               width: 38, height: 38, borderRadius: 11,
               background: 'linear-gradient(135deg,#3FFF21 0%,#00CC6E 100%)',
@@ -224,29 +224,29 @@ export function LoginForm() {
           </div>
 
           {/* Stats row */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 40 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 32 }}>
             {[
-              { val: '2.847+', label: 'Operações' },
-              { val: '3.8%', label: 'ROI médio' },
-              { val: '37+', label: 'Bookmakers' },
+              { val: '2.847+', label: 'Operações', color: '#4DA6FF' },
+              { val: '3.8%',   label: 'ROI médio',   color: '#3FFF21' },
+              { val: '37+',    label: 'Bookmakers',  color: '#FFD600' },
             ].map(s => (
               <div key={s.label} style={{
                 background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.07)',
                 borderRadius: 12, padding: '14px 12px', textAlign: 'center',
               }}>
-                <div style={{ fontSize: 20, fontWeight: 800, color: '#3FFF21', fontFamily: 'JetBrains Mono', letterSpacing: '-0.03em' }}>{s.val}</div>
+                <div style={{ fontSize: 20, fontWeight: 800, color: s.color, fontFamily: 'JetBrains Mono', letterSpacing: '-0.03em' }}>{s.val}</div>
                 <div style={{ fontSize: 11, color: 'var(--t3)', marginTop: 4 }}>{s.label}</div>
               </div>
             ))}
           </div>
 
           {/* Live ticker */}
-          <div style={{ flex: 1, minHeight: 0 }}>
+          <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
               <div className="live-dot" />
               <span style={{ fontSize: 11, color: 'var(--t3)', fontFamily: 'JetBrains Mono', letterSpacing: '0.08em' }}>OPERAÇÕES AO VIVO</span>
             </div>
-            <div style={{ height: 320, overflow: 'hidden' }}>
+            <div style={{ flex: 1, overflow: 'hidden' }}>
               <LiveTicker />
             </div>
           </div>
@@ -292,7 +292,7 @@ export function LoginForm() {
         <div className="w-full animate-scale-in">
           {/* Header */}
           <div style={{ marginBottom: 32 }}>
-            <h2 style={{ fontFamily: 'Manrope', fontWeight: 900, fontSize: 26, letterSpacing: '-0.03em', marginBottom: 8 }}>
+            <h2 style={{ fontFamily: 'Manrope', fontWeight: 900, fontSize: 32, letterSpacing: '-0.04em', marginBottom: 8 }}>
               {mode === 'reset' ? 'Redefinir senha' : mode === 'signup' ? 'Criar sua conta' : 'Bem-vindo de volta'}
             </h2>
             <p style={{ color: 'var(--t3)', fontSize: 14 }}>
@@ -314,10 +314,10 @@ export function LoginForm() {
                   style={{
                     flex: 1, padding: '10px 0', borderRadius: 9, fontSize: 13, fontWeight: 700,
                     cursor: 'pointer', transition: 'all .18s',
-                    border: mode === m ? '1px solid rgba(63,255,33,.2)' : 'none',
-                    background: mode === m ? 'rgba(63,255,33,.12)' : 'none',
+                    border: mode === m ? '1px solid rgba(63,255,33,.14)' : '1px solid transparent',
+                    background: mode === m ? 'rgba(63,255,33,.08)' : 'none',
                     color: mode === m ? '#3FFF21' : 'var(--t3)',
-                    boxShadow: mode === m ? '0 2px 10px rgba(63,255,33,.1)' : 'none',
+                    boxShadow: 'none',
                   }}
                 >
                   {m === 'login' ? 'Entrar' : 'Criar conta'}
