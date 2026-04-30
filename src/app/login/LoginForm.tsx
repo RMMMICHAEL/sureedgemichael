@@ -464,7 +464,7 @@ export function LoginForm() {
               </p>
               <button
                 type="button"
-                onClick={() => router.push('/')}
+                onClick={() => router.push('/pricing')}
                 style={{
                   display: 'inline-flex', alignItems: 'center', gap: 6,
                   color: '#3FFF21', fontSize: 13, fontWeight: 700,
