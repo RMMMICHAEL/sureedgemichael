@@ -13,7 +13,7 @@ import type {
   Expense, PartnerAccount, AccountTransaction, SheetSync,
   Client, PurchasedAccount, UserProfile, Note,
 } from '@/types';
-import { loadDB, persistDB } from '@/lib/storage/db';
+import { loadDB, persistDB, loadUserId, saveUserId, wipeDB, EMPTY_DB } from '@/lib/storage/db';
 import { loadFromSupabase, saveToSupabase, scheduleSaveToSupabase } from '@/lib/supabase/sync';
 import { recalcBookmakers, normHouse, bmColor, bmAbbr } from '@/lib/finance/reconciler';
 import { calcLegProfit } from '@/lib/finance/calculator';
@@ -171,10 +171,23 @@ export const useStore = create<StoreState>()((set, get) => ({
     applyDB(localDb);
 
     // 2. Try to load fresher data from Supabase in the background
-    loadFromSupabase().then(remoteDb => {
+    loadFromSupabase().then(({ db: remoteDb, userId }) => {
+      // ── Guard: clear localStorage if a different user logged in ──────────
+      const storedUserId = loadUserId();
+      const userSwitched = userId && storedUserId && userId !== storedUserId;
+      if (userSwitched) {
+        wipeDB();
+        saveUserId(userId);
+        const freshDb = remoteDb ?? EMPTY_DB;
+        persist(freshDb);
+        applyDB(freshDb);
+        return;
+      }
+      if (userId) saveUserId(userId);
+
       if (!remoteDb) {
         // Supabase está vazio ou usuário não está logado.
-        // Se temos dados locais, migramos para o Supabase agora (migração única).
+        // Se temos dados locais E pertencem ao mesmo usuário, migra para o Supabase.
         const hasLocalData = localDb.legs.length > 0 || localDb.bms.length > 0 || localDb.banks.length > 0;
         if (hasLocalData) saveToSupabase(localDb);
         return;

@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useStore } from '@/store/useStore';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import { getMySubscription, PLAN_LABELS, type Subscription } from '@/lib/supabase/subscription';
-import { Camera, LogOut, AlertTriangle } from 'lucide-react';
+import { Camera, LogOut, AlertTriangle, Pencil, Trash2, Check, X } from 'lucide-react';
 
 // ── Avatar ────────────────────────────────────────────────────────────────────
 
@@ -48,6 +48,8 @@ export function PerfilPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [sub, setSub] = useState<Subscription | null>(null);
+  const [editingName, setEditingName] = useState(false);
+  const [nameInput, setNameInput] = useState('');
 
   useEffect(() => {
     getMySubscription().then(setSub);
@@ -106,6 +108,26 @@ export function PerfilPage() {
     }
   }
 
+  function startEditName() {
+    setNameInput(name);
+    setEditingName(true);
+  }
+
+  function saveName() {
+    const trimmed = nameInput.trim();
+    if (trimmed) updateProfile({ name: trimmed });
+    setEditingName(false);
+  }
+
+  function cancelEditName() {
+    setEditingName(false);
+  }
+
+  function removeAvatar() {
+    updateProfile({ avatarDataUrl: undefined });
+    toast('Foto removida', 'ok');
+  }
+
   async function signOut() {
     await getSupabaseClient().auth.signOut();
     window.location.href = '/login';
@@ -154,11 +176,56 @@ export function PerfilPage() {
             onChange={handleAvatarChange}
           />
 
+          {/* Remove photo link — só aparece quando tem foto */}
+          {avatar && (
+            <button
+              type="button"
+              onClick={removeAvatar}
+              className="flex items-center gap-1.5 transition-opacity hover:opacity-70"
+              style={{ fontSize: 11, color: 'var(--r)', background: 'none', border: 'none', cursor: 'pointer', marginTop: -8 }}
+            >
+              <Trash2 size={11} /> Remover foto
+            </button>
+          )}
+
           {/* Name + role */}
           <div className="text-center">
-            <div className="text-xl font-bold" style={{ color: 'var(--t)', letterSpacing: '-0.02em' }}>
-              {name || 'Sem nome'}
-            </div>
+            {editingName ? (
+              <div className="flex items-center gap-2 justify-center">
+                <input
+                  autoFocus
+                  value={nameInput}
+                  onChange={e => setNameInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') saveName(); if (e.key === 'Escape') cancelEditName(); }}
+                  style={{
+                    background: 'rgba(255,255,255,.06)', border: '1px solid rgba(63,255,33,.35)',
+                    borderRadius: 8, padding: '4px 10px', fontSize: 16, fontWeight: 700,
+                    color: 'var(--t)', outline: 'none', width: 180, textAlign: 'center',
+                  }}
+                />
+                <button type="button" onClick={saveName} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#3FFF21', padding: 2 }}>
+                  <Check size={15} />
+                </button>
+                <button type="button" onClick={cancelEditName} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--t3)', padding: 2 }}>
+                  <X size={15} />
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center justify-center gap-2">
+                <span className="text-xl font-bold" style={{ color: 'var(--t)', letterSpacing: '-0.02em' }}>
+                  {name || 'Sem nome'}
+                </span>
+                <button
+                  type="button"
+                  onClick={startEditName}
+                  title="Editar nome"
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--t3)', padding: 2, lineHeight: 1 }}
+                  className="hover:opacity-70 transition-opacity"
+                >
+                  <Pencil size={13} />
+                </button>
+              </div>
+            )}
             <div className="flex items-center justify-center gap-1.5 mt-1.5">
               <span className="live-dot" style={{ width: 5, height: 5 }} />
               <span className="text-xs" style={{ color: 'var(--t3)' }}>{role}</span>

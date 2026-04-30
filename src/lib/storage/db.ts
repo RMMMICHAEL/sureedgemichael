@@ -80,11 +80,26 @@ export function persistDB(db: AppDB): void {
   if (db.profile !== undefined) save('profile', db.profile);
 }
 
+// ── User ID (guards against cross-account localStorage leaks) ───────────────
+
+const USER_ID_KEY = VER + 'userId';
+
+export function loadUserId(): string | null {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem(USER_ID_KEY);
+}
+
+export function saveUserId(id: string): void {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(USER_ID_KEY, id);
+}
+
 // ── Wipe all data (for testing / reset) ────────────────────────────────────
 
 export function wipeDB(): void {
   if (typeof window === 'undefined') return;
-  ['legs','bms','banks','expenses','partnerAccounts','clients','targetHouses','import_log','onboarding_done','onboarding_step','sheetSync'].forEach(k => {
-    localStorage.removeItem(VER + k);
-  });
+  ['legs','bms','banks','expenses','partnerAccounts','clients','targetHouses',
+   'import_log','onboarding_done','onboarding_step','sheetSync',
+   'excludedImportKeys','profile','notes','userId',
+  ].forEach(k => localStorage.removeItem(VER + k));
 }

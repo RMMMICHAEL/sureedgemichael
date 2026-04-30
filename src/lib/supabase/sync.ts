@@ -9,11 +9,11 @@ import type { AppDB } from '@/types';
 
 // ── Load ─────────────────────────────────────────────────────────────────────
 
-export async function loadFromSupabase(): Promise<AppDB | null> {
+export async function loadFromSupabase(): Promise<{ db: AppDB | null; userId: string | null }> {
   try {
     const supabase = getSupabaseClient();
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return null;
+    if (!user) return { db: null, userId: null };
 
     const { data, error } = await supabase
       .from('user_data')
@@ -21,10 +21,10 @@ export async function loadFromSupabase(): Promise<AppDB | null> {
       .eq('user_id', user.id)
       .single();
 
-    if (error || !data) return null;
-    return data.data as AppDB;
+    if (error || !data) return { db: null, userId: user.id };
+    return { db: data.data as AppDB, userId: user.id };
   } catch {
-    return null;
+    return { db: null, userId: null };
   }
 }
 
