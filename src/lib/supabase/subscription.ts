@@ -95,16 +95,46 @@ export async function getMySubscription(): Promise<Subscription | null> {
       };
     }
 
-    const { data, error } = await supabase
+    // 1. Try by user_id (fast path — already linked)
+    const { data: byId } = await supabase
       .from('subscriptions')
       .select('*')
       .eq('user_id', user.id)
       .single();
 
-    if (error || !data) return null;
+    if (byId) {
+      const sub = byId as Subscription;
+      if (sub.expires_at && new Date(sub.expires_at) < new Date() && sub.status === 'active') {
+        return { ...sub, status: 'expired' };
+      }
+      return sub;
+    }
 
-    // Auto-expire if past expires_at
-    const sub = data as Subscription;
+    // 2. Fallback: look up by email (handles payments made before account creation)
+    if (!user.email) return null;
+    const { data: byEmail } = await supabase
+      .from('subscriptions')
+      .select('*')
+      .eq('email', user.email.toLowerCase())
+      .single();
+
+    if (!byEmail) return null;
+
+    const sub = byEmail as Subscription;
+
+    // Auto-link user_id so future lookups hit the fast path
+    if (!sub.user_id) {
+      try {
+        const admin = getAdminClient();
+        await admin
+          .from('subscriptions')
+          .update({ user_id: user.id, updated_at: new Date().toISOString() })
+          .eq('id', sub.id);
+      } catch {
+        // Non-critical — access is still granted even if linking fails
+      }
+    }
+
     if (sub.expires_at && new Date(sub.expires_at) < new Date() && sub.status === 'active') {
       return { ...sub, status: 'expired' };
     }
