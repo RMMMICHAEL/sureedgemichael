@@ -462,3 +462,65 @@ tr:hover td { background: rgba(255,255,255,.025); }
   animation: pulse-dot 2s infinite;
   flex-shrink: 0;
 }
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   LANDING PAGE — scroll reveal + extra keyframes
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+@keyframes border-rotate {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+@keyframes ticker-scroll {
+  0%   { transform: translateY(0); }
+  100% { transform: translateY(-50%); }
+}
+
+@keyframes hero-glow-pulse {
+  0%, 100% { opacity: .06; }
+  50%       { opacity: .14; }
+}
+
+/* Scroll-reveal base states */
+.reveal {
+  opacity: 0;
+  transform: translateY(36px);
+  transition: opacity .65s ease, transform .65s cubic-bezier(.2,.8,.4,1);
+}
+.reveal.visible        { opacity: 1; transform: none; }
+
+.reveal-left {
+  opacity: 0;
+  transform: translateX(-36px);
+  transition: opacity .65s ease, transform .65s cubic-bezier(.2,.8,.4,1);
+}
+.reveal-left.visible   { opacity: 1; transform: none; }
+
+.reveal-right {
+  opacity: 0;
+  transform: translateX(36px);
+  transition: opacity .65s ease, transform .65s cubic-bezier(.2,.8,.4,1);
+}
+.reveal-right.visible  { opacity: 1; transform: none; }
+
+/* Stagger delays for reveal siblings */
+.reveal-delay-1 { transition-delay: 120ms; }
+.reveal-delay-2 { transition-delay: 240ms; }
+.reveal-delay-3 { transition-delay: 360ms; }
+.reveal-delay-4 { transition-delay: 480ms; }
+
+/* CTA button hover glow */
+.btn-cta {
+  transition: transform .15s ease, box-shadow .2s ease;
+}
+.btn-cta:hover {
+  transform: translateY(-2px) scale(1.01);
+  box-shadow: 0 0 40px rgba(63,255,33,.55), 0 8px 32px rgba(0,0,0,.5) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal, .reveal-left, .reveal-right {
+    opacity: 1; transform: none; transition: none;
+  }
+}

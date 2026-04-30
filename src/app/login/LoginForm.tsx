@@ -1,9 +1,131 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
-import { Eye, EyeOff, Zap, Lock, Mail, AlertCircle } from 'lucide-react';
+import { Eye, EyeOff, Zap, Lock, Mail, AlertCircle, TrendingUp, BarChart2, Shield, Check, ArrowRight } from 'lucide-react';
+
+// ─── Canvas Particles (left panel) ───────────────────────────────────────────
+
+function MiniParticles() {
+  const ref = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    const canvas = ref.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    let id: number;
+    let W = canvas.offsetWidth, H = canvas.offsetHeight;
+    canvas.width = W; canvas.height = H;
+    type P = { x: number; y: number; vx: number; vy: number; r: number; a: number };
+    const pts: P[] = Array.from({ length: 40 }, () => ({
+      x: Math.random() * W, y: Math.random() * H,
+      vx: (Math.random() - 0.5) * 0.3, vy: (Math.random() - 0.5) * 0.3,
+      r: Math.random() * 1.5 + 0.3, a: Math.random() * 0.22 + 0.05,
+    }));
+    const loop = () => {
+      ctx.clearRect(0, 0, W, H);
+      for (const p of pts) {
+        p.x += p.vx; p.y += p.vy;
+        if (p.x < 0) p.x = W; if (p.x > W) p.x = 0;
+        if (p.y < 0) p.y = H; if (p.y > H) p.y = 0;
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(63,255,33,${p.a})`; ctx.fill();
+      }
+      id = requestAnimationFrame(loop);
+    };
+    loop();
+    return () => cancelAnimationFrame(id);
+  }, []);
+  return <canvas ref={ref} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }} />;
+}
+
+// ─── Live Ticker items ────────────────────────────────────────────────────────
+
+const TICKER = [
+  { type: 'profit', casa: 'Bet365 / Betfair', evento: 'Man City vs Arsenal', val: '+R$ 127,50', roi: '3.8%' },
+  { type: 'found',  casa: 'Pinnacle / 1xBet', evento: 'Nova surebet detectada', val: '+5.2% ROI', roi: 'NBA Finals' },
+  { type: 'profit', casa: 'Sportingbet',       evento: 'Djokovic vs Alcaraz', val: '+R$ 84,20', roi: '2.1%' },
+  { type: 'profit', casa: 'Betano / Bet365',   evento: 'PSG vs Bayern Munich', val: '+R$ 210,00', roi: '4.7%' },
+  { type: 'found',  casa: 'Pinnacle',          evento: 'Surebet: Liga dos Campeões', val: '+3.9% ROI', roi: 'Garantido' },
+  { type: 'profit', casa: 'Betfair Exchange',  evento: 'Rafael vs Medvedev', val: '+R$ 96,80', roi: '2.8%' },
+  { type: 'profit', casa: 'Bet365',            evento: 'Real Madrid vs Atlético', val: '+R$ 158,00', roi: '3.2%' },
+  { type: 'found',  casa: 'Unibet / Pinnacle', evento: 'Surebet detectada — tênis', val: '+4.1% ROI', roi: 'Roland Garros' },
+];
+
+function LiveTicker() {
+  const doubled = [...TICKER, ...TICKER];
+  return (
+    <div style={{ overflow: 'hidden', maskImage: 'linear-gradient(180deg, transparent 0%, black 15%, black 85%, transparent 100%)' }}>
+      <div style={{ animation: 'ticker-scroll 28s linear infinite', display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {doubled.map((item, i) => (
+          <div key={i} style={{
+            background: item.type === 'found' ? 'rgba(63,255,33,.07)' : 'rgba(255,255,255,.04)',
+            border: `1px solid ${item.type === 'found' ? 'rgba(63,255,33,.18)' : 'rgba(255,255,255,.07)'}`,
+            borderRadius: 10, padding: '10px 14px',
+            display: 'flex', alignItems: 'center', gap: 12,
+          }}>
+            <div style={{
+              width: 32, height: 32, borderRadius: 8, flexShrink: 0,
+              background: item.type === 'found' ? 'rgba(63,255,33,.14)' : 'rgba(255,255,255,.06)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              {item.type === 'found'
+                ? <Zap size={14} color="#3FFF21" />
+                : <TrendingUp size={14} color="#8899AA" />}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 11, color: item.type === 'found' ? '#3FFF21' : 'var(--t2)', fontWeight: 600, marginBottom: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {item.evento}
+              </div>
+              <div style={{ fontSize: 10, color: 'var(--t3)' }}>{item.casa}</div>
+            </div>
+            <div style={{ textAlign: 'right', flexShrink: 0 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#3FFF21', fontFamily: 'JetBrains Mono' }}>{item.val}</div>
+              <div style={{ fontSize: 10, color: 'var(--t3)' }}>ROI {item.roi}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Input field ──────────────────────────────────────────────────────────────
+
+function InputField({ icon: Icon, type, value, onChange, placeholder, autoComplete, minLength, required = true }: {
+  icon: React.ElementType; type: string; value: string;
+  onChange: (v: string) => void; placeholder: string;
+  autoComplete?: string; minLength?: number; required?: boolean;
+}) {
+  const [focused, setFocused] = useState(false);
+  return (
+    <div style={{ position: 'relative' }}>
+      <Icon size={14} style={{
+        position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)',
+        color: focused ? '#3FFF21' : 'var(--t3)', transition: 'color .2s', pointerEvents: 'none',
+      }} />
+      <input
+        type={type} value={value} onChange={e => onChange(e.target.value)}
+        placeholder={placeholder} required={required}
+        autoComplete={autoComplete} minLength={minLength}
+        onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
+        style={{
+          width: '100%', paddingLeft: 40, paddingRight: 14, paddingTop: 12, paddingBottom: 12,
+          borderRadius: 12, fontSize: 14,
+          background: 'rgba(255,255,255,.05)',
+          border: `1px solid ${focused ? 'rgba(63,255,33,.4)' : 'rgba(255,255,255,.08)'}`,
+          color: 'var(--t)',
+          boxShadow: focused ? '0 0 0 3px rgba(63,255,33,.07)' : 'none',
+          transition: 'border-color .2s, box-shadow .2s',
+          outline: 'none',
+        }}
+      />
+    </div>
+  );
+}
+
+// ─── Main form ────────────────────────────────────────────────────────────────
 
 export function LoginForm() {
   const router = useRouter();
@@ -19,10 +141,7 @@ export function LoginForm() {
     e.preventDefault();
     setLoading(true);
     setError('');
-
-    // Only create client here — inside an event handler, never during SSR
     const supabase = getSupabaseClient();
-
     try {
       if (mode === 'reset') {
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
@@ -32,7 +151,6 @@ export function LoginForm() {
         setDone(true);
         return;
       }
-
       if (mode === 'signup') {
         const { error } = await supabase.auth.signUp({
           email, password,
@@ -42,7 +160,6 @@ export function LoginForm() {
         setDone(true);
         return;
       }
-
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
       router.push('/');
@@ -58,65 +175,150 @@ export function LoginForm() {
   }
 
   return (
-    <div
-      className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden dot-grid"
-      style={{ background: 'var(--bg)' }}
-    >
-      {/* Ambient glow */}
-      <div className="absolute inset-0 pointer-events-none" style={{
-        background: 'radial-gradient(ellipse 60% 50% at 50% 0%, rgba(63,255,33,.07) 0%, transparent 60%)',
-      }} />
-      <div className="absolute inset-0 pointer-events-none" style={{
-        background: 'radial-gradient(ellipse 40% 40% at 80% 80%, rgba(63,255,33,.04) 0%, transparent 60%)',
-      }} />
+    <div style={{ minHeight: '100vh', display: 'flex', background: 'var(--bg)', overflow: 'hidden' }}>
 
-      <div className="w-full max-w-sm animate-scale-in" style={{ position: 'relative', zIndex: 1 }}>
+      {/* ═══════════════ LEFT PANEL — sports betting aesthetic ═══════════════ */}
+      <div className="hidden lg:flex" style={{
+        flex: 1, flexDirection: 'column', padding: 40,
+        background: '#060A07', position: 'relative', overflow: 'hidden',
+        borderRight: '1px solid rgba(255,255,255,.05)',
+      }}>
+        <MiniParticles />
+        {/* Ambient glow */}
+        <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse 70% 60% at 50% -10%, rgba(63,255,33,.08) 0%, transparent 55%)', pointerEvents: 'none' }} />
+        <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse 40% 40% at 90% 90%, rgba(63,255,33,.05) 0%, transparent 55%)', pointerEvents: 'none' }} />
+        <div className="dot-grid" style={{ position: 'absolute', inset: 0, opacity: 0.35 }} />
 
-        {/* Logo */}
-        <div className="flex flex-col items-center mb-8">
-          <div
-            className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4"
-            style={{
-              background: 'linear-gradient(135deg, var(--g) 0%, #00CC6E 100%)',
-              boxShadow: '0 0 32px rgba(63,255,33,.45), 0 0 64px rgba(63,255,33,.15)',
-            }}
-          >
-            <svg width="22" height="22" viewBox="0 0 14 14" fill="none">
-              <path d="M7 1L12.196 4V10L7 13L1.804 10V4L7 1Z"
-                fill="#060A07" fillOpacity=".9" />
-            </svg>
+        {/* Content */}
+        <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', height: '100%' }}>
+
+          {/* Logo */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 56 }}>
+            <div style={{
+              width: 38, height: 38, borderRadius: 11,
+              background: 'linear-gradient(135deg,#3FFF21 0%,#00CC6E 100%)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: '0 0 24px rgba(63,255,33,.4)',
+            }}>
+              <Zap size={20} color="#000" strokeWidth={2.5} />
+            </div>
+            <div>
+              <div style={{ fontFamily: 'Manrope', fontWeight: 900, fontSize: 18, letterSpacing: '-0.02em' }}>SureEdge</div>
+              <div style={{ fontSize: 11, color: 'rgba(63,255,33,.6)', fontFamily: 'JetBrains Mono', letterSpacing: '0.06em' }}>TRADING HUB</div>
+            </div>
           </div>
-          <h1 className="text-2xl font-black tracking-tight">
-            <span className="text-glow" style={{ color: 'var(--g)' }}>Sure</span>
-            <span style={{ color: 'var(--t)' }}>Edge</span>
-          </h1>
-          <p className="text-xs mt-1" style={{ color: 'var(--t3)' }}>
-            Trading Hub — Área Restrita
-          </p>
+
+          {/* Headline */}
+          <div style={{ marginBottom: 40 }}>
+            <h1 style={{
+              fontFamily: 'Manrope', fontWeight: 900,
+              fontSize: 'clamp(32px, 3vw, 48px)',
+              letterSpacing: '-0.04em', lineHeight: 1.05, marginBottom: 16,
+            }}>
+              Domine o mercado<br />
+              <span style={{ color: '#3FFF21' }}>com dados.</span>
+            </h1>
+            <p style={{ color: 'var(--t2)', fontSize: 15, lineHeight: 1.65, maxWidth: 360 }}>
+              O dashboard profissional que traders de surebet usam para monitorar lucro e dominar as casas de apostas.
+            </p>
+          </div>
+
+          {/* Stats row */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 40 }}>
+            {[
+              { val: '2.847+', label: 'Operações' },
+              { val: '3.8%', label: 'ROI médio' },
+              { val: '37+', label: 'Bookmakers' },
+            ].map(s => (
+              <div key={s.label} style={{
+                background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.07)',
+                borderRadius: 12, padding: '14px 12px', textAlign: 'center',
+              }}>
+                <div style={{ fontSize: 20, fontWeight: 800, color: '#3FFF21', fontFamily: 'JetBrains Mono', letterSpacing: '-0.03em' }}>{s.val}</div>
+                <div style={{ fontSize: 11, color: 'var(--t3)', marginTop: 4 }}>{s.label}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Live ticker */}
+          <div style={{ flex: 1, minHeight: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+              <div className="live-dot" />
+              <span style={{ fontSize: 11, color: 'var(--t3)', fontFamily: 'JetBrains Mono', letterSpacing: '0.08em' }}>OPERAÇÕES AO VIVO</span>
+            </div>
+            <div style={{ height: 320, overflow: 'hidden' }}>
+              <LiveTicker />
+            </div>
+          </div>
+
+          {/* Feature chips */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 28 }}>
+            {[
+              { icon: BarChart2, text: 'Analytics avançado' },
+              { icon: Shield, text: 'Dados criptografados' },
+              { icon: TrendingUp, text: 'ROI em tempo real' },
+            ].map(item => (
+              <div key={item.text} style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.08)',
+                borderRadius: 999, padding: '5px 12px',
+              }}>
+                <item.icon size={12} color="rgba(63,255,33,.7)" />
+                <span style={{ fontSize: 11, color: 'var(--t3)' }}>{item.text}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* ═══════════════ RIGHT PANEL — form ═══════════════ */}
+      <div style={{
+        width: '100%', maxWidth: 480,
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        padding: '40px 32px', position: 'relative',
+      }}>
+        {/* Mobile logo */}
+        <div className="flex lg:hidden items-center gap-3 mb-10">
+          <div style={{
+            width: 38, height: 38, borderRadius: 11,
+            background: 'linear-gradient(135deg,#3FFF21 0%,#00CC6E 100%)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <Zap size={19} color="#000" strokeWidth={2.5} />
+          </div>
+          <span style={{ fontFamily: 'Manrope', fontWeight: 900, fontSize: 20 }}>SureEdge</span>
         </div>
 
-        {/* Card */}
-        <div
-          className="rounded-2xl p-6"
-          style={{
-            background: 'var(--bg2)',
-            border: '1px solid rgba(255,255,255,.07)',
-            boxShadow: '0 24px 64px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.04)',
-          }}
-        >
+        <div className="w-full animate-scale-in">
+          {/* Header */}
+          <div style={{ marginBottom: 32 }}>
+            <h2 style={{ fontFamily: 'Manrope', fontWeight: 900, fontSize: 26, letterSpacing: '-0.03em', marginBottom: 8 }}>
+              {mode === 'reset' ? 'Redefinir senha' : mode === 'signup' ? 'Criar sua conta' : 'Bem-vindo de volta'}
+            </h2>
+            <p style={{ color: 'var(--t3)', fontSize: 14 }}>
+              {mode === 'reset'
+                ? 'Informe seu e-mail para receber o link.'
+                : mode === 'signup'
+                ? 'Crie sua conta e comece a rastrear surebets.'
+                : 'Entre no seu dashboard profissional.'}
+            </p>
+          </div>
+
           {/* Mode tabs */}
           {!done && mode !== 'reset' && (
-            <div className="flex rounded-xl p-1 mb-6" style={{ background: 'rgba(255,255,255,.04)' }}>
+            <div style={{ display: 'flex', background: 'rgba(255,255,255,.04)', borderRadius: 12, padding: 4, marginBottom: 28 }}>
               {(['login', 'signup'] as const).map(m => (
                 <button
-                  key={m}
-                  type="button"
+                  key={m} type="button"
                   onClick={() => { setMode(m); setError(''); }}
-                  className="flex-1 py-2 rounded-lg text-xs font-bold transition-all"
-                  style={mode === m
-                    ? { background: 'rgba(63,255,33,.12)', color: 'var(--g)', border: '1px solid rgba(63,255,33,.18)', boxShadow: '0 2px 8px rgba(63,255,33,.08)' }
-                    : { color: 'var(--t3)' }
-                  }
+                  style={{
+                    flex: 1, padding: '10px 0', borderRadius: 9, fontSize: 13, fontWeight: 700,
+                    cursor: 'pointer', transition: 'all .18s',
+                    border: mode === m ? '1px solid rgba(63,255,33,.2)' : 'none',
+                    background: mode === m ? 'rgba(63,255,33,.12)' : 'none',
+                    color: mode === m ? '#3FFF21' : 'var(--t3)',
+                    boxShadow: mode === m ? '0 2px 10px rgba(63,255,33,.1)' : 'none',
+                  }}
                 >
                   {m === 'login' ? 'Entrar' : 'Criar conta'}
                 </button>
@@ -126,119 +328,154 @@ export function LoginForm() {
 
           {/* Success state */}
           {done ? (
-            <div className="text-center py-4">
-              <div className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4"
-                style={{ background: 'rgba(63,255,33,.12)', border: '1px solid rgba(63,255,33,.2)' }}>
-                <Zap size={20} style={{ color: 'var(--g)' }} />
+            <div style={{
+              background: 'rgba(63,255,33,.06)', border: '1px solid rgba(63,255,33,.2)',
+              borderRadius: 16, padding: 32, textAlign: 'center',
+            }}>
+              <div style={{
+                width: 56, height: 56, borderRadius: '50%', margin: '0 auto 20px',
+                background: 'rgba(63,255,33,.14)', border: '1px solid rgba(63,255,33,.25)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <Check size={24} color="#3FFF21" />
               </div>
-              <p className="font-bold" style={{ color: 'var(--t)' }}>
-                {mode === 'reset' ? 'E-mail enviado!' : 'Conta criada!'}
-              </p>
-              <p className="text-sm mt-2" style={{ color: 'var(--t3)' }}>
+              <h3 style={{ fontFamily: 'Manrope', fontWeight: 800, fontSize: 18, marginBottom: 10 }}>
+                {mode === 'reset' ? 'E-mail enviado!' : 'Conta criada com sucesso!'}
+              </h3>
+              <p style={{ color: 'var(--t2)', fontSize: 14, lineHeight: 1.65, marginBottom: 24 }}>
                 {mode === 'reset'
-                  ? 'Verifique sua caixa de entrada para redefinir a senha.'
-                  : 'Confirme seu e-mail para ativar a conta.'}
+                  ? 'Verifique sua caixa de entrada e clique no link para redefinir sua senha.'
+                  : 'Confirme seu e-mail clicando no link que enviamos. Depois é só entrar!'}
               </p>
-              <button type="button" onClick={() => { setMode('login'); setDone(false); setError(''); }}
-                className="mt-4 text-xs font-bold" style={{ color: 'var(--g)' }}>
-                Voltar ao login
+              <button onClick={() => { setMode('login'); setDone(false); setError(''); }} style={{
+                background: 'none', border: 'none', color: '#3FFF21',
+                fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: 6, margin: '0 auto',
+              }}>
+                <ArrowRight size={14} /> Ir para o login
               </button>
             </div>
           ) : (
-            <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-              {mode === 'reset' && (
-                <p className="text-sm" style={{ color: 'var(--t3)' }}>
-                  Informe seu e-mail para receber o link de redefinição de senha.
-                </p>
-              )}
+            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
 
               {/* Email */}
-              <label className="flex flex-col gap-1.5">
-                <span className="text-xs font-bold uppercase tracking-wide" style={{ color: 'var(--t3)' }}>E-mail</span>
-                <div className="relative">
-                  <Mail size={14} className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'var(--t3)' }} />
-                  <input type="email" value={email} onChange={e => setEmail(e.target.value)}
-                    placeholder="seu@email.com" required autoComplete="email"
-                    className="w-full pl-9 pr-3 py-2.5 rounded-xl text-sm"
-                    style={{ background: 'var(--sur)', border: '1px solid rgba(255,255,255,.08)', color: 'var(--t)' }}
-                    onFocus={e => { (e.currentTarget as HTMLElement).style.borderColor = 'rgba(63,255,33,.35)'; }}
-                    onBlur={e  => { (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,.08)'; }}
-                  />
-                </div>
-              </label>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: 8 }}>E-mail</label>
+                <InputField
+                  icon={Mail} type="email" value={email}
+                  onChange={setEmail} placeholder="seu@email.com"
+                  autoComplete="email"
+                />
+              </div>
 
               {/* Password */}
               {mode !== 'reset' && (
-                <label className="flex flex-col gap-1.5">
-                  <span className="text-xs font-bold uppercase tracking-wide" style={{ color: 'var(--t3)' }}>Senha</span>
-                  <div className="relative">
-                    <Lock size={14} className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'var(--t3)' }} />
-                    <input
-                      type={showPw ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)}
-                      placeholder="••••••••" required minLength={6}
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: 8 }}>Senha</label>
+                  <div style={{ position: 'relative' }}>
+                    <InputField
+                      icon={Lock}
+                      type={showPw ? 'text' : 'password'}
+                      value={password} onChange={setPassword}
+                      placeholder="••••••••" minLength={6}
                       autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
-                      className="w-full pl-9 pr-10 py-2.5 rounded-xl text-sm"
-                      style={{ background: 'var(--sur)', border: '1px solid rgba(255,255,255,.08)', color: 'var(--t)' }}
-                      onFocus={e => { (e.currentTarget as HTMLElement).style.borderColor = 'rgba(63,255,33,.35)'; }}
-                      onBlur={e  => { (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,.08)'; }}
                     />
-                    <button type="button" onClick={() => setShowPw(v => !v)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--t3)' }}>
-                      {showPw ? <EyeOff size={13} /> : <Eye size={13} />}
+                    <button type="button" onClick={() => setShowPw(v => !v)} style={{
+                      position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)',
+                      background: 'none', border: 'none', cursor: 'pointer', color: 'var(--t3)', padding: 0,
+                    }}>
+                      {showPw ? <EyeOff size={15} /> : <Eye size={15} />}
                     </button>
                   </div>
-                </label>
+                </div>
               )}
 
               {/* Error */}
               {error && (
-                <div className="flex items-start gap-2 px-3 py-2.5 rounded-xl text-xs"
-                  style={{ background: 'rgba(255,77,109,.08)', border: '1px solid rgba(255,77,109,.2)', color: 'var(--r)' }}>
-                  <AlertCircle size={13} style={{ flexShrink: 0, marginTop: 1 }} />
+                <div style={{
+                  display: 'flex', alignItems: 'flex-start', gap: 10,
+                  padding: '12px 16px', borderRadius: 12,
+                  background: 'rgba(255,77,109,.08)', border: '1px solid rgba(255,77,109,.2)',
+                  color: 'var(--r)', fontSize: 13,
+                }}>
+                  <AlertCircle size={14} style={{ flexShrink: 0, marginTop: 1 }} />
                   {error}
                 </div>
               )}
 
               {/* Submit */}
-              <button type="submit" disabled={loading}
-                className="w-full py-2.5 rounded-xl text-sm font-black tracking-wide transition-all mt-1"
+              <button
+                type="submit" disabled={loading}
                 style={{
-                  background: loading ? 'rgba(63,255,33,.4)' : 'var(--g)',
-                  color: '#060A07',
-                  boxShadow: loading ? 'none' : '0 0 20px rgba(63,255,33,.3)',
-                  cursor: loading ? 'not-allowed' : 'pointer',
-                }}>
+                  width: '100%', padding: '14px',
+                  borderRadius: 12, fontSize: 15, fontWeight: 800,
+                  border: 'none', cursor: loading ? 'not-allowed' : 'pointer',
+                  background: loading ? 'rgba(63,255,33,.45)' : '#3FFF21',
+                  color: '#030507',
+                  boxShadow: loading ? 'none' : '0 0 24px rgba(63,255,33,.35)',
+                  transition: 'all .2s',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                }}
+                onMouseEnter={e => { if (!loading) (e.currentTarget).style.boxShadow = '0 0 36px rgba(63,255,33,.5)'; }}
+                onMouseLeave={e => { if (!loading) (e.currentTarget).style.boxShadow = '0 0 24px rgba(63,255,33,.35)'; }}
+              >
                 {loading ? (
-                  <span className="flex items-center justify-center gap-2">
-                    <span className="animate-spin inline-block w-3 h-3 border-2 border-current border-t-transparent rounded-full" />
+                  <>
+                    <span style={{
+                      width: 16, height: 16, borderRadius: '50%',
+                      border: '2px solid rgba(0,0,0,.3)', borderTopColor: '#030507',
+                      animation: 'spin 0.7s linear infinite', display: 'inline-block',
+                    }} />
                     Aguarde...
-                  </span>
-                ) : mode === 'login' ? 'Entrar no SureEdge'
-                  : mode === 'signup' ? 'Criar conta'
-                  : 'Enviar link'}
+                  </>
+                ) : mode === 'login' ? (
+                  <><ArrowRight size={16} /> Entrar no SureEdge</>
+                ) : mode === 'signup' ? (
+                  <><Zap size={15} /> Criar minha conta</>
+                ) : (
+                  'Enviar link de recuperação'
+                )}
               </button>
 
-              {/* Forgot / back */}
-              {mode === 'login' && (
-                <button type="button" onClick={() => { setMode('reset'); setError(''); }}
-                  className="text-xs text-center mt-1 transition-colors" style={{ color: 'var(--t3)' }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--t2)'; }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--t3)'; }}>
-                  Esqueci minha senha
-                </button>
-              )}
-              {mode === 'reset' && (
-                <button type="button" onClick={() => { setMode('login'); setError(''); }}
-                  className="text-xs text-center mt-1" style={{ color: 'var(--t3)' }}>
-                  Voltar ao login
-                </button>
-              )}
+              {/* Auxiliary links */}
+              <div style={{ textAlign: 'center' }}>
+                {mode === 'login' && (
+                  <button type="button" onClick={() => { setMode('reset'); setError(''); }}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--t3)', fontSize: 13 }}>
+                    Esqueci minha senha
+                  </button>
+                )}
+                {mode === 'reset' && (
+                  <button type="button" onClick={() => { setMode('login'); setError(''); }}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--t3)', fontSize: 13 }}>
+                    ← Voltar ao login
+                  </button>
+                )}
+              </div>
             </form>
+          )}
+
+          {/* Divider + plans link */}
+          {!done && (
+            <div style={{ marginTop: 32, paddingTop: 24, borderTop: '1px solid rgba(255,255,255,.06)', textAlign: 'center' }}>
+              <p style={{ color: 'var(--t3)', fontSize: 13, marginBottom: 12 }}>
+                Ainda não tem uma assinatura?
+              </p>
+              <a href="/" style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                color: '#3FFF21', fontSize: 13, fontWeight: 700, textDecoration: 'none',
+                background: 'rgba(63,255,33,.08)', border: '1px solid rgba(63,255,33,.2)',
+                borderRadius: 8, padding: '8px 16px',
+              }}>
+                <Zap size={13} /> Ver planos e preços
+              </a>
+            </div>
           )}
         </div>
 
-        <p className="text-center text-[10px] mt-4" style={{ color: 'var(--t3)' }}>
-          Sistema de uso exclusivo · Acesso autorizado apenas
+        {/* Footer note */}
+        <p style={{ position: 'absolute', bottom: 24, fontSize: 11, color: 'var(--t3)', textAlign: 'center' }}>
+          Sistema de uso exclusivo · SureEdge © 2025
         </p>
       </div>
     </div>

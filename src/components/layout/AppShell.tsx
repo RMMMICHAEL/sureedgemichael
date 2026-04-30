@@ -17,7 +17,7 @@ import { AnalisePage }     from '@/components/analise/AnalisePage';
 import { AdminPage }       from '@/components/admin/AdminPage';
 import { PerfilPage }      from '@/components/perfil/PerfilPage';
 import { NotasPage }       from '@/components/notas/NotasPage';
-import { PricingPage }     from '@/components/pricing/PricingPage';
+import { LandingPage }     from '@/components/landing/LandingPage';
 import { syncFromSheet }   from '@/lib/import/sheetsSync';
 import { commitRows }      from '@/lib/import/importEngine';
 import { getMySubscription, isSubscriptionActive } from '@/lib/supabase/subscription';
@@ -119,7 +119,7 @@ export function AppShell() {
   if (!subActive) {
     return (
       <>
-        <PricingPage />
+        <LandingPage />
         <ToastStack />
       </>
     );
