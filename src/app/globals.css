@@ -200,8 +200,8 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 
 /* Terminal dot grid — green-tinted, sports betting terminal feel */
 .dot-grid {
-  background-image: radial-gradient(rgba(63,255,33,.045) 1px, transparent 1px);
-  background-size: 22px 22px;
+  background-image: radial-gradient(rgba(63,255,33,.035) 1px, transparent 1px);
+  background-size: 36px 36px;
 }
 
 /* Fine line grid */
