@@ -175,7 +175,7 @@ export function LoginForm() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', background: 'var(--bg)', overflow: 'hidden' }}>
+    <div style={{ minHeight: '100vh', display: 'flex', background: 'var(--bg)', overflow: 'hidden', alignItems: 'stretch' }}>
 
       {/* ═══════════════ LEFT PANEL — sports betting aesthetic ═══════════════ */}
       <div className="hidden lg:flex" style={{
@@ -190,7 +190,7 @@ export function LoginForm() {
         <div className="dot-grid" style={{ position: 'absolute', inset: 0, opacity: 0.35 }} />
 
         {/* Content */}
-        <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', height: '100%', justifyContent: 'space-between' }}>
+        <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', height: '100%' }}>
 
           {/* Logo */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 24 }}>
@@ -275,16 +275,17 @@ export function LoginForm() {
       <div style={{
         width: '100%', maxWidth: 480,
         display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-        padding: '40px 32px', position: 'relative',
+        padding: 'clamp(32px, 6vh, 56px) clamp(20px, 5vw, 40px)',
+        overflowY: 'auto',
       }}>
         {/* Mobile logo */}
-        <div className="flex lg:hidden items-center gap-3 mb-10">
+        <div className="flex lg:hidden items-center gap-3 mb-8">
           <div style={{
-            width: 38, height: 38, borderRadius: 11,
+            width: 36, height: 36, borderRadius: 10,
             background: 'linear-gradient(135deg,#3FFF21 0%,#00CC6E 100%)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>
-            <Zap size={19} color="#000" strokeWidth={2.5} />
+            <Zap size={18} color="#000" strokeWidth={2.5} />
           </div>
           <span style={{ fontFamily: 'Manrope', fontWeight: 900, fontSize: 20 }}>SureEdge</span>
         </div>
@@ -461,20 +462,24 @@ export function LoginForm() {
               <p style={{ color: 'var(--t3)', fontSize: 13, marginBottom: 12 }}>
                 Ainda não tem uma assinatura?
               </p>
-              <a href="/" style={{
-                display: 'inline-flex', alignItems: 'center', gap: 6,
-                color: '#3FFF21', fontSize: 13, fontWeight: 700, textDecoration: 'none',
-                background: 'rgba(63,255,33,.08)', border: '1px solid rgba(63,255,33,.2)',
-                borderRadius: 8, padding: '8px 16px',
-              }}>
+              <button
+                type="button"
+                onClick={() => router.push('/')}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  color: '#3FFF21', fontSize: 13, fontWeight: 700,
+                  background: 'rgba(63,255,33,.08)', border: '1px solid rgba(63,255,33,.2)',
+                  borderRadius: 8, padding: '8px 16px', cursor: 'pointer',
+                }}
+              >
                 <Zap size={13} /> Ver planos e preços
-              </a>
+              </button>
             </div>
           )}
         </div>
 
         {/* Footer note */}
-        <p style={{ position: 'absolute', bottom: 24, fontSize: 11, color: 'var(--t3)', textAlign: 'center' }}>
+        <p style={{ marginTop: 32, fontSize: 11, color: 'var(--t3)', textAlign: 'center', opacity: 0.6 }}>
           Sistema de uso exclusivo · SureEdge © 2025
         </p>
       </div>
