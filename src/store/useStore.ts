@@ -15,6 +15,7 @@ import type {
 } from '@/types';
 import { loadDB, persistDB, loadUserId, saveUserId, wipeDB, EMPTY_DB } from '@/lib/storage/db';
 import { loadFromSupabase, saveToSupabase, scheduleSaveToSupabase } from '@/lib/supabase/sync';
+import { getSupabaseClient } from '@/lib/supabase/client';
 import { recalcBookmakers, normHouse, bmColor, bmAbbr } from '@/lib/finance/reconciler';
 import { calcLegProfit } from '@/lib/finance/calculator';
 import type { CommitResult } from '@/lib/import/importEngine';
@@ -148,53 +149,50 @@ export const useStore = create<StoreState>()((set, get) => ({
 
   // ── init ──────────────────────────────────────────────────────────────────
   init() {
-    // 1. Load from localStorage immediately so the app is usable right away
-    const localDb = loadDB();
-
     function applyDB(db: AppDB) {
       const legs = db.legs.map(l => ({
         ...l,
         source: l.source ?? (l.oid?.startsWith('imp_') ? 'import' : 'manual'),
       }));
-      const expenses        = db.expenses        ?? [];
-      const partnerAccounts = db.partnerAccounts ?? [];
-      const clients         = db.clients         ?? [];
-      const targetHouses    = db.targetHouses    ?? [];
-      const sheetSync       = db.sheetSync;
+      const expenses           = db.expenses           ?? [];
+      const partnerAccounts    = db.partnerAccounts    ?? [];
+      const clients            = db.clients            ?? [];
+      const targetHouses       = db.targetHouses       ?? [];
+      const sheetSync          = db.sheetSync;
       const excludedImportKeys = db.excludedImportKeys ?? [];
-      const notes              = db.notes             ?? [];
+      const notes              = db.notes              ?? [];
       const migrated = { ...db, legs, expenses, partnerAccounts, clients, targetHouses, sheetSync, excludedImportKeys, notes };
       const { bms, totalCash } = recalc(migrated);
       set({ ...migrated, bms, totalCash, initialized: true });
     }
 
-    applyDB(localDb);
+    // ── Step 1: check session BEFORE touching localStorage ───────────────
+    // getSession() reads only from local cookies/storage — no network call.
+    // This prevents user B from briefly seeing user A's data.
+    getSupabaseClient().auth.getSession().then(({ data: { session } }) => {
+      const currentUserId = session?.user?.id ?? null;
+      const storedUserId  = loadUserId();
 
-    // 2. Try to load fresher data from Supabase in the background
-    loadFromSupabase().then(({ db: remoteDb, userId }) => {
-      // ── Guard: clear localStorage if a different user logged in ──────────
-      const storedUserId = loadUserId();
-      const userSwitched = userId && storedUserId && userId !== storedUserId;
-      if (userSwitched) {
+      if (currentUserId && storedUserId && currentUserId !== storedUserId) {
+        // Different user — wipe localStorage immediately, start clean
         wipeDB();
-        saveUserId(userId);
-        const freshDb = remoteDb ?? EMPTY_DB;
-        persist(freshDb);
-        applyDB(freshDb);
-        return;
       }
-      if (userId) saveUserId(userId);
+      if (currentUserId) saveUserId(currentUserId);
 
-      if (!remoteDb) {
-        // Supabase está vazio ou usuário não está logado.
-        // Se temos dados locais E pertencem ao mesmo usuário, migra para o Supabase.
-        const hasLocalData = localDb.legs.length > 0 || localDb.bms.length > 0 || localDb.banks.length > 0;
-        if (hasLocalData) saveToSupabase(localDb);
-        return;
-      }
-      // Persist remote data to localStorage and apply to store
-      persist(remoteDb);
-      applyDB(remoteDb);
+      // ── Step 2: apply localStorage (now guaranteed to belong to current user)
+      const localDb = loadDB();
+      applyDB(localDb);
+
+      // ── Step 3: sync fresher data from Supabase in the background ────────
+      loadFromSupabase().then(({ db: remoteDb, userId }) => {
+        if (!remoteDb) {
+          const hasLocalData = localDb.legs.length > 0 || localDb.bms.length > 0 || localDb.banks.length > 0;
+          if (hasLocalData && userId) saveToSupabase(localDb);
+          return;
+        }
+        persist(remoteDb);
+        applyDB(remoteDb);
+      });
     });
   },
 
