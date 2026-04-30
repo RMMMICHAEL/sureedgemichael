@@ -45,6 +45,7 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/login') ||
     pathname.startsWith('/auth') ||
     pathname.startsWith('/pricing') ||
+    pathname.startsWith('/bem-vindo') ||
     pathname.startsWith('/api/webhook') ||
     pathname.startsWith('/api/subscription');
 
