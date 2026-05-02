@@ -285,6 +285,39 @@ function makeLegs(): Leg[] {
     'Pinnacle',3.60, 139, 'Pendente',
     'Bet365',  2.10, 238, 'Pendente');
 
+  // ── ÚLTIMA SEMANA ABRIL / INÍCIO MAIO 2026 (para KPIs de semana/hoje) ─────
+
+  sb2('seed_sb23',
+    iso(2026,4,28,10,0), iso(2026,4,28,16,0), 'Futebol', 'Palmeiras x Flamengo',
+    'Bet365',  'Casa', 2.08, 243, 'Green',
+    'Betano',  'Fora', 2.05, 246, 'Red');
+
+  sb2('seed_sb24',
+    iso(2026,4,29,11,0), iso(2026,4,29,18,30), 'Futebol', 'Real Madrid x Sevilla',
+    'KTO',     'Casa', 1.97, 257, 'Green',
+    'Pinnacle','Fora', 2.20, 230, 'Red');
+
+  sb2('seed_sb25',
+    iso(2026,4,30,10,30), iso(2026,4,30,17,0), 'Tênis', 'Alcaraz x Sinner - Roland Garros',
+    'Betsson', 'Casa', 2.10, 240, 'Meio Green',
+    'Bet365',  'Fora', 2.04, 247, 'Meio Red');
+
+  dg3('seed_dg09',
+    iso(2026,5,1,11,0), iso(2026,5,1,18,0), 'Liverpool x Man City',
+    'Bet365',  4.30, 117, 'Red',
+    'Betano',  3.50, 143, 'Green Antecipado',
+    'KTO',     2.05, 244, 'Red');
+
+  sb2('seed_sb26',
+    iso(2026,5,2,10,0), iso(2026,5,2,16,0), 'Futebol', 'Flamengo x Botafogo',
+    'Bet365',  'Casa', 2.12, 238, 'Green',
+    'Betano',  'Fora', 2.03, 248, 'Red');
+
+  sb2('seed_sb27',
+    iso(2026,5,2,14,0), iso(2026,5,2,20,0), 'Basquete', 'Celtics x Knicks - Playoffs',
+    'KTO',     'Casa', 1.93, 263, 'Green',
+    'Pinnacle','Fora', 2.26, 223, 'Red');
+
   // Delay op
   legs.push({
     id: 'seed_delay01', oid: 'seed_delay01', bd: iso(2026,3,10,14,0), ed: iso(2026,3,10,14,0),
@@ -344,6 +377,9 @@ function makeExpenses(): Omit<Expense, 'id'>[] {
     { date: iso(2026,4,1),  category: 'Software',     description: 'VPN NordVPN — 1 mês',             amount: 45,   recurring: true },
     { date: iso(2026,4,8),  category: 'Deposito',     description: 'Recarga Pinnacle',                amount: 1000, recurring: false },
     { date: iso(2026,4,15), category: 'Assinatura',   description: 'SureEdge Pro — mensal',           amount: 99,   recurring: true },
+    { date: iso(2026,5,1),  category: 'Software',     description: 'Multilogin — plano profissional', amount: 120,  recurring: true },
+    { date: iso(2026,5,1),  category: 'Software',     description: 'VPN NordVPN — 1 mês',             amount: 45,   recurring: true },
+    { date: iso(2026,5,1),  category: 'Assinatura',   description: 'SureEdge Pro — mensal',           amount: 99,   recurring: true },
   ];
 }
 
