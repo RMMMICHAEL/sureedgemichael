@@ -112,7 +112,7 @@ export function PricingPage() {
     >
       {/* Ambient glow */}
       <div className="absolute inset-0 pointer-events-none" style={{
-        background: 'radial-gradient(ellipse 70% 45% at 50% 0%, rgba(63,255,33,.06) 0%, transparent 60%)',
+        background: 'radial-gradient(ellipse 70% 45% at 50% 0%, rgba(0,255,65,.06) 0%, transparent 60%)',
       }} />
 
       {/* Header */}
@@ -122,7 +122,7 @@ export function PricingPage() {
           className="w-12 h-12 rounded-2xl flex items-center justify-center mb-5"
           style={{
             background: 'linear-gradient(135deg, var(--g) 0%, #00CC6E 100%)',
-            boxShadow: '0 0 28px rgba(63,255,33,.4)',
+            boxShadow: '0 0 28px rgba(0,255,65,.4)',
           }}
         >
           <svg width="20" height="20" viewBox="0 0 14 14" fill="none">
@@ -155,7 +155,7 @@ export function PricingPage() {
         {userEmail && (
           <div
             className="flex items-center gap-2 mt-4 px-3 py-1.5 rounded-full text-xs"
-            style={{ background: 'rgba(63,255,33,.08)', border: '1px solid rgba(63,255,33,.18)', color: 'var(--t2)' }}
+            style={{ background: 'rgba(0,255,65,.08)', border: '1px solid rgba(0,255,65,.18)', color: 'var(--t2)' }}
           >
             <span className="live-dot" style={{ width: 5, height: 5 }} />
             {userEmail}
@@ -174,9 +174,9 @@ export function PricingPage() {
               key={plan.id}
               className="rounded-2xl flex flex-col overflow-hidden"
               style={{
-                background:  isFeatured ? 'rgba(63,255,33,.07)' : 'var(--bg2)',
-                border:      isFeatured ? '1.5px solid rgba(63,255,33,.35)' : '1px solid var(--b)',
-                boxShadow:   isFeatured ? '0 0 40px rgba(63,255,33,.1)' : 'none',
+                background:  isFeatured ? 'rgba(0,255,65,.07)' : 'var(--bg2)',
+                border:      isFeatured ? '1.5px solid rgba(0,255,65,.35)' : '1px solid var(--b)',
+                boxShadow:   isFeatured ? '0 0 40px rgba(0,255,65,.1)' : 'none',
                 position:    'relative',
               }}
             >
@@ -184,7 +184,7 @@ export function PricingPage() {
               <div style={{
                 height: 3,
                 background: isFeatured
-                  ? 'linear-gradient(90deg, var(--g) 0%, rgba(63,255,33,.5) 60%, transparent 100%)'
+                  ? 'linear-gradient(90deg, var(--g) 0%, rgba(0,255,65,.5) 60%, transparent 100%)'
                   : '1px solid var(--b)',
               }} />
 
@@ -225,7 +225,7 @@ export function PricingPage() {
                   {plan.savings && (
                     <div
                       className="inline-flex items-center gap-1 mt-2 px-2 py-0.5 rounded-md text-[10px] font-bold"
-                      style={{ background: 'rgba(63,255,33,.1)', color: 'var(--g)', border: '1px solid rgba(63,255,33,.2)' }}
+                      style={{ background: 'rgba(0,255,65,.1)', color: 'var(--g)', border: '1px solid rgba(0,255,65,.2)' }}
                     >
                       <TrendingUp size={9} />
                       {plan.savings}
@@ -271,7 +271,7 @@ export function PricingPage() {
                       ? {
                           background: 'var(--g)',
                           color: '#060A07',
-                          boxShadow: '0 0 20px rgba(63,255,33,.3)',
+                          boxShadow: '0 0 20px rgba(0,255,65,.3)',
                         }
                       : {
                           background: 'rgba(255,255,255,.07)',
@@ -281,8 +281,8 @@ export function PricingPage() {
                   }
                   onMouseEnter={e => {
                     if (!isFeatured) {
-                      (e.currentTarget as HTMLElement).style.background = 'rgba(63,255,33,.1)';
-                      (e.currentTarget as HTMLElement).style.borderColor = 'rgba(63,255,33,.3)';
+                      (e.currentTarget as HTMLElement).style.background = 'rgba(0,255,65,.1)';
+                      (e.currentTarget as HTMLElement).style.borderColor = 'rgba(0,255,65,.3)';
                     }
                   }}
                   onMouseLeave={e => {

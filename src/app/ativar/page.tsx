@@ -42,15 +42,15 @@ export default function AtivarPage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 40 }}>
           <div style={{
             width: 36, height: 36, borderRadius: 10,
-            background: 'linear-gradient(135deg,#3FFF21 0%,#00CC6E 100%)',
+            background: 'linear-gradient(135deg,#00FF41 0%,#00CC6E 100%)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 0 20px rgba(63,255,33,.4)',
+            boxShadow: '0 0 20px rgba(0,255,65,.4)',
           }}>
             <Zap size={18} color="#000" strokeWidth={2.5} />
           </div>
           <div>
             <div style={{ fontFamily: 'Manrope', fontWeight: 900, fontSize: 17, letterSpacing: '-0.02em' }}>SureEdge</div>
-            <div style={{ fontSize: 10, color: 'rgba(63,255,33,.55)', fontFamily: 'JetBrains Mono', letterSpacing: '0.06em' }}>ATIVAR ACESSO</div>
+            <div style={{ fontSize: 10, color: 'rgba(0,255,65,.55)', fontFamily: 'JetBrains Mono', letterSpacing: '0.06em' }}>ATIVAR ACESSO</div>
           </div>
         </div>
 
@@ -89,7 +89,7 @@ export default function AtivarPage() {
                 width: '100%', padding: '13px',
                 borderRadius: 12, fontSize: 14, fontWeight: 800,
                 border: 'none', cursor: loading ? 'not-allowed' : 'pointer',
-                background: loading ? 'rgba(63,255,33,.45)' : '#3FFF21',
+                background: loading ? 'rgba(0,255,65,.45)' : '#00FF41',
                 color: '#030507', transition: 'all .2s',
               }}
             >
@@ -102,22 +102,22 @@ export default function AtivarPage() {
             <div style={{
               marginTop: 24, padding: '16px 18px', borderRadius: 14,
               background: result.active
-                ? 'rgba(63,255,33,.07)'
+                ? 'rgba(0,255,65,.07)'
                 : result.found
                   ? 'rgba(255,214,0,.07)'
                   : 'rgba(255,77,77,.07)',
-              border: `1px solid ${result.active ? 'rgba(63,255,33,.2)' : result.found ? 'rgba(255,214,0,.2)' : 'rgba(255,77,77,.2)'}`,
+              border: `1px solid ${result.active ? 'rgba(0,255,65,.2)' : result.found ? 'rgba(255,214,0,.2)' : 'rgba(255,77,77,.2)'}`,
               display: 'flex', flexDirection: 'column', gap: 12,
             }}>
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
                 {result.active
-                  ? <CheckCircle2 size={16} color="#3FFF21" style={{ flexShrink: 0, marginTop: 1 }} />
+                  ? <CheckCircle2 size={16} color="#00FF41" style={{ flexShrink: 0, marginTop: 1 }} />
                   : result.found
                     ? <AlertCircle size={16} color="#FFD600" style={{ flexShrink: 0, marginTop: 1 }} />
                     : <XCircle size={16} color="#FF4D4D" style={{ flexShrink: 0, marginTop: 1 }} />}
                 <p style={{
                   fontSize: 13, lineHeight: 1.55,
-                  color: result.active ? '#3FFF21' : result.found ? '#FFD600' : '#FF4D4D',
+                  color: result.active ? '#00FF41' : result.found ? '#FFD600' : '#FF4D4D',
                 }}>
                   {result.message}
                 </p>
@@ -131,7 +131,7 @@ export default function AtivarPage() {
                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                     padding: '10px', borderRadius: 10, fontSize: 13, fontWeight: 800,
                     border: 'none', cursor: 'pointer',
-                    background: '#3FFF21', color: '#030507',
+                    background: '#00FF41', color: '#030507',
                   }}
                 >
                   Acessar o dashboard <ArrowRight size={14} />

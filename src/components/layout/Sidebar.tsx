@@ -60,7 +60,7 @@ function NavButton({ item, onClose }: { item: NavItem; onClose?: () => void }) {
       {isOn && (
         <span
           className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-[18px] rounded-r-full"
-          style={{ background: 'var(--g)', boxShadow: '0 0 10px rgba(63,255,33,.7)' }}
+          style={{ background: 'var(--g)', boxShadow: '0 0 10px rgba(0,255,65,.7)' }}
         />
       )}
 
@@ -77,7 +77,7 @@ function NavButton({ item, onClose }: { item: NavItem; onClose?: () => void }) {
           className="pill text-[10px]"
           style={
             isOn
-              ? { background: 'rgba(63,255,33,.15)', color: 'var(--g)', border: '1px solid rgba(63,255,33,.2)' }
+              ? { background: 'rgba(0,255,65,.15)', color: 'var(--g)', border: '1px solid rgba(0,255,65,.2)' }
               : badge.warn
                 ? { background: 'var(--rd)', color: 'var(--r)', border: '1px solid rgba(255,77,109,.2)' }
                 : { background: 'var(--yd)', color: 'var(--y)', border: '1px solid rgba(255,214,0,.2)' }
@@ -137,8 +137,8 @@ function ProfileFooter({ onClose }: { onClose?: () => void }) {
           border: '1px solid rgba(255,255,255,.06)',
         }}
         onMouseEnter={e => {
-          (e.currentTarget as HTMLElement).style.background = 'rgba(63,255,33,.06)';
-          (e.currentTarget as HTMLElement).style.borderColor = 'rgba(63,255,33,.18)';
+          (e.currentTarget as HTMLElement).style.background = 'rgba(0,255,65,.06)';
+          (e.currentTarget as HTMLElement).style.borderColor = 'rgba(0,255,65,.18)';
         }}
         onMouseLeave={e => {
           (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,.03)';
@@ -152,8 +152,8 @@ function ProfileFooter({ onClose }: { onClose?: () => void }) {
             style={{
               width: 34, height: 34, borderRadius: '50%',
               objectFit: 'cover', flexShrink: 0,
-              border: '1.5px solid rgba(63,255,33,.25)',
-              boxShadow: '0 0 8px rgba(63,255,33,.12)',
+              border: '1.5px solid rgba(0,255,65,.25)',
+              boxShadow: '0 0 8px rgba(0,255,65,.12)',
             }}
           />
         ) : (
@@ -162,11 +162,11 @@ function ProfileFooter({ onClose }: { onClose?: () => void }) {
               width: 34, height: 34, borderRadius: '50%',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               flexShrink: 0,
-              background: 'linear-gradient(135deg, rgba(63,255,33,.18), rgba(63,255,33,.06))',
-              border: '1.5px solid rgba(63,255,33,.22)',
+              background: 'linear-gradient(135deg, rgba(0,255,65,.18), rgba(0,255,65,.06))',
+              border: '1.5px solid rgba(0,255,65,.22)',
               fontSize: 12, fontWeight: 900,
               color: 'var(--g)',
-              boxShadow: '0 0 8px rgba(63,255,33,.1)',
+              boxShadow: '0 0 8px rgba(0,255,65,.1)',
             }}
           >
             {initials || 'U'}
@@ -188,9 +188,9 @@ function ProfileFooter({ onClose }: { onClose?: () => void }) {
         <span
           className="text-[9px] px-2 py-0.5 rounded-md font-black flex-shrink-0 uppercase tracking-wider"
           style={{
-            background: 'rgba(63,255,33,.12)',
+            background: 'rgba(0,255,65,.12)',
             color: 'var(--g)',
-            border: '1px solid rgba(63,255,33,.2)',
+            border: '1px solid rgba(0,255,65,.2)',
           }}
         >
           Pro
@@ -227,8 +227,8 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
         className="flex items-center gap-3 px-4 flex-shrink-0"
         style={{
           height: 60,
-          borderBottom: '1px solid rgba(63,255,33,.08)',
-          background: 'linear-gradient(180deg, rgba(63,255,33,.09) 0%, transparent 100%)',
+          borderBottom: '1px solid rgba(0,255,65,.08)',
+          background: 'linear-gradient(180deg, rgba(0,255,65,.09) 0%, transparent 100%)',
         }}
       >
         {/* Icon */}
@@ -238,7 +238,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
             borderRadius: 10,
             background: 'linear-gradient(135deg, var(--g) 0%, #00CC6E 100%)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 0 24px rgba(63,255,33,.55), 0 0 60px rgba(63,255,33,.18), inset 0 1px 0 rgba(255,255,255,.25)',
+            boxShadow: '0 0 24px rgba(0,255,65,.55), 0 0 60px rgba(0,255,65,.18), inset 0 1px 0 rgba(255,255,255,.25)',
             flexShrink: 0,
           }}
         >
@@ -253,9 +253,20 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
             <span className="text-glow" style={{ color: 'var(--g)' }}>Sure</span>
             <span style={{ color: 'var(--t)' }}>Edge</span>
           </span>
-          <span className="text-[9px] font-semibold tracking-[.08em] uppercase" style={{ color: 'var(--t3)' }}>
-            Trading Hub
-          </span>
+          <div className="flex items-center gap-1.5 mt-0.5">
+            <span className="text-[9px] font-semibold tracking-[.08em] uppercase" style={{ color: 'var(--t3)' }}>
+              Trading Hub
+            </span>
+            <span style={{
+              fontSize: 8,
+              fontFamily: "'JetBrains Mono',monospace",
+              fontWeight: 700,
+              color: 'rgba(0,255,65,.45)',
+              letterSpacing: '0.04em',
+            }}>
+              v2.4
+            </span>
+          </div>
         </div>
 
         {/* Close button — mobile only */}
@@ -307,7 +318,7 @@ export function Sidebar() {
         className="absolute top-0 left-0 right-0 pointer-events-none"
         style={{
           height: 200,
-          background: 'radial-gradient(ellipse 80% 120px at 50% -20px, rgba(63,255,33,.07) 0%, transparent 100%)',
+          background: 'radial-gradient(ellipse 80% 120px at 50% -20px, rgba(0,255,65,.07) 0%, transparent 100%)',
         }}
       />
       <div className="relative flex flex-col h-full overflow-y-auto">
@@ -343,7 +354,7 @@ export function MobileDrawer({ open, onClose }: { open: boolean; onClose: () => 
           className="absolute top-0 left-0 right-0 pointer-events-none"
           style={{
             height: 200,
-            background: 'radial-gradient(ellipse 80% 120px at 50% -20px, rgba(63,255,33,.08) 0%, transparent 100%)',
+            background: 'radial-gradient(ellipse 80% 120px at 50% -20px, rgba(0,255,65,.08) 0%, transparent 100%)',
           }}
         />
         <div className="relative flex flex-col h-full overflow-y-auto">

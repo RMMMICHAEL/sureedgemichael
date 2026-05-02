@@ -30,7 +30,7 @@ function MiniParticles() {
         if (p.x < 0) p.x = W; if (p.x > W) p.x = 0;
         if (p.y < 0) p.y = H; if (p.y > H) p.y = 0;
         ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(63,255,33,${p.a})`; ctx.fill();
+        ctx.fillStyle = `rgba(0,255,65,${p.a})`; ctx.fill();
       }
       id = requestAnimationFrame(loop);
     };
@@ -60,28 +60,28 @@ function LiveTicker() {
       <div style={{ animation: 'ticker-scroll 28s linear infinite', display: 'flex', flexDirection: 'column', gap: 8 }}>
         {doubled.map((item, i) => (
           <div key={i} style={{
-            background: item.type === 'found' ? 'rgba(63,255,33,.07)' : 'rgba(255,255,255,.04)',
-            border: `1px solid ${item.type === 'found' ? 'rgba(63,255,33,.18)' : 'rgba(255,255,255,.07)'}`,
+            background: item.type === 'found' ? 'rgba(0,255,65,.07)' : 'rgba(255,255,255,.04)',
+            border: `1px solid ${item.type === 'found' ? 'rgba(0,255,65,.18)' : 'rgba(255,255,255,.07)'}`,
             borderRadius: 10, padding: '10px 14px',
             display: 'flex', alignItems: 'center', gap: 12,
           }}>
             <div style={{
               width: 32, height: 32, borderRadius: 8, flexShrink: 0,
-              background: item.type === 'found' ? 'rgba(63,255,33,.14)' : 'rgba(255,255,255,.06)',
+              background: item.type === 'found' ? 'rgba(0,255,65,.14)' : 'rgba(255,255,255,.06)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>
               {item.type === 'found'
-                ? <Zap size={14} color="#3FFF21" />
+                ? <Zap size={14} color="#00FF41" />
                 : <TrendingUp size={14} color="#8899AA" />}
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 11, color: item.type === 'found' ? '#3FFF21' : 'var(--t2)', fontWeight: 600, marginBottom: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              <div style={{ fontSize: 11, color: item.type === 'found' ? '#00FF41' : 'var(--t2)', fontWeight: 600, marginBottom: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {item.evento}
               </div>
               <div style={{ fontSize: 10, color: 'var(--t3)' }}>{item.casa}</div>
             </div>
             <div style={{ textAlign: 'right', flexShrink: 0 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: '#3FFF21', fontFamily: 'JetBrains Mono' }}>{item.val}</div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#00FF41', fontFamily: 'JetBrains Mono' }}>{item.val}</div>
               <div style={{ fontSize: 10, color: 'var(--t3)' }}>ROI {item.roi}</div>
             </div>
           </div>
@@ -103,7 +103,7 @@ function InputField({ icon: Icon, type, value, onChange, placeholder, autoComple
     <div style={{ position: 'relative' }}>
       <Icon size={14} style={{
         position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)',
-        color: focused ? '#3FFF21' : 'var(--t3)', transition: 'color .2s', pointerEvents: 'none',
+        color: focused ? '#00FF41' : 'var(--t3)', transition: 'color .2s', pointerEvents: 'none',
       }} />
       <input
         type={type} value={value} onChange={e => onChange(e.target.value)}
@@ -114,9 +114,9 @@ function InputField({ icon: Icon, type, value, onChange, placeholder, autoComple
           width: '100%', paddingLeft: 40, paddingRight: 14, paddingTop: 12, paddingBottom: 12,
           borderRadius: 12, fontSize: 14,
           background: 'rgba(255,255,255,.05)',
-          border: `1px solid ${focused ? 'rgba(63,255,33,.4)' : 'rgba(255,255,255,.08)'}`,
+          border: `1px solid ${focused ? 'rgba(0,255,65,.4)' : 'rgba(255,255,255,.08)'}`,
           color: 'var(--t)',
-          boxShadow: focused ? '0 0 0 3px rgba(63,255,33,.07)' : 'none',
+          boxShadow: focused ? '0 0 0 3px rgba(0,255,65,.07)' : 'none',
           transition: 'border-color .2s, box-shadow .2s',
           outline: 'none',
         }}
@@ -185,8 +185,8 @@ export function LoginForm() {
       }}>
         <MiniParticles />
         {/* Ambient glow */}
-        <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse 70% 60% at 50% -10%, rgba(63,255,33,.08) 0%, transparent 55%)', pointerEvents: 'none' }} />
-        <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse 40% 40% at 90% 90%, rgba(63,255,33,.05) 0%, transparent 55%)', pointerEvents: 'none' }} />
+        <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse 70% 60% at 50% -10%, rgba(0,255,65,.08) 0%, transparent 55%)', pointerEvents: 'none' }} />
+        <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse 40% 40% at 90% 90%, rgba(0,255,65,.05) 0%, transparent 55%)', pointerEvents: 'none' }} />
         <div className="dot-grid" style={{ position: 'absolute', inset: 0, opacity: 0.35 }} />
 
         {/* Content */}
@@ -196,15 +196,15 @@ export function LoginForm() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 24 }}>
             <div style={{
               width: 38, height: 38, borderRadius: 11,
-              background: 'linear-gradient(135deg,#3FFF21 0%,#00CC6E 100%)',
+              background: 'linear-gradient(135deg,#00FF41 0%,#00CC6E 100%)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: '0 0 24px rgba(63,255,33,.4)',
+              boxShadow: '0 0 24px rgba(0,255,65,.4)',
             }}>
               <Zap size={20} color="#000" strokeWidth={2.5} />
             </div>
             <div>
               <div style={{ fontFamily: 'Manrope', fontWeight: 900, fontSize: 18, letterSpacing: '-0.02em' }}>SureEdge</div>
-              <div style={{ fontSize: 11, color: 'rgba(63,255,33,.6)', fontFamily: 'JetBrains Mono', letterSpacing: '0.06em' }}>TRADING HUB</div>
+              <div style={{ fontSize: 11, color: 'rgba(0,255,65,.6)', fontFamily: 'JetBrains Mono', letterSpacing: '0.06em' }}>TRADING HUB</div>
             </div>
           </div>
 
@@ -216,7 +216,7 @@ export function LoginForm() {
               letterSpacing: '-0.04em', lineHeight: 1.05, marginBottom: 16,
             }}>
               Domine o mercado<br />
-              <span style={{ color: '#3FFF21' }}>com dados.</span>
+              <span style={{ color: '#00FF41' }}>com dados.</span>
             </h1>
             <p style={{ color: 'var(--t2)', fontSize: 15, lineHeight: 1.65, maxWidth: 360 }}>
               O dashboard profissional que traders de surebet usam para monitorar lucro e dominar as casas de apostas.
@@ -227,7 +227,7 @@ export function LoginForm() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 32 }}>
             {[
               { val: '2.847+', label: 'Operações', color: '#4DA6FF' },
-              { val: '3.8%',   label: 'ROI médio',   color: '#3FFF21' },
+              { val: '3.8%',   label: 'ROI médio',   color: '#00FF41' },
               { val: '37+',    label: 'Bookmakers',  color: '#FFD600' },
             ].map(s => (
               <div key={s.label} style={{
@@ -263,7 +263,7 @@ export function LoginForm() {
                 background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.08)',
                 borderRadius: 999, padding: '5px 12px',
               }}>
-                <item.icon size={12} color="rgba(63,255,33,.7)" />
+                <item.icon size={12} color="rgba(0,255,65,.7)" />
                 <span style={{ fontSize: 11, color: 'var(--t3)' }}>{item.text}</span>
               </div>
             ))}
@@ -282,7 +282,7 @@ export function LoginForm() {
         <div className="flex lg:hidden items-center gap-3 mb-8">
           <div style={{
             width: 36, height: 36, borderRadius: 10,
-            background: 'linear-gradient(135deg,#3FFF21 0%,#00CC6E 100%)',
+            background: 'linear-gradient(135deg,#00FF41 0%,#00CC6E 100%)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>
             <Zap size={18} color="#000" strokeWidth={2.5} />
@@ -315,9 +315,9 @@ export function LoginForm() {
                   style={{
                     flex: 1, padding: '10px 0', borderRadius: 9, fontSize: 13, fontWeight: 700,
                     cursor: 'pointer', transition: 'all .18s',
-                    border: mode === m ? '1px solid rgba(63,255,33,.14)' : '1px solid transparent',
-                    background: mode === m ? 'rgba(63,255,33,.08)' : 'none',
-                    color: mode === m ? '#3FFF21' : 'var(--t3)',
+                    border: mode === m ? '1px solid rgba(0,255,65,.14)' : '1px solid transparent',
+                    background: mode === m ? 'rgba(0,255,65,.08)' : 'none',
+                    color: mode === m ? '#00FF41' : 'var(--t3)',
                     boxShadow: 'none',
                   }}
                 >
@@ -330,15 +330,15 @@ export function LoginForm() {
           {/* Success state */}
           {done ? (
             <div style={{
-              background: 'rgba(63,255,33,.06)', border: '1px solid rgba(63,255,33,.2)',
+              background: 'rgba(0,255,65,.06)', border: '1px solid rgba(0,255,65,.2)',
               borderRadius: 16, padding: 32, textAlign: 'center',
             }}>
               <div style={{
                 width: 56, height: 56, borderRadius: '50%', margin: '0 auto 20px',
-                background: 'rgba(63,255,33,.14)', border: '1px solid rgba(63,255,33,.25)',
+                background: 'rgba(0,255,65,.14)', border: '1px solid rgba(0,255,65,.25)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}>
-                <Check size={24} color="#3FFF21" />
+                <Check size={24} color="#00FF41" />
               </div>
               <h3 style={{ fontFamily: 'Manrope', fontWeight: 800, fontSize: 18, marginBottom: 10 }}>
                 {mode === 'reset' ? 'E-mail enviado!' : 'Conta criada com sucesso!'}
@@ -349,7 +349,7 @@ export function LoginForm() {
                   : 'Confirme seu e-mail clicando no link que enviamos. Depois é só entrar!'}
               </p>
               <button onClick={() => { setMode('login'); setDone(false); setError(''); }} style={{
-                background: 'none', border: 'none', color: '#3FFF21',
+                background: 'none', border: 'none', color: '#00FF41',
                 fontSize: 13, fontWeight: 700, cursor: 'pointer',
                 display: 'flex', alignItems: 'center', gap: 6, margin: '0 auto',
               }}>
@@ -411,14 +411,14 @@ export function LoginForm() {
                   width: '100%', padding: '14px',
                   borderRadius: 12, fontSize: 15, fontWeight: 800,
                   border: 'none', cursor: loading ? 'not-allowed' : 'pointer',
-                  background: loading ? 'rgba(63,255,33,.45)' : '#3FFF21',
+                  background: loading ? 'rgba(0,255,65,.45)' : '#00FF41',
                   color: '#030507',
-                  boxShadow: loading ? 'none' : '0 0 24px rgba(63,255,33,.35)',
+                  boxShadow: loading ? 'none' : '0 0 24px rgba(0,255,65,.35)',
                   transition: 'all .2s',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                 }}
-                onMouseEnter={e => { if (!loading) (e.currentTarget).style.boxShadow = '0 0 36px rgba(63,255,33,.5)'; }}
-                onMouseLeave={e => { if (!loading) (e.currentTarget).style.boxShadow = '0 0 24px rgba(63,255,33,.35)'; }}
+                onMouseEnter={e => { if (!loading) (e.currentTarget).style.boxShadow = '0 0 36px rgba(0,255,65,.5)'; }}
+                onMouseLeave={e => { if (!loading) (e.currentTarget).style.boxShadow = '0 0 24px rgba(0,255,65,.35)'; }}
               >
                 {loading ? (
                   <>
@@ -467,8 +467,8 @@ export function LoginForm() {
                 onClick={() => router.push('/pricing')}
                 style={{
                   display: 'inline-flex', alignItems: 'center', gap: 6,
-                  color: '#3FFF21', fontSize: 13, fontWeight: 700,
-                  background: 'rgba(63,255,33,.08)', border: '1px solid rgba(63,255,33,.2)',
+                  color: '#00FF41', fontSize: 13, fontWeight: 700,
+                  background: 'rgba(0,255,65,.08)', border: '1px solid rgba(0,255,65,.2)',
                   borderRadius: 8, padding: '8px 16px', cursor: 'pointer',
                 }}
               >
