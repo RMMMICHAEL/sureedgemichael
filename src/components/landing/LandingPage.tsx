@@ -2,12 +2,60 @@
 
 import { useState, useEffect } from 'react';
 import { getSupabaseClient } from '@/lib/supabase/client';
-import { PLAN_PRICES } from '@/lib/supabase/subscription';
+import { PLAN_PRICES, PLAN_LABELS, type PlanId } from '@/lib/supabase/subscription';
 import {
   Zap, TrendingUp, Shield, BarChart2, Calculator,
   Upload, ChevronDown, Check, ArrowRight,
   Target, Trophy, LogOut, Database, Activity,
+  QrCode, CreditCard,
 } from 'lucide-react';
+
+// ─── Pricing data (mirrors /pricing) ─────────────────────────────────────────
+
+interface LandingPlan {
+  id: PlanId;
+  label: string;
+  price: number;
+  perMonth: number;
+  period: string;
+  savings?: string;
+  badge?: string;
+  features: string[];
+}
+
+const LANDING_PLANS: LandingPlan[] = [
+  {
+    id: 'monthly', label: 'Mensal',
+    price: PLAN_PRICES.monthly, perMonth: PLAN_PRICES.monthly,
+    period: 'por mês',
+    features: ['Dashboard completo', 'Operações ilimitadas', 'Importação de planilha', 'Análise de performance', 'Calculadora de surebet', 'Suporte via e-mail'],
+  },
+  {
+    id: 'quarterly', label: 'Trimestral',
+    price: PLAN_PRICES.quarterly, perMonth: +(PLAN_PRICES.quarterly / 3).toFixed(2),
+    period: 'por trimestre', savings: 'Economize 15%', badge: 'POPULAR',
+    features: ['Tudo do Mensal', '3 meses de acesso', 'Prioridade no suporte', 'Relatórios avançados'],
+  },
+  {
+    id: 'annual', label: 'Anual',
+    price: PLAN_PRICES.annual, perMonth: +(PLAN_PRICES.annual / 12).toFixed(2),
+    period: 'por ano', savings: 'Economize 32%',
+    features: ['Tudo do Trimestral', '12 meses de acesso', 'Acesso antecipado a novidades', 'Suporte prioritário'],
+  },
+];
+
+function landingCheckoutUrl(planId: PlanId, email: string): string {
+  const base =
+    planId === 'monthly'   ? process.env.NEXT_PUBLIC_CAKTO_URL_MONTHLY   :
+    planId === 'quarterly' ? process.env.NEXT_PUBLIC_CAKTO_URL_QUARTERLY :
+                             process.env.NEXT_PUBLIC_CAKTO_URL_ANNUAL;
+  if (!base) return '/pricing';
+  try {
+    const url = new URL(base);
+    if (email) url.searchParams.set('email', email);
+    return url.toString();
+  } catch { return base; }
+}
 
 // ─── Scroll Reveal ─────────────────────────────────────────────────────────────
 
@@ -481,40 +529,128 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* ══════════ PRICING CTA ══════════ */}
+      {/* ══════════ PRICING ══════════ */}
       <section id="precos" style={{ background: '#0A0F14', padding: '100px 32px', borderTop: '1px solid rgba(255,255,255,.05)' }}>
-        <div style={{ maxWidth: 1200, margin: '0 auto' }}>
-          <div className="reveal grid grid-cols-1 md:grid-cols-[1fr_auto] gap-12 items-center">
-            <div>
-              <Label text="Planos" />
-              <h2 style={{ fontFamily: 'Manrope', fontWeight: 900, fontSize: 'clamp(32px, 4vw, 52px)', letterSpacing: '-0.04em', lineHeight: 1.05, marginBottom: 16 }}>
-                Sem taxas escondidas.<br />Sem surpresas.
-              </h2>
-              <p style={{ fontFamily: 'Figtree', fontSize: 16, color: 'var(--t2)', lineHeight: 1.65, marginBottom: 28, maxWidth: '48ch' }}>
-                Acesso completo ao SureEdge. Cancele quando quiser, sem burocracia.
-              </p>
-              <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', marginBottom: 32 }}>
-                {['PIX com desconto', 'Cartão em até 12x', 'Acesso imediato', 'Cancele quando quiser'].map(t => (
-                  <span key={t} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: 'Figtree', fontSize: 12, color: 'var(--t3)', border: '1px solid rgba(255,255,255,.08)', borderRadius: 4, padding: '4px 10px' }}>
-                    <Check size={10} color="#3FFF21" /> {t}
-                  </span>
-                ))}
+        <div style={{ maxWidth: 980, margin: '0 auto' }}>
+
+          {/* Header */}
+          <div className="reveal" style={{ textAlign: 'center', marginBottom: 56 }}>
+            <Label text="Planos" />
+            <h2 style={{ fontFamily: 'Manrope', fontWeight: 900, fontSize: 'clamp(32px, 4vw, 52px)', letterSpacing: '-0.04em', lineHeight: 1.05, marginBottom: 14 }}>
+              Sem taxas escondidas.<br />Sem surpresas.
+            </h2>
+            <p style={{ fontFamily: 'Figtree', fontSize: 16, color: 'var(--t2)', lineHeight: 1.65, maxWidth: '44ch', margin: '0 auto' }}>
+              Acesso completo ao SureEdge. Cancele quando quiser, sem burocracia.
+            </p>
+          </div>
+
+          {/* Cards grid */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {LANDING_PLANS.map(plan => {
+              const isFeatured = plan.id === 'quarterly';
+              const url = landingCheckoutUrl(plan.id, email);
+              return (
+                <div key={plan.id} className="rounded-2xl flex flex-col overflow-hidden" style={{
+                  background:  isFeatured ? 'rgba(63,255,33,.07)' : 'rgba(255,255,255,.03)',
+                  border:      isFeatured ? '1.5px solid rgba(63,255,33,.35)' : '1px solid rgba(255,255,255,.08)',
+                  boxShadow:   isFeatured ? '0 0 40px rgba(63,255,33,.1)' : 'none',
+                  position:    'relative',
+                }}>
+                  {/* Top accent bar */}
+                  <div style={{
+                    height: 3,
+                    background: isFeatured
+                      ? 'linear-gradient(90deg, #3FFF21 0%, rgba(63,255,33,.5) 60%, transparent 100%)'
+                      : 'transparent',
+                  }} />
+
+                  {/* Badge */}
+                  {plan.badge && (
+                    <div style={{ position: 'absolute', top: 16, right: 16 }}>
+                      <span style={{ fontFamily: 'JetBrains Mono', fontSize: 9, fontWeight: 900, letterSpacing: '0.1em', textTransform: 'uppercase', background: '#3FFF21', color: '#060A07', borderRadius: 999, padding: '3px 10px' }}>
+                        {plan.badge}
+                      </span>
+                    </div>
+                  )}
+
+                  <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20, flex: 1 }}>
+                    {/* Plan name + price */}
+                    <div>
+                      <div style={{ fontFamily: 'JetBrains Mono', fontSize: 11, fontWeight: 900, letterSpacing: '0.1em', textTransform: 'uppercase', color: isFeatured ? '#3FFF21' : 'var(--t3)', marginBottom: 6 }}>
+                        {plan.label}
+                      </div>
+                      <div style={{ fontFamily: 'Manrope', fontWeight: 900, fontSize: 36, letterSpacing: '-0.03em', color: 'var(--t)', lineHeight: 1 }}>
+                        R$ {plan.price.toLocaleString('pt-BR')}
+                      </div>
+                      <div style={{ fontFamily: 'Figtree', fontSize: 12, color: 'var(--t3)', marginTop: 4 }}>
+                        {plan.period}
+                        {plan.id !== 'monthly' && (
+                          <span style={{ color: 'var(--t2)', marginLeft: 6 }}>
+                            · R$ {plan.perMonth.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}/mês
+                          </span>
+                        )}
+                      </div>
+                      {plan.savings && (
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, marginTop: 8, padding: '3px 10px', borderRadius: 6, background: 'rgba(63,255,33,.1)', border: '1px solid rgba(63,255,33,.2)', fontFamily: 'Figtree', fontSize: 11, fontWeight: 700, color: '#3FFF21' }}>
+                          <TrendingUp size={9} /> {plan.savings}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Features */}
+                    <ul style={{ display: 'flex', flexDirection: 'column', gap: 9, flex: 1 }}>
+                      {plan.features.map(f => (
+                        <li key={f} style={{ display: 'flex', alignItems: 'center', gap: 9, fontFamily: 'Figtree', fontSize: 13, color: 'var(--t2)' }}>
+                          <Check size={11} color="#3FFF21" style={{ flexShrink: 0 }} /> {f}
+                        </li>
+                      ))}
+                    </ul>
+
+                    {/* Payment badges */}
+                    <div style={{ display: 'flex', gap: 7 }}>
+                      {[{ Icon: QrCode, label: 'PIX' }, { Icon: CreditCard, label: 'Cartão' }].map(({ Icon, label }) => (
+                        <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 7, background: 'rgba(255,255,255,.05)', fontFamily: 'JetBrains Mono', fontSize: 10, fontWeight: 700, color: 'var(--t3)' }}>
+                          <Icon size={10} /> {label}
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* CTA */}
+                    <a
+                      href={url}
+                      target={url.startsWith('http') ? '_blank' : undefined}
+                      rel="noopener noreferrer"
+                      className="btn-cta"
+                      style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+                        padding: '13px 20px', borderRadius: 11, fontFamily: 'Manrope', fontSize: 14, fontWeight: 800,
+                        textDecoration: 'none', transition: 'all .2s',
+                        ...(isFeatured
+                          ? { background: '#3FFF21', color: '#060A07', boxShadow: '0 0 20px rgba(63,255,33,.3)' }
+                          : { background: 'rgba(255,255,255,.07)', color: 'var(--t)', border: '1px solid rgba(255,255,255,.1)' }),
+                      }}
+                      onMouseEnter={e => { if (!isFeatured) { const el = e.currentTarget as HTMLElement; el.style.background = 'rgba(63,255,33,.1)'; el.style.borderColor = 'rgba(63,255,33,.3)'; } }}
+                      onMouseLeave={e => { if (!isFeatured) { const el = e.currentTarget as HTMLElement; el.style.background = 'rgba(255,255,255,.07)'; el.style.borderColor = 'rgba(255,255,255,.1)'; } }}
+                    >
+                      <Zap size={13} /> Assinar {PLAN_LABELS[plan.id]}
+                    </a>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Trust signals */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 32, marginTop: 36, flexWrap: 'wrap' }}>
+            {[
+              { icon: <Shield size={13} />, text: 'Pagamento seguro via Cakto' },
+              { icon: <Zap size={13} />, text: 'Acesso imediato após pagamento' },
+              { icon: <TrendingUp size={13} />, text: 'Cancele quando quiser' },
+            ].map(item => (
+              <div key={item.text} style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'Figtree', fontSize: 12, color: 'var(--t3)' }}>
+                {item.icon} {item.text}
               </div>
-              <a href="/pricing" className="btn-cta" style={{
-                display: 'inline-flex', alignItems: 'center', gap: 8,
-                background: '#3FFF21', color: '#050A06', borderRadius: 8,
-                padding: '14px 28px', fontSize: 15, fontWeight: 800, textDecoration: 'none',
-              }}>
-                Ver planos e preços <ArrowRight size={16} />
-              </a>
-            </div>
-            <div className="hidden md:block" style={{ textAlign: 'right', flexShrink: 0 }}>
-              <div style={{ fontFamily: 'JetBrains Mono', fontSize: 9, color: 'var(--t3)', letterSpacing: '0.12em', marginBottom: 4, textTransform: 'uppercase' }}>A partir de</div>
-              <div style={{ fontFamily: 'Manrope', fontWeight: 900, fontSize: 'clamp(52px, 6vw, 80px)', letterSpacing: '-0.05em', color: '#3FFF21', lineHeight: 1 }}>
-                R${PLAN_PRICES.monthly}
-              </div>
-              <div style={{ fontFamily: 'JetBrains Mono', fontSize: 10, color: 'var(--t3)', marginTop: 4 }}>/mês</div>
-            </div>
+            ))}
           </div>
         </div>
       </section>
