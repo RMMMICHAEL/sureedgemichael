@@ -474,6 +474,16 @@ export function LoginForm() {
               >
                 <Zap size={13} /> Ver planos e preços
               </button>
+              <p style={{ color: 'var(--t3)', fontSize: 12, marginTop: 14 }}>
+                Já pagou mas não consegue entrar?{' '}
+                <button
+                  type="button"
+                  onClick={() => router.push('/ativar')}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--t2)', fontSize: 12, fontWeight: 600, textDecoration: 'underline' }}
+                >
+                  Verificar minha compra
+                </button>
+              </p>
             </div>
           )}
         </div>

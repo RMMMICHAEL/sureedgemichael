@@ -46,8 +46,10 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/auth') ||
     pathname.startsWith('/pricing') ||
     pathname.startsWith('/bem-vindo') ||
+    pathname.startsWith('/ativar') ||
     pathname.startsWith('/api/webhook') ||
-    pathname.startsWith('/api/subscription');
+    pathname.startsWith('/api/subscription') ||
+    pathname.startsWith('/api/ativar');
 
   if (!user && !isPublicRoute) {
     const url = request.nextUrl.clone();
