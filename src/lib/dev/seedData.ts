@@ -32,6 +32,8 @@ function pc3(od1: number, od2: number, od3: number) {
 }
 
 // ── IDs compartilhados para limpeza ───────────────────────────────────────────
+// These module-level arrays reset on every page load, so we also persist them
+// to localStorage so clearSeedData() works after a reload.
 
 export const SEED_LEG_IDS: string[] = [];
 export const SEED_BM_IDS:  string[] = [];
@@ -39,6 +41,42 @@ export const SEED_BANK_IDS: string[] = [];
 export const SEED_EXP_IDS: string[] = [];
 export const SEED_PA_IDS:  string[] = [];
 export const SEED_CLI_IDS: string[] = [];
+
+const SEED_STORAGE_KEY = 'se_v5_seed_ids';
+
+function saveSeedIds() {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(SEED_STORAGE_KEY, JSON.stringify({
+      legs: SEED_LEG_IDS,
+      bms:  SEED_BM_IDS,
+      banks: SEED_BANK_IDS,
+      exps: SEED_EXP_IDS,
+      pas:  SEED_PA_IDS,
+      clis: SEED_CLI_IDS,
+    }));
+  } catch { /* ignore */ }
+}
+
+function loadSeedIds() {
+  if (typeof window === 'undefined') return;
+  try {
+    const raw = localStorage.getItem(SEED_STORAGE_KEY);
+    if (!raw) return;
+    const saved = JSON.parse(raw) as Record<string, string[]>;
+    if (SEED_LEG_IDS.length  === 0 && saved.legs?.length)  SEED_LEG_IDS.push(...saved.legs);
+    if (SEED_BM_IDS.length   === 0 && saved.bms?.length)   SEED_BM_IDS.push(...saved.bms);
+    if (SEED_BANK_IDS.length === 0 && saved.banks?.length)  SEED_BANK_IDS.push(...saved.banks);
+    if (SEED_EXP_IDS.length  === 0 && saved.exps?.length)  SEED_EXP_IDS.push(...saved.exps);
+    if (SEED_PA_IDS.length   === 0 && saved.pas?.length)   SEED_PA_IDS.push(...saved.pas);
+    if (SEED_CLI_IDS.length  === 0 && saved.clis?.length)  SEED_CLI_IDS.push(...saved.clis);
+  } catch { /* ignore */ }
+}
+
+function clearSeedIds() {
+  if (typeof window === 'undefined') return;
+  try { localStorage.removeItem(SEED_STORAGE_KEY); } catch { /* ignore */ }
+}
 
 // ── Legs ─────────────────────────────────────────────────────────────────────
 
@@ -450,9 +488,15 @@ export function loadSeedData() {
   SEED_CLI_IDS.length = 0;
   state.clients.filter(c => ['Carlos Pereira','Ana Costa','Rafael Lima','Fernanda Oliveira'].includes(c.name))
     .forEach(c => SEED_CLI_IDS.push(c.id));
+
+  // Persist IDs to localStorage so clearSeedData() works after a page reload
+  saveSeedIds();
 }
 
 export function clearSeedData() {
+  // Restore IDs from localStorage in case the module was re-initialized by a page reload
+  loadSeedIds();
+
   const store = useStore.getState();
 
   SEED_LEG_IDS.forEach(id => store.deleteLeg(id));
@@ -468,4 +512,7 @@ export function clearSeedData() {
   SEED_EXP_IDS.length = 0;
   SEED_PA_IDS.length = 0;
   SEED_CLI_IDS.length = 0;
+
+  // Remove persisted IDs from localStorage
+  clearSeedIds();
 }

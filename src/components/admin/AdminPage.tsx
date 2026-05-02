@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useStore } from '@/store/useStore';
 import { Button } from '@/components/ui/Button';
 import { wipeDB } from '@/lib/storage/db';
 import { loadSeedData, clearSeedData } from '@/lib/dev/seedData';
@@ -8,6 +9,8 @@ import { loadSeedData, clearSeedData } from '@/lib/dev/seedData';
 export function AdminPage() {
   const [loadingDemo, setLoadingDemo] = useState(false);
   const [demoLoaded, setDemoLoaded] = useState(false);
+  const setView  = useStore(s => s.setView);
+  const toastFn  = useStore(s => s.toast);
 
   function handleReset() {
     if (!confirm('Apagar TODOS os dados? Esta ação não pode ser desfeita.')) return;
@@ -15,13 +18,16 @@ export function AdminPage() {
     window.location.reload();
   }
 
-  async function handleLoadDemo() {
+  function handleLoadDemo() {
     if (!confirm('Carregar dados de demonstração? Isso adicionará operações, casas e contas fictícias.')) return;
     setLoadingDemo(true);
     try {
-      await loadSeedData();
+      loadSeedData();
       setDemoLoaded(true);
-      window.location.reload();
+      // Navigate to dashboard instead of reloading — reloading triggers a
+      // Supabase sync that overwrites localStorage with the remote (non-seed) DB.
+      setView('dash');
+      toastFn('Dados demo carregados com sucesso!', 'ok');
     } finally {
       setLoadingDemo(false);
     }
@@ -31,7 +37,7 @@ export function AdminPage() {
     if (!confirm('Remover todos os dados de demonstração?')) return;
     clearSeedData();
     setDemoLoaded(false);
-    window.location.reload();
+    toastFn('Dados demo removidos.', 'ok');
   }
 
   return (
