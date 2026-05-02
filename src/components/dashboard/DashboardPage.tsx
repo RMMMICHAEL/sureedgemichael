@@ -82,8 +82,12 @@ interface KPIStat {
 }
 
 function KPIBar({ stats }: { stats: KPIStat[] }) {
+  const cols = stats.length === 1 ? 'grid-cols-1'
+    : stats.length === 2 ? 'grid-cols-2'
+    : stats.length === 3 ? 'grid-cols-2 lg:grid-cols-3'
+    : 'grid-cols-2 lg:grid-cols-4';
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+    <div className={`grid ${cols} gap-3`}>
       {stats.map((s, i) => {
         const isPos = s.positive === true;
         const isNeg = s.positive === false;
@@ -805,11 +809,15 @@ function subDays(iso: string, n: number): string {
 
 /* ── Main ──────────────────────────────────────────────────────────────────── */
 
+const ADMIN_EMAIL = 'michael.martins.trader@gmail.com';
+
 export function DashboardPage() {
-  const legs     = useStore(s => s.legs);
-  const bms      = useStore(s => s.bms);
-  const banks    = useStore(s => s.banks);
-  const expenses = useStore(s => s.expenses);
+  const legs      = useStore(s => s.legs);
+  const bms       = useStore(s => s.bms);
+  const banks     = useStore(s => s.banks);
+  const expenses  = useStore(s => s.expenses);
+  const authEmail = useStore(s => s.authEmail);
+  const isAdmin   = authEmail === ADMIN_EMAIL;
 
   const today     = todayStr();
   const month     = currentMonth();
@@ -953,30 +961,32 @@ export function DashboardPage() {
 
       {/* KPI Bar */}
       <KPIBar stats={[
-        {
-          label: 'Lucro Hoje',
-          value: fmtBRL(profitDay),
-          sub: `${settled.filter(l => l.bd.slice(0, 10) === today).length} apostas`,
-          positive: profitDay === 0 ? null : profitDay > 0,
-          icon: <TrendingUp size={14} />,
-          sparkline: sparkWeek.slice(-1).concat([{ v: profitDay }]),
-        },
-        {
-          label: 'Lucro Semana',
-          value: fmtBRL(profitWeek),
-          sub: 'esta semana',
-          positive: profitWeek === 0 ? null : profitWeek > 0,
-          icon: <Calendar size={14} />,
-          sparkline: sparkWeek,
-        },
-        {
-          label: `Lucro ${monthName}`,
-          value: fmtBRL(profitMonth),
-          sub: `${monthLegs.length} apostas · líquido (c/ gastos)`,
-          positive: profitMonth === 0 ? null : profitMonth > 0,
-          icon: <BarChart3 size={14} />,
-          sparkline: sparkMonth,
-        },
+        ...(isAdmin ? [
+          {
+            label: 'Lucro Hoje',
+            value: fmtBRL(profitDay),
+            sub: `${settled.filter(l => l.bd.slice(0, 10) === today).length} apostas`,
+            positive: profitDay === 0 ? null : profitDay > 0,
+            icon: <TrendingUp size={14} />,
+            sparkline: sparkWeek.slice(-1).concat([{ v: profitDay }]),
+          },
+          {
+            label: 'Lucro Semana',
+            value: fmtBRL(profitWeek),
+            sub: 'esta semana',
+            positive: profitWeek === 0 ? null : profitWeek > 0,
+            icon: <Calendar size={14} />,
+            sparkline: sparkWeek,
+          },
+          {
+            label: `Lucro ${monthName}`,
+            value: fmtBRL(profitMonth),
+            sub: `${monthLegs.length} apostas · líquido (c/ gastos)`,
+            positive: profitMonth === 0 ? null : profitMonth > 0,
+            icon: <BarChart3 size={14} />,
+            sparkline: sparkMonth,
+          },
+        ] as KPIStat[] : []),
         {
           label: 'Capital Total',
           value: fmtCapital(totalCash),

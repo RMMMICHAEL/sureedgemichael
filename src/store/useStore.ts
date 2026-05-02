@@ -40,6 +40,9 @@ interface StoreState extends AppDB {
   importBuffer: import('@/lib/import/importEngine').ImportResult | null;
   isSyncing:   boolean;
 
+  // Auth — set from Supabase session during init()
+  authEmail: string | null;
+
   // Derived (computed on mutation)
   totalCash: number;
 
@@ -146,6 +149,7 @@ export const useStore = create<StoreState>()((set, get) => ({
   toasts:           [],
   importBuffer:     null,
   isSyncing:        false,
+  authEmail:        null,
 
   // ── init ──────────────────────────────────────────────────────────────────
   init() {
@@ -178,6 +182,10 @@ export const useStore = create<StoreState>()((set, get) => ({
         wipeDB();
       }
       if (currentUserId) saveUserId(currentUserId);
+
+      // Store auth email for permission checks (e.g. admin features)
+      const authEmail = session?.user?.email ?? null;
+      set({ authEmail });
 
       // ── Step 2: apply localStorage (now guaranteed to belong to current user)
       const localDb = loadDB();
