@@ -74,8 +74,8 @@ export function WeekChart({ data }: { data: WeekDay[] }) {
         <BarChart data={data} barCategoryGap="32%">
           <defs>
             <linearGradient id="wkGreen" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%"   stopColor="#00FF41" stopOpacity={1} />
-              <stop offset="100%" stopColor="#00CC35" stopOpacity={0.7} />
+              <stop offset="0%"   stopColor="#22c55e" stopOpacity={1} />
+              <stop offset="100%" stopColor="#16a34a" stopOpacity={0.7} />
             </linearGradient>
             <linearGradient id="wkRed" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%"   stopColor="#ef4444" stopOpacity={1} />
@@ -117,7 +117,7 @@ export function WeekChart({ data }: { data: WeekDay[] }) {
 
 export function MonthChart({ data }: { data: MonthPoint[] }) {
   const last  = data[data.length - 1]?.cumulative ?? 0;
-  const color = last >= 0 ? '#00FF41' : '#ef4444';
+  const color = last >= 0 ? '#22c55e' : '#ef4444';
 
   return (
     <div style={card}>
@@ -126,7 +126,7 @@ export function MonthChart({ data }: { data: MonthPoint[] }) {
         <span style={{
           fontFamily: "'JetBrains Mono',monospace",
           fontSize: 15, fontWeight: 700,
-          color: last >= 0 ? '#00FF41' : '#ef4444',
+          color: last >= 0 ? '#22c55e' : '#ef4444',
         }}>
           {fmtBRL(last)}
         </span>
@@ -136,8 +136,7 @@ export function MonthChart({ data }: { data: MonthPoint[] }) {
           <AreaChart data={data}>
             <defs>
               <linearGradient id="mcGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%"   stopColor={color} stopOpacity={0.42} />
-                <stop offset="60%"  stopColor={color} stopOpacity={0.10} />
+                <stop offset="0%"   stopColor={color} stopOpacity={0.25} />
                 <stop offset="100%" stopColor={color} stopOpacity={0} />
               </linearGradient>
             </defs>
@@ -195,7 +194,7 @@ export function SportChart({ data }: { data: SportStat[] }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {top.map((d, i) => {
             const isPos  = d.profit >= 0;
-            const color  = isPos ? '#00FF41' : '#FF4545';
+            const color  = isPos ? '#3DFF8F' : '#FF4545';
             const pct    = (Math.abs(d.profit) / maxAbs) * 100;
             return (
               <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -344,7 +343,7 @@ export function WeeklyProfitChart({ data }: { data: WeekStat[] }) {
     <div style={card}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <ChartTitle>Lucro por Semana — 4 Semanas do Mês</ChartTitle>
-        <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 14, fontWeight: 700, color: total >= 0 ? '#00FF41' : '#f87171' }}>
+        <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 14, fontWeight: 700, color: total >= 0 ? '#4ade80' : '#f87171' }}>
           {fmtBRL(total)}
         </span>
       </div>
@@ -353,8 +352,8 @@ export function WeeklyProfitChart({ data }: { data: WeekStat[] }) {
           <BarChart data={data} barCategoryGap="28%">
             <defs>
               <linearGradient id="wkpGreen" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%"   stopColor="#00FF41" stopOpacity={1} />
-                <stop offset="100%" stopColor="#00CC35" stopOpacity={0.6} />
+                <stop offset="0%"   stopColor="#4ade80" stopOpacity={1} />
+                <stop offset="100%" stopColor="#16a34a" stopOpacity={0.6} />
               </linearGradient>
               <linearGradient id="wkpRed" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%"   stopColor="#f87171" stopOpacity={1} />
@@ -421,7 +420,7 @@ export function DailyProfitChart({ data }: { data: DayStat[] }) {
     <div style={card}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <ChartTitle>Lucro por Dia</ChartTitle>
-        <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 14, fontWeight: 700, color: total >= 0 ? '#00FF41' : '#f87171' }}>
+        <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 14, fontWeight: 700, color: total >= 0 ? '#4ade80' : '#f87171' }}>
           {fmtBRL(total)}
         </span>
       </div>
@@ -430,8 +429,8 @@ export function DailyProfitChart({ data }: { data: DayStat[] }) {
           <BarChart data={data} barCategoryGap="18%" margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
             <defs>
               <linearGradient id="dpGreen" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%"   stopColor="#00FF41" stopOpacity={1} />
-                <stop offset="100%" stopColor="#00CC35" stopOpacity={0.5} />
+                <stop offset="0%"   stopColor="#4ade80" stopOpacity={1} />
+                <stop offset="100%" stopColor="#16a34a" stopOpacity={0.5} />
               </linearGradient>
               <linearGradient id="dpRed" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%"   stopColor="#f87171" stopOpacity={1} />
@@ -512,7 +511,7 @@ export function SportDistributionChart({ data }: { data: SportStat[] }) {
     <div style={card}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <ChartTitle>Distribuição por Esporte</ChartTitle>
-        <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 13, fontWeight: 700, color: tProfit >= 0 ? '#00FF41' : '#f87171' }}>
+        <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 13, fontWeight: 700, color: tProfit >= 0 ? '#4ade80' : '#f87171' }}>
           {fmtBRL(tProfit)}
         </span>
       </div>
@@ -578,7 +577,7 @@ export function ResultDistributionChart({ data }: { data: ResultDist[] }) {
         <span style={{
           fontFamily: "'JetBrains Mono',monospace",
           fontSize: 13, fontWeight: 700,
-          color: totalProfit >= 0 ? '#00FF41' : '#f87171',
+          color: totalProfit >= 0 ? '#4ade80' : '#f87171',
         }}>
           {fmtBRL(totalProfit)}
         </span>

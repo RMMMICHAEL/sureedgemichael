@@ -83,153 +83,99 @@ interface KPIStat {
 
 function KPIBar({ stats }: { stats: KPIStat[] }) {
   return (
-    <>
-      {/* Desktop: single horizontal terminal strip */}
-      <div
-        className="hidden lg:flex rounded-xl overflow-hidden"
-        style={{ background: 'var(--bg2)', border: '1px solid var(--b)' }}
-      >
-        {stats.map((s, i) => {
-          const isPos = s.positive === true;
-          const isNeg = s.positive === false;
-          const colorVar = isNeg ? 'var(--r)' : isPos ? 'var(--g)' : 'var(--bl)';
-          const colorHex = isNeg ? '#FF4D6D' : isPos ? '#00FF41' : '#4DA6FF';
-          const isLast = i === stats.length - 1;
-          return (
-            <div
-              key={s.label}
-              className="relative flex flex-col flex-1 animate-fade-in"
-              style={{
-                padding: '12px 16px 14px',
-                borderRight: isLast ? 'none' : '1px solid var(--b)',
-                borderTop: `2px solid ${colorHex}55`,
-                animationDelay: `${i * 50}ms`,
-                transition: 'background .2s ease',
-              }}
-              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = `${colorHex}06`; }}
-              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
-            >
-              {/* Label */}
-              <div className="flex items-center justify-between gap-1 mb-2">
-                <span style={{
-                  fontSize: 9, fontWeight: 900, color: 'var(--t3)',
-                  letterSpacing: '.14em', textTransform: 'uppercase',
-                  fontFamily: "'Manrope',sans-serif",
-                }}>
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      {stats.map((s, i) => {
+        const isPos = s.positive === true;
+        const isNeg = s.positive === false;
+        const colorVar = isNeg ? 'var(--r)' : isPos ? 'var(--g)' : 'var(--bl)';
+        const colorHex = isNeg ? '#FF4D6D' : isPos ? '#3FFF21' : '#4DA6FF';
+        return (
+          <div
+            key={s.label}
+            className="relative rounded-xl overflow-hidden flex flex-col animate-fade-in"
+            style={{
+              background: 'var(--bg2)',
+              border: '1px solid var(--b)',
+              animationDelay: `${i * 60}ms`,
+              transition: 'border-color .25s ease, box-shadow .25s ease',
+            }}
+            onMouseEnter={e => {
+              (e.currentTarget as HTMLElement).style.borderColor = `${colorHex}35`;
+              (e.currentTarget as HTMLElement).style.boxShadow = `0 0 0 1px ${colorHex}12, 0 12px 40px ${colorHex}12`;
+            }}
+            onMouseLeave={e => {
+              (e.currentTarget as HTMLElement).style.borderColor = 'var(--b)';
+              (e.currentTarget as HTMLElement).style.boxShadow = '';
+            }}
+          >
+            {/* Color-coded top accent */}
+            <div style={{
+              height: 2,
+              background: `linear-gradient(90deg, ${colorHex}E0 0%, ${colorHex}55 45%, transparent 80%)`,
+              flexShrink: 0,
+            }} />
+
+            <div className="flex flex-col gap-3 p-4 pt-3.5 flex-1">
+              {/* Label + hide toggle */}
+              <div className="flex items-center justify-between gap-2">
+                <span
+                  className="text-[9px] font-black uppercase leading-none"
+                  style={{ color: 'var(--t3)', fontFamily: "'Manrope', sans-serif", letterSpacing: '.16em' }}
+                >
                   {s.label}
                 </span>
                 {s.onToggleHide && (
                   <button
-                    type="button" onClick={s.onToggleHide}
-                    className="w-5 h-5 flex items-center justify-center rounded"
+                    type="button"
+                    onClick={s.onToggleHide}
+                    className="w-7 h-7 flex items-center justify-center rounded-md transition-colors flex-shrink-0"
                     style={{ color: 'var(--t3)' }}
                     aria-label={s.hidden ? 'Mostrar valor' : 'Ocultar valor'}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = colorVar; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--t3)'; }}
                   >
-                    {s.hidden ? <Eye size={10} /> : <EyeOff size={10} />}
+                    {s.hidden ? <Eye size={12} /> : <EyeOff size={12} />}
                   </button>
                 )}
               </div>
 
-              {/* Value */}
-              <div style={{
-                fontSize: 'clamp(15px,1.55vw,22px)',
-                fontWeight: 900,
-                fontFamily: "'JetBrains Mono',monospace",
-                color: colorVar,
-                letterSpacing: '-0.04em',
-                lineHeight: 1,
-                textShadow: isPos
-                  ? '0 0 20px rgba(0,255,65,.55), 0 0 40px rgba(0,255,65,.2)'
-                  : isNeg
-                    ? '0 0 14px rgba(255,77,109,.45)'
-                    : 'none',
-              }}>
+              {/* Big number — hero */}
+              <div
+                className="text-2xl font-black tracking-tight leading-none"
+                style={{ color: colorVar, fontFamily: "'JetBrains Mono', monospace" }}
+              >
                 {s.hidden ? '••••••' : s.value}
               </div>
 
-              {/* Sub */}
+              {/* Sub text */}
               {s.sub && (
-                <div style={{ fontSize: 10, color: 'var(--t3)', marginTop: 5, lineHeight: 1.3 }}>
+                <div className="text-[10px] font-medium leading-tight" style={{ color: 'var(--t3)' }}>
                   {s.sub}
                 </div>
               )}
 
-              {/* Sparkline */}
+              {/* Sparkline — floats to bottom */}
               {s.sparkline && s.sparkline.length > 1 && !s.hidden && (
-                <div style={{ marginTop: 'auto', paddingTop: 6, marginLeft: -2, marginRight: -2 }}>
-                  <ResponsiveContainer width="100%" height={26}>
-                    <LineChart data={s.sparkline} margin={{ top: 2, right: 2, left: 2, bottom: 0 }}>
+                <div className="mt-auto -mx-1">
+                  <ResponsiveContainer width="100%" height={34}>
+                    <LineChart data={s.sparkline} margin={{ top: 3, right: 4, left: 4, bottom: 0 }}>
                       <Line
-                        type="monotone" dataKey="v"
-                        stroke={colorHex} strokeWidth={1.5}
-                        dot={false} strokeOpacity={0.6}
+                        type="monotone"
+                        dataKey="v"
+                        stroke={colorHex}
+                        strokeWidth={1.5}
+                        dot={false}
+                        strokeOpacity={0.5}
                       />
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
               )}
             </div>
-          );
-        })}
-      </div>
-
-      {/* Mobile + tablet: 2-col card grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 lg:hidden">
-        {stats.map((s, i) => {
-          const isPos = s.positive === true;
-          const isNeg = s.positive === false;
-          const colorVar = isNeg ? 'var(--r)' : isPos ? 'var(--g)' : 'var(--bl)';
-          const colorHex = isNeg ? '#FF4D6D' : isPos ? '#00FF41' : '#4DA6FF';
-          return (
-            <div
-              key={s.label}
-              className="relative rounded-xl overflow-hidden flex flex-col animate-fade-in"
-              style={{
-                background: 'var(--bg2)',
-                border: '1px solid var(--b)',
-                borderTop: `2px solid ${colorHex}55`,
-                animationDelay: `${i * 60}ms`,
-                padding: '12px 14px 14px',
-              }}
-            >
-              <div className="flex items-center justify-between mb-2">
-                <span style={{
-                  fontSize: 9, fontWeight: 900, color: 'var(--t3)',
-                  letterSpacing: '.14em', textTransform: 'uppercase',
-                  fontFamily: "'Manrope',sans-serif",
-                }}>
-                  {s.label}
-                </span>
-                {s.onToggleHide && (
-                  <button type="button" onClick={s.onToggleHide}
-                    className="w-5 h-5 flex items-center justify-center"
-                    style={{ color: 'var(--t3)' }}
-                    aria-label={s.hidden ? 'Mostrar' : 'Ocultar'}
-                  >
-                    {s.hidden ? <Eye size={10} /> : <EyeOff size={10} />}
-                  </button>
-                )}
-              </div>
-              <div style={{
-                fontSize: 20, fontWeight: 900,
-                fontFamily: "'JetBrains Mono',monospace",
-                color: colorVar,
-                letterSpacing: '-0.04em',
-                lineHeight: 1,
-                textShadow: isPos
-                  ? '0 0 16px rgba(0,255,65,.5)'
-                  : isNeg ? '0 0 12px rgba(255,77,109,.4)' : 'none',
-              }}>
-                {s.hidden ? '••••••' : s.value}
-              </div>
-              {s.sub && (
-                <div style={{ fontSize: 10, color: 'var(--t3)', marginTop: 4 }}>{s.sub}</div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
@@ -241,7 +187,7 @@ type PeriodKey = 'hoje' | '7d' | 'semana' | 'mes' | 'personalizado';
 const TYPE_COLOR: Record<string, string> = {
   surebet:     '#FFD600',
   delay:       '#4DA6FF',
-  'duplo green': '#00FF41',
+  'duplo green': '#3FFF21',
 };
 const EXTRA_COLORS = ['#FF8F3D','#A78BFA','#F472B6','#34D399','#FB923C','#38BDF8','#C084FC'];
 
@@ -414,7 +360,7 @@ function DailyChart({ legs, from, to, period, onPeriodChange, onFromChange, onTo
 
   const lastVal     = data[data.length - 1]?.cumulative ?? 0;
   const positive    = lastVal >= 0;
-  const lineColor   = positive ? '#00FF41' : '#FF4545';
+  const lineColor   = positive ? '#3FFF21' : '#FF4545';
   const profitColor = positive ? 'var(--g)' : 'var(--r)';
 
   const periodLabel = period === 'hoje'    ? 'Hoje'
@@ -433,7 +379,7 @@ function DailyChart({ legs, from, to, period, onPeriodChange, onFromChange, onTo
     return (
       <div style={{
         background: '#0d1117',
-        border: `1px solid ${cPos ? 'rgba(0,255,65,.3)' : 'rgba(255,69,69,.3)'}`,
+        border: `1px solid ${cPos ? 'rgba(63,255,33,.3)' : 'rgba(255,69,69,.3)'}`,
         borderRadius: 10,
         padding: '10px 14px',
         boxShadow: '0 8px 32px rgba(0,0,0,.8)',
@@ -442,11 +388,11 @@ function DailyChart({ legs, from, to, period, onPeriodChange, onFromChange, onTo
         <div style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,.35)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
           {day}
         </div>
-        <div style={{ fontSize: 13, fontWeight: 900, color: cPos ? '#00FF41' : '#FF4545', fontFamily: "'JetBrains Mono',monospace" }}>
+        <div style={{ fontSize: 13, fontWeight: 900, color: cPos ? '#3FFF21' : '#FF4545', fontFamily: "'JetBrains Mono',monospace" }}>
           {cPos ? '+' : '−'} R$ {Math.abs(c).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
         </div>
         {d !== 0 && (
-          <div style={{ fontSize: 11, fontWeight: 700, marginTop: 4, color: dPos ? 'rgba(0,255,65,.65)' : 'rgba(255,69,69,.65)', fontFamily: "'JetBrains Mono',monospace" }}>
+          <div style={{ fontSize: 11, fontWeight: 700, marginTop: 4, color: dPos ? 'rgba(63,255,33,.65)' : 'rgba(255,69,69,.65)', fontFamily: "'JetBrains Mono',monospace" }}>
             dia: {dPos ? '+' : '−'} R$ {Math.abs(d).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
           </div>
         )}
@@ -484,7 +430,7 @@ function DailyChart({ legs, from, to, period, onPeriodChange, onFromChange, onTo
             <button key={p.key} type="button" onClick={() => onPeriodChange(p.key)}
               className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
               style={period === p.key
-                ? { background: positive ? 'rgba(0,255,65,.15)' : 'rgba(255,69,69,.15)', color: positive ? 'var(--g)' : 'var(--r)', boxShadow: `0 0 0 1px ${positive ? 'rgba(0,255,65,.25)' : 'rgba(255,69,69,.25)'}` }
+                ? { background: positive ? 'rgba(63,255,33,.15)' : 'rgba(255,69,69,.15)', color: positive ? 'var(--g)' : 'var(--r)', boxShadow: `0 0 0 1px ${positive ? 'rgba(63,255,33,.25)' : 'rgba(255,69,69,.25)'}` }
                 : { color: 'var(--t3)', background: 'transparent' }}>
               {p.label}
             </button>
@@ -512,8 +458,8 @@ function DailyChart({ legs, from, to, period, onPeriodChange, onFromChange, onTo
           <AreaChart data={data} margin={{ top: 5, right: 5, bottom: 0, left: 0 }}>
             <defs>
               <linearGradient id="areaGradDyn" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%"   stopColor={lineColor} stopOpacity={0.40} />
-                <stop offset="55%"  stopColor={lineColor} stopOpacity={0.12} />
+                <stop offset="0%"   stopColor={lineColor} stopOpacity={0.22} />
+                <stop offset="75%"  stopColor={lineColor} stopOpacity={0.05} />
                 <stop offset="100%" stopColor={lineColor} stopOpacity={0.00} />
               </linearGradient>
             </defs>
@@ -605,7 +551,7 @@ function MonthlyComparisonChart({ legs }: { legs: Leg[] }) {
               {data.map((entry, i) => (
                 <Cell
                   key={i}
-                  fill={entry.profit >= 0 ? 'rgba(0,255,65,.7)' : 'rgba(255,77,77,.7)'}
+                  fill={entry.profit >= 0 ? 'rgba(63,255,33,.7)' : 'rgba(255,77,77,.7)'}
                 />
               ))}
             </Bar>
@@ -619,73 +565,52 @@ function MonthlyComparisonChart({ legs }: { legs: Leg[] }) {
 /* ── Top houses ────────────────────────────────────────────────────────────── */
 
 function TopHousesCard({ legs }: { legs: Leg[] }) {
-  type HouseData = { count: number; profit: number };
-  const byHouse: Record<string, HouseData> = {};
+  const byHouse: Record<string, number> = {};
+  // "Outros Lucros" (opType === 'outros') não são operações em casas de apostas
   legs.filter(l => l.opType !== 'outros' && l.ho).forEach(l => {
-    if (!byHouse[l.ho]) byHouse[l.ho] = { count: 0, profit: 0 };
-    byHouse[l.ho].count++;
-    byHouse[l.ho].profit += calcLegProfit(l);
+    byHouse[l.ho] = (byHouse[l.ho] || 0) + 1;
   });
   const sorted = Object.entries(byHouse)
-    .map(([house, d]) => ({ house, count: d.count, profit: +d.profit.toFixed(2) }))
-    .sort((a, b) => b.profit - a.profit)
+    .map(([h, count]) => ({ house: h, count }))
+    .sort((a, b) => b.count - a.count)
     .slice(0, 6);
-  const maxProfit = Math.max(...sorted.map(h => Math.abs(h.profit)), 1);
+  const maxCount = Math.max(...sorted.map(h => h.count), 1);
+
+  const BAR_COLORS = ['#4DA6FF','#FFD600','#3FFF21','#FF8F3D','#A78BFA','#FF6B9D'];
 
   return (
     <div className="rounded-2xl p-5 flex flex-col gap-3 h-full" style={cardStyle}>
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-bold" style={{ color: 'var(--t)', fontFamily: "'Manrope', sans-serif" }}>
-          Bookmakers
-        </h3>
-        <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--t3)', letterSpacing: '.08em', textTransform: 'uppercase' }}>
-          PERFORMANCE
-        </span>
-      </div>
+      <h3 className="text-sm font-bold" style={{ color: 'var(--t)', fontFamily: "'Manrope', sans-serif" }}>Top Casas</h3>
       {sorted.length === 0 ? (
         <p className="text-sm text-center py-6" style={{ color: 'var(--t3)' }}>Sem dados</p>
       ) : (
-        <div className="flex flex-col gap-2">
-          {sorted.map((h, i) => {
-            const isPos = h.profit >= 0;
-            const clr   = isPos ? '#00FF41' : '#FF4545';
-            const pct   = Math.abs(h.profit) / maxProfit;
-            return (
-              <div key={h.house} className="flex items-center gap-2.5">
-                <span style={{
-                  fontSize: 9, fontWeight: 900, width: 16, height: 16, borderRadius: 4,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                  background: `${clr}18`, color: `${clr}CC`,
-                  fontFamily: "'JetBrains Mono',monospace",
-                }}>
-                  {i + 1}
-                </span>
-                <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--t2)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {h.house}
-                </span>
-                <div style={{ width: 56, height: 3, borderRadius: 9999, background: 'rgba(255,255,255,.06)', flexShrink: 0, overflow: 'hidden' }}>
-                  <div style={{
-                    height: '100%',
-                    background: isPos ? 'linear-gradient(90deg, rgba(0,255,65,.5), #00FF41)' : 'linear-gradient(90deg, rgba(255,69,69,.5), #FF4545)',
+        <div className="flex flex-col gap-2.5">
+          {sorted.map((h, i) => (
+            <div key={h.house} className="flex items-center gap-2.5">
+              <span
+                className="text-[10px] font-bold w-4 h-4 rounded flex items-center justify-center flex-shrink-0"
+                style={{ background: `${BAR_COLORS[i % BAR_COLORS.length]}15`, color: BAR_COLORS[i % BAR_COLORS.length] }}
+              >
+                {i + 1}
+              </span>
+              <span className="text-[11px] w-20 truncate font-medium flex-shrink-0" style={{ color: 'var(--t2)' }}>{h.house}</span>
+              <div className="flex-1 h-[5px] rounded-full overflow-hidden" style={{ background: 'var(--sur)' }}>
+                <div
+                  style={{
                     width: '100%',
-                    transform: `scaleX(${pct})`,
+                    background: `linear-gradient(90deg, ${BAR_COLORS[i % BAR_COLORS.length]}66, ${BAR_COLORS[i % BAR_COLORS.length]})`,
+                    height: '100%',
+                    transform: `scaleX(${h.count / maxCount})`,
                     transformOrigin: 'left center',
-                    transition: 'transform .7s cubic-bezier(.4,0,.2,1)',
-                  }} />
-                </div>
-                <span style={{
-                  fontSize: 11, fontWeight: 900, flexShrink: 0, minWidth: 52, textAlign: 'right',
-                  color: clr,
-                  fontFamily: "'JetBrains Mono',monospace",
-                  textShadow: isPos ? '0 0 10px rgba(0,255,65,.4)' : 'none',
-                }}>
-                  {isPos ? '+' : '−'}R${Math.abs(h.profit) >= 1000
-                    ? `${(Math.abs(h.profit) / 1000).toFixed(1)}k`
-                    : Math.abs(h.profit).toFixed(0)}
-                </span>
+                    transition: 'transform 0.6s ease',
+                  }}
+                />
               </div>
-            );
-          })}
+              <span className="text-[11px] font-bold w-8 text-right flex-shrink-0" style={{ color: BAR_COLORS[i % BAR_COLORS.length], fontFamily: "'JetBrains Mono', monospace" }}>
+                {h.count}
+              </span>
+            </div>
+          ))}
         </div>
       )}
     </div>
@@ -697,7 +622,7 @@ function TopHousesCard({ legs }: { legs: Leg[] }) {
 const OP_CFG_ALL: Record<OpType, { label: string; color: string; bg: string; border: string }> = {
   surebet:     { label: 'Surebet',     color: '#FFD600', bg: 'rgba(255,214,0,.07)',  border: 'rgba(255,214,0,.15)' },
   delay:       { label: 'Delay',       color: '#4DA6FF', bg: 'rgba(77,166,255,.07)', border: 'rgba(77,166,255,.15)' },
-  duplo_green: { label: 'Duplo Green', color: '#00FF41', bg: 'rgba(0,255,65,.07)',  border: 'rgba(0,255,65,.15)' },
+  duplo_green: { label: 'Duplo Green', color: '#3FFF21', bg: 'rgba(63,255,33,.07)',  border: 'rgba(63,255,33,.15)' },
   outros:      { label: 'Outros',      color: '#FF8F3D', bg: 'rgba(255,143,61,.07)', border: 'rgba(255,143,61,.15)' },
 };
 
@@ -904,15 +829,6 @@ export function DashboardPage() {
   const totalCash = [...bms.map(b => b.balance), ...banks.map(b => b.balance)].reduce((s, v) => s + v, 0);
   const totalOps  = groupLegsIntoOps(legs).length;
 
-  // ROI and Win Rate
-  const totalStake   = settled.reduce((s, l) => s + ((l as any).st || 0), 0);
-  const totalProfit  = profitOfLegs(settled);
-  const roi          = totalStake > 1 ? +(totalProfit / totalStake * 100).toFixed(2) : 0;
-  const allSettledOps = useMemo(() => groupLegsIntoOps(settled), [settled]);
-  const winRate      = allSettledOps.length > 0
-    ? Math.round(allSettledOps.filter(op => op.profit > 0).length / allSettledOps.length * 100)
-    : 0;
-
   const monthName = new Date().toLocaleString('pt-BR', { month: 'long' });
 
   // Period filter for ProfitByType + DailyChart
@@ -1038,32 +954,9 @@ export function DashboardPage() {
       {/* KPI Bar */}
       <KPIBar stats={[
         {
-          label: 'ROI Global',
-          value: `${roi >= 0 ? '+' : ''}${roi.toFixed(2)}%`,
-          sub: `${settled.length} apostas liquidadas`,
-          positive: roi === 0 ? null : roi > 0,
-          icon: <TrendingUp size={14} />,
-          sparkline: sparkMonth,
-        },
-        {
-          label: `Lucro ${monthName}`,
-          value: fmtBRL(profitMonth),
-          sub: 'líquido · c/ gastos deduzidos',
-          positive: profitMonth === 0 ? null : profitMonth > 0,
-          icon: <BarChart3 size={14} />,
-          sparkline: sparkMonth,
-        },
-        {
-          label: 'Win Rate',
-          value: `${winRate}%`,
-          sub: `${allSettledOps.filter(op => op.profit > 0).length} de ${allSettledOps.length} ops`,
-          positive: winRate === 0 ? null : winRate >= 50,
-          icon: <TrendingUp size={14} />,
-        },
-        {
           label: 'Lucro Hoje',
           value: fmtBRL(profitDay),
-          sub: `${settled.filter(l => l.bd.slice(0, 10) === today).length} apostas hoje`,
+          sub: `${settled.filter(l => l.bd.slice(0, 10) === today).length} apostas`,
           positive: profitDay === 0 ? null : profitDay > 0,
           icon: <TrendingUp size={14} />,
           sparkline: sparkWeek.slice(-1).concat([{ v: profitDay }]),
@@ -1071,10 +964,18 @@ export function DashboardPage() {
         {
           label: 'Lucro Semana',
           value: fmtBRL(profitWeek),
-          sub: 'semana atual',
+          sub: 'esta semana',
           positive: profitWeek === 0 ? null : profitWeek > 0,
           icon: <Calendar size={14} />,
           sparkline: sparkWeek,
+        },
+        {
+          label: `Lucro ${monthName}`,
+          value: fmtBRL(profitMonth),
+          sub: `${monthLegs.length} apostas · líquido (c/ gastos)`,
+          positive: profitMonth === 0 ? null : profitMonth > 0,
+          icon: <BarChart3 size={14} />,
+          sparkline: sparkMonth,
         },
         {
           label: 'Capital Total',
@@ -1121,8 +1022,8 @@ export function DashboardPage() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <span style={{
               width: 28, height: 28, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center',
-              background: 'rgba(0,255,65,.1)',
-              border: '1px solid rgba(0,255,65,.2)',
+              background: 'rgba(63,255,33,.1)',
+              border: '1px solid rgba(63,255,33,.2)',
             }}>
               <Activity size={13} style={{ color: 'var(--g)' }} />
             </span>

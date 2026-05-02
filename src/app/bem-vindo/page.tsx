@@ -30,13 +30,13 @@ function ParticlesBg() {
         if (p.x < 0) p.x = W; if (p.x > W) p.x = 0;
         if (p.y < 0) p.y = H; if (p.y > H) p.y = 0;
         ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(0,255,65,${p.a})`; ctx.fill();
+        ctx.fillStyle = `rgba(63,255,33,${p.a})`; ctx.fill();
         for (let j = i + 1; j < pts.length; j++) {
           const q = pts[j];
           const dx = p.x - q.x, dy = p.y - q.y, dist = Math.sqrt(dx * dx + dy * dy);
           if (dist < 110) {
             ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(q.x, q.y);
-            ctx.strokeStyle = `rgba(0,255,65,${0.04 * (1 - dist / 110)})`; ctx.lineWidth = 0.5; ctx.stroke();
+            ctx.strokeStyle = `rgba(63,255,33,${0.04 * (1 - dist / 110)})`; ctx.lineWidth = 0.5; ctx.stroke();
           }
         }
       }
@@ -59,16 +59,16 @@ export default function BemVindoPage() {
       padding: '32px 20px',
     }}>
       <ParticlesBg />
-      <div style={{ position: 'fixed', inset: 0, background: 'radial-gradient(ellipse 60% 50% at 50% 0%, rgba(0,255,65,.09) 0%, transparent 60%)', pointerEvents: 'none', zIndex: 0 }} />
+      <div style={{ position: 'fixed', inset: 0, background: 'radial-gradient(ellipse 60% 50% at 50% 0%, rgba(63,255,33,.09) 0%, transparent 60%)', pointerEvents: 'none', zIndex: 0 }} />
 
       <div style={{
         position: 'relative', zIndex: 1, maxWidth: 480, width: '100%',
-        background: 'rgba(6,10,7,.88)', border: '1px solid rgba(0,255,65,.18)',
+        background: 'rgba(6,10,7,.88)', border: '1px solid rgba(63,255,33,.18)',
         borderRadius: 24, backdropFilter: 'blur(20px)',
-        boxShadow: '0 0 80px rgba(0,255,65,.1), 0 24px 64px rgba(0,0,0,.6)',
+        boxShadow: '0 0 80px rgba(63,255,33,.1), 0 24px 64px rgba(0,0,0,.6)',
         overflow: 'hidden',
       }}>
-        <div style={{ height: 3, background: 'linear-gradient(90deg, #00FF41 0%, rgba(0,255,65,.3) 60%, transparent 100%)' }} />
+        <div style={{ height: 3, background: 'linear-gradient(90deg, #3FFF21 0%, rgba(63,255,33,.3) 60%, transparent 100%)' }} />
 
         <div style={{ padding: 'clamp(28px,5vw,48px)' }}>
 
@@ -76,26 +76,26 @@ export default function BemVindoPage() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 36 }}>
             <div style={{
               width: 36, height: 36, borderRadius: 10,
-              background: 'linear-gradient(135deg,#00FF41 0%,#00CC6E 100%)',
+              background: 'linear-gradient(135deg,#3FFF21 0%,#00CC6E 100%)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: '0 0 20px rgba(0,255,65,.4)',
+              boxShadow: '0 0 20px rgba(63,255,33,.4)',
             }}>
               <Zap size={18} color="#000" strokeWidth={2.5} />
             </div>
             <div>
               <div style={{ fontFamily: 'Manrope', fontWeight: 900, fontSize: 17, letterSpacing: '-0.02em' }}>SureEdge</div>
-              <div style={{ fontSize: 10, color: 'rgba(0,255,65,.55)', fontFamily: 'JetBrains Mono', letterSpacing: '0.06em' }}>TRADING HUB</div>
+              <div style={{ fontSize: 10, color: 'rgba(63,255,33,.55)', fontFamily: 'JetBrains Mono', letterSpacing: '0.06em' }}>TRADING HUB</div>
             </div>
           </div>
 
           {/* Icon */}
           <div style={{
             width: 64, height: 64, borderRadius: '50%', marginBottom: 24,
-            background: 'rgba(0,255,65,.1)', border: '1.5px solid rgba(0,255,65,.25)',
+            background: 'rgba(63,255,33,.1)', border: '1.5px solid rgba(63,255,33,.25)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 0 32px rgba(0,255,65,.2)',
+            boxShadow: '0 0 32px rgba(63,255,33,.2)',
           }}>
-            <CheckCircle2 size={30} color="#00FF41" strokeWidth={1.8} />
+            <CheckCircle2 size={30} color="#3FFF21" strokeWidth={1.8} />
           </div>
 
           {/* Headline */}
@@ -105,7 +105,7 @@ export default function BemVindoPage() {
             letterSpacing: '-0.04em', lineHeight: 1.1, marginBottom: 12,
           }}>
             Pagamento confirmado!<br />
-            <span style={{ color: '#00FF41' }}>Bem-vindo ao SureEdge.</span>
+            <span style={{ color: '#3FFF21' }}>Bem-vindo ao SureEdge.</span>
           </h1>
 
           <p style={{ color: 'var(--t2)', fontSize: 14, lineHeight: 1.65, marginBottom: 28 }}>
@@ -121,9 +121,9 @@ export default function BemVindoPage() {
             ].map(item => (
               <div key={item.text} style={{
                 display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px',
-                borderRadius: 12, background: 'rgba(0,255,65,.05)', border: '1px solid rgba(0,255,65,.1)',
+                borderRadius: 12, background: 'rgba(63,255,33,.05)', border: '1px solid rgba(63,255,33,.1)',
               }}>
-                <item.icon size={15} color="#00FF41" style={{ flexShrink: 0 }} />
+                <item.icon size={15} color="#3FFF21" style={{ flexShrink: 0 }} />
                 <span style={{ fontSize: 13, color: 'var(--t2)' }}>{item.text}</span>
               </div>
             ))}
@@ -137,8 +137,8 @@ export default function BemVindoPage() {
               className="btn-cta"
               style={{
                 width: '100%', padding: '15px', borderRadius: 14, fontSize: 15, fontWeight: 800,
-                border: 'none', cursor: 'pointer', background: '#00FF41', color: '#030507',
-                boxShadow: '0 0 28px rgba(0,255,65,.4)',
+                border: 'none', cursor: 'pointer', background: '#3FFF21', color: '#030507',
+                boxShadow: '0 0 28px rgba(63,255,33,.4)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                 fontFamily: 'Manrope',
               }}

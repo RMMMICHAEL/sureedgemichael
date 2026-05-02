@@ -121,10 +121,10 @@ export function Topbar({ onMenuClick }: TopbarProps) {
       style={{
         height: 60,
         background: 'rgba(11,17,23,.92)',
-        borderBottom: '1px solid rgba(0,255,65,.07)',
+        borderBottom: '1px solid rgba(63,255,33,.07)',
         backdropFilter: 'blur(24px)',
         WebkitBackdropFilter: 'blur(24px)',
-        boxShadow: '0 1px 0 rgba(0,255,65,.04)',
+        boxShadow: '0 1px 0 rgba(63,255,33,.04)',
       }}
     >
       {/* Mobile hamburger */}
@@ -138,7 +138,7 @@ export function Topbar({ onMenuClick }: TopbarProps) {
           color: 'var(--t2)',
           background: 'rgba(255,255,255,.04)',
         }}
-        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'rgba(0,255,65,.2)'; }}
+        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'rgba(63,255,33,.2)'; }}
         onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--b)'; }}
       >
         <Menu size={17} />
@@ -167,33 +167,6 @@ export function Topbar({ onMenuClick }: TopbarProps) {
       {/* Right side actions */}
       <div className="flex items-center gap-2 flex-shrink-0">
 
-        {/* DATA FEED: LIVE — always visible on desktop */}
-        <div
-          className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg flex-shrink-0"
-          style={{
-            background: 'rgba(0,255,65,.05)',
-            border: '1px solid rgba(0,255,65,.14)',
-          }}
-        >
-          <span
-            className="live-dot"
-            style={{ width: 5, height: 5, flexShrink: 0 }}
-          />
-          <span
-            style={{
-              fontSize: 9,
-              fontWeight: 900,
-              color: 'var(--g)',
-              fontFamily: "'JetBrains Mono',monospace",
-              letterSpacing: '0.12em',
-              textTransform: 'uppercase',
-              textShadow: '0 0 10px rgba(0,255,65,.5)',
-            }}
-          >
-            DATA FEED: LIVE
-          </span>
-        </div>
-
         {/* Live clock */}
         <LiveClock />
 
@@ -206,8 +179,8 @@ export function Topbar({ onMenuClick }: TopbarProps) {
                 className="hidden md:flex items-center gap-1.5 text-[10px] font-mono px-2.5 py-1.5 rounded-lg"
                 style={{
                   color: 'var(--t3)',
-                  background: 'rgba(0,255,65,.04)',
-                  border: '1px solid rgba(0,255,65,.08)',
+                  background: 'rgba(63,255,33,.04)',
+                  border: '1px solid rgba(63,255,33,.08)',
                 }}
               >
                 <span className="live-dot" style={{ width: 5, height: 5, opacity: .7 }} />
@@ -241,7 +214,7 @@ export function Topbar({ onMenuClick }: TopbarProps) {
                   style={{
                     background: 'var(--g)',
                     color: '#060A07',
-                    boxShadow: '0 0 14px rgba(0,255,65,.25)',
+                    boxShadow: '0 0 14px rgba(63,255,33,.25)',
                     fontWeight: 800,
                   }}
                 >
@@ -267,12 +240,12 @@ export function Topbar({ onMenuClick }: TopbarProps) {
                 onClick={() => setShowInput(true)}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
                 style={{
-                  background: sheetSync?.url ? 'rgba(0,255,65,.07)' : 'rgba(255,255,255,.04)',
+                  background: sheetSync?.url ? 'rgba(63,255,33,.07)' : 'rgba(255,255,255,.04)',
                   color:      sheetSync?.url ? 'var(--g)'             : 'var(--t2)',
-                  border:     `1px solid ${sheetSync?.url ? 'rgba(0,255,65,.18)' : 'var(--b)'}`,
+                  border:     `1px solid ${sheetSync?.url ? 'rgba(63,255,33,.18)' : 'var(--b)'}`,
                 }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'rgba(0,255,65,.3)'; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = sheetSync?.url ? 'rgba(0,255,65,.18)' : 'var(--b)'; }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'rgba(63,255,33,.3)'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = sheetSync?.url ? 'rgba(63,255,33,.18)' : 'var(--b)'; }}
               >
                 <Link2 size={12} />
                 <span className="hidden sm:inline">
@@ -292,11 +265,11 @@ export function Topbar({ onMenuClick }: TopbarProps) {
                 style={{
                   border: '1px solid var(--b)',
                   color: isSyncing ? 'var(--g)' : 'var(--t2)',
-                  background: isSyncing ? 'rgba(0,255,65,.08)' : 'rgba(255,255,255,.04)',
+                  background: isSyncing ? 'rgba(63,255,33,.08)' : 'rgba(255,255,255,.04)',
                 }}
                 onMouseEnter={e => {
-                  (e.currentTarget as HTMLElement).style.background = 'rgba(0,255,65,.08)';
-                  (e.currentTarget as HTMLElement).style.borderColor = 'rgba(0,255,65,.2)';
+                  (e.currentTarget as HTMLElement).style.background = 'rgba(63,255,33,.08)';
+                  (e.currentTarget as HTMLElement).style.borderColor = 'rgba(63,255,33,.2)';
                   (e.currentTarget as HTMLElement).style.color = 'var(--g)';
                 }}
                 onMouseLeave={e => {
