@@ -325,7 +325,7 @@ const FAQ = [
   { q: 'O que é surebet?', a: 'Surebet é uma técnica onde você aposta em todos os resultados possíveis de um evento em diferentes casas de apostas, garantindo lucro independente do resultado. O SureEdge ajuda você a registrar, monitorar e analisar essas operações.' },
   { q: 'O SureEdge encontra surebets automaticamente?', a: 'O SureEdge é uma plataforma de gestão e analytics. Você registra suas operações e a plataforma analisa performance, calcula ROI e organiza seu histórico. A calculadora integrada distribui stakes automaticamente.' },
   { q: 'Preciso de conhecimento técnico?', a: 'Não. A interface foi projetada para ser intuitiva. Em menos de 5 minutos você já registra sua primeira operação e visualiza seu dashboard com métricas de performance em tempo real.' },
-  { q: 'Posso importar minha planilha existente?', a: 'Sim! O SureEdge suporta importação direta via Google Sheets. Configure o link uma vez e o sistema sincroniza automaticamente a cada minuto sem nenhuma ação da sua parte.' },
+  { q: 'Posso importar minha planilha existente?', a: 'Sim! O SureEdge importa diretamente da planilha da Green Surebet via Google Sheets. Configure o link uma vez e o sistema sincroniza automaticamente a cada minuto — sem copiar, sem colar, sem esforço da sua parte.' },
   { q: 'Quantas casas de apostas são suportadas?', a: 'Mais de 37 casas estão pré-configuradas com logos e dados, incluindo Bet365, Betfair, Pinnacle, Sportingbet, Betano e muitas outras. Você também pode adicionar casas personalizadas.' },
   { q: 'O pagamento é seguro?', a: 'Sim. Utilizamos a plataforma Cakto para processar pagamentos com total segurança. Aceitamos PIX (com desconto), cartão de crédito e débito. O acesso é liberado imediatamente após confirmação.' },
 ];
@@ -676,7 +676,7 @@ export function LandingPage() {
             }} />
 
             {[
-              { step: '01', icon: Upload, title: 'Registre suas operações', desc: 'Importe do Google Sheets ou cadastre manualmente. O sistema categoriza por esporte, casa e resultado automaticamente, sem nenhum trabalho extra da sua parte.' },
+              { step: '01', icon: Upload, title: 'Registre suas operações', desc: 'Importe sua planilha da Green Surebet direto pelo Google Sheets ou cadastre manualmente. O sistema categoriza por esporte, casa e resultado em segundos, sem nenhum trabalho extra da sua parte.' },
               { step: '02', icon: BarChart2, title: 'Analytics em tempo real', desc: 'Visualize ROI, evolução do saldo e performance por bookmaker em dashboards atualizados a cada minuto. Identifique onde você ganha mais.' },
               { step: '03', icon: Trophy, title: 'Lucre com dados', desc: 'Use a calculadora integrada para distribuir stakes com precisão matemática. Tome decisões baseadas em dados, não em intuição ou feeling.' },
             ].map((step, i) => (
@@ -710,8 +710,9 @@ export function LandingPage() {
                 Bloomberg terminal.<br />Para surebettors.
               </h2>
               <p style={{ color: 'var(--t2)', fontSize: 16, lineHeight: 1.75, marginBottom: 36 }}>
-                Interface dark-mode premium inspirada em terminais de trading profissional.
-                Cada dado no lugar certo, cada métrica no momento certo — sem ruído visual.
+                Esqueça planilhas espalhadas e anotações perdidas. Saldo, ROI, win rate e
+                performance por bookmaker em um painel consolidado, atualizado em tempo real
+                e construído para quem leva o jogo a sério.
               </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
                 {[

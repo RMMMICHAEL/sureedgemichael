@@ -134,7 +134,7 @@ export function LoginForm() {
   const [showPw,   setShowPw]   = useState(false);
   const [loading,  setLoading]  = useState(false);
   const [error,    setError]    = useState('');
-  const [mode,     setMode]     = useState<'login' | 'signup' | 'reset'>('login');
+  const [mode,     setMode]     = useState<'login' | 'reset'>('login');
   const [done,     setDone]     = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -146,15 +146,6 @@ export function LoginForm() {
       if (mode === 'reset') {
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
           redirectTo: `${window.location.origin}/auth/callback?type=recovery`,
-        });
-        if (error) throw error;
-        setDone(true);
-        return;
-      }
-      if (mode === 'signup') {
-        const { error } = await supabase.auth.signUp({
-          email, password,
-          options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
         });
         if (error) throw error;
         setDone(true);
@@ -294,38 +285,14 @@ export function LoginForm() {
           {/* Header */}
           <div style={{ marginBottom: 32 }}>
             <h2 style={{ fontFamily: 'Manrope', fontWeight: 900, fontSize: 32, letterSpacing: '-0.04em', marginBottom: 8 }}>
-              {mode === 'reset' ? 'Redefinir senha' : mode === 'signup' ? 'Criar sua conta' : 'Bem-vindo de volta'}
+              {mode === 'reset' ? 'Redefinir senha' : 'Bem-vindo de volta'}
             </h2>
             <p style={{ color: 'var(--t3)', fontSize: 14 }}>
               {mode === 'reset'
-                ? 'Informe seu e-mail para receber o link.'
-                : mode === 'signup'
-                ? 'Crie sua conta e comece a rastrear surebets.'
+                ? 'Informe seu e-mail para receber o link de redefinição.'
                 : 'Entre no seu dashboard profissional.'}
             </p>
           </div>
-
-          {/* Mode tabs */}
-          {!done && mode !== 'reset' && (
-            <div style={{ display: 'flex', background: 'rgba(255,255,255,.04)', borderRadius: 12, padding: 4, marginBottom: 28 }}>
-              {(['login', 'signup'] as const).map(m => (
-                <button
-                  key={m} type="button"
-                  onClick={() => { setMode(m); setError(''); }}
-                  style={{
-                    flex: 1, padding: '10px 0', borderRadius: 9, fontSize: 13, fontWeight: 700,
-                    cursor: 'pointer', transition: 'all .18s',
-                    border: mode === m ? '1px solid rgba(63,255,33,.14)' : '1px solid transparent',
-                    background: mode === m ? 'rgba(63,255,33,.08)' : 'none',
-                    color: mode === m ? '#3FFF21' : 'var(--t3)',
-                    boxShadow: 'none',
-                  }}
-                >
-                  {m === 'login' ? 'Entrar' : 'Criar conta'}
-                </button>
-              ))}
-            </div>
-          )}
 
           {/* Success state */}
           {done ? (
@@ -341,12 +308,10 @@ export function LoginForm() {
                 <Check size={24} color="#3FFF21" />
               </div>
               <h3 style={{ fontFamily: 'Manrope', fontWeight: 800, fontSize: 18, marginBottom: 10 }}>
-                {mode === 'reset' ? 'E-mail enviado!' : 'Conta criada com sucesso!'}
+                E-mail enviado!
               </h3>
               <p style={{ color: 'var(--t2)', fontSize: 14, lineHeight: 1.65, marginBottom: 24 }}>
-                {mode === 'reset'
-                  ? 'Verifique sua caixa de entrada e clique no link para redefinir sua senha.'
-                  : 'Confirme seu e-mail clicando no link que enviamos. Depois é só entrar!'}
+                Verifique sua caixa de entrada e clique no link para redefinir sua senha.
               </p>
               <button onClick={() => { setMode('login'); setDone(false); setError(''); }} style={{
                 background: 'none', border: 'none', color: '#3FFF21',
@@ -379,7 +344,7 @@ export function LoginForm() {
                       type={showPw ? 'text' : 'password'}
                       value={password} onChange={setPassword}
                       placeholder="••••••••" minLength={6}
-                      autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+                      autoComplete="current-password"
                     />
                     <button type="button" onClick={() => setShowPw(v => !v)} style={{
                       position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)',
@@ -431,8 +396,6 @@ export function LoginForm() {
                   </>
                 ) : mode === 'login' ? (
                   <><ArrowRight size={16} /> Entrar no SureEdge</>
-                ) : mode === 'signup' ? (
-                  <><Zap size={15} /> Criar minha conta</>
                 ) : (
                   'Enviar link de recuperação'
                 )}

@@ -21,6 +21,7 @@ import { LandingPage }     from '@/components/landing/LandingPage';
 import { syncFromSheet }   from '@/lib/import/sheetsSync';
 import { commitRows }      from '@/lib/import/importEngine';
 import { getMySubscription, isSubscriptionActive } from '@/lib/supabase/subscription';
+import { getSupabaseClient } from '@/lib/supabase/client';
 
 export function AppShell() {
   const view           = useStore(s => s.view);
@@ -37,12 +38,25 @@ export function AppShell() {
   const [mobileOpen,    setMobileOpen]    = useState(false);
   const [subChecked,    setSubChecked]    = useState(false);
   const [subActive,     setSubActive]     = useState(false);
+  // null = checking, false = not logged in, true = logged in
+  const [hasSession,    setHasSession]    = useState<boolean | null>(null);
 
   // ── Subscription gate ─────────────────────────────────────────────────────
+  // Flow: no session → LandingPage (public sales)
+  //       session + !active → /pricing (renewal page)
+  //       session + active  → app
   useEffect(() => {
-    getMySubscription().then(sub => {
-      setSubActive(isSubscriptionActive(sub));
-      setSubChecked(true);
+    getSupabaseClient().auth.getSession().then(({ data: { session } }) => {
+      const loggedIn = !!session;
+      setHasSession(loggedIn);
+      if (!loggedIn) {
+        setSubChecked(true);
+        return;
+      }
+      getMySubscription().then(sub => {
+        setSubActive(isSubscriptionActive(sub));
+        setSubChecked(true);
+      });
     });
   }, []);
 
@@ -116,13 +130,22 @@ export function AppShell() {
     return <div style={{ minHeight: '100vh', background: 'var(--bg)' }} />;
   }
 
-  if (!subActive) {
+  // Not logged in → public sales landing page
+  if (!hasSession) {
     return (
       <>
         <LandingPage />
         <ToastStack />
       </>
     );
+  }
+
+  // Logged in but subscription expired / cancelled → renewal page
+  if (!subActive) {
+    if (typeof window !== 'undefined') {
+      window.location.href = '/pricing';
+    }
+    return <div style={{ minHeight: '100vh', background: 'var(--bg)' }} />;
   }
 
   return (
