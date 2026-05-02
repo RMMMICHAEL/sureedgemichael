@@ -326,28 +326,27 @@ export function LandingPage() {
 
             {/* Copy */}
             <div>
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginBottom: 36, fontFamily: 'JetBrains Mono', fontSize: 10, fontWeight: 700, letterSpacing: '0.16em', color: '#3FFF21', textTransform: 'uppercase' }}>
+              <div className="lp-hero-in lp-hero-d1" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginBottom: 28, fontFamily: 'JetBrains Mono', fontSize: 10, fontWeight: 700, letterSpacing: '0.16em', color: '#3FFF21', textTransform: 'uppercase' }}>
                 <span className="live-dot" style={{ width: 6, height: 6 }} />
                 Plataforma profissional de surebet
               </div>
 
-              <h1 style={{
+              <h1 className="lp-hero-in lp-hero-d2" style={{
                 fontFamily: 'Manrope', fontWeight: 900,
-                fontSize: 'clamp(58px, 8.5vw, 112px)',
-                lineHeight: 0.94, letterSpacing: '-0.05em',
-                marginBottom: 32, color: '#F0F4F8',
+                fontSize: 'clamp(36px, 4.8vw, 64px)',
+                lineHeight: 1.0, letterSpacing: '-0.04em',
+                marginBottom: 24, color: '#F0F4F8',
               }}>
-                SURE<br />
-                <span style={{ color: '#3FFF21' }}>BET.</span><br />
-                DOMI<br />
-                NADA.
+                Domine o mercado<br />
+                de surebets com<br />
+                <span style={{ color: '#3FFF21' }}>precisão de terminal.</span>
               </h1>
 
-              <p style={{ fontFamily: 'Figtree', fontSize: 17, lineHeight: 1.65, color: 'var(--t2)', marginBottom: 40, maxWidth: '48ch' }}>
-                O dashboard que traders sérios usam para registrar operações, calcular stakes e monitorar ROI com precisão de terminal.
+              <p className="lp-hero-in lp-hero-d3" style={{ fontFamily: 'Figtree', fontSize: 17, lineHeight: 1.65, color: 'var(--t2)', marginBottom: 36, maxWidth: '46ch' }}>
+                O dashboard que traders sérios usam para registrar operações, calcular stakes e monitorar ROI em tempo real.
               </p>
 
-              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 52 }}>
+              <div className="lp-hero-in lp-hero-d4" style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 44 }}>
                 <a href="#precos" className="btn-cta" style={{
                   display: 'inline-flex', alignItems: 'center', gap: 8,
                   background: '#3FFF21', color: '#050A06', borderRadius: 8,
@@ -369,7 +368,7 @@ export function LandingPage() {
                 </a>
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+              <div className="lp-hero-in lp-hero-d5" style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                 <div style={{ display: 'flex' }}>
                   {['#2563EB','#7C3AED','#DB2777','#D97706','#059669'].map((c, i) => (
                     <div key={i} style={{ width: 30, height: 30, borderRadius: '50%', background: c, border: '2px solid #050A06', marginLeft: i > 0 ? -9 : 0 }} />
@@ -383,7 +382,7 @@ export function LandingPage() {
             </div>
 
             {/* Mockup */}
-            <div className="hidden lg:block" style={{ animation: 'lp-float 5s ease-in-out infinite' }}>
+            <div className="hidden lg:block lp-hero-in lp-hero-d3" style={{ animation: 'lp-float 5s ease-in-out infinite' }}>
               <DashboardMockup />
             </div>
           </div>
@@ -550,7 +549,7 @@ export function LandingPage() {
               const isFeatured = plan.id === 'quarterly';
               const url = landingCheckoutUrl(plan.id, email);
               return (
-                <div key={plan.id} className="rounded-2xl flex flex-col overflow-hidden" style={{
+                <div key={plan.id} className="rounded-2xl flex flex-col overflow-hidden lp-card-hover" style={{
                   background:  isFeatured ? 'rgba(63,255,33,.07)' : 'rgba(255,255,255,.03)',
                   border:      isFeatured ? '1.5px solid rgba(63,255,33,.35)' : '1px solid rgba(255,255,255,.08)',
                   boxShadow:   isFeatured ? '0 0 40px rgba(63,255,33,.1)' : 'none',
