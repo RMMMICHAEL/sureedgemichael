@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import { getMySubscription, PLAN_PRICES, PLAN_LABELS, type PlanId } from '@/lib/supabase/subscription';
-import { LogOut, Zap, Shield, TrendingUp, Check, CreditCard, QrCode, Upload, BarChart2, Trophy } from 'lucide-react';
+import { LogOut, Zap, Shield, TrendingUp, Check, CreditCard, QrCode } from 'lucide-react';
 
 // ── Plan config ───────────────────────────────────────────────────────────────
 
@@ -61,6 +61,9 @@ const PLANS: Plan[] = [
       '12 meses de acesso',
       'Acesso antecipado a novidades',
       'Suporte prioritário',
+      'Planilha personalizada (não Green Surebet)',
+      'Curso de operações ao vivo',
+      'Acesso a métodos exclusivos',
     ],
   },
 ];
@@ -161,61 +164,6 @@ export function PricingPage() {
             {userEmail}
           </div>
         )}
-      </div>
-
-      {/* ── 3 passos para lucrar com inteligência ────────────────────────────── */}
-      <div className="w-full max-w-3xl relative z-10 mb-10">
-        <div className="text-center mb-6">
-          <div style={{
-            display: 'inline-block', fontSize: 10, fontWeight: 700,
-            fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.14em',
-            color: 'var(--g)', background: 'rgba(63,255,33,.08)',
-            border: '1px solid rgba(63,255,33,.2)', borderRadius: 999,
-            padding: '4px 16px', marginBottom: 14,
-          }}>COMO FUNCIONA</div>
-          <h2 style={{
-            fontFamily: 'Manrope, sans-serif', fontWeight: 900,
-            fontSize: 'clamp(20px, 3vw, 30px)', letterSpacing: '-0.03em',
-            color: 'var(--t)', marginBottom: 4,
-          }}>
-            3 passos para lucrar com inteligência.
-          </h2>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4" style={{ position: 'relative' }}>
-          {/* Connector line (desktop) */}
-          <div className="hidden md:block" style={{
-            position: 'absolute', top: 32, left: '20%', right: '20%', height: 1,
-            background: 'linear-gradient(90deg, rgba(63,255,33,.06), rgba(63,255,33,.22), rgba(63,255,33,.06))',
-          }} />
-          {[
-            { step: '01', Icon: Upload,   title: 'Registre suas operações', desc: 'Importe da planilha da Green Surebet via Google Sheets ou cadastre manualmente. Tudo categorizado automaticamente.' },
-            { step: '02', Icon: BarChart2, title: 'Analytics em tempo real',  desc: 'Acompanhe ROI, saldo e performance por bookmaker em dashboards atualizados a cada minuto, sem esforço.' },
-            { step: '03', Icon: Trophy,   title: 'Lucre com dados',          desc: 'Use a calculadora integrada para distribuir stakes com precisão matemática e tome decisões baseadas em dados.' },
-          ].map(({ step, Icon, title, desc }) => (
-            <div key={step} style={{
-              background: 'var(--bg2)', borderRadius: 16,
-              border: '1px solid var(--b)',
-              padding: '22px 20px', textAlign: 'center', position: 'relative',
-            }}>
-              <div style={{
-                width: 56, height: 56, borderRadius: '50%', margin: '0 auto 16px',
-                background: 'rgba(63,255,33,.1)', border: '1px solid rgba(63,255,33,.22)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                position: 'relative', zIndex: 1,
-              }}>
-                <Icon size={22} color="var(--g)" />
-              </div>
-              <div style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: 10, color: 'rgba(63,255,33,.4)', letterSpacing: '0.12em', marginBottom: 8 }}>
-                PASSO {step}
-              </div>
-              <h3 style={{ fontFamily: 'Manrope, sans-serif', fontWeight: 800, fontSize: 15, marginBottom: 8, color: 'var(--t)' }}>
-                {title}
-              </h3>
-              <p style={{ color: 'var(--t3)', fontSize: 12, lineHeight: 1.65 }}>{desc}</p>
-            </div>
-          ))}
-        </div>
       </div>
 
       {/* Plans grid */}

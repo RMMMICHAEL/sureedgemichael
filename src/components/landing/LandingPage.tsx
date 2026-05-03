@@ -40,7 +40,15 @@ const LANDING_PLANS: LandingPlan[] = [
     id: 'annual', label: 'Anual',
     price: PLAN_PRICES.annual, perMonth: +(PLAN_PRICES.annual / 12).toFixed(2),
     period: 'por ano', savings: 'Economize 32%',
-    features: ['Tudo do Trimestral', '12 meses de acesso', 'Acesso antecipado a novidades', 'Suporte prioritário'],
+    features: [
+      'Tudo do Trimestral',
+      '12 meses de acesso',
+      'Acesso antecipado a novidades',
+      'Suporte prioritário',
+      'Planilha personalizada (não Green Surebet)',
+      'Curso de operações ao vivo',
+      'Acesso a métodos exclusivos',
+    ],
   },
 ];
 
@@ -139,51 +147,232 @@ function DashboardMockup() {
   );
 }
 
-// ─── Analytics Mockup ─────────────────────────────────────────────────────────
+// ─── Full Dashboard Mockup ────────────────────────────────────────────────────
 
-function AnalyticsMockup() {
+const S = {
+  bg:    '#0A0F14',
+  panel: '#0F1620',
+  card:  '#131B24',
+  line:  'rgba(255,255,255,.05)',
+  t1:    '#D0DBE8',
+  t2:    '#7A8FA0',
+  t3:    '#3A4E60',
+  g:     '#3FFF21',
+  y:     '#FFD600',
+  b:     '#4DA6FF',
+  p:     '#A78BFA',
+  r:     '#FF4D6D',
+  mono:  'JetBrains Mono, monospace',
+};
+
+function MCard({ label, value, sub, color }: { label: string; value: string; sub?: string; color: string }) {
   return (
-    <div style={{ background: '#0A0F14', borderRadius: 12, border: '1px solid rgba(63,255,33,.22)', overflow: 'hidden' }}>
-      <div style={{ background: '#0D1117', borderBottom: '1px solid rgba(255,255,255,.06)', padding: '9px 14px', display: 'flex', alignItems: 'center', gap: 7 }}>
+    <div style={{ background: S.card, border: `1px solid ${S.line}`, borderRadius: 8, padding: '10px 12px', position: 'relative', overflow: 'hidden' }}>
+      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: color, opacity: 0.7 }} />
+      <div style={{ fontSize: 8, color: S.t3, textTransform: 'uppercase', letterSpacing: '0.09em', marginBottom: 5 }}>{label}</div>
+      <div style={{ fontSize: 15, fontWeight: 700, color, fontFamily: S.mono, letterSpacing: '-0.02em', lineHeight: 1 }}>{value}</div>
+      {sub && <div style={{ fontSize: 8, color: S.t3, marginTop: 4 }}>{sub}</div>}
+    </div>
+  );
+}
+
+function MiniBar({ label, value, pct, color }: { label: string; value: string; pct: number; color: string }) {
+  return (
+    <div style={{ padding: '6px 10px', borderBottom: `1px solid ${S.line}` }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+        <span style={{ fontSize: 9, color: S.t2 }}>{label}</span>
+        <span style={{ fontSize: 9, color, fontFamily: S.mono, fontWeight: 700 }}>{value}</span>
+      </div>
+      <div style={{ height: 2, background: 'rgba(255,255,255,.06)', borderRadius: 1, overflow: 'hidden' }}>
+        <div style={{ height: '100%', width: `${pct}%`, background: color, borderRadius: 1, opacity: 0.85 }} />
+      </div>
+    </div>
+  );
+}
+
+function FullDashboardMockup() {
+  // Evolução saldo SVG path points — realistic upward trend with dips
+  const pts = [[0,68],[18,62],[36,55],[52,50],[68,44],[82,39],[96,33],[110,37],[124,30],[138,24],[152,19],[166,22],[180,15],[194,10],[208,6],[220,9],[232,4],[244,1]];
+  const pathD = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0]} ${p[1]}`).join(' ');
+  const areaD = pathD + ` L${pts[pts.length-1][0]} 72 L0 72Z`;
+
+  const SPORTS = [
+    { name: 'Futebol',    ops: 142, roi: 4.1, pct: 100, col: S.g },
+    { name: 'Tênis',      ops: 67,  roi: 3.8, pct: 78,  col: S.b },
+    { name: 'Basquete',   ops: 31,  roi: 3.2, pct: 55,  col: S.y },
+    { name: 'E-Sports',   ops: 18,  roi: 2.9, pct: 40,  col: S.p },
+  ];
+
+  const CROSS = [
+    { pair: 'Bet365 / Pinnacle',    ops: 88, roi: 5.2, pct: 100 },
+    { pair: 'Betfair / Betano',     ops: 54, roi: 4.7, pct: 90  },
+    { pair: 'Pinnacle / 1xBet',     ops: 43, roi: 4.1, pct: 79  },
+    { pair: 'Sportsbet / Betway',   ops: 29, roi: 3.6, pct: 62  },
+    { pair: 'Bet365 / Sportingbet', ops: 22, roi: 3.1, pct: 50  },
+  ];
+
+  const OPS = [
+    { evento: 'Man City × Arsenal',   casa: 'Bet365/Pinnacle', lucro: '+R$ 210', roi: '4.7%', status: 'LUCRO' },
+    { evento: 'Djokovic × Alcaraz',   casa: 'Betano/Betfair',  lucro: '+R$ 96',  roi: '2.8%', status: 'LUCRO' },
+    { evento: 'Lakers × Warriors',    casa: 'Pinnacle/1xBet',  lucro: '+R$ 158', roi: '5.1%', status: 'LUCRO' },
+    { evento: 'PSG × Bayern Munich',  casa: 'Bet365/Betway',   lucro: '+R$ 127', roi: '3.9%', status: 'LUCRO' },
+  ];
+
+  const NAV_ICONS = ['▣', '↗', '◎', '⊞', '✦'];
+
+  return (
+    <div style={{ background: S.bg, borderRadius: 12, border: '1px solid rgba(63,255,33,.22)', overflow: 'hidden', fontSize: 10, userSelect: 'none' }}>
+
+      {/* ── Titlebar ── */}
+      <div style={{ background: '#080D12', borderBottom: `1px solid ${S.line}`, padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 6 }}>
         <div style={{ width: 8, height: 8, borderRadius: 4, background: '#FF4D6D' }} />
         <div style={{ width: 8, height: 8, borderRadius: 4, background: '#FFD600' }} />
         <div style={{ width: 8, height: 8, borderRadius: 4, background: '#3FFF21' }} />
-        <span style={{ fontSize: 9, fontFamily: 'JetBrains Mono', color: 'rgba(63,255,33,.5)', marginLeft: 'auto' }}>Analytics — Mai 2025</span>
+        <div style={{ flex: 1, margin: '0 10px', background: '#0D1520', border: `1px solid ${S.line}`, borderRadius: 5, padding: '3px 10px', display: 'flex', alignItems: 'center', gap: 5 }}>
+          <div style={{ width: 5, height: 5, borderRadius: '50%', background: S.g, opacity: 0.6 }} />
+          <span style={{ fontFamily: S.mono, fontSize: 8, color: S.t3 }}>app.sureedge.com.br/dashboard</span>
+        </div>
+        <span style={{ fontFamily: S.mono, fontSize: 8, color: 'rgba(63,255,33,.4)' }}>Mai 2025</span>
       </div>
-      <div style={{ padding: 16 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginBottom: 12 }}>
-          {[
-            { label: 'Lucro Net',  val: 'R$ 12.480', col: '#3FFF21' },
-            { label: 'ROI Médio', val: '3.84%',      col: '#FFD600' },
-            { label: 'Win Rate',  val: '94.3%',      col: '#A78BFA' },
-            { label: 'Investido', val: 'R$ 45.200',  col: '#4DA6FF' },
-          ].map(k => (
-            <div key={k.label} style={{ background: '#131920', borderRadius: 8, padding: '10px 12px', border: '1px solid rgba(255,255,255,.05)' }}>
-              <div style={{ fontSize: 8, color: '#4A5E6E', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.07em' }}>{k.label}</div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: k.col, fontFamily: 'JetBrains Mono' }}>{k.val}</div>
-            </div>
+
+      {/* ── App body ── */}
+      <div style={{ display: 'flex', height: 'auto' }}>
+
+        {/* Sidebar */}
+        <div style={{ width: 34, background: '#080D12', borderRight: `1px solid ${S.line}`, display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '10px 0', gap: 8 }}>
+          <div style={{ width: 22, height: 22, borderRadius: 6, background: S.g, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 6 }}>
+            <span style={{ fontSize: 10, fontWeight: 900, color: '#050A06' }}>⚡</span>
+          </div>
+          {NAV_ICONS.map((ic, i) => (
+            <div key={i} style={{
+              width: 26, height: 26, borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: i === 0 ? 'rgba(63,255,33,.14)' : 'rgba(255,255,255,.03)',
+              border: i === 0 ? '1px solid rgba(63,255,33,.22)' : '1px solid transparent',
+              fontSize: 9, color: i === 0 ? S.g : S.t3,
+            }}>{ic}</div>
           ))}
         </div>
-        <div style={{ background: '#131920', borderRadius: 8, border: '1px solid rgba(255,255,255,.05)', overflow: 'hidden' }}>
-          <div style={{ padding: '8px 12px', borderBottom: '1px solid rgba(255,255,255,.04)' }}>
-            <span style={{ fontSize: 8, color: '#3A4A5A', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Performance por Bookmaker</span>
+
+        {/* Main content */}
+        <div style={{ flex: 1, padding: 10, display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
+
+          {/* Header row */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+            <div>
+              <div style={{ fontFamily: S.mono, fontSize: 9, fontWeight: 700, color: S.t1, letterSpacing: '-0.01em' }}>Dashboard</div>
+              <div style={{ fontSize: 8, color: S.t3, marginTop: 1 }}>Período: 01 Mai — 31 Mai 2025</div>
+            </div>
+            <div style={{ display: 'flex', gap: 5 }}>
+              {['7d','30d','90d'].map((l, i) => (
+                <div key={l} style={{ padding: '2px 7px', borderRadius: 4, fontFamily: S.mono, fontSize: 8, fontWeight: 700,
+                  background: i === 1 ? 'rgba(63,255,33,.14)' : 'rgba(255,255,255,.04)',
+                  color: i === 1 ? S.g : S.t3,
+                  border: i === 1 ? '1px solid rgba(63,255,33,.22)' : '1px solid transparent',
+                }}>{l}</div>
+              ))}
+            </div>
           </div>
-          {[
-            { name: 'Pinnacle', roi: 5.1, bar: 100 },
-            { name: 'Bet365',   roi: 4.2, bar: 82  },
-            { name: 'Betano',   roi: 3.6, bar: 70  },
-            { name: 'Betfair',  roi: 2.8, bar: 55  },
-          ].map((bm, i) => (
-            <div key={i} style={{ padding: '7px 12px', borderBottom: i < 3 ? '1px solid rgba(255,255,255,.04)' : undefined }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                <span style={{ fontSize: 10, color: '#8899AA' }}>{bm.name}</span>
-                <span style={{ fontSize: 10, color: '#3FFF21', fontFamily: 'JetBrains Mono', fontWeight: 700 }}>+{bm.roi}%</span>
+
+          {/* KPI row — 4 cards */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 6 }}>
+            <MCard label="Lucro Total"  value="R$ 9.247"  sub="+R$ 1.280 este mês" color={S.g} />
+            <MCard label="ROI Médio"    value="3.84%"     sub="↑ 0.2pp vs anterior" color={S.y} />
+            <MCard label="Win Rate"     value="94.6%"     sub="258 de 273 ops" color={S.b} />
+            <MCard label="Investido"    value="R$ 62.400" sub="Banca alocada" color={S.p} />
+          </div>
+
+          {/* Saldo chart + Top Esportes */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 130px', gap: 6 }}>
+
+            {/* Chart */}
+            <div style={{ background: S.card, border: `1px solid ${S.line}`, borderRadius: 8, padding: '10px 12px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <span style={{ fontSize: 8, color: S.t3, textTransform: 'uppercase', letterSpacing: '0.09em' }}>Evolução do Saldo</span>
+                <span style={{ fontFamily: S.mono, fontSize: 9, color: S.g, fontWeight: 700 }}>+R$ 9.247</span>
               </div>
-              <div style={{ height: 2, background: 'rgba(255,255,255,.06)', borderRadius: 1, overflow: 'hidden' }}>
-                <div style={{ height: '100%', width: `${bm.bar}%`, background: '#3FFF21', borderRadius: 1 }} />
+              <svg width="100%" height={72} viewBox="0 0 244 72" preserveAspectRatio="none">
+                <defs>
+                  <linearGradient id="mg2" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#3FFF21" stopOpacity="0.2" />
+                    <stop offset="100%" stopColor="#3FFF21" stopOpacity="0" />
+                  </linearGradient>
+                </defs>
+                {/* Grid lines */}
+                {[18, 36, 54].map(y => (
+                  <line key={y} x1="0" y1={y} x2="244" y2={y} stroke="rgba(255,255,255,.04)" strokeWidth="1" />
+                ))}
+                <path d={areaD} fill="url(#mg2)" />
+                <path d={pathD} stroke="#3FFF21" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+                <circle cx={pts[pts.length-1][0]} cy={pts[pts.length-1][1]} r="2.5" fill="#3FFF21" />
+                <circle cx={pts[pts.length-1][0]} cy={pts[pts.length-1][1]} r="5" fill="#3FFF21" fillOpacity="0.2" />
+              </svg>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
+                {['01/Mai','08/Mai','15/Mai','22/Mai','31/Mai'].map(d => (
+                  <span key={d} style={{ fontFamily: S.mono, fontSize: 7, color: S.t3 }}>{d}</span>
+                ))}
               </div>
             </div>
-          ))}
+
+            {/* Top Esportes */}
+            <div style={{ background: S.card, border: `1px solid ${S.line}`, borderRadius: 8, overflow: 'hidden' }}>
+              <div style={{ padding: '8px 10px', borderBottom: `1px solid ${S.line}` }}>
+                <span style={{ fontSize: 8, color: S.t3, textTransform: 'uppercase', letterSpacing: '0.09em' }}>Top Esportes</span>
+              </div>
+              {SPORTS.map(s => (
+                <div key={s.name} style={{ padding: '5px 10px', borderBottom: `1px solid ${S.line}` }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+                    <span style={{ fontSize: 9, color: S.t2 }}>{s.name}</span>
+                    <span style={{ fontSize: 9, fontFamily: S.mono, fontWeight: 700, color: s.col }}>+{s.roi}%</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+                    <span style={{ fontSize: 7, color: S.t3 }}>{s.ops} ops</span>
+                  </div>
+                  <div style={{ height: 2, background: 'rgba(255,255,255,.06)', borderRadius: 1, overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${s.pct}%`, background: s.col, opacity: 0.75, borderRadius: 1 }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Top Cruzamentos + Últimas Operações */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+
+            {/* Top Cruzamentos */}
+            <div style={{ background: S.card, border: `1px solid ${S.line}`, borderRadius: 8, overflow: 'hidden' }}>
+              <div style={{ padding: '8px 10px', borderBottom: `1px solid ${S.line}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 8, color: S.t3, textTransform: 'uppercase', letterSpacing: '0.09em' }}>Top Cruzamentos</span>
+                <span style={{ fontSize: 7, color: S.t3 }}>por ROI</span>
+              </div>
+              {CROSS.map((c, i) => (
+                <MiniBar key={i} label={c.pair} value={`+${c.roi}%`} pct={c.pct} color={S.g} />
+              ))}
+            </div>
+
+            {/* Últimas Operações */}
+            <div style={{ background: S.card, border: `1px solid ${S.line}`, borderRadius: 8, overflow: 'hidden' }}>
+              <div style={{ padding: '8px 10px', borderBottom: `1px solid ${S.line}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 8, color: S.t3, textTransform: 'uppercase', letterSpacing: '0.09em' }}>Últimas Operações</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <div style={{ width: 5, height: 5, borderRadius: '50%', background: S.g, opacity: 0.8 }} />
+                  <span style={{ fontSize: 7, color: S.g }}>AO VIVO</span>
+                </div>
+              </div>
+              {OPS.map((op, i) => (
+                <div key={i} style={{ padding: '6px 10px', borderBottom: i < OPS.length - 1 ? `1px solid ${S.line}` : undefined }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
+                    <span style={{ fontSize: 9, color: S.t1, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '70%' }}>{op.evento}</span>
+                    <span style={{ fontFamily: S.mono, fontSize: 9, fontWeight: 700, color: S.g }}>{op.lucro}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: 7, color: S.t3 }}>{op.casa}</span>
+                    <span style={{ fontFamily: S.mono, fontSize: 7, color: S.y }}>ROI {op.roi}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
         </div>
       </div>
     </div>
@@ -492,7 +681,7 @@ export function LandingPage() {
               </div>
             </div>
             <div className="reveal-right hidden lg:block">
-              <AnalyticsMockup />
+              <FullDashboardMockup />
             </div>
           </div>
         </div>
