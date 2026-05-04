@@ -725,10 +725,9 @@ export function BookmakersPage() {
       {tab === 'minhas' && (
         <>
           {/* KPIs */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3">
             {[
-              { label: 'Saldo em Casas de Apostas', value: `R$ ${Math.abs(totalBmCash).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, color: 'var(--g)', sub: 'atualizado manualmente' },
-              { label: 'Saldo em Bancos',           value: `R$ ${Math.abs(totalBankCash).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, color: 'var(--bl)', sub: 'atualizado manualmente' },
+              { label: 'Saldo em Bancos', value: `R$ ${Math.abs(totalBankCash).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, color: 'var(--bl)', sub: 'atualizado manualmente' },
             ].map(k => (
               <div key={k.label} className="rounded-2xl p-5" style={{ background: 'var(--bg2)', border: '1px solid var(--b)' }}>
                 <div className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: 'var(--t3)' }}>{k.label}</div>

@@ -257,6 +257,7 @@ export type ViewId =
   | 'gastos'
   | 'contas'
   | 'analise'
+  | 'sugestoes'
   | 'admin'
   | 'perfil'
   | 'notas';

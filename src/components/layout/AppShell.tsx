@@ -17,6 +17,7 @@ import { AnalisePage }     from '@/components/analise/AnalisePage';
 import { AdminPage }       from '@/components/admin/AdminPage';
 import { PerfilPage }      from '@/components/perfil/PerfilPage';
 import { NotasPage }       from '@/components/notas/NotasPage';
+import { SugestoesPage }  from '@/components/sugestoes/SugestoesPage';
 import { LandingPage }     from '@/components/landing/LandingPage';
 import { syncFromSheet }   from '@/lib/import/sheetsSync';
 import { commitRows }      from '@/lib/import/importEngine';
@@ -166,8 +167,9 @@ export function AppShell() {
           {view === 'caixa'   && <CaixaPage />}
           {view === 'gastos'  && <GastosPage />}
           {view === 'contas'  && <ContasPage />}
-          {view === 'analise' && <AnalisePage />}
-          {view === 'notas'   && <NotasPage />}
+          {view === 'analise'   && <AnalisePage />}
+          {view === 'sugestoes' && <SugestoesPage />}
+          {view === 'notas'     && <NotasPage />}
           {view === 'admin'   && <AdminPage />}
           {view === 'perfil'  && <PerfilPage />}
         </main>

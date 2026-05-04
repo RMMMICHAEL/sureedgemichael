@@ -83,242 +83,69 @@ function clearSeedIds() {
 function makeLegs(): Leg[] {
   const legs: Leg[] = [];
 
-  // helper: surebet 2-pernas
-  function sb2(
-    oid: string, bd: string, ed: string, sp: string, ev: string,
-    ho1: string, mk1: string, od1: number, st1: number, re1: string,
-    ho2: string, mk2: string, od2: number, st2: number, re2: string,
-  ) {
-    const pct = pc2(od1, od2);
-    legs.push({
-      id: `seed_l_${oid}_a`, oid, bd, ed, sp, ev, ho: ho1, mk: mk1,
-      od: od1, st: st1, pc: pct, re: re1 as never, pr: pr(re1, st1, od1),
-      fl: [], source: 'manual', signal: 'pre', opType: 'surebet',
-    });
-    legs.push({
-      id: `seed_l_${oid}_b`, oid, bd, ed, sp, ev, ho: ho2, mk: mk2,
-      od: od2, st: st2, pc: pct, re: re2 as never, pr: pr(re2, st2, od2),
-      fl: [], source: 'manual', signal: 'pre', opType: 'surebet',
-    });
-  }
+  const HOUSES = ['Bet365','Betano','Pinnacle','Betfair','KTO','Betsson','Sportingbet','1xBet','Betway','Novibet'];
+  const SPORTS  = ['Futebol','Futebol','Futebol','Tênis','Basquete','Basquete','Voleibol','Futebol Americano','Tênis','Futebol'];
 
-  // helper: duplo green 3-pernas
-  function dg3(
-    oid: string, bd: string, ed: string, ev: string,
-    ho1: string, od1: number, st1: number, re1: string,
-    ho2: string, od2: number, st2: number, re2: string,
-    ho3: string, od3: number, st3: number, re3: string,
-  ) {
-    const pct = pc3(od1, od2, od3);
-    const LEG_MK = ['1', 'X', '2'];
-    [[ho1, od1, st1, re1], [ho2, od2, st2, re2], [ho3, od3, st3, re3]].forEach(([ho, od, st, re], i) => {
+  // Seeded RNG for deterministic output
+  let _seed = 12345;
+  function rnd() { _seed = (_seed * 1664525 + 1013904223) & 0x7fffffff; return _seed / 0x7fffffff; }
+  function rndRange(min: number, max: number) { return min + rnd() * (max - min); }
+
+  let globalIdx = 0;
+
+  function addDay(y: number, m: number, d: number, count: number) {
+    const dayKey = `${y}${String(m).padStart(2,'0')}${String(d).padStart(2,'0')}`;
+    for (let i = 0; i < count; i++) {
+      const h   = Math.floor(rndRange(9, 22));
+      const min = Math.floor(rndRange(0, 59));
+      const bd  = iso(y, m, d, h, min);
+      const ed  = iso(y, m, d, h + 1, 30);
+      const sp  = SPORTS[globalIdx % SPORTS.length];
+      const oid = `seed_bulk_${dayKey}_${i}`;
+      const odA = +rndRange(2.05, 2.25).toFixed(3);
+      const odB = +rndRange(2.05, 2.25).toFixed(3);
+      const pct = pc2(odA, odB);
       legs.push({
-        id: `seed_l_${oid}_${i}`, oid, bd, ed, sp: 'Futebol', ev,
-        ho: ho as string, mk: LEG_MK[i], od: od as number, st: st as number,
-        pc: pct, re: re as never, pr: pr(re as string, st as number, od as number),
-        fl: [], source: 'manual', signal: 'pre', opType: 'duplo_green',
+        id: `seed_bulk_${dayKey}_${i}_a`,
+        oid, bd, ed, sp, ev: '',
+        ho: HOUSES[globalIdx % HOUSES.length],
+        mk: 'Casa',
+        od: odA, st: 100, pc: pct,
+        re: 'Green',
+        pr: +(100 * (odA - 1)).toFixed(2),
+        fl: [], source: 'manual', signal: 'pre', opType: 'surebet',
       });
-    });
+      legs.push({
+        id: `seed_bulk_${dayKey}_${i}_b`,
+        oid, bd, ed, sp, ev: '',
+        ho: HOUSES[(globalIdx + 1) % HOUSES.length],
+        mk: 'Fora',
+        od: odB, st: 95, pc: pct,
+        re: 'Red',
+        pr: -95,
+        fl: [], source: 'manual', signal: 'pre', opType: 'surebet',
+      });
+      globalIdx++;
+    }
   }
 
-  // ── FEVEREIRO 2026 ───────────────────────────────────────────────────────
+  // ── Feb 2026: 10 ops/day ─────────────────────────────────────────────────
+  for (let d = 1; d <= 28; d++) addDay(2026, 2, d, 10);
 
-  sb2('seed_sb01',
-    iso(2026,2,3,10,15), iso(2026,2,3,16,0), 'Futebol', 'Flamengo x Palmeiras',
-    'Bet365',  'Casa', 2.05, 245, 'Green',
-    'Betano',  'Fora', 2.10, 240, 'Red');
+  // ── Mar 2026: 15 ops/day ─────────────────────────────────────────────────
+  for (let d = 1; d <= 31; d++) addDay(2026, 3, d, 15);
 
-  sb2('seed_sb02',
-    iso(2026,2,5,14,30), iso(2026,2,5,20,0), 'Futebol', 'Real Madrid x Barcelona',
-    'KTO',     'Casa', 1.95, 260, 'Red',
-    'Pinnacle','Fora', 2.20, 230, 'Green');
+  // ── Apr 2026: 25 ops/day for 1-27, 80/day for 28-30 ─────────────────────
+  for (let d = 1; d <= 27; d++) addDay(2026, 4, d, 25);
+  for (let d = 28; d <= 30; d++) addDay(2026, 4, d, 80);
 
-  sb2('seed_sb03',
-    iso(2026,2,8,9,0), iso(2026,2,8,15,30), 'Futebol', 'Corinthians x Santos',
-    'Betsson', 'Casa', 2.15, 235, 'Green',
-    'Bet365',  'Fora', 2.00, 250, 'Red');
+  // ── May 2026: specific counts ─────────────────────────────────────────────
+  addDay(2026, 5, 1, 150);
+  addDay(2026, 5, 2, 150);
+  addDay(2026, 5, 3, 150);
+  addDay(2026, 5, 4, 150); // today — ~150 ops × R$12.5 net ≈ R$1,500-1,875
 
-  sb2('seed_sb04',
-    iso(2026,2,12,11,0), iso(2026,2,12,19,0), 'Basquete', 'Lakers x Celtics',
-    'Betano',  'Casa', 1.88, 270, 'Green',
-    'KTO',     'Fora', 2.30, 220, 'Red');
-
-  sb2('seed_sb05',
-    iso(2026,2,15,16,0), iso(2026,2,15,21,0), 'Futebol', 'PSG x Manchester City',
-    'Pinnacle','Casa', 2.12, 238, 'Red',
-    'Bet365',  'Fora', 2.06, 244, 'Red');
-
-  sb2('seed_sb06',
-    iso(2026,2,18,10,30), iso(2026,2,18,18,0), 'Futebol', 'Grêmio x Internacional',
-    'Betsson', 'Casa', 1.92, 265, 'Green',
-    'Betano',  'Fora', 2.25, 225, 'Red');
-
-  sb2('seed_sb07',
-    iso(2026,2,22,13,0), iso(2026,2,22,20,30), 'Tênis', 'Sinner x Alcaraz - ATP500',
-    'KTO',     'Casa', 2.08, 243, 'Green',
-    'Pinnacle','Fora', 2.00, 252, 'Red');
-
-  dg3('seed_dg01',
-    iso(2026,2,10,11,0), iso(2026,2,10,17,0), 'Atlético MG x Cruzeiro',
-    'Bet365',  4.20, 120, 'Red',
-    'Betano',  3.50, 143, 'Green Antecipado',
-    'Betsson', 2.10, 238, 'Red');
-
-  dg3('seed_dg02',
-    iso(2026,2,20,9,30), iso(2026,2,20,16,0), 'Vasco x Botafogo',
-    'Pinnacle',3.80, 132, 'Red',
-    'Bet365',  3.30, 152, 'Red',
-    'KTO',     2.05, 244, 'Green');
-
-  // ── MARÇO 2026 ────────────────────────────────────────────────────────────
-
-  sb2('seed_sb08',
-    iso(2026,3,2,10,0), iso(2026,3,2,16,0), 'Futebol', 'Liverpool x Arsenal',
-    'Bet365',  'Casa', 2.10, 240, 'Green',
-    'Betano',  'Fora', 2.05, 245, 'Red');
-
-  sb2('seed_sb09',
-    iso(2026,3,5,11,15), iso(2026,3,5,20,45), 'Futebol', 'Fluminense x Flamengo',
-    'KTO',     'Casa', 2.20, 230, 'Green',
-    'Betsson', 'Fora', 1.95, 260, 'Red');
-
-  sb2('seed_sb10',
-    iso(2026,3,8,14,0), iso(2026,3,8,19,0), 'Basquete', 'Warriors x Bucks',
-    'Pinnacle','Casa', 1.90, 268, 'Green',
-    'Bet365',  'Fora', 2.28, 222, 'Red');
-
-  sb2('seed_sb11',
-    iso(2026,3,12,9,30), iso(2026,3,12,16,0), 'Futebol', 'Bayern x Dortmund',
-    'Betano',  'Casa', 2.02, 250, 'Red',
-    'KTO',     'Fora', 2.15, 235, 'Green');
-
-  sb2('seed_sb12',
-    iso(2026,3,15,13,0), iso(2026,3,15,21,30), 'Futebol', 'São Paulo x Corinthians',
-    'Bet365',  'Casa', 2.07, 243, 'Green',
-    'Pinnacle','Fora', 2.08, 242, 'Red');
-
-  sb2('seed_sb13',
-    iso(2026,3,18,11,0), iso(2026,3,18,18,0), 'Tênis', 'Djokovic x Medvedev - Masters',
-    'Betsson', 'Casa', 1.85, 275, 'Meio Green',
-    'Betano',  'Fora', 2.40, 210, 'Meio Red');
-
-  sb2('seed_sb14',
-    iso(2026,3,22,10,0), iso(2026,3,22,16,30), 'Futebol', 'Inter de Milão x Juventus',
-    'KTO',     'Casa', 2.18, 232, 'Green',
-    'Bet365',  'Fora', 2.00, 252, 'Red');
-
-  sb2('seed_sb15',
-    iso(2026,3,26,16,0), iso(2026,3,26,20,0), 'Futebol', 'Palmeiras x Santos',
-    'Pinnacle','Casa', 1.97, 257, 'Green',
-    'Betano',  'Fora', 2.22, 228, 'Red');
-
-  sb2('seed_sb16',
-    iso(2026,3,29,10,30), iso(2026,3,29,17,0), 'Basquete', 'Heat x Knicks',
-    'Bet365',  'Casa', 2.12, 238, 'Green',
-    'KTO',     'Fora', 2.04, 247, 'Red');
-
-  dg3('seed_dg03',
-    iso(2026,3,7,12,0), iso(2026,3,7,19,0), 'Boca Juniors x River Plate',
-    'Bet365',  4.50, 110, 'Red',
-    'Betano',  3.40, 147, 'Red',
-    'Betsson', 2.00, 250, 'Green');
-
-  dg3('seed_dg04',
-    iso(2026,3,14,9,0), iso(2026,3,14,15,0), 'Botafogo x Fluminense',
-    'KTO',     4.00, 125, 'Green Antecipado',
-    'Pinnacle',3.60, 139, 'Red',
-    'Bet365',  2.08, 242, 'Red');
-
-  dg3('seed_dg05',
-    iso(2026,3,21,13,30), iso(2026,3,21,20,0), 'Manchester United x Chelsea',
-    'Betano',  3.90, 128, 'Red',
-    'Betsson', 3.70, 135, 'Pendente',
-    'Bet365',  2.12, 236, 'Pendente');
-
-  dg3('seed_dg06',
-    iso(2026,3,28,10,0), iso(2026,3,28,16,30), 'Cruzeiro x Atlético MG',
-    'Pinnacle',4.10, 122, 'Pendente',
-    'KTO',     3.80, 132, 'Pendente',
-    'Betano',  2.05, 244, 'Pendente');
-
-  // ── ABRIL 2026 ────────────────────────────────────────────────────────────
-
-  sb2('seed_sb17',
-    iso(2026,4,2,10,0), iso(2026,4,2,16,0), 'Futebol', 'Flamengo x São Paulo',
-    'Bet365',  'Casa', 2.05, 246, 'Green',
-    'Betano',  'Fora', 2.12, 238, 'Red');
-
-  sb2('seed_sb18',
-    iso(2026,4,5,12,0), iso(2026,4,5,19,0), 'Futebol', 'Real Madrid x Atlético',
-    'KTO',     'Casa', 2.00, 252, 'Green',
-    'Pinnacle','Fora', 2.18, 232, 'Red');
-
-  sb2('seed_sb19',
-    iso(2026,4,9,11,0), iso(2026,4,9,18,30), 'Basquete', 'Nuggets x Suns',
-    'Betsson', 'Casa', 1.93, 263, 'Green',
-    'Bet365',  'Fora', 2.26, 223, 'Red');
-
-  sb2('seed_sb20',
-    iso(2026,4,12,9,0), iso(2026,4,12,15,0), 'Futebol', 'Corinthians x Palmeiras',
-    'Betano',  'Casa', 2.08, 243, 'Green',
-    'KTO',     'Fora', 2.05, 246, 'Red');
-
-  sb2('seed_sb21',
-    iso(2026,4,16,14,0), iso(2026,4,16,21,0), 'Tênis', 'Zverev x Ruud - Roland Garros',
-    'Bet365',  'Casa', 2.15, 235, 'Pendente',
-    'Pinnacle','Fora', 2.01, 250, 'Pendente');
-
-  sb2('seed_sb22',
-    iso(2026,4,19,10,30), iso(2026,4,19,17,0), 'Futebol', 'Barcelona x Atlético',
-    'Betsson', 'Casa', 2.10, 240, 'Pendente',
-    'Betano',  'Fora', 2.06, 244, 'Pendente');
-
-  dg3('seed_dg07',
-    iso(2026,4,6,11,0), iso(2026,4,6,18,0), 'Grêmio x Athletico PR',
-    'Bet365',  4.20, 119, 'Red',
-    'Betano',  3.50, 143, 'Red',
-    'Betsson', 2.05, 244, 'Green');
-
-  dg3('seed_dg08',
-    iso(2026,4,13,12,0), iso(2026,4,13,19,0), 'Vasco x Fluminense',
-    'KTO',     4.00, 125, 'Pendente',
-    'Pinnacle',3.60, 139, 'Pendente',
-    'Bet365',  2.10, 238, 'Pendente');
-
-  // ── ÚLTIMA SEMANA ABRIL / INÍCIO MAIO 2026 (para KPIs de semana/hoje) ─────
-
-  sb2('seed_sb23',
-    iso(2026,4,28,10,0), iso(2026,4,28,16,0), 'Futebol', 'Palmeiras x Flamengo',
-    'Bet365',  'Casa', 2.08, 243, 'Green',
-    'Betano',  'Fora', 2.05, 246, 'Red');
-
-  sb2('seed_sb24',
-    iso(2026,4,29,11,0), iso(2026,4,29,18,30), 'Futebol', 'Real Madrid x Sevilla',
-    'KTO',     'Casa', 1.97, 257, 'Green',
-    'Pinnacle','Fora', 2.20, 230, 'Red');
-
-  sb2('seed_sb25',
-    iso(2026,4,30,10,30), iso(2026,4,30,17,0), 'Tênis', 'Alcaraz x Sinner - Roland Garros',
-    'Betsson', 'Casa', 2.10, 240, 'Meio Green',
-    'Bet365',  'Fora', 2.04, 247, 'Meio Red');
-
-  dg3('seed_dg09',
-    iso(2026,5,1,11,0), iso(2026,5,1,18,0), 'Liverpool x Man City',
-    'Bet365',  4.30, 117, 'Red',
-    'Betano',  3.50, 143, 'Green Antecipado',
-    'KTO',     2.05, 244, 'Red');
-
-  sb2('seed_sb26',
-    iso(2026,5,2,10,0), iso(2026,5,2,16,0), 'Futebol', 'Flamengo x Botafogo',
-    'Bet365',  'Casa', 2.12, 238, 'Green',
-    'Betano',  'Fora', 2.03, 248, 'Red');
-
-  sb2('seed_sb27',
-    iso(2026,5,2,14,0), iso(2026,5,2,20,0), 'Basquete', 'Celtics x Knicks - Playoffs',
-    'KTO',     'Casa', 1.93, 263, 'Green',
-    'Pinnacle','Fora', 2.26, 223, 'Red');
-
-  // Delay op
+  // ── Bonus legs ────────────────────────────────────────────────────────────
   legs.push({
     id: 'seed_delay01', oid: 'seed_delay01', bd: iso(2026,3,10,14,0), ed: iso(2026,3,10,14,0),
     sp: 'Futebol', ev: 'Bônus Boas-Vindas Bet365', ho: 'Bet365', mk: 'Bônus',

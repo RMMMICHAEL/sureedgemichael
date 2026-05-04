@@ -1,12 +1,15 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { useStore } from '@/store/useStore';
 import type { ViewId } from '@/types';
 import {
   LayoutDashboard, Activity, Building2, Wallet,
   BarChart3, ShieldCheck, Receipt, Users, X,
-  UserCircle, LogOut, NotebookPen,
+  UserCircle, LogOut, NotebookPen, MessageSquare,
 } from 'lucide-react';
+import { getMySubscription } from '@/lib/supabase/subscription';
+import type { Subscription } from '@/lib/supabase/subscription';
 
 interface NavItem {
   id: ViewId;
@@ -27,10 +30,11 @@ const NAV_FINANCE: NavItem[] = [
 ];
 
 const NAV_OTHER: NavItem[] = [
-  { id: 'analise', label: 'Análise', icon: <BarChart3    size={15} strokeWidth={2} /> },
-  { id: 'notas',   label: 'Notas',   icon: <NotebookPen  size={15} strokeWidth={2} /> },
-  { id: 'admin',   label: 'Admin',   icon: <ShieldCheck  size={15} strokeWidth={2} /> },
-  { id: 'perfil',  label: 'Perfil',  icon: <UserCircle   size={15} strokeWidth={2} /> },
+  { id: 'analise',   label: 'Análise',    icon: <BarChart3     size={15} strokeWidth={2} /> },
+  { id: 'sugestoes', label: 'Sugestões',  icon: <MessageSquare size={15} strokeWidth={2} /> },
+  { id: 'notas',     label: 'Notas',      icon: <NotebookPen   size={15} strokeWidth={2} /> },
+  { id: 'admin',     label: 'Admin',      icon: <ShieldCheck   size={15} strokeWidth={2} /> },
+  { id: 'perfil',    label: 'Perfil',     icon: <UserCircle    size={15} strokeWidth={2} /> },
 ];
 
 interface SidebarProps {
@@ -123,6 +127,31 @@ function ProfileFooter({ onClose }: { onClose?: () => void }) {
   const avatar  = profile?.avatarDataUrl;
   const initials = name.split(' ').map((w: string) => w[0]).slice(0, 2).join('').toUpperCase();
 
+  const [sub, setSub] = useState<Subscription | null>(null);
+
+  useEffect(() => {
+    getMySubscription().then(s => setSub(s)).catch(() => {});
+  }, []);
+
+  const daysLeft = sub?.expires_at
+    ? Math.ceil((new Date(sub.expires_at).getTime() - Date.now()) / 86400000)
+    : null;
+  const isExpiringSoon = daysLeft !== null && daysLeft <= 7;
+
+  const planLabel =
+    sub?.plan === 'monthly'   ? 'Mensal'    :
+    sub?.plan === 'quarterly' ? 'Trimestral':
+    sub?.plan === 'annual'    ? 'Anual'     : 'Pro';
+
+  const btnBg     = isExpiringSoon ? 'rgba(255,77,109,.06)'  : 'rgba(255,255,255,.03)';
+  const btnBorder = isExpiringSoon ? 'rgba(255,77,109,.25)'  : 'rgba(255,255,255,.06)';
+  const btnBgHov  = isExpiringSoon ? 'rgba(255,77,109,.10)'  : 'rgba(63,255,33,.06)';
+  const btnBdHov  = isExpiringSoon ? 'rgba(255,77,109,.35)'  : 'rgba(63,255,33,.18)';
+
+  const badgeStyle: React.CSSProperties = isExpiringSoon
+    ? { background: 'rgba(255,77,109,.12)', color: 'var(--r)', border: '1px solid rgba(255,77,109,.2)' }
+    : { background: 'rgba(63,255,33,.12)',  color: 'var(--g)', border: '1px solid rgba(63,255,33,.2)'  };
+
   return (
     <div
       className="p-3 flex-shrink-0"
@@ -132,17 +161,14 @@ function ProfileFooter({ onClose }: { onClose?: () => void }) {
         type="button"
         onClick={() => { setView('perfil'); onClose?.(); }}
         className="flex items-center gap-3 p-2.5 rounded-xl transition-all w-full text-left group"
-        style={{
-          background: 'rgba(255,255,255,.03)',
-          border: '1px solid rgba(255,255,255,.06)',
-        }}
+        style={{ background: btnBg, border: `1px solid ${btnBorder}` }}
         onMouseEnter={e => {
-          (e.currentTarget as HTMLElement).style.background = 'rgba(63,255,33,.06)';
-          (e.currentTarget as HTMLElement).style.borderColor = 'rgba(63,255,33,.18)';
+          (e.currentTarget as HTMLElement).style.background = btnBgHov;
+          (e.currentTarget as HTMLElement).style.borderColor = btnBdHov;
         }}
         onMouseLeave={e => {
-          (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,.03)';
-          (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,.06)';
+          (e.currentTarget as HTMLElement).style.background = btnBg;
+          (e.currentTarget as HTMLElement).style.borderColor = btnBorder;
         }}
       >
         {/* Avatar */}
@@ -182,18 +208,19 @@ function ProfileFooter({ onClose }: { onClose?: () => void }) {
             <span className="live-dot" style={{ width: 5, height: 5 }} />
             <span className="text-[10px]" style={{ color: 'var(--t3)' }}>{role}</span>
           </div>
+          {isExpiringSoon && (
+            <div style={{ fontSize: 9, color: 'var(--r)', marginTop: 2, fontWeight: 700 }}>
+              ⚠ Expira em {daysLeft}d
+            </div>
+          )}
         </div>
 
-        {/* Pro badge */}
+        {/* Plan badge */}
         <span
           className="text-[9px] px-2 py-0.5 rounded-md font-black flex-shrink-0 uppercase tracking-wider"
-          style={{
-            background: 'rgba(63,255,33,.12)',
-            color: 'var(--g)',
-            border: '1px solid rgba(63,255,33,.2)',
-          }}
+          style={badgeStyle}
         >
-          Pro
+          {planLabel}
         </span>
       </button>
 

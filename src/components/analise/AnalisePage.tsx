@@ -15,6 +15,23 @@ import { AlertTriangle, Shuffle, Target, TrendingUp, BarChart2, Activity } from 
 import { houseFavicon } from '@/lib/bookmakers/logos';
 import type { Leg } from '@/types';
 
+// ── known sports filter ───────────────────────────────────────────────────────
+
+const KNOWN_SPORTS = new Set([
+  'futebol','futebol americano','tênis','tenis','basquete','basketball','voleibol','vôlei','volleyball',
+  'beisebol','baseball','hockey','hóquei','mma','ufc','boxe','boxing','rugby','golfe','golf',
+  'natação','atletismo','ciclismo','e-sports','esports','e-sport','esport','críquete','cricket',
+  'badminton','squash','handebol','handball','futsal','polo aquático','snooker','dardos','darts',
+  'luta livre','judo','karatê','taekwondo','skate','surf','tênis de mesa','ping pong','pingue-pongue',
+]);
+
+function isKnownSport(sp: string): boolean {
+  if (!sp) return false;
+  const normalized = sp.toLowerCase().trim();
+  return KNOWN_SPORTS.has(normalized) ||
+    Array.from(KNOWN_SPORTS).some(s => normalized.includes(s) || s.includes(normalized));
+}
+
 // ── helpers ───────────────────────────────────────────────────────────────────
 
 function fmtBRL(v: number) {
@@ -90,7 +107,7 @@ function HouseFaviconBadge({ name, size = 24 }: { name: string; size?: number })
 function CrossingsBySport({ legs }: { legs: Leg[] }) {
   const sports = useMemo(() => {
     const map = new Map<string, number>();
-    legs.forEach(l => { if (l.sp) map.set(l.sp, (map.get(l.sp) || 0) + 1); });
+    legs.forEach(l => { if (l.sp && isKnownSport(l.sp)) map.set(l.sp, (map.get(l.sp) || 0) + 1); });
     return Array.from(map.entries())
       .sort((a, b) => b[1] - a[1])
       .map(([sp]) => sp);
@@ -100,7 +117,7 @@ function CrossingsBySport({ legs }: { legs: Leg[] }) {
   const sport = (activeSport && sports.includes(activeSport)) ? activeSport : (sports[0] || '');
 
   const pairs = useMemo(() => {
-    const sportLegs = sport ? legs.filter(l => l.sp === sport) : legs;
+    const sportLegs = sport ? legs.filter(l => l.sp === sport && isKnownSport(l.sp)) : legs.filter(l => isKnownSport(l.sp || ''));
     const ops = groupLegsIntoOps(sportLegs);
     const map = new Map<string, { count: number; profit: number }>();
     ops.forEach(op => {
@@ -409,7 +426,7 @@ export function AnalisePage() {
 
   const filtered = useMemo(() => filterByDate(legs, from, to), [legs, from, to]);
 
-  const sports = useMemo(() => calcBySport(filtered), [filtered]);
+  const sports = useMemo(() => calcBySport(filtered).filter(s => isKnownSport(s.sport)), [filtered]);
   const hours  = useMemo(() => calcByHour(filtered),  [filtered]);
 
   const totalProfit = +filtered.reduce((s, l) => s + calcLegProfit(l), 0).toFixed(2);
@@ -488,16 +505,15 @@ export function AnalisePage() {
         </div>
       )}
 
-      {/* ── Distribuição ── */}
-      <SectionLabel icon={<Activity size={13} />}>Distribuição de Resultados</SectionLabel>
-
-      <SportChart data={sports} />
-
-      {/* ── Uso de casas ── */}
-      <SectionLabel icon={<TrendingUp size={13} />}>Uso de Casas</SectionLabel>
+      {/* ── Distribuição e Uso de casas ── */}
+      <SectionLabel icon={<TrendingUp size={13} />}>Distribuição e Uso de Casas</SectionLabel>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <TopHousesByUsageChart legs={filtered} />
+        <SportChart data={sports} />
+      </div>
+
+      <div className="grid grid-cols-1 gap-4">
         <HourlyChart data={hours} />
       </div>
 
