@@ -49,6 +49,8 @@ interface StoreState extends AppDB {
   // Actions — DB
   init:            () => void;
   addLeg:          (leg: Leg) => void;
+  bulkAddLegs:     (legs: Leg[]) => void;
+  bulkDeleteLegs:  (ids: string[]) => void;
   updateLeg:       (id: string, patch: Partial<Leg>) => void;
   deleteLeg:       (id: string) => void;
   commitImport:    (result: CommitResult) => void;
@@ -208,6 +210,28 @@ export const useStore = create<StoreState>()((set, get) => ({
   addLeg(leg) {
     set(s => {
       const legs = [...s.legs, { ...leg, pr: calcLegProfit(leg) }];
+      const { bms, totalCash } = recalc({ ...s, legs });
+      persist({ ...s, legs, bms });
+      return { legs, bms, totalCash };
+    });
+  },
+
+  // Single state update for bulk inserts (avoids N re-renders)
+  bulkAddLegs(newLegs) {
+    set(s => {
+      const cooked = newLegs.map(l => ({ ...l, pr: calcLegProfit(l) }));
+      const legs = [...s.legs, ...cooked];
+      const { bms, totalCash } = recalc({ ...s, legs });
+      persist({ ...s, legs, bms });
+      return { legs, bms, totalCash };
+    });
+  },
+
+  // Single state update for bulk removes (avoids N re-renders)
+  bulkDeleteLegs(ids) {
+    const idSet = new Set(ids);
+    set(s => {
+      const legs = s.legs.filter(l => !idSet.has(l.id));
       const { bms, totalCash } = recalc({ ...s, legs });
       persist({ ...s, legs, bms });
       return { legs, bms, totalCash };

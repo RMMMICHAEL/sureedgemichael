@@ -129,21 +129,21 @@ function makeLegs(): Leg[] {
     }
   }
 
-  // ── Feb 2026: 10 ops/day ─────────────────────────────────────────────────
-  for (let d = 1; d <= 28; d++) addDay(2026, 2, d, 10);
+  // ── Feb 2026: 5 ops/day ──────────────────────────────────────────────────
+  for (let d = 1; d <= 28; d++) addDay(2026, 2, d, 5);
 
-  // ── Mar 2026: 15 ops/day ─────────────────────────────────────────────────
-  for (let d = 1; d <= 31; d++) addDay(2026, 3, d, 15);
+  // ── Mar 2026: 8 ops/day ──────────────────────────────────────────────────
+  for (let d = 1; d <= 31; d++) addDay(2026, 3, d, 8);
 
-  // ── Apr 2026: 25 ops/day for 1-27, 80/day for 28-30 ─────────────────────
-  for (let d = 1; d <= 27; d++) addDay(2026, 4, d, 25);
-  for (let d = 28; d <= 30; d++) addDay(2026, 4, d, 80);
+  // ── Apr 2026: 12 ops/day for 1-27, 20/day for 28-30 ─────────────────────
+  for (let d = 1; d <= 27; d++) addDay(2026, 4, d, 12);
+  for (let d = 28; d <= 30; d++) addDay(2026, 4, d, 20);
 
-  // ── May 2026: specific counts ─────────────────────────────────────────────
-  addDay(2026, 5, 1, 150);
-  addDay(2026, 5, 2, 150);
-  addDay(2026, 5, 3, 150);
-  addDay(2026, 5, 4, 150); // today — ~150 ops × R$12.5 net ≈ R$1,500-1,875
+  // ── May 2026: 25 ops/day ─────────────────────────────────────────────────
+  addDay(2026, 5, 1, 25);
+  addDay(2026, 5, 2, 25);
+  addDay(2026, 5, 3, 25);
+  addDay(2026, 5, 4, 25);
 
   // ── Bonus legs ────────────────────────────────────────────────────────────
   legs.push({
@@ -308,8 +308,8 @@ function makeClients(): Omit<Client, 'id'>[] {
 export function loadSeedData() {
   const store = useStore.getState();
 
-  // Legs
-  makeLegs().forEach(leg => store.addLeg(leg));
+  // Legs — single state update to avoid N re-renders
+  store.bulkAddLegs(makeLegs());
 
   // Bookmakers
   makeBMs().forEach(bm => store.addBookmaker(bm));
@@ -362,7 +362,7 @@ export function clearSeedData() {
 
   const store = useStore.getState();
 
-  SEED_LEG_IDS.forEach(id => store.deleteLeg(id));
+  store.bulkDeleteLegs(SEED_LEG_IDS);
   SEED_BM_IDS.forEach(id => store.deleteBookmaker(id));
   SEED_BANK_IDS.forEach(id => store.deleteBank(id));
   SEED_EXP_IDS.forEach(id => store.deleteExpense(id));
