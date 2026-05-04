@@ -22,12 +22,17 @@
  * create policy "public read votes" on suggestion_votes for select using (true);
  * create policy "auth insert votes" on suggestion_votes for insert with check (auth.uid() = user_id);
  * create policy "auth update votes" on suggestion_votes for update using (auth.uid() = user_id);
+ * create policy "auth delete own suggestions" on suggestions for delete
+ *   using (auth.uid() = user_id OR auth.email() = 'michael.martins.trader@gmail.com');
+ * create policy "auth delete own votes" on suggestion_votes for delete using (auth.uid() = user_id);
  */
 
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
+import { Trash2 } from 'lucide-react';
 import { getSupabaseClient } from '@/lib/supabase/client';
+import { useStore } from '@/store/useStore';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -73,6 +78,10 @@ function firstName(name: string | null): string {
   return name.split(' ')[0];
 }
 
+// ── Constants ─────────────────────────────────────────────────────────────────
+
+const ADMIN_EMAIL = 'michael.martins.trader@gmail.com';
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function SugestoesPage() {
@@ -84,7 +93,11 @@ export function SugestoesPage() {
   const [newContent, setNewContent]   = useState('');
   const [submitting, setSubmitting]   = useState(false);
   const [submitError, setSubmitError] = useState('');
+  const [deletingId, setDeletingId]   = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const authEmail = useStore(s => s.authEmail);
+  const isAdmin   = authEmail === ADMIN_EMAIL;
 
   const supabase = getSupabaseClient();
 
@@ -186,6 +199,20 @@ export function SugestoesPage() {
       await fetchData();
     } catch {
       // silent fail
+    }
+  }
+
+  // ── Delete ────────────────────────────────────────────────────────────────
+  async function handleDelete(id: string) {
+    if (!window.confirm('Remover esta sugestão?')) return;
+    setDeletingId(id);
+    try {
+      await supabase.from('suggestions').delete().eq('id', id);
+      await fetchData();
+    } catch {
+      // silent fail
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -295,7 +322,8 @@ export function SugestoesPage() {
       ) : (
         <div className="flex flex-col gap-3">
           {suggestions.map(s => {
-            const isOwn = userId && s.user_id === userId;
+            const isOwn    = userId && s.user_id === userId;
+            const canDelete = !!isOwn || isAdmin;
             const likeActive    = s.myVote === 1;
             const dislikeActive = s.myVote === -1;
 
@@ -333,9 +361,39 @@ export function SugestoesPage() {
                       )}
                     </span>
                   </div>
-                  <span className="text-[10px]" style={{ color: 'var(--t3)' }}>
-                    {relativeTime(s.created_at)}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px]" style={{ color: 'var(--t3)' }}>
+                      {relativeTime(s.created_at)}
+                    </span>
+                    {canDelete && (
+                      <button
+                        type="button"
+                        disabled={deletingId === s.id}
+                        onClick={() => handleDelete(s.id)}
+                        className="flex items-center justify-center w-6 h-6 rounded-lg transition-all"
+                        style={{
+                          background: 'rgba(255,77,109,.0)',
+                          color: 'var(--t3)',
+                          border: '1px solid transparent',
+                          cursor: 'pointer',
+                          opacity: deletingId === s.id ? 0.4 : 1,
+                        }}
+                        onMouseEnter={e => {
+                          (e.currentTarget as HTMLElement).style.background = 'rgba(255,77,109,.1)';
+                          (e.currentTarget as HTMLElement).style.color = 'var(--r)';
+                          (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,77,109,.2)';
+                        }}
+                        onMouseLeave={e => {
+                          (e.currentTarget as HTMLElement).style.background = 'rgba(255,77,109,.0)';
+                          (e.currentTarget as HTMLElement).style.color = 'var(--t3)';
+                          (e.currentTarget as HTMLElement).style.borderColor = 'transparent';
+                        }}
+                        title={isAdmin && !isOwn ? 'Remover (admin)' : 'Remover sugestão'}
+                      >
+                        <Trash2 size={11} />
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {/* Content */}
