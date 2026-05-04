@@ -741,7 +741,7 @@ export function LandingPage() {
       {/* ══════════ DASHBOARD SHOWCASE ══════════ */}
       <section style={{ background: '#0A0F14', padding: '100px 32px', borderTop: '1px solid rgba(255,255,255,.05)', borderBottom: '1px solid rgba(255,255,255,.05)' }}>
         <div style={{ maxWidth: 1200, margin: '0 auto' }}>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_640px] gap-10 items-center">
             <div className="reveal-left">
               <Label text="Dashboard" />
               <h2 style={{ fontFamily: 'Manrope', fontWeight: 900, fontSize: 'clamp(32px, 3.5vw, 50px)', letterSpacing: '-0.04em', lineHeight: 1.06, marginBottom: 24 }}>
