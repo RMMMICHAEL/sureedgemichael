@@ -766,7 +766,18 @@ export function LandingPage() {
               </div>
             </div>
             <div className="reveal-right hidden lg:block">
-              <FullDashboardMockup />
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/dashboard-imag.png"
+                alt="SureEdge Dashboard"
+                style={{
+                  width: '100%',
+                  height: 'auto',
+                  display: 'block',
+                  borderRadius: 12,
+                  boxShadow: '0 40px 100px rgba(0,0,0,.7), 0 0 80px rgba(63,255,33,.1)',
+                }}
+              />
             </div>
           </div>
         </div>
