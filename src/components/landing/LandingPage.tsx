@@ -130,7 +130,7 @@ function HeroScreenshot() {
         {/* Actual image */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src="https://i.imgur.com/xCkmPbD.png"
+          src="/dashboard-preview.png"
           alt="SureEdge Dashboard"
           style={{ width: '100%', height: 'auto', display: 'block' }}
         />
