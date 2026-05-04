@@ -46,8 +46,8 @@ function NavButton({ item, onClose }: { item: NavItem; onClose?: () => void }) {
   const setView = useStore(s => s.setView);
   const legs    = useStore(s => s.legs);
 
-  const pending = legs.filter(l => l.re === 'Pendente').length;
-  const flagged = legs.filter(l => l.fl && l.fl.length > 0).length;
+  const pending = new Set(legs.filter(l => l.re === 'Pendente').map(l => l.oid)).size;
+  const flagged = new Set(legs.filter(l => l.fl && l.fl.length > 0).map(l => l.oid)).size;
 
   const isOn  = view === item.id;
   const badge =
