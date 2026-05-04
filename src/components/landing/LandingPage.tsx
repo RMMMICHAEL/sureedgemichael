@@ -87,70 +87,41 @@ function HeroScreenshot() {
 
       {/* Ambient glow behind the image */}
       <div style={{
-        position: 'absolute', inset: -24,
-        borderRadius: 32,
-        background: 'radial-gradient(ellipse 80% 70% at 50% 50%, rgba(63,255,33,.18) 0%, transparent 70%)',
+        position: 'absolute', inset: -40,
+        borderRadius: 40,
+        background: 'radial-gradient(ellipse 80% 70% at 50% 55%, rgba(63,255,33,.2) 0%, transparent 70%)',
         pointerEvents: 'none',
         animation: 'hero-glow-pulse 3.5s ease-in-out infinite',
       }} />
 
-      {/* Frame */}
-      <div
-        className="lp-screenshot-frame"
-        style={{
-          position: 'relative',
-          borderRadius: 14,
-          overflow: 'hidden',
-          border: '1px solid rgba(63,255,33,.38)',
-          boxShadow: '0 0 0 1px rgba(63,255,33,.08), 0 32px 80px rgba(0,0,0,.6), 0 0 60px rgba(63,255,33,.15)',
-          animation: 'lp-float 5.5s ease-in-out infinite',
-        }}
-      >
-        {/* Top bar */}
-        <div style={{
-          background: '#080D12',
-          borderBottom: '1px solid rgba(63,255,33,.14)',
-          padding: '7px 12px',
-          display: 'flex', alignItems: 'center', gap: 6,
-        }}>
-          <div style={{ width: 8, height: 8, borderRadius: 4, background: '#FF4D6D' }} />
-          <div style={{ width: 8, height: 8, borderRadius: 4, background: '#FFD600' }} />
-          <div style={{ width: 8, height: 8, borderRadius: 4, background: '#3FFF21' }} />
-          <div style={{ flex: 1, marginLeft: 8, background: '#0D1520', border: '1px solid rgba(255,255,255,.06)', borderRadius: 4, padding: '2px 10px', display: 'flex', alignItems: 'center', gap: 5 }}>
-            <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#3FFF21', opacity: 0.7 }} />
-            <span style={{ fontFamily: 'JetBrains Mono', fontSize: 8, color: 'rgba(255,255,255,.3)' }}>app.sureedge.com.br</span>
-          </div>
-          {/* Live pill */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '2px 8px', borderRadius: 999, background: 'rgba(63,255,33,.1)', border: '1px solid rgba(63,255,33,.22)' }}>
-            <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#3FFF21', animation: 'live-blink 1.4s ease-in-out infinite' }} />
-            <span style={{ fontFamily: 'JetBrains Mono', fontSize: 8, fontWeight: 700, color: '#3FFF21', letterSpacing: '0.08em' }}>AO VIVO</span>
-          </div>
-        </div>
-
-        {/* Actual image */}
+      {/* Image — no border, just shadow + float */}
+      <div style={{
+        position: 'relative',
+        animation: 'lp-float 5.5s ease-in-out infinite',
+      }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src="/dashboard-preview.png"
           alt="SureEdge Dashboard"
-          style={{ width: '100%', height: 'auto', display: 'block' }}
+          style={{
+            width: '100%',
+            height: 'auto',
+            display: 'block',
+            borderRadius: 12,
+            boxShadow: '0 40px 100px rgba(0,0,0,.7), 0 0 80px rgba(63,255,33,.12)',
+          }}
         />
 
         {/* Scan line sweep */}
         <div style={{
-          position: 'absolute', inset: 0, pointerEvents: 'none',
-          background: 'linear-gradient(180deg, transparent 0%, rgba(63,255,33,.05) 48%, rgba(63,255,33,.1) 50%, rgba(63,255,33,.05) 52%, transparent 100%)',
-          animation: 'hero-scan 5s ease-in-out infinite',
-        }} />
-
-        {/* Corner ticks */}
-        {[
-          { top: 0, left: 0, borderTop: '2px solid #3FFF21', borderLeft: '2px solid #3FFF21', borderRadius: '4px 0 0 0' },
-          { top: 0, right: 0, borderTop: '2px solid #3FFF21', borderRight: '2px solid #3FFF21', borderRadius: '0 4px 0 0' },
-          { bottom: 0, left: 0, borderBottom: '2px solid #3FFF21', borderLeft: '2px solid #3FFF21', borderRadius: '0 0 0 4px' },
-          { bottom: 0, right: 0, borderBottom: '2px solid #3FFF21', borderRight: '2px solid #3FFF21', borderRadius: '0 0 4px 0' },
-        ].map((s, i) => (
-          <div key={i} style={{ position: 'absolute', width: 16, height: 16, ...s, opacity: 0.7 }} />
-        ))}
+          position: 'absolute', inset: 0, pointerEvents: 'none', borderRadius: 12, overflow: 'hidden',
+        }}>
+          <div style={{
+            position: 'absolute', inset: 0,
+            background: 'linear-gradient(180deg, transparent 0%, rgba(63,255,33,.04) 48%, rgba(63,255,33,.08) 50%, rgba(63,255,33,.04) 52%, transparent 100%)',
+            animation: 'hero-scan 6s ease-in-out infinite',
+          }} />
+        </div>
       </div>
 
       {/* Floating stat badges */}
@@ -625,7 +596,7 @@ export function LandingPage() {
         <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse 38% 40% at 95% 100%, rgba(63,255,33,.03) 0%, transparent 55%)', pointerEvents: 'none' }} />
 
         <div style={{ position: 'relative', zIndex: 1, maxWidth: 1200, margin: '0 auto', padding: '80px 32px 100px', width: '100%' }}>
-          <div className="grid grid-cols-1 lg:grid-cols-[1fr_420px] gap-16 items-center">
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_560px] gap-12 items-center">
 
             {/* Copy */}
             <div>
@@ -1054,11 +1025,6 @@ export function LandingPage() {
         @keyframes hero-badge-in {
           from { opacity: 0; transform: translateY(10px) scale(0.92); filter: blur(4px); }
           to   { opacity: 1; transform: none; filter: blur(0); }
-        }
-        .lp-screenshot-frame:hover {
-          border-color: rgba(63,255,33,.6) !important;
-          box-shadow: 0 0 0 1px rgba(63,255,33,.15), 0 40px 100px rgba(0,0,0,.7), 0 0 90px rgba(63,255,33,.28) !important;
-          transition: border-color .35s, box-shadow .35s;
         }
       `}</style>
     </div>
