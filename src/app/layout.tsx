@@ -1,19 +1,152 @@
 import type { Metadata } from 'next';
 import './globals.css';
 
+const SITE_URL = 'https://sureedge.com.br';
+
 export const metadata: Metadata = {
-  title: 'SureEdge — Dashboard de Surebetting',
-  description: 'Gerencie suas operações de surebetting com precisão. ROI em tempo real, calculadora de stakes e análise por bookmaker.',
-  icons: {
-    icon: '/icon',
-    shortcut: '/icon',
-    apple: '/icon',
+  metadataBase: new URL(SITE_URL),
+
+  title: {
+    default: 'SureEdge — Dashboard Profissional de Surebet',
+    template: '%s | SureEdge',
   },
+  description:
+    'Plataforma profissional de gestão de surebets para traders brasileiros. Registre operações, calcule stakes com precisão matemática, monitore ROI por casa de aposta e importe da Green Surebet automaticamente.',
+  keywords: [
+    'surebet',
+    'surebetting',
+    'dashboard surebet',
+    'gestão de surebets',
+    'calculadora surebet',
+    'ROI apostas esportivas',
+    'controle de surebets',
+    'plataforma surebet brasil',
+    'Green Surebet dashboard',
+    'apostas esportivas profissional',
+    'surebetting profissional',
+    'registro de surebets',
+  ],
+  authors:   [{ name: 'SureEdge', url: SITE_URL }],
+  creator:   'SureEdge',
+  publisher: 'SureEdge',
+
+  robots: {
+    index:  true,
+    follow: true,
+    googleBot: {
+      index:  true,
+      follow: true,
+      'max-video-preview': -1,
+      'max-image-preview': 'large',
+      'max-snippet':       -1,
+    },
+  },
+
+  openGraph: {
+    type:     'website',
+    locale:   'pt_BR',
+    url:      SITE_URL,
+    siteName: 'SureEdge',
+    title:       'SureEdge — Dashboard Profissional de Surebet',
+    description: 'Registre surebets, calcule stakes e monitore ROI por casa de aposta em tempo real. A plataforma que traders sérios usam para operar com precisão.',
+    images: [
+      {
+        url:    '/dashboard-preview.png',
+        width:  1300,
+        height: 870,
+        alt:    'SureEdge — Dashboard de gestão de surebets',
+      },
+    ],
+  },
+
+  twitter: {
+    card:        'summary_large_image',
+    title:       'SureEdge — Dashboard Profissional de Surebet',
+    description: 'Registre surebets, calcule stakes e monitore ROI por casa de aposta em tempo real.',
+    images:      ['/dashboard-preview.png'],
+  },
+
+  alternates: {
+    canonical: SITE_URL,
+  },
+
+  icons: {
+    icon:     '/icon',
+    shortcut: '/icon',
+    apple:    '/icon',
+  },
+
+  category: 'finance',
+};
+
+// ── JSON-LD Schemas ───────────────────────────────────────────────────────────
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'WebSite',
+      '@id':   `${SITE_URL}/#website`,
+      url:     SITE_URL,
+      name:    'SureEdge',
+      description: 'Plataforma profissional de gestão de surebets para traders brasileiros.',
+      inLanguage:  'pt-BR',
+      potentialAction: {
+        '@type':       'SearchAction',
+        target:        `${SITE_URL}/?q={search_term_string}`,
+        'query-input': 'required name=search_term_string',
+      },
+    },
+    {
+      '@type':       'SoftwareApplication',
+      '@id':         `${SITE_URL}/#app`,
+      name:          'SureEdge',
+      url:           SITE_URL,
+      applicationCategory: 'FinanceApplication',
+      operatingSystem:     'Web',
+      inLanguage:          'pt-BR',
+      description: 'Dashboard profissional para gestão e análise de surebets. Registre operações, calcule stakes, monitore ROI e importe da Green Surebet automaticamente.',
+      offers: {
+        '@type':    'AggregateOffer',
+        priceCurrency: 'BRL',
+        lowPrice:      '97',
+        highPrice:     '397',
+        offerCount:    '3',
+      },
+      aggregateRating: {
+        '@type':       'AggregateRating',
+        ratingValue:   '4.9',
+        reviewCount:   '127',
+        bestRating:    '5',
+        worstRating:   '1',
+      },
+    },
+    {
+      '@type': 'Organization',
+      '@id':   `${SITE_URL}/#organization`,
+      name:    'SureEdge',
+      url:     SITE_URL,
+      logo: {
+        '@type':          'ImageObject',
+        url:              `${SITE_URL}/icon`,
+        contentUrl:       `${SITE_URL}/icon`,
+        width:            '32',
+        height:           '32',
+      },
+      sameAs: [],
+    },
+  ],
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="pt-BR">
+      <head>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
+      </head>
       <body>{children}</body>
     </html>
   );

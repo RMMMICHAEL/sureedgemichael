@@ -102,7 +102,10 @@ function HeroScreenshot() {
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src="/dashboard-preview.png"
-          alt="SureEdge Dashboard"
+          alt="SureEdge — dashboard de gestão de surebets com laptop e smartphone mostrando lucro e ROI"
+          width={1300}
+          height={870}
+          fetchPriority="high"
           style={{
             width: '100%',
             height: 'auto',
@@ -509,6 +512,21 @@ const FAQ = [
   { q: 'O pagamento é seguro?', a: 'Sim. Utilizamos a plataforma Cakto para processar pagamentos com total segurança. Aceitamos PIX e cartão de crédito. O acesso é liberado imediatamente após a confirmação do pagamento.' },
 ];
 
+// ─── FAQ JSON-LD (FAQPage schema) ─────────────────────────────────────────────
+
+const FAQ_JSON_LD = {
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  mainEntity: FAQ.map(item => ({
+    '@type': 'Question',
+    name: item.q,
+    acceptedAnswer: {
+      '@type': 'Answer',
+      text: item.a,
+    },
+  })),
+};
+
 // ─── Main Component ────────────────────────────────────────────────────────────
 
 export function LandingPage() {
@@ -611,13 +629,13 @@ export function LandingPage() {
                 lineHeight: 1.0, letterSpacing: '-0.04em',
                 marginBottom: 24, color: '#F0F4F8',
               }}>
-                Domine o mercado<br />
+                Gestão profissional<br />
                 de surebets com<br />
                 <span style={{ color: '#3FFF21' }}>precisão de terminal.</span>
               </h1>
 
               <p className="lp-hero-in lp-hero-d3" style={{ fontFamily: 'Figtree', fontSize: 17, lineHeight: 1.65, color: 'var(--t2)', marginBottom: 36, maxWidth: '46ch' }}>
-                O dashboard que traders sérios usam para registrar operações, calcular stakes e monitorar ROI em tempo real.
+                O dashboard que traders sérios usam para registrar surebets, calcular stakes e monitorar ROI por casa de aposta em tempo real.
               </p>
 
               <div className="lp-hero-in lp-hero-d4" style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 44 }}>
@@ -683,8 +701,8 @@ export function LandingPage() {
           <div className="reveal" style={{ marginBottom: 64 }}>
             <Label text="Funcionalidades" />
             <h2 style={{ fontFamily: 'Manrope', fontWeight: 900, fontSize: 'clamp(36px, 4.5vw, 58px)', letterSpacing: '-0.04em', lineHeight: 1.05 }}>
-              Tudo que você precisa.<br />
-              <span style={{ color: 'var(--t2)', fontWeight: 700 }}>Em um só lugar.</span>
+              Tudo que o surebettor<br />
+              <span style={{ color: 'var(--t2)', fontWeight: 700 }}>profissional precisa.</span>
             </h2>
           </div>
 
@@ -769,7 +787,10 @@ export function LandingPage() {
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src="/dashboard-imag.png"
-                alt="SureEdge Dashboard"
+                alt="Interface completa do SureEdge — dashboard de surebets com análise de ROI, gráfico de saldo e operações por casa de aposta"
+                width={1300}
+                height={870}
+                loading="lazy"
                 style={{
                   width: '100%',
                   height: 'auto',
@@ -1038,6 +1059,12 @@ export function LandingPage() {
           to   { opacity: 1; transform: none; filter: blur(0); }
         }
       `}</style>
+
+      {/* FAQ structured data */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(FAQ_JSON_LD) }}
+      />
     </div>
   );
 }
