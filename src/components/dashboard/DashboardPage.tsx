@@ -8,9 +8,9 @@ import {
 } from 'recharts';
 import {
   calcLegProfit, groupLegsIntoOps, filterByDate,
-  calcWeeklyProfit, calcBySport,
+  calcBySport,
 } from '@/lib/finance/calculator';
-import { DailyProfitChart, WeeklyProfitChart, SportDistributionChart } from '@/components/dashboard/Charts';
+import { DailyProfitChart, SportDistributionChart } from '@/components/dashboard/Charts';
 import { todayStr, currentMonth } from '@/lib/parsers/dateParser';
 import type { Leg, OpType, Expense } from '@/types';
 import type { DayStat, SportStat } from '@/lib/finance/calculator';
@@ -40,13 +40,6 @@ function fmtCapital(v: number) {
   return `R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
 }
 
-function getWeekStart(today: string) {
-  const d = new Date(today + 'T12:00:00');
-  const dow = d.getDay();
-  d.setDate(d.getDate() - (dow === 0 ? 6 : dow - 1));
-  return d.toISOString().slice(0, 10);
-}
-
 function profitOfLegs(legs: Leg[]) {
   return +legs.reduce((s, l) => s + calcLegProfit(l), 0).toFixed(2);
 }
@@ -71,117 +64,165 @@ const tooltipStyle: React.CSSProperties = {
 /* ── KPI Bar ───────────────────────────────────────────────────────────────── */
 
 interface KPIStat {
-  label: string;
-  value: string;
-  sub?: string;
-  positive: boolean | null;
-  icon: React.ReactNode;
-  hidden?: boolean;
+  label:         string;
+  value:         string;
+  sub?:          string;
+  positive:      boolean | null;
+  icon:          React.ReactNode;
+  hidden?:       boolean;
   onToggleHide?: () => void;
-  sparkline?: { v: number }[];
+  sparkline?:    { v: number }[];
+  /** Valor alternativo (Faturamento bruto, sem gastos) */
+  altValue?:     string;
+  altPositive?:  boolean | null;
+  altSub?:       string;
+}
+
+type ViewMode = 'liquido' | 'faturamento';
+
+function KPICardItem({ s, i }: { s: KPIStat; i: number }) {
+  const [mode, setMode] = useState<ViewMode>('liquido');
+  const hasToggle  = s.altValue != null;
+  const showAlt    = hasToggle && mode === 'faturamento';
+
+  const displayValue    = showAlt ? s.altValue!                   : s.value;
+  const displayPositive = showAlt ? (s.altPositive ?? s.positive) : s.positive;
+  const displaySub      = showAlt ? (s.altSub ?? s.sub)           : s.sub;
+
+  const isPos    = displayPositive === true;
+  const isNeg    = displayPositive === false;
+  const colorVar = isNeg ? 'var(--r)' : isPos ? 'var(--g)' : 'var(--bl)';
+  const colorHex = isNeg ? '#FF4D6D'  : isPos ? '#3FFF21'  : '#4DA6FF';
+
+  return (
+    <div
+      className="relative rounded-xl overflow-hidden flex flex-col animate-fade-in"
+      style={{
+        background: 'var(--bg2)',
+        border: '1px solid var(--b)',
+        animationDelay: `${i * 60}ms`,
+        transition: 'border-color .25s ease, box-shadow .25s ease',
+      }}
+      onMouseEnter={e => {
+        (e.currentTarget as HTMLElement).style.borderColor = `${colorHex}35`;
+        (e.currentTarget as HTMLElement).style.boxShadow = `0 0 0 1px ${colorHex}12, 0 12px 40px ${colorHex}12`;
+      }}
+      onMouseLeave={e => {
+        (e.currentTarget as HTMLElement).style.borderColor = 'var(--b)';
+        (e.currentTarget as HTMLElement).style.boxShadow = '';
+      }}
+    >
+      {/* Color-coded top accent */}
+      <div style={{
+        height: 2,
+        background: `linear-gradient(90deg, ${colorHex}E0 0%, ${colorHex}55 45%, transparent 80%)`,
+        flexShrink: 0,
+      }} />
+
+      <div className="flex flex-col gap-3 p-4 pt-3.5 flex-1">
+        {/* Label row */}
+        <div className="flex items-center justify-between gap-1.5 min-w-0">
+          <span
+            className="text-[9px] font-black uppercase leading-none truncate"
+            style={{ color: 'var(--t3)', fontFamily: "'Manrope', sans-serif", letterSpacing: '.16em' }}
+          >
+            {s.label}
+          </span>
+
+          <div className="flex items-center gap-1 flex-shrink-0">
+            {/* Bruto / Líquido toggle — only for profit cards */}
+            {hasToggle && (
+              <div
+                className="flex p-[2px] rounded-[6px] gap-[2px]"
+                style={{ background: 'rgba(255,255,255,.06)' }}
+              >
+                {(['liquido', 'faturamento'] as const).map(m => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setMode(m)}
+                    className="px-[6px] py-[2px] rounded-[4px] leading-none transition-all"
+                    style={{
+                      fontSize: 8,
+                      fontWeight: 800,
+                      fontFamily: "'Manrope', sans-serif",
+                      letterSpacing: '.05em',
+                      ...(mode === m
+                        ? { background: `${colorHex}28`, color: colorHex }
+                        : { background: 'transparent', color: 'rgba(255,255,255,.28)' }),
+                    }}
+                  >
+                    {m === 'liquido' ? 'Líquido' : 'Bruto'}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Eye toggle — Capital card */}
+            {s.onToggleHide && (
+              <button
+                type="button"
+                onClick={s.onToggleHide}
+                className="w-6 h-6 flex items-center justify-center rounded-md transition-colors"
+                style={{ color: 'var(--t3)' }}
+                aria-label={s.hidden ? 'Mostrar valor' : 'Ocultar valor'}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = colorVar; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--t3)'; }}
+              >
+                {s.hidden ? <Eye size={11} /> : <EyeOff size={11} />}
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Big number — hero */}
+        <div
+          className="text-2xl font-black tracking-tight leading-none"
+          style={{ color: colorVar, fontFamily: "'JetBrains Mono', monospace" }}
+        >
+          {s.hidden ? '••••••' : displayValue}
+        </div>
+
+        {/* Sub text */}
+        {displaySub && (
+          <div className="text-[10px] font-medium leading-tight" style={{ color: 'var(--t3)' }}>
+            {displaySub}
+          </div>
+        )}
+
+        {/* Sparkline — floats to bottom */}
+        {s.sparkline && s.sparkline.length > 1 && !s.hidden && (
+          <div className="mt-auto -mx-1">
+            <ResponsiveContainer width="100%" height={34}>
+              <LineChart data={s.sparkline} margin={{ top: 3, right: 4, left: 4, bottom: 0 }}>
+                <Line
+                  type="monotone"
+                  dataKey="v"
+                  stroke={colorHex}
+                  strokeWidth={1.5}
+                  dot={false}
+                  strokeOpacity={0.5}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 function KPIBar({ stats }: { stats: KPIStat[] }) {
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-      {stats.map((s, i) => {
-        const isPos = s.positive === true;
-        const isNeg = s.positive === false;
-        const colorVar = isNeg ? 'var(--r)' : isPos ? 'var(--g)' : 'var(--bl)';
-        const colorHex = isNeg ? '#FF4D6D' : isPos ? '#3FFF21' : '#4DA6FF';
-        return (
-          <div
-            key={s.label}
-            className="relative rounded-xl overflow-hidden flex flex-col animate-fade-in"
-            style={{
-              background: 'var(--bg2)',
-              border: '1px solid var(--b)',
-              animationDelay: `${i * 60}ms`,
-              transition: 'border-color .25s ease, box-shadow .25s ease',
-            }}
-            onMouseEnter={e => {
-              (e.currentTarget as HTMLElement).style.borderColor = `${colorHex}35`;
-              (e.currentTarget as HTMLElement).style.boxShadow = `0 0 0 1px ${colorHex}12, 0 12px 40px ${colorHex}12`;
-            }}
-            onMouseLeave={e => {
-              (e.currentTarget as HTMLElement).style.borderColor = 'var(--b)';
-              (e.currentTarget as HTMLElement).style.boxShadow = '';
-            }}
-          >
-            {/* Color-coded top accent */}
-            <div style={{
-              height: 2,
-              background: `linear-gradient(90deg, ${colorHex}E0 0%, ${colorHex}55 45%, transparent 80%)`,
-              flexShrink: 0,
-            }} />
-
-            <div className="flex flex-col gap-3 p-4 pt-3.5 flex-1">
-              {/* Label + hide toggle */}
-              <div className="flex items-center justify-between gap-2">
-                <span
-                  className="text-[9px] font-black uppercase leading-none"
-                  style={{ color: 'var(--t3)', fontFamily: "'Manrope', sans-serif", letterSpacing: '.16em' }}
-                >
-                  {s.label}
-                </span>
-                {s.onToggleHide && (
-                  <button
-                    type="button"
-                    onClick={s.onToggleHide}
-                    className="w-7 h-7 flex items-center justify-center rounded-md transition-colors flex-shrink-0"
-                    style={{ color: 'var(--t3)' }}
-                    aria-label={s.hidden ? 'Mostrar valor' : 'Ocultar valor'}
-                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = colorVar; }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--t3)'; }}
-                  >
-                    {s.hidden ? <Eye size={12} /> : <EyeOff size={12} />}
-                  </button>
-                )}
-              </div>
-
-              {/* Big number — hero */}
-              <div
-                className="text-2xl font-black tracking-tight leading-none"
-                style={{ color: colorVar, fontFamily: "'JetBrains Mono', monospace" }}
-              >
-                {s.hidden ? '••••••' : s.value}
-              </div>
-
-              {/* Sub text */}
-              {s.sub && (
-                <div className="text-[10px] font-medium leading-tight" style={{ color: 'var(--t3)' }}>
-                  {s.sub}
-                </div>
-              )}
-
-              {/* Sparkline — floats to bottom */}
-              {s.sparkline && s.sparkline.length > 1 && !s.hidden && (
-                <div className="mt-auto -mx-1">
-                  <ResponsiveContainer width="100%" height={34}>
-                    <LineChart data={s.sparkline} margin={{ top: 3, right: 4, left: 4, bottom: 0 }}>
-                      <Line
-                        type="monotone"
-                        dataKey="v"
-                        stroke={colorHex}
-                        strokeWidth={1.5}
-                        dot={false}
-                        strokeOpacity={0.5}
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
-            </div>
-          </div>
-        );
-      })}
+      {stats.map((s, i) => <KPICardItem key={s.label} s={s} i={i} />)}
     </div>
   );
 }
 
 /* ── Profit by operation type (dynamic — uses actual ev description for 'outros') */
 
-type PeriodKey = 'hoje' | '7d' | 'semana' | 'mes' | 'personalizado';
+type PeriodKey = 'hoje' | '7d' | 'mes' | 'personalizado';
 
 // Fixed colours per op type; extras for dynamic 'outros' categories
 const TYPE_COLOR: Record<string, string> = {
@@ -326,7 +367,6 @@ function ProfitByType({ legs }: { legs: Leg[] }) {
 const DAILY_PERIODS: { key: PeriodKey; label: string }[] = [
   { key: 'hoje',          label: 'Hoje'   },
   { key: '7d',            label: '7 dias' },
-  { key: 'semana',        label: 'Semana' },
   { key: 'mes',           label: 'Mês'    },
   { key: 'personalizado', label: '···'    },
 ];
@@ -811,10 +851,9 @@ export function DashboardPage() {
   const banks     = useStore(s => s.banks);
   const expenses  = useStore(s => s.expenses);
 
-  const today     = todayStr();
-  const month     = currentMonth();
-  const weekStart = getWeekStart(today);
-  const mStart    = month + '-01';
+  const today  = todayStr();
+  const month  = currentMonth();
+  const mStart = month + '-01';
 
   const settled = legs.filter(l => l.re !== 'Pendente' && l.re !== 'Devolvido');
 
@@ -822,9 +861,22 @@ export function DashboardPage() {
     return +expenses.filter(e => e.date >= from && e.date <= to).reduce((s, e) => s + e.amount, 0).toFixed(2);
   }
 
-  const profitDay   = profitOfLegs(settled.filter(l => l.bd.slice(0, 10) === today))   - expSum(today, today);
-  const profitWeek  = profitOfLegs(settled.filter(l => l.bd.slice(0, 10) >= weekStart)) - expSum(weekStart, today);
-  const profitMonth = profitOfLegs(settled.filter(l => l.bd.slice(0, 10) >= mStart))   - expSum(mStart, today);
+  // sevenDayStart is computed later via useMemo — define inline here for the KPI cards
+  const sevenStart = (() => {
+    const d = new Date(today + 'T12:00:00');
+    d.setDate(d.getDate() - 6);
+    return d.toISOString().slice(0, 10);
+  })();
+
+  // Gross (bruto) = apostas liquidadas sem dedução de gastos
+  const profitDayGross   = profitOfLegs(settled.filter(l => l.bd.slice(0, 10) === today));
+  const profit7dGross    = profitOfLegs(settled.filter(l => l.bd.slice(0, 10) >= sevenStart));
+  const profitMonthGross = profitOfLegs(settled.filter(l => l.bd.slice(0, 10) >= mStart));
+
+  // Líquido = bruto − gastos do período
+  const profitDay   = profitDayGross   - expSum(today,      today);
+  const profit7d    = profit7dGross    - expSum(sevenStart, today);
+  const profitMonth = profitMonthGross - expSum(mStart,     today);
 
   const totalCash = [...bms.map(b => b.balance), ...banks.map(b => b.balance)].reduce((s, v) => s + v, 0);
   const totalOps  = groupLegsIntoOps(legs).length;
@@ -837,30 +889,24 @@ export function DashboardPage() {
   const [customTo,   setCustomTo]   = useState(today);
   const [capitalHidden, setCapitalHidden] = useState(false);
 
-  const sevenDayStart = useMemo(() => {
-    const d = new Date(today + 'T12:00:00');
-    d.setDate(d.getDate() - 6);
-    return d.toISOString().slice(0, 10);
-  }, [today]);
+  const sevenDayStart = sevenStart;
 
   const filteredLegs = useMemo(() => {
     let from = mStart, to = today;
-    if (period === 'hoje')   { from = today; to = today; }
-    if (period === '7d')     { from = sevenDayStart; to = today; }
-    if (period === 'semana') { from = weekStart; to = today; }
+    if (period === 'hoje') { from = today; to = today; }
+    if (period === '7d')   { from = sevenDayStart; to = today; }
     if (period === 'personalizado') { from = customFrom; to = customTo; }
     return legs.filter(l => {
       const d = (l.bd || '').slice(0, 10);
       return d >= from && d <= to;
     });
-  }, [legs, period, customFrom, customTo, today, weekStart, mStart, sevenDayStart]);
+  }, [legs, period, customFrom, customTo, today, mStart, sevenDayStart]);
 
   const monthLegs = legs.filter(l => l.bd.slice(0, 10) >= mStart);
 
   const activePeriodFrom = period === 'hoje' ? today
-    : period === '7d' ? sevenDayStart
-    : period === 'semana' ? weekStart
-    : period === 'mes' ? mStart
+    : period === '7d'   ? sevenDayStart
+    : period === 'mes'  ? mStart
     : customFrom;
   const activePeriodTo = period === 'personalizado' ? customTo : today;
 
@@ -918,8 +964,7 @@ export function DashboardPage() {
     return result;
   }, [chartSettled, chartFrom, chartTo, chartPeriod]);
 
-  const weeklyData  = useMemo(() => calcWeeklyProfit(chartSettled, 4),  [chartSettled]);
-  const sportDist   = useMemo<SportStat[]>(() => calcBySport(chartSettled),  [chartSettled]);
+  const sportDist = useMemo<SportStat[]>(() => calcBySport(chartSettled), [chartSettled]);
 
   // Sparklines: daily profit for last 7 days, last 7 days (week), last 30 days (month)
   const sparkWeek = useMemo(() => {
@@ -954,37 +999,46 @@ export function DashboardPage() {
       {/* KPI Bar */}
       <KPIBar stats={[
         {
-          label: 'Lucro Hoje',
-          value: fmtBRL(profitDay),
-          sub: `${settled.filter(l => l.bd.slice(0, 10) === today).length} apostas`,
-          positive: profitDay === 0 ? null : profitDay > 0,
-          icon: <TrendingUp size={14} />,
-          sparkline: sparkWeek.slice(-1).concat([{ v: profitDay }]),
+          label:       'Lucro Hoje',
+          value:       fmtBRL(profitDay),
+          sub:         `${settled.filter(l => l.bd.slice(0, 10) === today).length} apostas · c/ gastos`,
+          positive:    profitDay === 0 ? null : profitDay > 0,
+          icon:        <TrendingUp size={14} />,
+          sparkline:   sparkWeek.slice(-1).concat([{ v: profitDay }]),
+          altValue:    fmtBRL(profitDayGross),
+          altPositive: profitDayGross === 0 ? null : profitDayGross > 0,
+          altSub:      `${settled.filter(l => l.bd.slice(0, 10) === today).length} apostas · s/ gastos`,
         },
         {
-          label: 'Lucro Semana',
-          value: fmtBRL(profitWeek),
-          sub: 'esta semana',
-          positive: profitWeek === 0 ? null : profitWeek > 0,
-          icon: <Calendar size={14} />,
-          sparkline: sparkWeek,
+          label:       'Últimos 7 Dias',
+          value:       fmtBRL(profit7d),
+          sub:         'últimos 7 dias · c/ gastos',
+          positive:    profit7d === 0 ? null : profit7d > 0,
+          icon:        <Calendar size={14} />,
+          sparkline:   sparkWeek,
+          altValue:    fmtBRL(profit7dGross),
+          altPositive: profit7dGross === 0 ? null : profit7dGross > 0,
+          altSub:      'últimos 7 dias · s/ gastos',
         },
         {
-          label: `Lucro ${monthName}`,
-          value: fmtBRL(profitMonth),
-          sub: `${monthLegs.length} apostas · líquido (c/ gastos)`,
-          positive: profitMonth === 0 ? null : profitMonth > 0,
-          icon: <BarChart3 size={14} />,
-          sparkline: sparkMonth,
+          label:       `Lucro ${monthName}`,
+          value:       fmtBRL(profitMonth),
+          sub:         `${monthLegs.length} apostas · c/ gastos`,
+          positive:    profitMonth === 0 ? null : profitMonth > 0,
+          icon:        <BarChart3 size={14} />,
+          sparkline:   sparkMonth,
+          altValue:    fmtBRL(profitMonthGross),
+          altPositive: profitMonthGross === 0 ? null : profitMonthGross > 0,
+          altSub:      `${monthLegs.length} apostas · s/ gastos`,
         },
         {
-          label: 'Capital Total',
-          value: fmtCapital(totalCash),
-          sub: `${totalOps} operações`,
-          positive: null,
-          icon: <DollarSign size={14} />,
-          hidden: capitalHidden,
-          onToggleHide: () => setCapitalHidden(v => !v),
+          label:         'Capital Total',
+          value:         fmtCapital(totalCash),
+          sub:           `${totalOps} operações`,
+          positive:      null,
+          icon:          <DollarSign size={14} />,
+          hidden:        capitalHidden,
+          onToggleHide:  () => setCapitalHidden(v => !v),
         },
       ]} />
 
@@ -1083,9 +1137,8 @@ export function DashboardPage() {
         </div>
 
         {/* Charts grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 14 }}>
-          <DailyProfitChart  data={dailyData}  />
-          <WeeklyProfitChart data={weeklyData} />
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 14 }}>
+          <DailyProfitChart data={dailyData} />
         </div>
         <SportDistributionChart data={sportDist} />
       </div>
