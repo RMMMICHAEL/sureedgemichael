@@ -371,19 +371,29 @@ const DAILY_PERIODS: { key: PeriodKey; label: string }[] = [
   { key: 'personalizado', label: '···'    },
 ];
 
-function DailyChart({ legs, from, to, period, onPeriodChange, onFromChange, onToChange }: {
-  legs: Leg[];
-  from: string;
-  to: string;
-  period: PeriodKey;
+function DailyChart({ legs, expenses, from, to, period, onPeriodChange, onFromChange, onToChange }: {
+  legs:           Leg[];
+  expenses:       Expense[];
+  from:           string;
+  to:             string;
+  period:         PeriodKey;
   onPeriodChange: (p: PeriodKey) => void;
-  onFromChange: (v: string) => void;
-  onToChange: (v: string) => void;
+  onFromChange:   (v: string) => void;
+  onToChange:     (v: string) => void;
 }) {
+  // Profit per day (gross from legs)
   const byDay: Record<string, number> = {};
   legs.forEach(l => {
     const d = l.bd.slice(0, 10);
     byDay[d] = (byDay[d] || 0) + calcLegProfit(l);
+  });
+
+  // Expenses per day (net deduction)
+  const expByDay: Record<string, number> = {};
+  expenses.forEach(e => {
+    if (e.date >= from && e.date <= to) {
+      expByDay[e.date] = (expByDay[e.date] || 0) + e.amount;
+    }
   });
 
   const data: { day: string; label: string; cumulative: number; daily: number }[] = [];
@@ -391,8 +401,8 @@ function DailyChart({ legs, from, to, period, onPeriodChange, onFromChange, onTo
   const end    = new Date(to + 'T12:00:00');
   let cum = 0;
   while (cursor <= end) {
-    const k = cursor.toISOString().slice(0, 10);
-    const daily = +(byDay[k] || 0).toFixed(2);
+    const k     = cursor.toISOString().slice(0, 10);
+    const daily = +((byDay[k] || 0) - (expByDay[k] || 0)).toFixed(2);
     cum = +(cum + daily).toFixed(2);
     data.push({ day: k, label: cursor.getDate().toString(), cumulative: cum, daily });
     cursor.setDate(cursor.getDate() + 1);
@@ -445,7 +455,7 @@ function DailyChart({ legs, from, to, period, onPeriodChange, onFromChange, onTo
       <div className="flex items-start justify-between mb-4 flex-wrap gap-3">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-widest mb-1" style={{ color: 'var(--t3)', fontFamily: "'Manrope',sans-serif" }}>
-            FATURAMENTO DO MÊS — {periodLabel}
+            LUCRO LÍQUIDO — {periodLabel}
           </p>
           <div className="flex items-baseline gap-3">
             <span className="text-3xl font-black" style={{ color: profitColor, fontFamily: "'JetBrains Mono',monospace" }}>
@@ -459,7 +469,7 @@ function DailyChart({ legs, from, to, period, onPeriodChange, onFromChange, onTo
             )}
           </div>
           <p className="text-[10px] mt-0.5" style={{ color: 'rgba(148,163,184,.45)', fontFamily: "'Manrope',sans-serif" }}>
-            bruto de apostas · gastos não deduzidos
+            apostas liquidadas · gastos deduzidos
           </p>
         </div>
 
@@ -1046,6 +1056,7 @@ export function DashboardPage() {
         <div className="lg:col-span-2">
           <DailyChart
             legs={filteredLegs}
+            expenses={expenses}
             from={activePeriodFrom}
             to={activePeriodTo}
             period={period}
