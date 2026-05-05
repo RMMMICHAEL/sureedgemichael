@@ -403,10 +403,9 @@ function DailyChart({ legs, from, to, period, onPeriodChange, onFromChange, onTo
   const lineColor   = positive ? '#3FFF21' : '#FF4545';
   const profitColor = positive ? 'var(--g)' : 'var(--r)';
 
-  const periodLabel = period === 'hoje'    ? 'Hoje'
-    : period === '7d'     ? 'Últimos 7 Dias'
-    : period === 'semana' ? 'Esta Semana'
-    : period === 'mes'    ? new Date().toLocaleString('pt-BR', { month: 'long', year: 'numeric' })
+  const periodLabel = period === 'hoje' ? 'Hoje'
+    : period === '7d'  ? 'Últimos 7 Dias'
+    : period === 'mes' ? new Date().toLocaleString('pt-BR', { month: 'long', year: 'numeric' })
     : `${from} → ${to}`;
 
   const CustomTooltip = ({ active, payload }: any) => {
