@@ -16,17 +16,18 @@ import { currentMonth, todayStr } from '@/lib/parsers/dateParser';
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const CATEGORIES: ExpenseCategory[] = [
-  'Assinatura', 'Saque', 'Deposito', 'Multilogin', 'Conta', 'Software', 'Outros',
+  'Assinatura', 'Saque', 'Deposito', 'Multilogin', 'Conta', 'Software', 'Gastos Pessoais', 'Outros',
 ];
 
 const CATEGORY_COLORS: Record<string, string> = {
-  Assinatura: '#6B21A8',
-  Saque:      '#0E7490',
-  Deposito:   '#166534',
-  Multilogin: '#1D4ED8',
-  Conta:      '#B45309',
-  Software:   '#0F766E',
-  Outros:     '#374151',
+  Assinatura:       '#6B21A8',
+  Saque:            '#0E7490',
+  Deposito:         '#166534',
+  Multilogin:       '#1D4ED8',
+  Conta:            '#B45309',
+  Software:         '#0F766E',
+  'Gastos Pessoais': '#BE185D',
+  Outros:           '#374151',
 };
 
 function fmtBRL(v: number) {

@@ -101,6 +101,7 @@ export type ExpenseCategory =
   | 'Multilogin'
   | 'Conta'
   | 'Software'
+  | 'Gastos Pessoais'
   | 'Outros';
 
 export interface Expense {
