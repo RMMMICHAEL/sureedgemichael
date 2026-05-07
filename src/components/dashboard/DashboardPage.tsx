@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { useStore }   from '@/store/useStore';
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
-  BarChart, Bar, Cell, LineChart, Line,
+  BarChart, Bar, Cell, LineChart, Line, ReferenceLine,
 } from 'recharts';
 import {
   calcLegProfit, groupLegsIntoOps, filterByDate,
