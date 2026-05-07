@@ -377,7 +377,7 @@ function ProfitByType({ legs }: { legs: Leg[] }) {
               <YAxis hide domain={['auto', 'auto']} />
               <ReferenceLine y={0} stroke="rgba(255,255,255,.12)" strokeWidth={1} />
               <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255,255,255,.04)' }} />
-              <Bar dataKey="profit" radius={[5, 5, 2, 2]} label={<BarValueLabel />}>
+              <Bar dataKey="profit" radius={[5, 5, 2, 2]} maxBarSize={52} label={<BarValueLabel />}>
                 {chartData.map((entry, i) => (
                   <Cell key={i} fill={`url(#bar-grad-${i})`} stroke={entry.color} strokeWidth={1} strokeOpacity={0.4} />
                 ))}

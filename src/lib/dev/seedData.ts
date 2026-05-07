@@ -157,18 +157,95 @@ function makeLegs(): Leg[] {
     cur2.setDate(cur2.getDate() + 1);
   }
 
-  // ── Bonus legs ────────────────────────────────────────────────────────────
+  // ── Bonus / outros legs ───────────────────────────────────────────────────
   legs.push({
-    id: 'seed_delay01', oid: 'seed_delay01', bd: iso(2026,3,10,14,0), ed: iso(2026,3,10,14,0),
+    id: 'seed_outros01', oid: 'seed_outros01', bd: iso(2026,3,10,14,0), ed: iso(2026,3,10,14,0),
     sp: 'Futebol', ev: 'Bônus Boas-Vindas Bet365', ho: 'Bet365', mk: 'Bônus',
     od: 0, st: 0, pc: 0, re: 'Green', pr: 350, fl: [], source: 'manual',
     signal: 'pre', opType: 'outros', manualProfit: 350,
   });
   legs.push({
-    id: 'seed_delay02', oid: 'seed_delay02', bd: iso(2026,3,25,10,0), ed: iso(2026,3,25,10,0),
+    id: 'seed_outros02', oid: 'seed_outros02', bd: iso(2026,3,25,10,0), ed: iso(2026,3,25,10,0),
     sp: 'Futebol', ev: 'Freebet KTO', ho: 'KTO', mk: 'Freebet',
     od: 0, st: 0, pc: 0, re: 'Green', pr: 180, fl: [], source: 'manual',
     signal: 'pre', opType: 'outros', manualProfit: 180,
+  });
+
+  // ── Delay legs ────────────────────────────────────────────────────────────
+  legs.push({
+    id: 'seed_delay01', oid: 'seed_delay01', bd: iso(2026,3,5,15,30), ed: iso(2026,3,5,16,30),
+    sp: 'Futebol', ev: 'Flamengo x Palmeiras', ho: 'Betano', mk: 'Delay Gol',
+    od: 1.85, st: 200, pc: 0, re: 'Green', pr: 170, fl: [], source: 'manual',
+    signal: 'live', opType: 'delay', manualProfit: 170,
+  });
+  legs.push({
+    id: 'seed_delay02', oid: 'seed_delay02', bd: iso(2026,4,3,19,0), ed: iso(2026,4,3,20,0),
+    sp: 'Tênis', ev: 'Alcaraz x Djokovic', ho: 'Bet365', mk: 'Delay Set',
+    od: 2.10, st: 150, pc: 0, re: 'Green', pr: 165, fl: [], source: 'manual',
+    signal: 'live', opType: 'delay', manualProfit: 165,
+  });
+  legs.push({
+    id: 'seed_delay03', oid: 'seed_delay03', bd: iso(2026,4,18,21,0), ed: iso(2026,4,18,22,0),
+    sp: 'Futebol', ev: 'Real Madrid x Barcelona', ho: 'Betfair', mk: 'Delay Escanteio',
+    od: 1.95, st: 300, pc: 0, re: 'Green', pr: 285, fl: [], source: 'manual',
+    signal: 'live', opType: 'delay', manualProfit: 285,
+  });
+  legs.push({
+    id: 'seed_delay04', oid: 'seed_delay04', bd: iso(2026,5,2,17,0), ed: iso(2026,5,2,18,0),
+    sp: 'Basquete', ev: 'Lakers x Warriors', ho: 'Betsson', mk: 'Delay Pontos',
+    od: 2.00, st: 250, pc: 0, re: 'Green', pr: 250, fl: [], source: 'manual',
+    signal: 'live', opType: 'delay', manualProfit: 250,
+  });
+
+  // ── Duplo Green legs ──────────────────────────────────────────────────────
+  // Each pair shares an oid; both legs resolve Green → duplo green
+  legs.push({
+    id: 'seed_dg01_a', oid: 'seed_dg01', bd: iso(2026,3,8,11,0), ed: iso(2026,3,8,13,0),
+    sp: 'Futebol', ev: 'São Paulo x Santos', ho: 'Betano', mk: 'Ambas Marcam',
+    od: 2.30, st: 120, pc: 0, re: 'Green', pr: 156, fl: [], source: 'manual',
+    signal: 'pre', opType: 'duplo_green',
+  });
+  legs.push({
+    id: 'seed_dg01_b', oid: 'seed_dg01', bd: iso(2026,3,8,11,0), ed: iso(2026,3,8,13,0),
+    sp: 'Futebol', ev: 'São Paulo x Santos', ho: 'Pinnacle', mk: 'Mais de 2.5',
+    od: 2.05, st: 120, pc: 0, re: 'Green', pr: 126, fl: [], source: 'manual',
+    signal: 'pre', opType: 'duplo_green',
+  });
+  legs.push({
+    id: 'seed_dg02_a', oid: 'seed_dg02', bd: iso(2026,4,7,15,0), ed: iso(2026,4,7,17,0),
+    sp: 'Futebol', ev: 'Liverpool x Arsenal', ho: 'Bet365', mk: 'Ambas Marcam',
+    od: 2.15, st: 150, pc: 0, re: 'Green', pr: 172, fl: [], source: 'manual',
+    signal: 'pre', opType: 'duplo_green',
+  });
+  legs.push({
+    id: 'seed_dg02_b', oid: 'seed_dg02', bd: iso(2026,4,7,15,0), ed: iso(2026,4,7,17,0),
+    sp: 'Futebol', ev: 'Liverpool x Arsenal', ho: 'Betway', mk: 'Mais de 3.5',
+    od: 2.20, st: 130, pc: 0, re: 'Green', pr: 156, fl: [], source: 'manual',
+    signal: 'pre', opType: 'duplo_green',
+  });
+  legs.push({
+    id: 'seed_dg03_a', oid: 'seed_dg03', bd: iso(2026,4,21,20,0), ed: iso(2026,4,21,22,0),
+    sp: 'Basquete', ev: 'Celtics x Heat', ho: 'KTO', mk: 'Mais de 220 pts',
+    od: 2.00, st: 180, pc: 0, re: 'Green', pr: 180, fl: [], source: 'manual',
+    signal: 'pre', opType: 'duplo_green',
+  });
+  legs.push({
+    id: 'seed_dg03_b', oid: 'seed_dg03', bd: iso(2026,4,21,20,0), ed: iso(2026,4,21,22,0),
+    sp: 'Basquete', ev: 'Celtics x Heat', ho: 'Novibet', mk: 'Ambas Equipes 100+',
+    od: 2.10, st: 170, pc: 0, re: 'Green', pr: 187, fl: [], source: 'manual',
+    signal: 'pre', opType: 'duplo_green',
+  });
+  legs.push({
+    id: 'seed_dg04_a', oid: 'seed_dg04', bd: iso(2026,5,1,18,0), ed: iso(2026,5,1,20,0),
+    sp: 'Futebol', ev: 'Grêmio x Internacional', ho: 'Betano', mk: 'Ambas Marcam',
+    od: 2.25, st: 200, pc: 0, re: 'Green', pr: 250, fl: [], source: 'manual',
+    signal: 'pre', opType: 'duplo_green',
+  });
+  legs.push({
+    id: 'seed_dg04_b', oid: 'seed_dg04', bd: iso(2026,5,1,18,0), ed: iso(2026,5,1,20,0),
+    sp: 'Futebol', ev: 'Grêmio x Internacional', ho: 'Sportingbet', mk: 'Mais de 1.5',
+    od: 1.90, st: 200, pc: 0, re: 'Green', pr: 180, fl: [], source: 'manual',
+    signal: 'pre', opType: 'duplo_green',
   });
 
   SEED_LEG_IDS.length = 0;
