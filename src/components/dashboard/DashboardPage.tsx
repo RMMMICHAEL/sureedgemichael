@@ -266,7 +266,8 @@ function ProfitByType({ legs }: { legs: Leg[] }) {
     label:  d.label,
     profit: d.profit,
     count:  d.count,
-    color:  d.profit < 0 ? '#FF4545' : catColor(d.label, i),
+    // Always use the type's own color — negative bars styled separately via Cell opacity
+    color:  catColor(d.label, i),
   }));
 
   const CustomTooltip = ({ active, payload }: any) => {
@@ -276,7 +277,7 @@ function ProfitByType({ legs }: { legs: Leg[] }) {
     return (
       <div style={{
         background: '#0d1117',
-        border: `1px solid ${pos ? 'rgba(63,255,33,.25)' : 'rgba(255,69,69,.25)'}`,
+        border: `1px solid ${color}40`,
         borderRadius: 10, padding: '10px 14px', minWidth: 160,
         boxShadow: '0 8px 32px rgba(0,0,0,.8)',
       }}>
@@ -293,7 +294,33 @@ function ProfitByType({ legs }: { legs: Leg[] }) {
     );
   };
 
-  const barHeight = Math.max(byCategory.length * 52, 120);
+  // Custom value label rendered above (positive) or below (negative) each bar
+  const BarValueLabel = (props: any) => {
+    const { x, y, width, value, index } = props;
+    const entry = chartData[index];
+    if (!entry) return null;
+    const pos    = value >= 0;
+    const color  = entry.color;
+    const abs    = Math.abs(value);
+    const short  = abs >= 1000
+      ? `${pos ? '+' : '−'}R$${(abs / 1000).toFixed(1)}k`
+      : `${pos ? '+' : '−'}R$${abs.toFixed(0)}`;
+    const yPos = pos ? y - 6 : y + 14;
+    return (
+      <text
+        x={x + width / 2}
+        y={yPos}
+        textAnchor="middle"
+        fill={color}
+        fontSize={10}
+        fontWeight={800}
+        fontFamily="'JetBrains Mono', monospace"
+        opacity={0.9}
+      >
+        {short}
+      </text>
+    );
+  };
 
   return (
     <div className="rounded-2xl p-5 flex flex-col gap-4" style={cardStyle}>
@@ -321,35 +348,56 @@ function ProfitByType({ legs }: { legs: Leg[] }) {
           <p className="text-sm font-medium" style={{ color: 'var(--t3)' }}>Nenhuma operação liquidada ainda</p>
         </div>
       ) : (
-        <ResponsiveContainer width="100%" height={barHeight}>
-          <BarChart
-            data={chartData}
-            layout="vertical"
-            margin={{ top: 0, right: 16, left: 0, bottom: 0 }}
-            barSize={26}
-          >
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,.04)" horizontal={false} />
-            <XAxis
-              type="number"
-              hide
-              domain={['auto', 'auto']}
-            />
-            <YAxis
-              type="category"
-              dataKey="label"
-              width={96}
-              tick={{ fontSize: 11, fill: 'rgba(255,255,255,.55)', fontFamily: "'Manrope',sans-serif", fontWeight: 700 }}
-              axisLine={false}
-              tickLine={false}
-            />
-            <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255,255,255,.03)' }} />
-            <Bar dataKey="profit" radius={[0, 5, 5, 0]}>
-              {chartData.map((entry, i) => (
-                <Cell key={i} fill={entry.color} fillOpacity={0.85} />
+        <>
+          {/* Gradient defs — one per category */}
+          <svg width={0} height={0} style={{ position: 'absolute' }}>
+            <defs>
+              {chartData.map((d, i) => (
+                <linearGradient key={i} id={`bar-grad-${i}`} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%"   stopColor={d.color} stopOpacity={d.profit < 0 ? 0.5 : 0.9} />
+                  <stop offset="100%" stopColor={d.color} stopOpacity={d.profit < 0 ? 0.15 : 0.35} />
+                </linearGradient>
               ))}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
+            </defs>
+          </svg>
+
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart
+              data={chartData}
+              margin={{ top: 28, right: 8, left: 8, bottom: 4 }}
+              barCategoryGap="28%"
+            >
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,.04)" vertical={false} />
+              <XAxis
+                dataKey="label"
+                tick={{ fontSize: 11, fill: 'rgba(255,255,255,.5)', fontFamily: "'Manrope',sans-serif", fontWeight: 700 }}
+                axisLine={false}
+                tickLine={false}
+              />
+              <YAxis hide domain={['auto', 'auto']} />
+              <ReferenceLine y={0} stroke="rgba(255,255,255,.12)" strokeWidth={1} />
+              <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255,255,255,.04)' }} />
+              <Bar dataKey="profit" radius={[5, 5, 2, 2]} label={<BarValueLabel />}>
+                {chartData.map((entry, i) => (
+                  <Cell key={i} fill={`url(#bar-grad-${i})`} stroke={entry.color} strokeWidth={1} strokeOpacity={0.4} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+
+          {/* Legend row */}
+          <div className="flex items-center flex-wrap gap-3 pt-1" style={{ borderTop: '1px solid rgba(255,255,255,.05)' }}>
+            {chartData.map((d) => (
+              <div key={d.label} className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ background: d.color }} />
+                <span className="text-[11px] font-medium" style={{ color: 'var(--t3)' }}>{d.label}</span>
+                <span className="text-[11px] font-bold" style={{ color: d.profit >= 0 ? d.color : '#FF4545', fontFamily: "'JetBrains Mono',monospace" }}>
+                  {d.profit >= 0 ? '+' : '−'}R${Math.abs(d.profit).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                </span>
+              </div>
+            ))}
+          </div>
+        </>
       )}
     </div>
   );
