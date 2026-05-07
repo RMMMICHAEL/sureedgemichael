@@ -59,6 +59,7 @@ export function loadDB(): AppDB {
     sheetSync:           load('sheetSync',           undefined),
     excludedImportKeys:  load('excludedImportKeys',  [] as string[]),
     profile:             load('profile',             undefined),
+    transfers:           load('transfers',           []),
   };
 }
 
@@ -77,7 +78,8 @@ export function persistDB(db: AppDB): void {
   save('onboarding_step', db.onboarding_step);
   if (db.sheetSync) save('sheetSync', db.sheetSync);
   if (db.excludedImportKeys) save('excludedImportKeys', db.excludedImportKeys);
-  if (db.profile !== undefined) save('profile', db.profile);
+  if (db.profile    !== undefined) save('profile',    db.profile);
+  if (db.transfers  !== undefined) save('transfers',  db.transfers);
 }
 
 // ── User ID (guards against cross-account localStorage leaks) ───────────────
@@ -100,6 +102,6 @@ export function wipeDB(): void {
   if (typeof window === 'undefined') return;
   ['legs','bms','banks','expenses','partnerAccounts','clients','targetHouses',
    'import_log','onboarding_done','onboarding_step','sheetSync',
-   'excludedImportKeys','profile','notes','userId',
+   'excludedImportKeys','profile','notes','transfers','userId',
   ].forEach(k => localStorage.removeItem(VER + k));
 }

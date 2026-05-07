@@ -250,12 +250,11 @@ function ProfitByType({ legs }: { legs: Leg[] }) {
     });
     return Array.from(map.values())
       .map(v => ({ ...v, profit: +v.profit.toFixed(2) }))
-      .sort((a, b) => Math.abs(b.profit) - Math.abs(a.profit));
+      .sort((a, b) => b.profit - a.profit); // highest → lowest (losses at bottom)
   }, [settled]);
 
-  const maxAbs = Math.max(...byCategory.map(d => Math.abs(d.profit)), 1);
   const totalProfit = +byCategory.reduce((s, d) => s + d.profit, 0).toFixed(2);
-  const hasData = settled.length > 0;
+  const hasData     = settled.length > 0;
 
   function catColor(label: string, idx: number): string {
     const k = label.toLowerCase();
@@ -263,18 +262,57 @@ function ProfitByType({ legs }: { legs: Leg[] }) {
     return EXTRA_COLORS[idx % EXTRA_COLORS.length];
   }
 
+  const chartData = byCategory.map((d, i) => ({
+    label:  d.label,
+    profit: d.profit,
+    count:  d.count,
+    color:  d.profit < 0 ? '#FF4545' : catColor(d.label, i),
+  }));
+
+  const CustomTooltip = ({ active, payload }: any) => {
+    if (!active || !payload?.length) return null;
+    const { label, profit, count, color } = payload[0].payload;
+    const pos = profit >= 0;
+    return (
+      <div style={{
+        background: '#0d1117',
+        border: `1px solid ${pos ? 'rgba(63,255,33,.25)' : 'rgba(255,69,69,.25)'}`,
+        borderRadius: 10, padding: '10px 14px', minWidth: 160,
+        boxShadow: '0 8px 32px rgba(0,0,0,.8)',
+      }}>
+        <div style={{ fontSize: 10, fontWeight: 800, color: 'rgba(255,255,255,.35)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '.08em' }}>
+          {label}
+        </div>
+        <div style={{ fontSize: 14, fontWeight: 900, color, fontFamily: "'JetBrains Mono',monospace" }}>
+          {pos ? '+' : '−'} R$ {Math.abs(profit).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+        </div>
+        <div style={{ fontSize: 11, color: 'rgba(255,255,255,.4)', marginTop: 4 }}>
+          {count} aposta{count !== 1 ? 's' : ''}
+        </div>
+      </div>
+    );
+  };
+
+  const barHeight = Math.max(byCategory.length * 52, 120);
+
   return (
-    <div className="rounded-2xl p-5 flex flex-col gap-5" style={cardStyle}>
+    <div className="rounded-2xl p-5 flex flex-col gap-4" style={cardStyle}>
       {/* Header */}
-      <div className="flex items-start justify-between flex-wrap gap-3">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h3 className="text-sm font-bold" style={{ color: 'var(--t)', fontFamily: "'Manrope',sans-serif" }}>
             Lucro por Tipo de Operação
           </h3>
           <p className="text-[11px] mt-0.5" style={{ color: 'var(--t3)' }}>
-            {settled.length} apostas · {byCategory.length} categorias
+            {settled.length} apostas · {byCategory.length} categorias · melhor ao pior
           </p>
         </div>
+        {hasData && (
+          <span className="text-sm font-black"
+            style={{ color: totalProfit >= 0 ? 'var(--g)' : 'var(--r)', fontFamily: "'JetBrains Mono',monospace" }}>
+            {totalProfit >= 0 ? '+' : '−'} R$ {Math.abs(totalProfit).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+          </span>
+        )}
       </div>
 
       {!hasData ? (
@@ -283,80 +321,35 @@ function ProfitByType({ legs }: { legs: Leg[] }) {
           <p className="text-sm font-medium" style={{ color: 'var(--t3)' }}>Nenhuma operação liquidada ainda</p>
         </div>
       ) : (
-        <>
-          {/* Category cards */}
-          <div className="flex flex-col gap-2.5">
-            {byCategory.map((d, i) => {
-              const color  = catColor(d.label, i);
-              const isNeg  = d.profit < 0;
-              const barClr = isNeg ? '#FF4545' : color;
-              const pct    = Math.min(Math.abs(d.profit) / maxAbs * 100, 100);
-              const rank   = i + 1;
-
-              return (
-                <div key={d.label}
-                  className="relative overflow-hidden rounded-xl px-4 py-3 flex items-center gap-4"
-                  style={{
-                    background: `${barClr}09`,
-                    border: `1px solid ${barClr}20`,
-                  }}
-                >
-                  {/* Rank badge */}
-                  <span style={{
-                    fontSize: 10, fontWeight: 900, width: 24, height: 24, borderRadius: 7,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    background: `${barClr}18`, color: `${barClr}CC`,
-                    fontFamily: "'JetBrains Mono',monospace", flexShrink: 0,
-                    border: `1px solid ${barClr}28`,
-                  }}>
-                    {rank}
-                  </span>
-
-                  {/* Label + bar */}
-                  <div className="flex-1 min-w-0 flex flex-col gap-1.5">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-black uppercase tracking-wider truncate"
-                        style={{ color, fontFamily: "'Manrope',sans-serif" }}>{d.label}</span>
-                      <span className="text-[10px] px-1.5 py-px rounded-full font-bold flex-shrink-0"
-                        style={{ background: 'rgba(255,255,255,.06)', color: 'var(--t3)' }}>
-                        {d.count}x
-                      </span>
-                    </div>
-                    <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,.06)' }}>
-                      <div style={{
-                        height: '100%', width: '100%',
-                        background: `linear-gradient(90deg, ${barClr}60, ${barClr})`,
-                        transform: `scaleX(${pct / 100})`,
-                        transformOrigin: 'left center',
-                        transition: 'transform .8s cubic-bezier(.4,0,.2,1)',
-                      }} />
-                    </div>
-                  </div>
-
-                  {/* Profit value */}
-                  <div className="flex-shrink-0 text-right">
-                    <span className="text-base font-black"
-                      style={{ color: isNeg ? '#FF4545' : color, fontFamily: "'JetBrains Mono',monospace" }}>
-                      {isNeg ? '−' : '+'}R${Math.abs(d.profit).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Summary footer */}
-          <div className="flex items-center justify-between pt-3 mt-1"
-            style={{ borderTop: '1px solid rgba(255,255,255,.05)' }}>
-            <span className="text-[11px]" style={{ color: 'var(--t3)' }}>
-              Total {settled.length} apostas liquidadas
-            </span>
-            <span className="text-sm font-black"
-              style={{ color: totalProfit >= 0 ? 'var(--g)' : 'var(--r)', fontFamily: "'JetBrains Mono',monospace" }}>
-              {totalProfit >= 0 ? '+' : '−'}R${Math.abs(totalProfit).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-            </span>
-          </div>
-        </>
+        <ResponsiveContainer width="100%" height={barHeight}>
+          <BarChart
+            data={chartData}
+            layout="vertical"
+            margin={{ top: 0, right: 16, left: 0, bottom: 0 }}
+            barSize={26}
+          >
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,.04)" horizontal={false} />
+            <XAxis
+              type="number"
+              hide
+              domain={['auto', 'auto']}
+            />
+            <YAxis
+              type="category"
+              dataKey="label"
+              width={96}
+              tick={{ fontSize: 11, fill: 'rgba(255,255,255,.55)', fontFamily: "'Manrope',sans-serif", fontWeight: 700 }}
+              axisLine={false}
+              tickLine={false}
+            />
+            <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255,255,255,.03)' }} />
+            <Bar dataKey="profit" radius={[0, 5, 5, 0]}>
+              {chartData.map((entry, i) => (
+                <Cell key={i} fill={entry.color} fillOpacity={0.85} />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
       )}
     </div>
   );

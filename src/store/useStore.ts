@@ -11,7 +11,7 @@ import { create } from 'zustand';
 import type {
   AppDB, Bookmaker, Bank, Leg, ImportLog, OnboardingStep, ViewId,
   Expense, PartnerAccount, AccountTransaction, SheetSync,
-  Client, PurchasedAccount, UserProfile, Note,
+  Client, PurchasedAccount, UserProfile, Note, Transfer,
 } from '@/types';
 import { loadDB, persistDB, loadUserId, saveUserId, wipeDB, EMPTY_DB } from '@/lib/storage/db';
 import { loadFromSupabase, saveToSupabase, scheduleSaveToSupabase } from '@/lib/supabase/sync';
@@ -92,6 +92,11 @@ interface StoreState extends AppDB {
   updateNote: (id: string, patch: Partial<Note>) => void;
   deleteNote: (id: string) => void;
 
+  // Actions — Transfers
+  addTransfer:    (t: Omit<Transfer, 'id'>) => void;
+  updateTransfer: (id: string, patch: Partial<Transfer>) => void;
+  deleteTransfer: (id: string) => void;
+
   // Actions — User profile
   updateProfile: (patch: Partial<UserProfile>) => void;
 
@@ -142,6 +147,7 @@ export const useStore = create<StoreState>()((set, get) => ({
   onboarding_step:     'bookmakers',
   sheetSync:           undefined,
   notes:               [],
+  transfers:           [],
   excludedImportKeys:  [],
   totalCash:           0,
   initialized:         false,
@@ -167,7 +173,8 @@ export const useStore = create<StoreState>()((set, get) => ({
       const sheetSync          = db.sheetSync;
       const excludedImportKeys = db.excludedImportKeys ?? [];
       const notes              = db.notes              ?? [];
-      const migrated = { ...db, legs, expenses, partnerAccounts, clients, targetHouses, sheetSync, excludedImportKeys, notes };
+      const transfers          = db.transfers          ?? [];
+      const migrated = { ...db, legs, expenses, partnerAccounts, clients, targetHouses, sheetSync, excludedImportKeys, notes, transfers };
       const { bms, totalCash } = recalc(migrated);
       set({ ...migrated, bms, totalCash, initialized: true });
     }
@@ -600,6 +607,31 @@ export const useStore = create<StoreState>()((set, get) => ({
       const notes = (s.notes ?? []).filter(n => n.id !== id);
       persist({ ...s, notes });
       return { notes };
+    });
+  },
+
+  // ── transfers ────────────────────────────────────────────────────────────
+  addTransfer(t) {
+    set(s => {
+      const transfers = [...(s.transfers ?? []), { ...t, id: `tx_${Date.now()}_${Math.random().toString(36).slice(2, 7)}` }];
+      persist({ ...s, transfers });
+      return { transfers };
+    });
+  },
+
+  updateTransfer(id, patch) {
+    set(s => {
+      const transfers = (s.transfers ?? []).map(t => t.id === id ? { ...t, ...patch } : t);
+      persist({ ...s, transfers });
+      return { transfers };
+    });
+  },
+
+  deleteTransfer(id) {
+    set(s => {
+      const transfers = (s.transfers ?? []).filter(t => t.id !== id);
+      persist({ ...s, transfers });
+      return { transfers };
     });
   },
 

@@ -139,11 +139,23 @@ function makeLegs(): Leg[] {
   for (let d = 1; d <= 27; d++) addDay(2026, 4, d, 12);
   for (let d = 28; d <= 30; d++) addDay(2026, 4, d, 20);
 
-  // ── May 2026: 25 ops/day ─────────────────────────────────────────────────
+  // ── May 2026: 25 ops/day (fixed) + dynamic fill to today ────────────────
   addDay(2026, 5, 1, 25);
   addDay(2026, 5, 2, 25);
   addDay(2026, 5, 3, 25);
   addDay(2026, 5, 4, 25);
+
+  // Fill remaining days from May 5 up to (and including) today dynamically,
+  // so "Lucro Hoje" always has data when demo is loaded.
+  const lastFixed = new Date(2026, 4, 4); // May 4 2026
+  const todayNow  = new Date();
+  todayNow.setHours(12, 0, 0, 0);
+  const cur2 = new Date(lastFixed);
+  cur2.setDate(cur2.getDate() + 1);
+  while (cur2 <= todayNow) {
+    addDay(cur2.getFullYear(), cur2.getMonth() + 1, cur2.getDate(), 8);
+    cur2.setDate(cur2.getDate() + 1);
+  }
 
   // ── Bonus legs ────────────────────────────────────────────────────────────
   legs.push({

@@ -221,6 +221,7 @@ export interface AppDB {
   sheetSync?: SheetSync;
   profile?: UserProfile;
   notes?: Note[];
+  transfers?: Transfer[];
   /**
    * Set of "ho|mk|bd.slice(0,16)" keys for import rows manually
    * edited/overridden. commitRows() skips these on re-import.
@@ -235,6 +236,31 @@ export interface UserProfile {
   phone: string;
   avatarDataUrl?: string;   // base64 data URL of profile photo
   role?: string;            // e.g. "Apostador", "Gerente"
+}
+
+// ── Transfer / Receita Avulsa ────────────────────────────
+export type TransferDirection = 'entrada' | 'saida';
+
+export const TRANSFER_CATEGORIES = [
+  'Pagamento Recebido',
+  'Reembolso',
+  'Saque',
+  'Depósito',
+  'Transferência',
+  'Bônus / Cashback',
+  'Outros',
+] as const;
+
+export type TransferCategory = typeof TRANSFER_CATEGORIES[number];
+
+export interface Transfer {
+  id:          string;
+  date:        string;             // YYYY-MM-DD
+  description: string;
+  amount:      number;             // always positive
+  direction:   TransferDirection;  // 'entrada' = received, 'saida' = paid
+  category:    string;
+  notes?:      string;
 }
 
 // ── Notes ────────────────────────────────────────────────
