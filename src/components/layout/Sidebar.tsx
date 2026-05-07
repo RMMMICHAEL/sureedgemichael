@@ -6,7 +6,7 @@ import type { ViewId } from '@/types';
 import {
   LayoutDashboard, Activity, Building2, Wallet,
   BarChart3, ShieldCheck, Receipt, Users, X,
-  UserCircle, LogOut, NotebookPen, MessageSquare,
+  UserCircle, LogOut, NotebookPen,
 } from 'lucide-react';
 import { getMySubscription } from '@/lib/supabase/subscription';
 import type { Subscription } from '@/lib/supabase/subscription';
@@ -31,7 +31,6 @@ const NAV_FINANCE: NavItem[] = [
 
 const NAV_OTHER: NavItem[] = [
   { id: 'analise',   label: 'Análise',    icon: <BarChart3     size={15} strokeWidth={2} /> },
-  { id: 'sugestoes', label: 'Sugestões',  icon: <MessageSquare size={15} strokeWidth={2} /> },
   { id: 'notas',     label: 'Notas',      icon: <NotebookPen   size={15} strokeWidth={2} /> },
   { id: 'admin',     label: 'Admin',      icon: <ShieldCheck   size={15} strokeWidth={2} /> },
   { id: 'perfil',    label: 'Perfil',     icon: <UserCircle    size={15} strokeWidth={2} /> },
