@@ -503,6 +503,56 @@ const FEATURES = [
   },
 ];
 
+// ─── Screenshot showcase data ─────────────────────────────────────────────────
+
+const SHOWCASE_ITEMS = [
+  {
+    tag: 'CASAS DE APOSTA',
+    title: 'Controle total de cada bookmaker',
+    desc: 'Cadastre todas as suas casas de aposta, acompanhe o saldo disponível em cada uma e gerencie o status de cada operador de um ponto centralizado. Chega de aba perdida em planilha.',
+    bullets: [
+      'Saldo por casa atualizado em tempo real',
+      '+37 casas pré-cadastradas com logo e cor',
+      'Status ativa, limitada ou inativa por bookmaker',
+    ],
+    src: '/casasdeaposta.png',
+    imgAlt: 'Tela de casas de aposta no SureEdge — grid de bookmakers com saldo e status de cada casa',
+    accentColor: '#3FFF21',
+    glow: 'rgba(63,255,33,.10)',
+    borderColor: 'rgba(63,255,33,.20)',
+  },
+  {
+    tag: 'CAIXA OPERACIONAL',
+    title: 'Banca, lucro e ROI em um painel',
+    desc: 'Veja seu capital total separado por saldo em casas e saldo em banco. Acompanhe a curva acumulada do lucro bruto e líquido ao longo do tempo, com ROI histórico mês a mês.',
+    bullets: [
+      'Lucro bruto e líquido separados por período',
+      'Gráfico de evolução acumulada do saldo',
+      'ROI mensal histórico com comparativo',
+    ],
+    src: '/caixa.png',
+    imgAlt: 'Tela de caixa operacional no SureEdge — capital total, gráfico de lucro acumulado e ROI por mês',
+    accentColor: '#4DA6FF',
+    glow: 'rgba(77,166,255,.10)',
+    borderColor: 'rgba(77,166,255,.20)',
+  },
+  {
+    tag: 'GESTÃO DE CLIENTES',
+    title: 'Seus clientes organizados e rastreáveis',
+    desc: 'Registre cada cliente, vincule as casas de aposta abertas para ele e acompanhe o status de cada conta individualmente. Ideal para quem opera com contas de terceiros ou gerencia uma equipe.',
+    bullets: [
+      'Casas de aposta vinculadas por cliente',
+      'Status ativo ou inativo por conta',
+      'Controle de investimento por perfil de cliente',
+    ],
+    src: '/clientes.png',
+    imgAlt: 'Tela de gestão de clientes no SureEdge — lista de clientes com casas e status de cada conta',
+    accentColor: '#A78BFA',
+    glow: 'rgba(167,139,250,.10)',
+    borderColor: 'rgba(167,139,250,.20)',
+  },
+] as const;
+
 const FAQ = [
   { q: 'O que é surebet?', a: 'Surebet é uma técnica onde você aposta em todos os resultados possíveis de um evento em diferentes casas de apostas, garantindo lucro independente do resultado. O SureEdge ajuda você a registrar, monitorar e analisar essas operações com precisão.' },
   { q: 'O SureEdge encontra surebets automaticamente?', a: 'O SureEdge é uma plataforma de gestão e analytics. Você registra suas operações e a plataforma analisa performance, calcula ROI e organiza seu histórico. A calculadora integrada distribui stakes automaticamente entre os outcomes.' },
@@ -752,6 +802,118 @@ export function LandingPage() {
                 <span style={{ fontFamily: 'Figtree', fontSize: 13, fontWeight: 600, color: 'var(--t2)' }}>{item.label}</span>
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ══════════ SCREENSHOT SHOWCASE ══════════ */}
+      <section id="funcionalidades" style={{ padding: '100px 32px', background: '#070C08' }}>
+        <div style={{ maxWidth: 1200, margin: '0 auto' }}>
+
+          {/* Section header */}
+          <div className="reveal" style={{ marginBottom: 80 }}>
+            <Label text="O produto" />
+            <h2 style={{
+              fontFamily: 'Manrope', fontWeight: 900,
+              fontSize: 'clamp(36px, 4.5vw, 58px)',
+              letterSpacing: '-0.04em', lineHeight: 1.05,
+            }}>
+              Veja o que você<br />
+              <span style={{ color: 'var(--t2)', fontWeight: 700 }}>está contratando.</span>
+            </h2>
+          </div>
+
+          {/* Rows */}
+          {SHOWCASE_ITEMS.map((item, i) => {
+            const imageFirst = i % 2 === 0;
+
+            const imageEl = (
+              <div style={{ position: 'relative' }}>
+                {/* ambient glow */}
+                <div style={{
+                  position: 'absolute', inset: -24,
+                  borderRadius: 32,
+                  background: `radial-gradient(ellipse 72% 64% at 50% 52%, ${item.glow} 0%, transparent 68%)`,
+                  pointerEvents: 'none',
+                }} />
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={item.src}
+                  alt={item.imgAlt}
+                  loading="lazy"
+                  style={{
+                    width: '100%', height: 'auto', display: 'block',
+                    borderRadius: 12, position: 'relative',
+                    border: `1px solid ${item.borderColor}`,
+                    boxShadow: `0 28px 72px rgba(0,0,0,.65), 0 0 56px ${item.glow}`,
+                  }}
+                />
+              </div>
+            );
+
+            const copyEl = (
+              <div style={{ paddingLeft: imageFirst ? 0 : 0 }}>
+                <div style={{
+                  fontFamily: 'JetBrains Mono', fontSize: 10, fontWeight: 700,
+                  letterSpacing: '0.16em', color: item.accentColor,
+                  textTransform: 'uppercase', marginBottom: 16,
+                }}>{item.tag}</div>
+
+                <h3 style={{
+                  fontFamily: 'Manrope', fontWeight: 900,
+                  fontSize: 'clamp(22px, 2.4vw, 32px)',
+                  letterSpacing: '-0.03em', lineHeight: 1.12, marginBottom: 16,
+                }}>{item.title}</h3>
+
+                <p style={{
+                  fontFamily: 'Figtree', fontSize: 15, color: 'var(--t2)',
+                  lineHeight: 1.78, marginBottom: 28, maxWidth: '46ch',
+                }}>{item.desc}</p>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
+                  {item.bullets.map((b) => (
+                    <div key={b} style={{ display: 'flex', alignItems: 'flex-start', gap: 11 }}>
+                      <div style={{
+                        width: 5, height: 5, borderRadius: '50%',
+                        background: item.accentColor, flexShrink: 0, marginTop: 8,
+                      }} />
+                      <span style={{ fontFamily: 'Figtree', fontSize: 14, color: 'var(--t2)', lineHeight: 1.6 }}>{b}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+
+            return (
+              <div
+                key={item.tag}
+                className={`grid grid-cols-1 items-center gap-10 lg:gap-16 ${imageFirst ? 'reveal-left lg:grid-cols-[58fr_42fr]' : 'reveal-right lg:grid-cols-[42fr_58fr]'}`}
+                style={{ marginBottom: i < SHOWCASE_ITEMS.length - 1 ? 96 : 0 }}
+              >
+                {imageFirst ? imageEl : copyEl}
+                {imageFirst ? copyEl : imageEl}
+              </div>
+            );
+          })}
+
+          {/* Closing CTA nudge */}
+          <div className="reveal" style={{ marginTop: 80, display: 'flex', justifyContent: 'center' }}>
+            <a
+              href="#precos"
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 7,
+                fontFamily: 'Figtree', fontSize: 14, fontWeight: 700,
+                color: '#3FFF21', textDecoration: 'none',
+                padding: '10px 22px', borderRadius: 8,
+                border: '1px solid rgba(63,255,33,.22)',
+                background: 'rgba(63,255,33,.06)',
+                transition: 'background .18s, border-color .18s',
+              }}
+              onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.background = 'rgba(63,255,33,.12)'; el.style.borderColor = 'rgba(63,255,33,.38)'; }}
+              onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.background = 'rgba(63,255,33,.06)'; el.style.borderColor = 'rgba(63,255,33,.22)'; }}
+            >
+              Ver planos e preços <ArrowRight size={14} />
+            </a>
           </div>
         </div>
       </section>
