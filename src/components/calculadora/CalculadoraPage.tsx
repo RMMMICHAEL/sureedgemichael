@@ -384,8 +384,9 @@ function EventSearchCard({
   const [open,         setOpen]         = useState(false);
   const [source,       setSource]       = useState<'supermonitor' | 'sportsdb' | ''>('');
   const [showSmSetup,  setShowSmSetup]  = useState(false);
-  const [smCookie,     setSmCookie]     = useState('');
-  const [smInput,      setSmInput]      = useState('');
+  const [authMode,     setAuthMode]     = useState<'auto' | 'static' | 'none' | ''>('');
+  const [authEmail,    setAuthEmail]    = useState('');
+  const [reconnecting, setReconnecting] = useState(false);
   const [dateTime,     setDateTime]     = useState(() => {
     const now = new Date();
     const pad = (n: number) => String(n).padStart(2, '0');
@@ -394,11 +395,15 @@ function EventSearchCard({
   const wrapRef    = useRef<HTMLDivElement>(null);
   const setupRef   = useRef<HTMLDivElement>(null);
 
-  // Load stored cookie on mount
+  // Carrega status de autenticação do servidor ao montar
   useEffect(() => {
-    const stored = typeof window !== 'undefined' ? localStorage.getItem(SM_COOKIE_KEY) ?? '' : '';
-    setSmCookie(stored);
-    setSmInput(stored);
+    fetch('/api/supermonitor/auth')
+      .then(r => r.json())
+      .then((j: { mode?: string; email?: string }) => {
+        setAuthMode((j.mode ?? 'none') as 'auto' | 'static' | 'none');
+        setAuthEmail(j.email ?? '');
+      })
+      .catch(() => setAuthMode('none'));
   }, []);
 
   // Close setup panel on outside click
@@ -418,12 +423,10 @@ function EventSearchCard({
     const targetDate = date ?? new Date().toISOString().slice(0, 10);
 
     try {
-      const cookie = (typeof window !== 'undefined' ? localStorage.getItem(SM_COOKIE_KEY) ?? '' : smCookie);
-
       const res  = await fetch('/api/supermonitor/events', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ cookie, date: targetDate }),
+        body:    JSON.stringify({ date: targetDate }),
       });
       const json = await res.json() as { ok: boolean; events?: CachedEvent[]; error?: string };
 
@@ -453,20 +456,24 @@ function EventSearchCard({
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  function saveSmCookie() {
-    const val = smInput.trim();
-    localStorage.setItem(SM_COOKIE_KEY, val);
-    setSmCookie(val);
-    setShowSmSetup(false);
-    loadEvents(fetchedDate || undefined);
-  }
-
-  function clearSmCookie() {
-    localStorage.removeItem(SM_COOKIE_KEY);
-    setSmCookie('');
-    setSmInput('');
-    setShowSmSetup(false);
-    loadEvents(fetchedDate || undefined);
+  async function forceReconnect() {
+    setReconnecting(true);
+    try {
+      const res  = await fetch('/api/supermonitor/auth', { method: 'POST' });
+      const json = await res.json() as { ok: boolean; mode?: string; email?: string; error?: string };
+      if (json.ok) {
+        setAuthMode((json.mode ?? 'none') as 'auto' | 'static' | 'none');
+        setAuthEmail(json.email ?? '');
+        setShowSmSetup(false);
+        loadEvents(fetchedDate || undefined);
+      } else {
+        alert(json.error ?? 'Falha ao reconectar');
+      }
+    } catch {
+      alert('Erro ao reconectar com o servidor');
+    } finally {
+      setReconnecting(false);
+    }
   }
 
   const normalize = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
@@ -535,18 +542,18 @@ function EventSearchCard({
             </button>
           )}
 
-          {/* SuperMonitor setup gear */}
+          {/* SuperMonitor status gear */}
           <div className="relative" ref={setupRef}>
             <button
               type="button"
               onClick={() => setShowSmSetup(v => !v)}
-              title="Conectar SuperMonitor"
+              title="Status SuperMonitor"
               className="flex items-center justify-center rounded-lg"
               style={{
                 width: 26, height: 26,
-                background: smCookie ? 'rgba(99,102,241,.15)' : 'rgba(255,255,255,.06)',
-                border: `1px solid ${smCookie ? 'rgba(99,102,241,.35)' : 'var(--b)'}`,
-                color: smCookie ? '#818cf8' : 'var(--t3)',
+                background: authMode === 'auto' ? 'rgba(63,255,33,.12)' : authMode === 'static' ? 'rgba(99,102,241,.15)' : 'rgba(255,255,255,.06)',
+                border: `1px solid ${authMode === 'auto' ? 'rgba(63,255,33,.3)' : authMode === 'static' ? 'rgba(99,102,241,.35)' : 'var(--b)'}`,
+                color: authMode === 'auto' ? 'var(--g)' : authMode === 'static' ? '#818cf8' : 'var(--t3)',
               }}>
               <Settings2 size={12} />
             </button>
@@ -555,48 +562,57 @@ function EventSearchCard({
               <div style={{
                 position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 200,
                 background: 'var(--bg)', border: '1px solid var(--b)', borderRadius: 12,
-                boxShadow: '0 12px 40px rgba(0,0,0,.6)', padding: 16, width: 320,
+                boxShadow: '0 12px 40px rgba(0,0,0,.6)', padding: 16, width: 300,
               }}>
                 <div className="flex items-center gap-2 mb-3">
                   <Zap size={13} style={{ color: '#818cf8' }} />
                   <span className="text-xs font-black" style={{ color: 'var(--t)' }}>SuperMonitor</span>
-                  {smCookie && (
-                    <span className="ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded"
-                      style={{ background: 'rgba(63,255,33,.1)', color: 'var(--g)', border: '1px solid rgba(63,255,33,.2)' }}>
-                      Conectado
-                    </span>
-                  )}
+                  <span className="ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded" style={{
+                    background: authMode === 'auto' ? 'rgba(63,255,33,.1)' : authMode === 'static' ? 'rgba(99,102,241,.12)' : 'rgba(255,255,255,.06)',
+                    color: authMode === 'auto' ? 'var(--g)' : authMode === 'static' ? '#818cf8' : 'var(--t3)',
+                    border: `1px solid ${authMode === 'auto' ? 'rgba(63,255,33,.2)' : authMode === 'static' ? 'rgba(99,102,241,.25)' : 'var(--b)'}`,
+                  }}>
+                    {authMode === 'auto' ? '⚡ Auto-login' : authMode === 'static' ? '🔑 Cookie fixo' : '⚠ Sem auth'}
+                  </span>
                 </div>
-                <p className="text-[11px] mb-3 leading-relaxed" style={{ color: 'var(--t3)' }}>
-                  Cole o cookie da sua sessão em <strong style={{ color: 'var(--t2)' }}>painel.supermonitor.pro</strong>.<br />
-                  DevTools → Application → Cookies → copie o valor de <code style={{ color: '#818cf8' }}>PHPSESSID</code> (e outros cookies) como: <code style={{ color: '#818cf8', fontSize: 10 }}>PHPSESSID=abc123</code>
-                </p>
-                <textarea
-                  value={smInput}
-                  onChange={e => setSmInput(e.target.value)}
-                  placeholder="PHPSESSID=abc123; outro_cookie=xyz..."
-                  rows={3}
+
+                {authMode === 'auto' && (
+                  <p className="text-[11px] mb-3 leading-relaxed" style={{ color: 'var(--t3)' }}>
+                    Login automático configurado{authEmail ? ` para <strong style={{color:'var(--t2)'}}>${authEmail}</strong>` : ''}.
+                    O cookie é renovado automaticamente quando expira.
+                  </p>
+                )}
+                {authMode === 'static' && (
+                  <p className="text-[11px] mb-3 leading-relaxed" style={{ color: 'var(--t3)' }}>
+                    Usando cookie fixo do <code style={{ color: '#818cf8' }}>.env.local</code>.
+                    Para auto-renovação, adicione <code style={{ color: '#818cf8' }}>SUPERMONITOR_EMAIL</code> e <code style={{ color: '#818cf8' }}>SUPERMONITOR_PASSWORD</code>.
+                  </p>
+                )}
+                {authMode === 'none' && (
+                  <div className="text-[11px] mb-3 leading-relaxed" style={{ color: 'var(--t3)' }}>
+                    <p className="mb-2">Adicione ao <code style={{ color: '#818cf8' }}>.env.local</code>:</p>
+                    <pre style={{
+                      background: 'rgba(255,255,255,.04)', border: '1px solid var(--b)',
+                      borderRadius: 6, padding: '8px 10px', fontSize: 10, color: 'var(--g)',
+                      overflowX: 'auto',
+                    }}>{`SUPERMONITOR_EMAIL=seu@email.com\nSUPERMONITOR_PASSWORD=sua_senha`}</pre>
+                    <p className="mt-2">O sistema fará login automaticamente e renovará o cookie.</p>
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={forceReconnect}
+                  disabled={reconnecting}
+                  className="w-full py-2 rounded-lg text-xs font-bold"
                   style={{
-                    width: '100%', background: 'rgba(255,255,255,.04)', border: '1px solid var(--b)',
-                    borderRadius: 8, padding: '8px 10px', fontSize: 11, color: 'var(--t)',
-                    outline: 'none', resize: 'vertical', fontFamily: 'monospace',
-                    marginBottom: 10,
-                  }}
-                />
-                <div className="flex gap-2">
-                  <button type="button" onClick={saveSmCookie}
-                    className="flex-1 py-2 rounded-lg text-xs font-bold"
-                    style={{ background: 'rgba(99,102,241,.2)', color: '#818cf8', border: '1px solid rgba(99,102,241,.35)' }}>
-                    Salvar e reconectar
-                  </button>
-                  {smCookie && (
-                    <button type="button" onClick={clearSmCookie}
-                      className="py-2 px-3 rounded-lg text-xs font-bold"
-                      style={{ background: 'rgba(255,77,109,.1)', color: 'var(--r)', border: '1px solid rgba(255,77,109,.2)' }}>
-                      Remover
-                    </button>
-                  )}
-                </div>
+                    background: reconnecting ? 'rgba(255,255,255,.04)' : 'rgba(99,102,241,.2)',
+                    color: reconnecting ? 'var(--t3)' : '#818cf8',
+                    border: '1px solid rgba(99,102,241,.35)',
+                    cursor: reconnecting ? 'not-allowed' : 'pointer',
+                  }}>
+                  {reconnecting ? 'Reconectando...' : 'Forçar reconexão'}
+                </button>
               </div>
             )}
           </div>
@@ -1042,10 +1058,9 @@ function BuscarOddsTab({ selectedEvent }: { selectedEvent: CachedEvent | null })
     setFetchErr('');
     setParsed(null);
     try {
-      const cookie = typeof window !== 'undefined' ? localStorage.getItem(SM_COOKIE_KEY) ?? '' : '';
       const res  = await fetch('/api/supermonitor/search', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: event.name, cookie }),
+        body: JSON.stringify({ query: event.name }),
       });
       const json = await res.json() as { ok: boolean; data?: unknown; error?: string };
       if (!json.ok) throw new Error(json.error ?? 'Erro ao buscar odds');
