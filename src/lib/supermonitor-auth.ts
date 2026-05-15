@@ -165,27 +165,3 @@ export async function getActiveCookie(clientCookie?: string): Promise<string> {
   return clientCookie ?? '';
 }
 
-/**
- * Retorna status da autenticação para o frontend.
- */
-export function getAuthStatus(): {
-  mode: 'auto' | 'static' | 'none';
-  email?: string;
-  cachedAt?: number;
-  cookieTtlMs: number;
-} {
-  const email    = process.env.SUPERMONITOR_EMAIL    ?? '';
-  const password = process.env.SUPERMONITOR_PASSWORD ?? '';
-  const static_  = process.env.SUPERMONITOR_COOKIE   ?? '';
-
-  if (email && password) {
-    return {
-      mode:        'auto',
-      email:       email.replace(/(?<=.{3}).(?=.*@)/g, '*'), // mascara email
-      cachedAt:    _cache?.fetchedAt,
-      cookieTtlMs: COOKIE_TTL,
-    };
-  }
-  if (static_) return { mode: 'static', cookieTtlMs: COOKIE_TTL };
-  return { mode: 'none', cookieTtlMs: COOKIE_TTL };
-}

@@ -2,9 +2,7 @@
 
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { SurebetCalc } from '@/components/calcalendario/SurebetCalc';
-import { Calculator, TrendingUp, Gift, Percent, Search, X, Building2, Settings2, Zap, ScanSearch } from 'lucide-react';
-
-const SM_COOKIE_KEY = 'sm_cookie';
+import { Calculator, TrendingUp, Gift, Percent, Search, X, Building2, ScanSearch } from 'lucide-react';
 
 // ── Formatters ─────────────────────────────────────────────────────────────────
 
@@ -382,44 +380,17 @@ function EventSearchCard({
   const [fetchErr,     setFetchErr]     = useState('');
   const [fetchedDate,  setFetchedDate]  = useState('');
   const [open,         setOpen]         = useState(false);
-  const [source,       setSource]       = useState<'supermonitor' | 'sportsdb' | ''>('');
-  const [showSmSetup,  setShowSmSetup]  = useState(false);
-  const [authMode,     setAuthMode]     = useState<'auto' | 'static' | 'none' | ''>('');
-  const [authEmail,    setAuthEmail]    = useState('');
-  const [reconnecting, setReconnecting] = useState(false);
   const [dateTime,     setDateTime]     = useState(() => {
     const now = new Date();
     const pad = (n: number) => String(n).padStart(2, '0');
     return `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
   });
-  const wrapRef    = useRef<HTMLDivElement>(null);
-  const setupRef   = useRef<HTMLDivElement>(null);
-
-  // Carrega status de autenticação do servidor ao montar
-  useEffect(() => {
-    fetch('/api/supermonitor/auth')
-      .then(r => r.json())
-      .then((j: { mode?: string; email?: string }) => {
-        setAuthMode((j.mode ?? 'none') as 'auto' | 'static' | 'none');
-        setAuthEmail(j.email ?? '');
-      })
-      .catch(() => setAuthMode('none'));
-  }, []);
-
-  // Close setup panel on outside click
-  useEffect(() => {
-    function handler(e: MouseEvent) {
-      if (setupRef.current && !setupRef.current.contains(e.target as Node)) setShowSmSetup(false);
-    }
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
+  const wrapRef = useRef<HTMLDivElement>(null);
 
   async function loadEvents(date?: string) {
     setLoading(true);
     setFetchErr('');
     setEvents([]);
-    setSource('');
     const targetDate = date ?? new Date().toISOString().slice(0, 10);
 
     try {
@@ -430,16 +401,16 @@ function EventSearchCard({
       });
       const json = await res.json() as { ok: boolean; events?: CachedEvent[]; error?: string };
 
-      if (!json.ok) {
-        throw new Error(json.error ?? 'Erro ao buscar eventos do SuperMonitor');
-      }
+      if (!json.ok) throw new Error(json.error ?? 'Erro ao carregar eventos');
 
-      const events = json.events ?? [];
-      setEvents(events);
+      setEvents(json.events ?? []);
       setFetchedDate(targetDate);
-      setSource('supermonitor');
     } catch (e: unknown) {
-      setFetchErr((e as Error).message ?? 'Erro ao buscar eventos');
+      const msg = (e as Error).message ?? '';
+      // Oculta detalhes técnicos — mensagem genérica sempre
+      setFetchErr(msg.includes('401') || msg.includes('expirado') || msg.includes('inválido')
+        ? 'Serviço temporariamente indisponível. Tente novamente.'
+        : 'Não foi possível carregar os eventos.');
     } finally {
       setLoading(false);
     }
@@ -455,26 +426,6 @@ function EventSearchCard({
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
-
-  async function forceReconnect() {
-    setReconnecting(true);
-    try {
-      const res  = await fetch('/api/supermonitor/auth', { method: 'POST' });
-      const json = await res.json() as { ok: boolean; mode?: string; email?: string; error?: string };
-      if (json.ok) {
-        setAuthMode((json.mode ?? 'none') as 'auto' | 'static' | 'none');
-        setAuthEmail(json.email ?? '');
-        setShowSmSetup(false);
-        loadEvents(fetchedDate || undefined);
-      } else {
-        alert(json.error ?? 'Falha ao reconectar');
-      }
-    } catch {
-      alert('Erro ao reconectar com o servidor');
-    } finally {
-      setReconnecting(false);
-    }
-  }
 
   const normalize = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 
@@ -508,19 +459,9 @@ function EventSearchCard({
 
       {/* Header row */}
       <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] font-black uppercase tracking-[.12em]" style={{ color: 'var(--t3)' }}>
-            Buscar Evento
-          </span>
-          {/* Source badge */}
-          {source === 'supermonitor' && (
-            <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md"
-              style={{ background: 'rgba(99,102,241,.15)', color: '#818cf8', border: '1px solid rgba(99,102,241,.3)' }}>
-              <Zap size={9} /> SuperMonitor
-            </span>
-          )}
-        </div>
-
+        <span className="text-[10px] font-black uppercase tracking-[.12em]" style={{ color: 'var(--t3)' }}>
+          Buscar Evento
+        </span>
         <div className="flex items-center gap-2">
           {loading && (
             <span className="text-[10px]" style={{ color: 'var(--t3)' }}>Carregando...</span>
@@ -534,88 +475,13 @@ function EventSearchCard({
               {events.length} eventos{isOlderData ? ` · ${fetchedDate}` : ' · hoje'}
             </span>
           )}
-          {!loading && !fetchErr && events.length === 0 && (
+          {!loading && (fetchErr || (!fetchErr && events.length === 0)) && (
             <button type="button" onClick={() => loadEvents()}
               className="text-[10px] font-bold px-2 py-0.5 rounded-md"
               style={{ background: 'rgba(255,255,255,.06)', color: 'var(--t3)', border: '1px solid var(--b)' }}>
               Tentar novamente
             </button>
           )}
-
-          {/* SuperMonitor status gear */}
-          <div className="relative" ref={setupRef}>
-            <button
-              type="button"
-              onClick={() => setShowSmSetup(v => !v)}
-              title="Status SuperMonitor"
-              className="flex items-center justify-center rounded-lg"
-              style={{
-                width: 26, height: 26,
-                background: authMode === 'auto' ? 'rgba(63,255,33,.12)' : authMode === 'static' ? 'rgba(99,102,241,.15)' : 'rgba(255,255,255,.06)',
-                border: `1px solid ${authMode === 'auto' ? 'rgba(63,255,33,.3)' : authMode === 'static' ? 'rgba(99,102,241,.35)' : 'var(--b)'}`,
-                color: authMode === 'auto' ? 'var(--g)' : authMode === 'static' ? '#818cf8' : 'var(--t3)',
-              }}>
-              <Settings2 size={12} />
-            </button>
-
-            {showSmSetup && (
-              <div style={{
-                position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 200,
-                background: 'var(--bg)', border: '1px solid var(--b)', borderRadius: 12,
-                boxShadow: '0 12px 40px rgba(0,0,0,.6)', padding: 16, width: 300,
-              }}>
-                <div className="flex items-center gap-2 mb-3">
-                  <Zap size={13} style={{ color: '#818cf8' }} />
-                  <span className="text-xs font-black" style={{ color: 'var(--t)' }}>SuperMonitor</span>
-                  <span className="ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded" style={{
-                    background: authMode === 'auto' ? 'rgba(63,255,33,.1)' : authMode === 'static' ? 'rgba(99,102,241,.12)' : 'rgba(255,255,255,.06)',
-                    color: authMode === 'auto' ? 'var(--g)' : authMode === 'static' ? '#818cf8' : 'var(--t3)',
-                    border: `1px solid ${authMode === 'auto' ? 'rgba(63,255,33,.2)' : authMode === 'static' ? 'rgba(99,102,241,.25)' : 'var(--b)'}`,
-                  }}>
-                    {authMode === 'auto' ? '⚡ Auto-login' : authMode === 'static' ? '🔑 Cookie fixo' : '⚠ Sem auth'}
-                  </span>
-                </div>
-
-                {authMode === 'auto' && (
-                  <p className="text-[11px] mb-3 leading-relaxed" style={{ color: 'var(--t3)' }}>
-                    Login automático configurado{authEmail ? ` para <strong style={{color:'var(--t2)'}}>${authEmail}</strong>` : ''}.
-                    O cookie é renovado automaticamente quando expira.
-                  </p>
-                )}
-                {authMode === 'static' && (
-                  <p className="text-[11px] mb-3 leading-relaxed" style={{ color: 'var(--t3)' }}>
-                    Usando cookie fixo do <code style={{ color: '#818cf8' }}>.env.local</code>.
-                    Para auto-renovação, adicione <code style={{ color: '#818cf8' }}>SUPERMONITOR_EMAIL</code> e <code style={{ color: '#818cf8' }}>SUPERMONITOR_PASSWORD</code>.
-                  </p>
-                )}
-                {authMode === 'none' && (
-                  <div className="text-[11px] mb-3 leading-relaxed" style={{ color: 'var(--t3)' }}>
-                    <p className="mb-2">Adicione ao <code style={{ color: '#818cf8' }}>.env.local</code>:</p>
-                    <pre style={{
-                      background: 'rgba(255,255,255,.04)', border: '1px solid var(--b)',
-                      borderRadius: 6, padding: '8px 10px', fontSize: 10, color: 'var(--g)',
-                      overflowX: 'auto',
-                    }}>{`SUPERMONITOR_EMAIL=seu@email.com\nSUPERMONITOR_PASSWORD=sua_senha`}</pre>
-                    <p className="mt-2">O sistema fará login automaticamente e renovará o cookie.</p>
-                  </div>
-                )}
-
-                <button
-                  type="button"
-                  onClick={forceReconnect}
-                  disabled={reconnecting}
-                  className="w-full py-2 rounded-lg text-xs font-bold"
-                  style={{
-                    background: reconnecting ? 'rgba(255,255,255,.04)' : 'rgba(99,102,241,.2)',
-                    color: reconnecting ? 'var(--t3)' : '#818cf8',
-                    border: '1px solid rgba(99,102,241,.35)',
-                    cursor: reconnecting ? 'not-allowed' : 'pointer',
-                  }}>
-                  {reconnecting ? 'Reconectando...' : 'Forçar reconexão'}
-                </button>
-              </div>
-            )}
-          </div>
         </div>
       </div>
 
@@ -1063,12 +929,19 @@ function BuscarOddsTab({ selectedEvent }: { selectedEvent: CachedEvent | null })
         body: JSON.stringify({ query: event.name }),
       });
       const json = await res.json() as { ok: boolean; data?: unknown; error?: string };
-      if (!json.ok) throw new Error(json.error ?? 'Erro ao buscar odds');
+      if (!json.ok) throw new Error(json.error ?? '');
       const p = parseSearchResults(json.data);
       if (!p) throw new Error('Nenhuma odd encontrada para este evento');
       setParsed(p);
     } catch (e: unknown) {
-      setFetchErr((e as Error).message ?? 'Erro desconhecido');
+      const msg = (e as Error).message ?? '';
+      setFetchErr(
+        msg === 'Nenhuma odd encontrada para este evento'
+          ? msg
+          : msg.includes('401') || msg.includes('expirado') || msg.includes('inválido')
+            ? 'Serviço temporariamente indisponível. Tente novamente.'
+            : 'Não foi possível carregar as odds.'
+      );
     } finally {
       setLoading(false);
     }
