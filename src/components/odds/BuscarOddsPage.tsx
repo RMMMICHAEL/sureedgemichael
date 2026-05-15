@@ -5,7 +5,6 @@ import {
   ScanSearch, Search, X, Building2, Filter, RefreshCw,
   TrendingUp, ChevronDown, ChevronUp, Star,
 } from 'lucide-react';
-import { SessionSetup } from './SessionSetup';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -684,7 +683,6 @@ export function BuscarOddsPage() {
   const [oddsErr,         setOddsErr]         = useState('');
   const [disabledHouses,  setDisabledHouses]  = useState<Set<string>>(new Set());
   const [showFilter,      setShowFilter]      = useState(false);
-  const [needsAuth,       setNeedsAuth]       = useState(false);
 
   // ── Calculator fill state ────────────────────────────────────────────────────
   const [calcFill,  setCalcFill]  = useState<[string, string, string] | null>(null);
@@ -711,7 +709,6 @@ export function BuscarOddsPage() {
     setEvLoading(true);
     setEvErr('');
     setEvents([]);
-    setNeedsAuth(false);
     const targetDate = date ?? new Date().toISOString().slice(0, 10);
     try {
       const res  = await fetch('/api/supermonitor/events', {
@@ -719,18 +716,11 @@ export function BuscarOddsPage() {
         body: JSON.stringify({ date: targetDate }),
       });
       const json = await res.json() as { ok: boolean; events?: CachedEvent[]; error?: string };
-      if (!json.ok) {
-        // Detecta erro de autenticação → mostra setup
-        if (json.error?.includes('auth/no-cookie') || json.error?.includes('credencial') || json.error?.includes('Nenhuma')) {
-          setNeedsAuth(true);
-          return;
-        }
-        throw new Error(json.error ?? 'Erro ao carregar eventos');
-      }
+      if (!json.ok) throw new Error(json.error ?? 'Erro ao carregar eventos');
       setEvents(json.events ?? []);
       setFetchedDate(targetDate);
     } catch {
-      setEvErr('Não foi possível carregar os eventos.');
+      setEvErr('Não foi possível carregar os eventos. Tente novamente.');
     } finally {
       setEvLoading(false);
     }
@@ -840,11 +830,6 @@ export function BuscarOddsPage() {
           Compare odds de todas as casas, encontre surebets com PA e preencha a calculadora automaticamente.
         </p>
       </div>
-
-      {/* ── Auth setup (quando não há sessão válida) ── */}
-      {needsAuth && (
-        <SessionSetup onSuccess={() => { setNeedsAuth(false); loadEvents(); }} />
-      )}
 
       {/* ── Search panel ── */}
       <div className="rounded-2xl p-5 flex flex-col gap-4" style={{ background: 'var(--bg2)', border: '1px solid var(--b)' }}>
