@@ -91,14 +91,25 @@ interface AddToPanelProps {
   effectiveOdds: number[];
   stakes: number[];
   onClose: () => void;
+  selectedEvent?: { name: string; start_utc: string } | null;
 }
 
-function AddToPanelModal({ numOutcomes, formulaOpt, effectiveOdds, stakes, onClose }: AddToPanelProps) {
+function AddToPanelModal({ numOutcomes, formulaOpt, effectiveOdds, stakes, onClose, selectedEvent }: AddToPanelProps) {
   const addLeg  = useStore(s => s.addLeg);
   const toastFn = useStore(s => s.toast);
 
-  const [ev,   setEv]   = useState('');
-  const [bd,   setBd]   = useState(nowBRT());
+  const [ev,   setEv]   = useState(selectedEvent?.name ?? '');
+  const [bd,   setBd]   = useState(() => {
+    if (selectedEvent?.start_utc) {
+      try {
+        const d = new Date(selectedEvent.start_utc);
+        if (!isNaN(d.getTime())) {
+          return d.toLocaleString('sv-SE', { timeZone: 'America/Sao_Paulo' }).slice(0, 16).replace(' ', 'T');
+        }
+      } catch { /* noop */ }
+    }
+    return nowBRT();
+  });
   const [sp,   setSp]   = useState('Futebol');
   const [opT,  setOpT]  = useState<OpType>('surebet');
   const [houses, setHouses] = useState<string[]>(Array(numOutcomes).fill(''));
@@ -235,7 +246,7 @@ function AddToPanelModal({ numOutcomes, formulaOpt, effectiveOdds, stakes, onClo
 
 // ── Main calculator ───────────────────────────────────────────────────────────
 
-export function SurebetCalc() {
+export function SurebetCalc({ selectedEvent }: { selectedEvent?: { name: string; start_utc: string } | null } = {}) {
   const [numOutcomes, setNumOutcomes] = useState<2 | 3>(2);
   const [formulaVal,  setFormulaVal]  = useState(0);
   const [odds,        setOdds]        = useState(['2.10', '1.95', '2.80']);
@@ -880,6 +891,7 @@ export function SurebetCalc() {
           effectiveOdds={effectiveOdds}
           stakes={result.stakes}
           onClose={() => setShowAdd(false)}
+          selectedEvent={selectedEvent}
         />
       )}
     </div>

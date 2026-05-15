@@ -710,64 +710,350 @@ function EventSearchCard({
 
 // ── Buscar Odds Tab ────────────────────────────────────────────────────────────
 
-interface OddEntry {
+// Casas com Pagamento Antecipado (PA)
+const PA_SET = new Set([
+  'betano','novibet','betvip','betsul','betesporte','brasilbet','betsson','bet365',
+  'bet365arg','bet365pe','lotogreen','kto','vivasorte','sportingbet','superbet',
+  'apostabet','br4bet','esportesdasorte','esportiva','esportivabet','sortenabet',
+  'betmgm','estrelabet','bet7k','jogodeouro','mcgames','meridianbet','meridian',
+  'versusbet','vupi','vupibet','vaidebet',
+]);
+
+function isPa(house: string): boolean {
+  const n = house.toLowerCase().replace(/[\s\-_.]/g, '');
+  if (PA_SET.has(n)) return true;
+  for (const pa of PA_SET) {
+    if (n.length >= 4 && pa.length >= 4 && (n.startsWith(pa) || pa.startsWith(n))) return true;
+  }
+  return false;
+}
+
+// ── BMRow types ────────────────────────────────────────────────────────────────
+
+interface BMRow {
   house:   string;
-  odd:     number;
-  pa:      boolean;   // pagamento antecipado
-  result:  string;    // '1' | 'X' | '2' | '1X' | '2X' | etc.
+  pa:      boolean;
+  url?:    string;
+  mlHome?: number;
+  mlDraw?: number;
+  mlAway?: number;
+  dc1X?:   number;
+  dcX2?:   number;
+  dc12?:   number;
 }
 
-interface OddsData {
-  event:    string;
-  date:     string;
-  league:   string;
-  outcomes: { result: string; label: string; best: { house: string; odd: number; pa: boolean }; all: OddEntry[] }[];
-  raw?:     unknown;
+interface ParsedSearch {
+  home:   string;
+  away:   string;
+  date:   string;
+  league: string;
+  rows:   BMRow[];
 }
 
-function parseOddsData(raw: unknown): OddsData | null {
+type ColKey = 'mlHome' | 'mlDraw' | 'mlAway' | 'dc1X' | 'dcX2' | 'dc12';
+const ALL_COLS: ColKey[] = ['mlHome', 'mlDraw', 'mlAway', 'dc1X', 'dcX2', 'dc12'];
+const COL_LABELS: Record<ColKey, string> = {
+  mlHome: '1', mlDraw: 'X', mlAway: '2', dc1X: '1X', dcX2: 'X2', dc12: '12',
+};
+
+// ── Parse search results ───────────────────────────────────────────────────────
+
+function parseSearchResults(raw: unknown): ParsedSearch | null {
   if (!raw || typeof raw !== 'object') return null;
   const r = raw as Record<string, unknown>;
+  const results: Record<string, unknown>[] = Array.isArray(r.results) ? r.results
+    : Array.isArray(r.data) ? r.data : [];
+  if (!results.length) return null;
 
-  // Log para debug — remover depois
-  console.log('[SM search raw]', JSON.stringify(r, null, 2));
+  const first = results[0];
+  const leagueRaw = first.league;
+  const league = typeof leagueRaw === 'object' && leagueRaw !== null
+    ? String((leagueRaw as Record<string, unknown>).name ?? '')
+    : String(leagueRaw ?? '');
 
-  // Tenta montar um objeto normalizado com o que vier
+  const houseMap = new Map<string, BMRow>();
+
+  for (const result of results) {
+    const bms = result.bookmakers;
+    const urls = result.urls as Record<string, string> | undefined;
+    if (!bms || typeof bms !== 'object' || Array.isArray(bms)) continue;
+
+    for (const [hn, markets] of Object.entries(bms as Record<string, unknown>)) {
+      if (!Array.isArray(markets)) continue;
+      let row = houseMap.get(hn);
+      if (!row) {
+        row = { house: hn, pa: isPa(hn), url: urls?.[hn] };
+        houseMap.set(hn, row);
+      }
+      for (const market of markets as Record<string, unknown>[]) {
+        const mName = String(market.name ?? '').toLowerCase();
+        const odds = Array.isArray(market.odds) && market.odds.length > 0
+          ? (market.odds[0] as Record<string, unknown>) : null;
+        if (!odds) continue;
+
+        if (mName === 'ml' || mName === '1x2' || mName === 'moneyline' || mName.includes('resultado')) {
+          const h = parseFloat(String(odds.home ?? odds['1'] ?? ''));
+          const d = parseFloat(String(odds.draw ?? odds.x ?? ''));
+          const a = parseFloat(String(odds.away ?? odds['2'] ?? ''));
+          if (!isNaN(h) && h > 1) row.mlHome = h;
+          if (!isNaN(d) && d > 1) row.mlDraw = d;
+          if (!isNaN(a) && a > 1) row.mlAway = a;
+        } else if (mName === 'dc' || mName.includes('double') || mName.includes('dupla')) {
+          const x1  = parseFloat(String(odds.dc1X ?? odds['1x'] ?? odds['1X'] ?? ''));
+          const x2  = parseFloat(String(odds.dcX2 ?? odds['x2'] ?? odds['X2'] ?? ''));
+          const d12 = parseFloat(String(odds.dc12 ?? odds['12'] ?? ''));
+          if (!isNaN(x1)  && x1  > 1) row.dc1X  = x1;
+          if (!isNaN(x2)  && x2  > 1) row.dcX2  = x2;
+          if (!isNaN(d12) && d12 > 1) row.dc12  = d12;
+        }
+      }
+    }
+  }
+
   return {
-    event:    String(r.event ?? r.name ?? r.title ?? ''),
-    date:     String(r.date ?? r.start ?? r.start_time ?? ''),
-    league:   String(r.league ?? r.competition ?? ''),
-    outcomes: [],
-    raw,
+    home:   String(first.home ?? ''),
+    away:   String(first.away ?? ''),
+    date:   String(first.date ?? ''),
+    league,
+    rows: Array.from(houseMap.values()),
   };
 }
 
+function getBests(rows: BMRow[]): Record<ColKey, number | undefined> {
+  const b: Record<ColKey, number | undefined> = {
+    mlHome: undefined, mlDraw: undefined, mlAway: undefined,
+    dc1X: undefined, dcX2: undefined, dc12: undefined,
+  };
+  for (const col of ALL_COLS) {
+    const vals = rows.map(r => r[col]).filter(v => v != null && (v as number) > 1) as number[];
+    if (vals.length) b[col] = Math.max(...vals);
+  }
+  return b;
+}
+
+// ── Odds table cell ────────────────────────────────────────────────────────────
+
+function OCell({ val, best }: { val?: number; best: boolean }) {
+  if (!val || val <= 1) {
+    return (
+      <td style={{ textAlign: 'center', padding: '5px 6px', fontSize: 11, color: 'rgba(255,255,255,.18)' }}>
+        —
+      </td>
+    );
+  }
+  return (
+    <td style={{
+      textAlign: 'center', padding: '5px 6px', fontSize: 12,
+      fontWeight: best ? 800 : 500,
+      color: best ? 'var(--g)' : 'var(--t2)',
+      background: best ? 'rgba(63,255,33,.09)' : undefined,
+      fontVariantNumeric: 'tabular-nums',
+    }}>
+      {val.toFixed(2)}
+    </td>
+  );
+}
+
+// ── Odds table section (SEM PA or COM PA) ──────────────────────────────────────
+
+function OddsSection({
+  title, pa, rows, bests,
+}: {
+  title: string; pa: boolean; rows: BMRow[]; bests: Record<ColKey, number | undefined>;
+}) {
+  const filtered = [...rows.filter(r => r.pa === pa)].sort((a, b) => {
+    const sa = (a.mlHome ?? 0) + (a.mlDraw ?? 0) + (a.mlAway ?? 0);
+    const sb = (b.mlHome ?? 0) + (b.mlDraw ?? 0) + (b.mlAway ?? 0);
+    return sb - sa;
+  });
+  if (!filtered.length) return null;
+
+  const accent = pa ? 'rgba(255,159,10,.8)' : 'rgba(63,255,33,.8)';
+  const bg     = pa ? 'rgba(255,159,10,.04)' : 'rgba(63,255,33,.04)';
+
+  return (
+    <>
+      <tr>
+        <td colSpan={7} style={{
+          padding: '5px 10px', fontSize: 9, fontWeight: 900,
+          textTransform: 'uppercase', letterSpacing: '.12em',
+          color: accent, background: bg, borderTop: '1px solid var(--b)',
+        }}>
+          {title} · {filtered.length} casa{filtered.length !== 1 ? 's' : ''}
+        </td>
+      </tr>
+      {filtered.map(row => (
+        <tr key={row.house}
+          style={{ borderBottom: '1px solid rgba(255,255,255,.035)', transition: 'background .1s' }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,.03)'; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = ''; }}>
+          <td style={{ padding: '5px 10px', fontSize: 11, fontWeight: 700, color: 'var(--t2)', whiteSpace: 'nowrap' }}>
+            {row.url ? (
+              <a href={row.url} target="_blank" rel="noopener noreferrer"
+                style={{ color: 'inherit', textDecoration: 'none', transition: 'color .15s' }}
+                onMouseEnter={e => { (e.target as HTMLElement).style.color = '#818cf8'; }}
+                onMouseLeave={e => { (e.target as HTMLElement).style.color = ''; }}>
+                {row.house}
+              </a>
+            ) : row.house}
+          </td>
+          {ALL_COLS.map(col => (
+            <OCell key={col} val={row[col]} best={!!(row[col] && row[col] === bests[col])} />
+          ))}
+        </tr>
+      ))}
+    </>
+  );
+}
+
+// ── 3-way calculator (ML or DC) ────────────────────────────────────────────────
+
+function Calc3Way({
+  title, labels, cols, bests,
+}: {
+  title: string;
+  labels: [string, string, string];
+  cols: [ColKey, ColKey, ColKey];
+  bests: Record<ColKey, number | undefined>;
+}) {
+  const [odds,  setOdds]  = useState(['', '', '']);
+  const [stake, setStake] = useState('1000');
+
+  // Pre-fill with best odds whenever they change
+  useEffect(() => {
+    setOdds([
+      bests[cols[0]] ? bests[cols[0]]!.toFixed(2) : '',
+      bests[cols[1]] ? bests[cols[1]]!.toFixed(2) : '',
+      bests[cols[2]] ? bests[cols[2]]!.toFixed(2) : '',
+    ]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bests[cols[0]], bests[cols[1]], bests[cols[2]]]);
+
+  function setOdd(i: number, v: string) {
+    setOdds(prev => prev.map((o, idx) => idx === i ? v : o));
+  }
+
+  const result = useMemo(() => {
+    const [o1, o2, o3] = odds.map(o => parseFloat(o));
+    const s = parseFloat(stake);
+    if (!o1 || !o2 || !o3 || !s || o1 <= 1 || o2 <= 1 || o3 <= 1) return null;
+    const m = 1/o1 + 1/o2 + 1/o3;
+    const s1 = s * (1/o1) / m;
+    const s2 = s * (1/o2) / m;
+    const s3 = s * (1/o3) / m;
+    const profit = s * (1/m - 1);
+    const roi = (1/m - 1) * 100;
+    return { m, s1, s2, s3, profit, roi, ok: m < 1 };
+  }, [odds, stake]);
+
+  const isOk = result?.ok;
+
+  return (
+    <div className="rounded-2xl p-4 flex flex-col gap-3"
+      style={{ background: 'var(--bg2)', border: `1px solid ${isOk ? 'rgba(63,255,33,.25)' : 'var(--b)'}` }}>
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-black" style={{ color: 'var(--t)' }}>{title}</span>
+        {result && (
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded-md"
+            style={{
+              background: isOk ? 'rgba(63,255,33,.1)' : 'rgba(255,77,109,.08)',
+              color: isOk ? 'var(--g)' : 'var(--r)',
+              border: `1px solid ${isOk ? 'rgba(63,255,33,.2)' : 'rgba(255,77,109,.2)'}`,
+            }}>
+            {isOk ? `Surebet ${result.roi.toFixed(2)}%` : `Margem ${(result.m * 100).toFixed(1)}%`}
+          </span>
+        )}
+      </div>
+
+      {/* Odds + stake inputs */}
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {labels.map((lbl, i) => (
+          <div key={i}>
+            <label className="block text-[9px] font-black uppercase tracking-[.1em] mb-1" style={{ color: 'var(--t3)' }}>
+              {lbl}
+            </label>
+            <input
+              type="number" step="any" value={odds[i]}
+              onChange={e => setOdd(i, e.target.value)}
+              className="w-full bg-transparent text-sm font-bold outline-none rounded-lg px-2.5 py-2"
+              style={{ background: 'rgba(255,255,255,.04)', border: '1px solid var(--b)', color: 'var(--t)' }}
+            />
+          </div>
+        ))}
+        <div>
+          <label className="block text-[9px] font-black uppercase tracking-[.1em] mb-1" style={{ color: 'var(--t3)' }}>
+            Stake Total
+          </label>
+          <div className="flex items-center rounded-lg overflow-hidden"
+            style={{ background: 'rgba(255,255,255,.04)', border: '1px solid var(--b)' }}>
+            <span className="px-2 text-[10px] font-bold flex-shrink-0" style={{ color: 'var(--t3)', borderRight: '1px solid var(--b)' }}>R$</span>
+            <input
+              type="number" step="any" value={stake}
+              onChange={e => setStake(e.target.value)}
+              className="flex-1 bg-transparent px-2 py-2 text-sm font-bold outline-none"
+              style={{ color: 'var(--t)' }}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Result */}
+      {result && (
+        <div className="grid grid-cols-3 gap-2 pt-1">
+          {labels.map((lbl, i) => {
+            const st = [result.s1, result.s2, result.s3][i];
+            return (
+              <div key={i} className="rounded-xl p-2.5 text-center"
+                style={{ background: 'rgba(255,255,255,.03)', border: '1px solid var(--b)' }}>
+                <div className="text-[9px] font-black uppercase tracking-[.1em] mb-1" style={{ color: 'var(--t3)' }}>
+                  Stake {lbl}
+                </div>
+                <div className="text-sm font-black" style={{ color: 'var(--t)' }}>
+                  {st.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </div>
+              </div>
+            );
+          })}
+          <div className="col-span-3 rounded-xl px-3 py-2 text-sm font-bold text-center"
+            style={{
+              background: isOk ? 'rgba(63,255,33,.07)' : 'rgba(255,255,255,.03)',
+              border: `1px solid ${isOk ? 'rgba(63,255,33,.2)' : 'var(--b)'}`,
+              color: isOk ? 'var(--g)' : 'var(--t3)',
+            }}>
+            {isOk
+              ? `Lucro garantido: R$ ${result.profit.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+              : `Sem surebet — falta ${((result.m - 1) * 100).toFixed(2)}% de margem`}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Main BuscarOddsTab ─────────────────────────────────────────────────────────
+
 function BuscarOddsTab({ selectedEvent }: { selectedEvent: CachedEvent | null }) {
-  const [loading,   setLoading]   = useState(false);
-  const [oddsData,  setOddsData]  = useState<OddsData | null>(null);
-  const [fetchErr,  setFetchErr]  = useState('');
-  const [rawData,   setRawData]   = useState<unknown>(null);
-  const [totalStake, setTotalStake] = useState('1000');
+  const [loading,  setLoading]  = useState(false);
+  const [parsed,   setParsed]   = useState<ParsedSearch | null>(null);
+  const [fetchErr, setFetchErr] = useState('');
 
   async function fetchOdds(event: CachedEvent) {
     setLoading(true);
     setFetchErr('');
-    setOddsData(null);
-    setRawData(null);
+    setParsed(null);
     try {
       const cookie = typeof window !== 'undefined' ? localStorage.getItem(SM_COOKIE_KEY) ?? '' : '';
       const res  = await fetch('/api/supermonitor/search', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ query: event.name, cookie }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: event.name, cookie }),
       });
       const json = await res.json() as { ok: boolean; data?: unknown; error?: string };
       if (!json.ok) throw new Error(json.error ?? 'Erro ao buscar odds');
-      setRawData(json.data);
-      const parsed = parseOddsData(json.data);
-      setOddsData(parsed);
+      const p = parseSearchResults(json.data);
+      if (!p) throw new Error('Nenhuma odd encontrada para este evento');
+      setParsed(p);
     } catch (e: unknown) {
-      setFetchErr((e as Error).message ?? 'Erro');
+      setFetchErr((e as Error).message ?? 'Erro desconhecido');
     } finally {
       setLoading(false);
     }
@@ -777,29 +1063,49 @@ function BuscarOddsTab({ selectedEvent }: { selectedEvent: CachedEvent | null })
     if (selectedEvent) fetchOdds(selectedEvent);
   }, [selectedEvent?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Empty state ──────────────────────────────────────────────────────────────
   if (!selectedEvent) {
     return (
-      <div className="rounded-2xl p-8 text-center" style={{ background: 'var(--bg2)', border: '1px solid var(--b)' }}>
-        <ScanSearch size={28} style={{ color: 'var(--t3)', margin: '0 auto 12px' }} />
-        <p className="text-sm font-bold" style={{ color: 'var(--t2)' }}>Selecione um evento acima</p>
-        <p className="text-xs mt-1" style={{ color: 'var(--t3)' }}>As odds de todas as casas aparecerão aqui</p>
+      <div className="rounded-2xl p-10 text-center flex flex-col items-center gap-3"
+        style={{ background: 'var(--bg2)', border: '1px solid var(--b)' }}>
+        <ScanSearch size={32} style={{ color: 'var(--t3)' }} />
+        <div>
+          <p className="text-sm font-bold" style={{ color: 'var(--t2)' }}>Selecione um evento acima</p>
+          <p className="text-xs mt-1" style={{ color: 'var(--t3)' }}>
+            As odds de todas as casas aparecerão aqui, divididas por SEM PA e COM PA
+          </p>
+        </div>
       </div>
     );
   }
 
+  // ── Loading ──────────────────────────────────────────────────────────────────
   if (loading) {
     return (
-      <div className="rounded-2xl p-8 text-center" style={{ background: 'var(--bg2)', border: '1px solid var(--b)' }}>
-        <p className="text-sm" style={{ color: 'var(--t3)' }}>Buscando odds para <strong style={{ color: 'var(--t)' }}>{selectedEvent.name}</strong>...</p>
+      <div className="rounded-2xl p-10 text-center" style={{ background: 'var(--bg2)', border: '1px solid var(--b)' }}>
+        <div className="text-xs mb-2" style={{ color: 'var(--t3)' }}>Buscando odds para</div>
+        <div className="text-sm font-black" style={{ color: 'var(--t)' }}>{selectedEvent.name}</div>
+        <div className="mt-4 flex justify-center gap-1">
+          {[0, 1, 2].map(i => (
+            <div key={i} className="rounded-full"
+              style={{
+                width: 6, height: 6, background: 'var(--g)',
+                animation: `pulse 1.2s ease-in-out ${i * 0.2}s infinite`,
+              }} />
+          ))}
+        </div>
       </div>
     );
   }
 
+  // ── Error ────────────────────────────────────────────────────────────────────
   if (fetchErr) {
     return (
-      <div className="rounded-2xl p-6" style={{ background: 'rgba(255,77,109,.07)', border: '1px solid rgba(255,77,109,.2)' }}>
+      <div className="rounded-2xl p-5 flex flex-col gap-3"
+        style={{ background: 'rgba(255,77,109,.06)', border: '1px solid rgba(255,77,109,.2)' }}>
         <p className="text-sm font-bold" style={{ color: 'var(--r)' }}>⚠ {fetchErr}</p>
-        <button type="button" onClick={() => fetchOdds(selectedEvent)} className="mt-3 text-xs font-bold px-3 py-1.5 rounded-lg"
+        <button type="button" onClick={() => fetchOdds(selectedEvent)}
+          className="self-start text-xs font-bold px-3 py-1.5 rounded-lg"
           style={{ background: 'rgba(255,255,255,.06)', color: 'var(--t3)', border: '1px solid var(--b)' }}>
           Tentar novamente
         </button>
@@ -807,41 +1113,124 @@ function BuscarOddsTab({ selectedEvent }: { selectedEvent: CachedEvent | null })
     );
   }
 
-  if (rawData) {
-    const raw = rawData as Record<string, unknown>;
+  if (!parsed) return null;
 
-    // Extrai resultados/mercados do objeto retornado
-    // A estrutura real é descoberta aqui — o objeto completo é mostrado
-    const keys = Object.keys(raw);
+  const bests    = getBests(parsed.rows);
+  const semPa    = parsed.rows.filter(r => !r.pa).length;
+  const comPa    = parsed.rows.filter(r =>  r.pa).length;
 
-    return (
-      <div className="flex flex-col gap-4">
-        {/* Cabeçalho do evento */}
-        <div className="rounded-2xl p-4 flex items-center gap-3" style={{ background: 'var(--bg2)', border: '1px solid var(--b)' }}>
-          <ScanSearch size={16} style={{ color: '#818cf8', flexShrink: 0 }} />
-          <div>
-            <div className="text-sm font-black" style={{ color: 'var(--t)' }}>{selectedEvent.name}</div>
-            <div className="text-[11px]" style={{ color: 'var(--t3)' }}>{selectedEvent.league} · {selectedEvent.start_utc}</div>
+  // Format event date
+  let eventDateTime = '';
+  try {
+    const d = new Date(parsed.date);
+    if (!isNaN(d.getTime())) {
+      eventDateTime = d.toLocaleString('pt-BR', {
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit',
+      });
+    }
+  } catch { /* noop */ }
+
+  return (
+    <div className="flex flex-col gap-4">
+
+      {/* ── Event header ── */}
+      <div className="rounded-2xl p-4 flex items-center gap-3"
+        style={{ background: 'var(--bg2)', border: '1px solid var(--b)' }}>
+        <div className="flex-1 min-w-0">
+          <div className="text-sm font-black truncate" style={{ color: 'var(--t)' }}>
+            {parsed.home} <span style={{ color: 'var(--t3)', fontWeight: 400 }}>×</span> {parsed.away}
           </div>
-          <button type="button" onClick={() => fetchOdds(selectedEvent)}
-            className="ml-auto text-[10px] font-bold px-2 py-1 rounded-lg"
-            style={{ background: 'rgba(99,102,241,.15)', color: '#818cf8', border: '1px solid rgba(99,102,241,.3)' }}>
-            Atualizar
-          </button>
+          <div className="text-[11px] mt-0.5 flex items-center gap-2 flex-wrap" style={{ color: 'var(--t3)' }}>
+            <span>{parsed.league}</span>
+            {eventDateTime && <><span style={{ opacity: .4 }}>·</span><span>{eventDateTime}</span></>}
+            <span style={{ opacity: .4 }}>·</span>
+            <span>{parsed.rows.length} casas</span>
+          </div>
         </div>
+        <button type="button" onClick={() => fetchOdds(selectedEvent)}
+          className="text-[10px] font-bold px-2.5 py-1.5 rounded-lg flex-shrink-0"
+          style={{ background: 'rgba(99,102,241,.15)', color: '#818cf8', border: '1px solid rgba(99,102,241,.3)' }}>
+          Atualizar
+        </button>
+      </div>
 
-        {/* DEBUG — estrutura do retorno */}
-        <div className="rounded-2xl p-4 text-[11px] font-mono overflow-auto" style={{ background: 'var(--bg2)', border: '1px solid var(--b)', maxHeight: 400 }}>
-          <div className="font-bold mb-2 text-xs" style={{ color: 'var(--t3)' }}>Campos retornados: {keys.join(', ')}</div>
-          <pre style={{ color: 'var(--t2)', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
-            {JSON.stringify(rawData, null, 2).slice(0, 3000)}
-          </pre>
+      {/* ── Odds table ── */}
+      <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid var(--b)' }}>
+        {/* Header row */}
+        <div className="flex items-center justify-between px-4 py-3"
+          style={{ background: 'var(--bg2)', borderBottom: '1px solid var(--b)' }}>
+          <span className="text-[10px] font-black uppercase tracking-[.12em]" style={{ color: 'var(--t3)' }}>
+            Odds por Casa
+          </span>
+          <div className="flex items-center gap-2 text-[10px] font-bold">
+            <span style={{ color: 'rgba(63,255,33,.8)' }}>{semPa} sem PA</span>
+            <span style={{ color: 'rgba(255,255,255,.2)' }}>·</span>
+            <span style={{ color: 'rgba(255,159,10,.8)' }}>{comPa} com PA</span>
+          </div>
+        </div>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 400 }}>
+            <thead>
+              <tr style={{ background: 'rgba(255,255,255,.025)' }}>
+                <th style={{ padding: '6px 10px', textAlign: 'left', fontSize: 10, fontWeight: 800,
+                  textTransform: 'uppercase', letterSpacing: '.1em', color: 'var(--t3)', whiteSpace: 'nowrap', minWidth: 110 }}>
+                  Casa
+                </th>
+                {(['mlHome','mlDraw','mlAway'] as ColKey[]).map(col => (
+                  <th key={col} style={{ padding: '6px 8px', textAlign: 'center', fontSize: 10, fontWeight: 800,
+                    textTransform: 'uppercase', letterSpacing: '.1em', color: 'var(--t3)', minWidth: 48 }}>
+                    {COL_LABELS[col]}
+                  </th>
+                ))}
+                <th style={{ padding: '6px 4px', textAlign: 'center', width: 1, borderLeft: '1px solid rgba(255,255,255,.06)' }} />
+                {(['dc1X','dcX2','dc12'] as ColKey[]).map(col => (
+                  <th key={col} style={{ padding: '6px 8px', textAlign: 'center', fontSize: 10, fontWeight: 800,
+                    textTransform: 'uppercase', letterSpacing: '.1em', color: 'rgba(255,255,255,.35)', minWidth: 48 }}>
+                    {COL_LABELS[col]}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              <OddsSection title="SEM Pagamento Antecipado" pa={false} rows={parsed.rows} bests={bests} />
+              <OddsSection title="COM Pagamento Antecipado" pa={true}  rows={parsed.rows} bests={bests} />
+            </tbody>
+          </table>
+        </div>
+        {/* Best odds summary row */}
+        <div className="flex items-center gap-4 px-4 py-2.5 flex-wrap"
+          style={{ background: 'rgba(63,255,33,.04)', borderTop: '1px solid rgba(63,255,33,.15)' }}>
+          <span className="text-[9px] font-black uppercase tracking-[.12em]" style={{ color: 'rgba(63,255,33,.7)' }}>
+            Melhores odds
+          </span>
+          {ALL_COLS.map(col => bests[col] ? (
+            <span key={col} className="text-[10px] font-bold" style={{ color: 'var(--t2)' }}>
+              <span style={{ color: 'var(--t3)' }}>{COL_LABELS[col]}</span>
+              {' '}<span style={{ color: 'var(--g)', fontWeight: 800 }}>{bests[col]!.toFixed(2)}</span>
+            </span>
+          ) : null)}
         </div>
       </div>
-    );
-  }
 
-  return null;
+      {/* ── Calculadoras ── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Calc3Way
+          title="Calculadora ML (1×2)"
+          labels={['Casa (1)', 'Empate (X)', 'Fora (2)']}
+          cols={['mlHome', 'mlDraw', 'mlAway']}
+          bests={bests}
+        />
+        <Calc3Way
+          title="Calculadora DC (Dupla Chance)"
+          labels={['1X', 'X2', '12']}
+          cols={['dc1X', 'dcX2', 'dc12']}
+          bests={bests}
+        />
+      </div>
+
+    </div>
+  );
 }
 
 // ── Tab definitions ────────────────────────────────────────────────────────────
@@ -949,7 +1338,7 @@ export function CalculadoraPage() {
       )}
 
       {/* Tab content */}
-      {tab === 'surebet'  && <SurebetCalc />}
+      {tab === 'surebet'  && <SurebetCalc selectedEvent={selectedEvent} />}
       {tab === 'missao'   && <FreeBetTab />}
       {tab === 'odd'      && <OddAumentadaTab />}
       {tab === 'cashback' && <CashbackTab />}
