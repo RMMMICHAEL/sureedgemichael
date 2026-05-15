@@ -40,10 +40,11 @@ jobs:
 
       - name: Renovar cookie
         env:
-          SUPERMONITOR_EMAIL:       ${{ secrets.SUPERMONITOR_EMAIL }}
-          SUPERMONITOR_PASSWORD:    ${{ secrets.SUPERMONITOR_PASSWORD }}
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPERMONITOR_EMAIL:        ${{ secrets.SUPERMONITOR_EMAIL }}
+          SUPERMONITOR_PASSWORD:     ${{ secrets.SUPERMONITOR_PASSWORD }}
+          NEXT_PUBLIC_SUPABASE_URL:  ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          TWOCAPTCHA_API_KEY:        ${{ secrets.TWOCAPTCHA_API_KEY }}
         run: node scripts/renew-cookie.mjs
 
       - name: Upload screenshots (debug)
