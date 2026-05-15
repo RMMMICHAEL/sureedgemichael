@@ -1,0 +1,45 @@
+/**
+ * POST /api/supermonitor/save-cookie
+ * Recebe o cookie do browser do admin, valida e salva no Supabase.
+ * Só aceita requisições autenticadas (usuário logado).
+ */
+import { NextRequest, NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
+import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { storeCookieInSupabase, validateCookie } from '@/lib/supermonitor-auth';
+
+export async function POST(req: NextRequest) {
+  // Verifica autenticação
+  const cookieStore = cookies();
+  const supabase = createSupabaseServerClient(cookieStore);
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    return NextResponse.json({ ok: false, error: 'Não autenticado' }, { status: 401 });
+  }
+
+  let rawCookie = '';
+  try {
+    const body = await req.json() as { cookie?: string };
+    rawCookie = (body.cookie ?? '').trim();
+  } catch {
+    return NextResponse.json({ ok: false, error: 'Corpo inválido' }, { status: 400 });
+  }
+
+  if (!rawCookie) {
+    return NextResponse.json({ ok: false, error: 'Cookie vazio' }, { status: 400 });
+  }
+
+  // Normaliza: aceita só o valor do PHPSESSID ou o cookie completo
+  const sessMatch = rawCookie.match(/PHPSESSID=([a-z0-9]+)/i);
+  const normalized = sessMatch ? `PHPSESSID=${sessMatch[1]}` : `PHPSESSID=${rawCookie.replace(/^PHPSESSID=/i, '')}`;
+
+  // Valida o cookie antes de salvar
+  const valid = await validateCookie(normalized);
+  if (!valid) {
+    return NextResponse.json({ ok: false, error: 'Cookie inválido ou sessão expirada. Faça login no site e tente novamente.' });
+  }
+
+  // Salva no Supabase
+  await storeCookieInSupabase(normalized);
+  return NextResponse.json({ ok: true });
+}

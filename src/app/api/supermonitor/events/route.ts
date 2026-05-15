@@ -59,6 +59,11 @@ export async function POST(req: NextRequest) {
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
 
+    // Sem credenciais → sinaliza para o cliente mostrar o setup
+    if (msg.includes('auth/no-cookie')) {
+      return NextResponse.json({ ok: false, error: 'auth/no-cookie' }, { status: 200 });
+    }
+
     // Se for 401, invalida cache e tenta uma vez mais
     if (msg.includes('401') || msg.includes('inválido') || msg.includes('expirado')) {
       invalidateCache();
@@ -68,6 +73,9 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ ok: true, events, source: 'supermonitor' });
       } catch (err2: unknown) {
         const msg2 = err2 instanceof Error ? err2.message : String(err2);
+        if (msg2.includes('auth/no-cookie')) {
+          return NextResponse.json({ ok: false, error: 'auth/no-cookie' }, { status: 200 });
+        }
         return NextResponse.json({ ok: false, error: msg2 }, { status: 200 });
       }
     }
