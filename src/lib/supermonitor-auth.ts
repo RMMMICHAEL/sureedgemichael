@@ -2,20 +2,20 @@
  * supermonitor-auth.ts
  * Gerencia a sessão do provedor de dados de odds.
  *
- * Prioridade do cookie:
- *   1. Cache em memória (até 6h)
- *   2. Auto-login server-side (credenciais no env)
- *   3. Cookie salvo no Supabase (definido pelo admin via UI)
- *   4. Cookie estático no env (SUPERMONITOR_COOKIE)
- *   5. Cookie passado pelo cliente (retrocompatibilidade)
+ * Problema: o PHP do servidor amarra o CSRF token ao IP da requisição.
+ * Vercel usa IPs diferentes para GET e POST (load balancer).
+ * Solução: usar https.Agent com keepAlive para forçar o mesmo socket TCP
+ * (e portanto o mesmo IP de saída) para GET e POST do login.
  */
+
+import https from 'node:https';
+import http  from 'node:http';
+import { URL } from 'node:url';
 
 const BASE       = 'https://painel.supermonitor.pro';
 const LOGIN_PAGE = `${BASE}/login.php`;
+const UA         = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
 const COOKIE_TTL = 6 * 60 * 60 * 1000; // 6 horas
-
-// Chrome 124 User-Agent completo
-const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
 
 interface SessionCache {
   cookie:    string;
@@ -24,7 +24,63 @@ interface SessionCache {
 
 let _cache: SessionCache | null = null;
 
-// ── Supabase (importação dinâmica para evitar ciclos) ─────────────────────────
+// ── Agent keepAlive (garante mesmo IP para GET e POST) ────────────────────────
+
+const _agent = new https.Agent({
+  keepAlive:    true,
+  maxSockets:   1,     // força serialização — mesma conexão reutilizada
+  timeout:      15000,
+});
+
+// ── HTTP helpers usando node:https (sem Fetch API) ────────────────────────────
+
+interface HttpResponse {
+  status:  number;
+  headers: Record<string, string | string[]>;
+  body:    string;
+}
+
+function nodeRequest(
+  method: 'GET' | 'POST',
+  urlStr: string,
+  reqHeaders: Record<string, string>,
+  body?: string,
+): Promise<HttpResponse> {
+  return new Promise((resolve, reject) => {
+    const u   = new URL(urlStr);
+    const lib = u.protocol === 'https:' ? https : http;
+
+    const options: https.RequestOptions = {
+      hostname: u.hostname,
+      port:     u.port || (u.protocol === 'https:' ? 443 : 80),
+      path:     u.pathname + u.search,
+      method,
+      headers:  reqHeaders,
+      agent:    lib === https ? _agent : undefined,
+      timeout:  15000,
+    };
+
+    const req = lib.request(options, (res) => {
+      const chunks: Buffer[] = [];
+      res.on('data', (c: Buffer) => chunks.push(c));
+      res.on('end', () => {
+        resolve({
+          status:  res.statusCode ?? 0,
+          headers: res.headers as Record<string, string | string[]>,
+          body:    Buffer.concat(chunks).toString('utf8'),
+        });
+      });
+    });
+
+    req.on('error',   reject);
+    req.on('timeout', () => { req.destroy(); reject(new Error('timeout')); });
+
+    if (body) req.write(body);
+    req.end();
+  });
+}
+
+// ── Supabase (storage persistente para quando auto-login falha) ───────────────
 
 async function getSupabaseAdmin() {
   const { createClient } = await import('@supabase/supabase-js');
@@ -34,7 +90,6 @@ async function getSupabaseAdmin() {
   );
 }
 
-/** Lê cookie salvo pelo admin no Supabase */
 async function readCookieFromSupabase(): Promise<string | null> {
   try {
     const sb = await getSupabaseAdmin();
@@ -44,231 +99,182 @@ async function readCookieFromSupabase(): Promise<string | null> {
       .eq('key', 'supermonitor_cookie')
       .single();
     if (!data?.value) return null;
-    // Ignora se tiver mais de 20 dias (PHP session max lifetime)
     const age = Date.now() - new Date(data.updated_at as string).getTime();
-    if (age > 20 * 24 * 60 * 60 * 1000) return null;
+    if (age > 20 * 24 * 60 * 60 * 1000) return null; // > 20 dias → expirado
     return data.value as string;
   } catch {
     return null;
   }
 }
 
-/** Salva cookie no Supabase (upsert) */
 export async function storeCookieInSupabase(cookie: string): Promise<void> {
   try {
     const sb = await getSupabaseAdmin();
-    await sb.from('app_config').upsert({
-      key:        'supermonitor_cookie',
-      value:      cookie,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: 'key' });
-    // Atualiza o cache em memória
+    await sb.from('app_config').upsert(
+      { key: 'supermonitor_cookie', value: cookie, updated_at: new Date().toISOString() },
+      { onConflict: 'key' },
+    );
     _cache = { cookie, fetchedAt: Date.now() };
-    console.log('[auth] cookie salvo no Supabase');
   } catch (err) {
-    console.error('[auth] erro ao salvar cookie no Supabase:', err);
+    console.error('[auth] erro ao salvar no Supabase:', err);
   }
 }
 
-/** Invalida o cookie salvo no Supabase */
-export async function clearCookieFromSupabase(): Promise<void> {
-  try {
-    const sb = await getSupabaseAdmin();
-    await sb.from('app_config').delete().eq('key', 'supermonitor_cookie');
-    _cache = null;
-  } catch { /* noop */ }
-}
+// ── Extração de cookies do header Set-Cookie ──────────────────────────────────
 
-// ── Extração de cookies ───────────────────────────────────────────────────────
-
-function getAllSetCookies(headers: Headers): string[] {
-  // Node.js 18+ com undici usa getSetCookie() (array)
-  if (typeof (headers as unknown as Record<string, unknown>).getSetCookie === 'function') {
-    return (headers as unknown as { getSetCookie(): string[] }).getSetCookie();
-  }
-  const raw = headers.get('set-cookie');
-  return raw ? [raw] : [];
-}
-
-function extractPHPSESSID(headers: Headers): string | null {
-  for (const c of getAllSetCookies(headers)) {
+function extractPHPSESSID(setCookieHeader: string | string[] | undefined): string | null {
+  const list = Array.isArray(setCookieHeader)
+    ? setCookieHeader
+    : setCookieHeader ? [setCookieHeader] : [];
+  for (const c of list) {
     const m = c.match(/PHPSESSID=([^;,\s]+)/i);
     if (m) return `PHPSESSID=${m[1]}`;
   }
   return null;
 }
 
-// ── Validação de cookie ───────────────────────────────────────────────────────
-
-/** Verifica se o cookie ainda tem uma sessão válida */
-export async function validateCookie(cookie: string): Promise<boolean> {
-  try {
-    const res = await fetch(`${BASE}/ajax.php?action=events_lite`, {
-      headers: {
-        'User-Agent': UA,
-        'Cookie':     cookie,
-        'Accept':     'application/json, text/plain, */*',
-        'Referer':    `${BASE}/`,
-      },
-      redirect: 'manual',
-    });
-    // Redirect para login = sessão inválida
-    if (res.status >= 300 && res.status < 400) return false;
-    if (res.status === 200) {
-      const text = await res.text();
-      // Se retornar HTML da página de login, sessão inválida
-      if (text.includes('<title>Login') || text.includes('name="senha"')) return false;
-      return true;
-    }
-    return false;
-  } catch {
-    return false;
-  }
-}
-
-// ── Auto-login ─────────────────────────────────────────────────────────────────
+// ── Auto-login (via node:https com keepAlive) ─────────────────────────────────
 
 async function doLogin(email: string, password: string): Promise<string> {
-  console.log('[auth] tentando auto-login para', `${email.slice(0,3)}…`);
+  console.log('[auth] iniciando login (node:https + keepAlive) para', `${email.slice(0, 3)}…`);
 
-  // Passo 1: GET login.php
-  const getRes = await fetch(LOGIN_PAGE, {
-    headers: {
-      'User-Agent':               UA,
-      'Accept':                   'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-      'Accept-Language':          'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
-      'Accept-Encoding':          'gzip, deflate, br',
-      'Cache-Control':            'no-cache',
-      'Sec-Ch-Ua':                '"Google Chrome";v="124", "Chromium";v="124", "Not-A.Brand";v="99"',
-      'Sec-Ch-Ua-Mobile':         '?0',
-      'Sec-Ch-Ua-Platform':       '"Windows"',
-      'Sec-Fetch-Dest':           'document',
-      'Sec-Fetch-Mode':           'navigate',
-      'Sec-Fetch-Site':           'none',
-      'Sec-Fetch-User':           '?1',
-      'Upgrade-Insecure-Requests':'1',
-    },
-    redirect: 'follow',
+  const commonHeaders = {
+    'User-Agent':               UA,
+    'Accept':                   'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+    'Accept-Language':          'pt-BR,pt;q=0.9,en-US;q=0.8',
+    'Accept-Encoding':          'identity', // sem compressão para simplificar leitura
+    'Cache-Control':            'no-cache',
+    'Sec-Ch-Ua':                '"Google Chrome";v="124", "Chromium";v="124", "Not-A.Brand";v="99"',
+    'Sec-Ch-Ua-Mobile':         '?0',
+    'Sec-Ch-Ua-Platform':       '"Windows"',
+    'Upgrade-Insecure-Requests':'1',
+  };
+
+  // ── Passo 1: GET login.php ─────────────────────────────────────────────────
+  const getRes = await nodeRequest('GET', LOGIN_PAGE, {
+    ...commonHeaders,
+    'Sec-Fetch-Dest': 'document',
+    'Sec-Fetch-Mode': 'navigate',
+    'Sec-Fetch-Site': 'none',
+    'Sec-Fetch-User': '?1',
   });
 
-  if (!getRes.ok) throw new Error(`GET login falhou (${getRes.status})`);
+  if (getRes.status !== 200) throw new Error(`GET login falhou (${getRes.status})`);
 
-  const html = await getRes.text();
-  const anonCookie = extractPHPSESSID(getRes.headers);
+  const setCookieGet = getRes.headers['set-cookie'];
+  const anonCookie   = extractPHPSESSID(setCookieGet);
   if (!anonCookie) throw new Error('PHPSESSID não recebido no GET');
 
-  // Extrai csrf_token
+  const html = getRes.body;
   const csrfMatch =
     html.match(/name=["']csrf_token["'][^>]*value=["']([^"']+)["']/i) ??
     html.match(/value=["']([^"']{32,})["'][^>]*name=["']csrf_token["']/i);
   const csrfToken = csrfMatch?.[1] ?? '';
 
-  console.log('[auth] passo 1 ok — cookie:', anonCookie.slice(0,20), '— csrf:', csrfToken ? 'encontrado' : 'não encontrado');
+  console.log('[auth] GET ok — sessid:', anonCookie.slice(0, 24), '— csrf:', csrfToken ? 'encontrado' : 'ausente');
 
-  // Pequeno delay para simular comportamento humano (400-900ms)
-  await new Promise(r => setTimeout(r, 400 + Math.random() * 500));
+  // Delay humano
+  await new Promise(r => setTimeout(r, 500 + Math.random() * 400));
 
-  // Passo 2: POST login — inclui TODOS os campos do formulário (incluindo honeypot vazio)
-  // Bots que sabem do honeypot costumam omiti-lo; aqui incluímos explicitamente vazio
-  const body = new URLSearchParams();
-  if (csrfToken) body.set('csrf_token', csrfToken);
-  body.set('email',   email);
-  body.set('senha',   password);
-  body.set('website', ''); // honeypot — deve estar presente e vazio
+  // ── Passo 2: POST com CSRF ─────────────────────────────────────────────────
+  const tryPost = async (includeCsrf: boolean): Promise<HttpResponse> => {
+    const bodyParams = new URLSearchParams();
+    if (includeCsrf && csrfToken) bodyParams.set('csrf_token', csrfToken);
+    bodyParams.set('email',   email);
+    bodyParams.set('senha',   password);
+    bodyParams.set('website', ''); // honeypot presente e vazio (browser real sempre envia)
 
-  const postHeaders = {
-    'User-Agent':               UA,
-    'Accept':                   'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-    'Accept-Language':          'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
-    'Accept-Encoding':          'gzip, deflate, br',
-    'Content-Type':             'application/x-www-form-urlencoded',
-    'Content-Length':           String(Buffer.byteLength(body.toString())),
-    'Origin':                   BASE,
-    'Referer':                  LOGIN_PAGE,
-    'Cookie':                   anonCookie,
-    'Cache-Control':            'max-age=0',
-    'Sec-Ch-Ua':                '"Google Chrome";v="124", "Chromium";v="124", "Not-A.Brand";v="99"',
-    'Sec-Ch-Ua-Mobile':         '?0',
-    'Sec-Ch-Ua-Platform':       '"Windows"',
-    'Sec-Fetch-Dest':           'document',
-    'Sec-Fetch-Mode':           'navigate',
-    'Sec-Fetch-Site':           'same-origin',
-    'Sec-Fetch-User':           '?1',
-    'Upgrade-Insecure-Requests':'1',
-    'Connection':               'keep-alive',
+    const bodyStr = bodyParams.toString();
+
+    return nodeRequest('POST', LOGIN_PAGE, {
+      ...commonHeaders,
+      'Content-Type':   'application/x-www-form-urlencoded',
+      'Content-Length': String(Buffer.byteLength(bodyStr)),
+      'Origin':         BASE,
+      'Referer':        LOGIN_PAGE,
+      'Cookie':         anonCookie,
+      'Cache-Control':  'max-age=0',
+      'Sec-Fetch-Dest': 'document',
+      'Sec-Fetch-Mode': 'navigate',
+      'Sec-Fetch-Site': 'same-origin',
+      'Sec-Fetch-User': '?1',
+    }, bodyStr);
   };
 
-  // Tenta primeiro seguindo redirect (alguns PHP apps autenticam e redirecionam)
-  const postResFollow = await fetch(LOGIN_PAGE, {
-    method:  'POST',
-    headers: postHeaders,
-    body:    body.toString(),
-    redirect: 'follow',
-  });
+  // Tentativa 1: com CSRF
+  let postRes = await tryPost(true);
+  let newCookie = extractPHPSESSID(postRes.headers['set-cookie']);
+  const loc1 = (postRes.headers['location'] as string | undefined) ?? '';
 
-  console.log('[auth] passo 2 (follow) — status:', postResFollow.status, 'url:', postResFollow.url);
+  console.log('[auth] POST (com csrf) — status:', postRes.status, '— location:', loc1 || '(nenhum)');
 
-  // Se redirecionou para fora do login, é sucesso
-  if (!postResFollow.url.toLowerCase().includes('login')) {
-    const cookieFollow = extractPHPSESSID(postResFollow.headers) ?? anonCookie;
-    console.log('[auth] login OK via redirect (follow)');
-    return cookieFollow;
-  }
-
-  // Se voltou ao login, tenta com redirect: 'manual' para capturar o Location header
-  const postRes = await fetch(LOGIN_PAGE, {
-    method:  'POST',
-    headers: postHeaders,
-    body:    body.toString(),
-    redirect: 'manual',
-  });
-
-  const location  = postRes.headers.get('location') ?? '';
-  const newCookie = extractPHPSESSID(postRes.headers);
-
-  console.log('[auth] passo 2 (manual) — status:', postRes.status, '— location:', location || '(nenhum)');
-
-  if (postRes.status >= 300 && postRes.status < 400) {
-    if (!location.toLowerCase().includes('login') && !location.toLowerCase().includes('erro')) {
-      return newCookie ?? anonCookie;
-    }
-    throw new Error('Credenciais inválidas — servidor retornou redirect para login');
-  }
-
-  if (postRes.status === 200) {
-    const html200 = await postRes.text();
-    if (html200.includes('name="senha"') || html200.includes("name='senha'")) {
-      // Tenta extrair mensagem de erro da página
-      const errMsg = html200.match(/class=["'][^"']*alert[^"']*["'][^>]*>([^<]{5,100})</i)?.[1]?.trim()
-        ?? html200.match(/class=["'][^"']*erro[^"']*["'][^>]*>([^<]{5,100})</i)?.[1]?.trim()
-        ?? '';
-      throw new Error(
-        errMsg
-          ? `Login rejeitado: ${errMsg}`
-          : 'Login rejeitado pelo servidor — verifique SUPERMONITOR_EMAIL e SUPERMONITOR_PASSWORD no Vercel'
-      );
-    }
+  // Se redirecionou para fora de login → sucesso
+  if (postRes.status >= 300 && postRes.status < 400 && loc1 && !loc1.toLowerCase().includes('login')) {
+    console.log('[auth] login OK (redirect com csrf)');
     return newCookie ?? anonCookie;
   }
 
-  throw new Error(`Status inesperado no login: ${postRes.status}`);
+  // Tentativa 2: sem CSRF (alguns servidores não validam ausência do token)
+  if (postRes.body.includes('verificação de segurança') || postRes.body.includes('csrf')) {
+    console.log('[auth] CSRF falhou, tentando sem token…');
+    await new Promise(r => setTimeout(r, 300));
+    postRes    = await tryPost(false);
+    newCookie  = extractPHPSESSID(postRes.headers['set-cookie']);
+    const loc2 = (postRes.headers['location'] as string | undefined) ?? '';
+    console.log('[auth] POST (sem csrf) — status:', postRes.status, '— location:', loc2 || '(nenhum)');
+
+    if (postRes.status >= 300 && postRes.status < 400 && loc2 && !loc2.toLowerCase().includes('login')) {
+      console.log('[auth] login OK (redirect sem csrf)');
+      return newCookie ?? anonCookie;
+    }
+  }
+
+  // Status 200 direto (sem redirect): verifica se ainda é página de login
+  if (postRes.status === 200) {
+    const body = postRes.body;
+    if (body.includes('name="senha"') || body.includes("name='senha'")) {
+      const errMsg = body.match(/verificação de segurança|Senha.*incorreta|Usuário.*não|muitas tentativas/i)?.[0] ?? '';
+      throw new Error(
+        errMsg
+          ? `Login rejeitado: ${errMsg}`
+          : 'Login rejeitado — credenciais inválidas ou servidor bloqueando requisição'
+      );
+    }
+    // Página diferente de login — considera sucesso
+    return newCookie ?? anonCookie;
+  }
+
+  throw new Error(`Status inesperado: ${postRes.status}`);
+}
+
+// ── Validação de cookie ───────────────────────────────────────────────────────
+
+export async function validateCookie(cookie: string): Promise<boolean> {
+  try {
+    const res = await nodeRequest('GET', `${BASE}/ajax.php?action=events_lite`, {
+      'User-Agent': UA,
+      'Cookie':     cookie,
+      'Accept':     'application/json, text/plain, */*',
+      'Referer':    `${BASE}/`,
+    });
+    if (res.status >= 300 && res.status < 400) return false;
+    if (res.body.includes('<title>Login') || res.body.includes('name="senha"')) return false;
+    return res.status === 200;
+  } catch {
+    return false;
+  }
 }
 
 // ── API pública ────────────────────────────────────────────────────────────────
 
 export function invalidateCache() {
   _cache = null;
+  console.log('[auth] cache invalidado');
 }
 
 /**
  * Retorna cookie ativo.
- *
- * Prioridade:
- *   1. Cache em memória (6h)
- *   2. Auto-login com credenciais do env
- *   3. Cookie do Supabase (salvo pelo admin via UI)
- *   4. Cookie estático do env (SUPERMONITOR_COOKIE)
- *   5. Cookie do cliente
+ * Prioridade: cache → auto-login → Supabase → env estático → clientCookie
  */
 export async function getActiveCookie(clientCookie?: string): Promise<string> {
   // 1. Cache fresco
@@ -284,8 +290,7 @@ export async function getActiveCookie(clientCookie?: string): Promise<string> {
     try {
       const cookie = await doLogin(email, password);
       _cache = { cookie, fetchedAt: Date.now() };
-      // Persiste no Supabase como backup
-      storeCookieInSupabase(cookie).catch(() => {});
+      storeCookieInSupabase(cookie).catch(() => {}); // persiste como backup
       console.log('[auth] sessão renovada via auto-login');
       return cookie;
     } catch (err) {
@@ -293,7 +298,7 @@ export async function getActiveCookie(clientCookie?: string): Promise<string> {
     }
   }
 
-  // 3. Cookie do Supabase (definido pelo admin via UI)
+  // 3. Cookie do Supabase (backup persistente)
   const sbCookie = await readCookieFromSupabase();
   if (sbCookie) {
     console.log('[auth] usando cookie do Supabase');
@@ -304,7 +309,6 @@ export async function getActiveCookie(clientCookie?: string): Promise<string> {
   // 4. Cookie estático do env
   const staticCookie = (process.env.SUPERMONITOR_COOKIE ?? '').trim();
   if (staticCookie) {
-    console.log('[auth] usando SUPERMONITOR_COOKIE do env');
     _cache = { cookie: staticCookie, fetchedAt: Date.now() };
     return staticCookie;
   }
