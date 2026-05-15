@@ -12,6 +12,7 @@ import type {
   AppDB, Bookmaker, Bank, Leg, ImportLog, OnboardingStep, ViewId,
   Expense, PartnerAccount, AccountTransaction, SheetSync,
   Client, PurchasedAccount, UserProfile, Note, Transfer,
+  Operator, GoalConfig, BookmakerTransaction,
 } from '@/types';
 import { loadDB, persistDB, loadUserId, saveUserId, wipeDB, EMPTY_DB } from '@/lib/storage/db';
 import { loadFromSupabase, saveToSupabase, scheduleSaveToSupabase } from '@/lib/supabase/sync';
@@ -97,6 +98,17 @@ interface StoreState extends AppDB {
   updateTransfer: (id: string, patch: Partial<Transfer>) => void;
   deleteTransfer: (id: string) => void;
 
+  // Actions — Operators
+  addOperator:    (op: Omit<Operator, 'id' | 'createdAt'>) => void;
+  updateOperator: (id: string, patch: Partial<Operator>) => void;
+  deleteOperator: (id: string) => void;
+
+  // Actions — Goals
+  setGoalConfig: (cfg: GoalConfig | undefined) => void;
+
+  // Actions — Bookmaker transactions
+  addBookmakerTransaction: (bmId: string, tx: Omit<BookmakerTransaction, 'id'>) => void;
+
   // Actions — User profile
   updateProfile: (patch: Partial<UserProfile>) => void;
 
@@ -148,6 +160,8 @@ export const useStore = create<StoreState>()((set, get) => ({
   sheetSync:           undefined,
   notes:               [],
   transfers:           [],
+  operators:           [],
+  goalConfig:          undefined,
   excludedImportKeys:  [],
   totalCash:           0,
   initialized:         false,
@@ -174,7 +188,9 @@ export const useStore = create<StoreState>()((set, get) => ({
       const excludedImportKeys = db.excludedImportKeys ?? [];
       const notes              = db.notes              ?? [];
       const transfers          = db.transfers          ?? [];
-      const migrated = { ...db, legs, expenses, partnerAccounts, clients, targetHouses, sheetSync, excludedImportKeys, notes, transfers };
+      const operators          = db.operators          ?? [];
+      const goalConfig         = db.goalConfig;
+      const migrated = { ...db, legs, expenses, partnerAccounts, clients, targetHouses, sheetSync, excludedImportKeys, notes, transfers, operators, goalConfig };
       const { bms, totalCash } = recalc(migrated);
       set({ ...migrated, bms, totalCash, initialized: true });
     }
@@ -632,6 +648,60 @@ export const useStore = create<StoreState>()((set, get) => ({
       const transfers = (s.transfers ?? []).filter(t => t.id !== id);
       persist({ ...s, transfers });
       return { transfers };
+    });
+  },
+
+  // ── operators ─────────────────────────────────────────────────────────────
+  addOperator(op) {
+    set(s => {
+      const newOp: Operator = { ...op, id: `op_${Date.now()}`, createdAt: new Date().toISOString() };
+      const operators = [...(s.operators ?? []), newOp];
+      persist({ ...s, operators });
+      return { operators };
+    });
+  },
+
+  updateOperator(id, patch) {
+    set(s => {
+      const operators = (s.operators ?? []).map(o => o.id === id ? { ...o, ...patch } : o);
+      persist({ ...s, operators });
+      return { operators };
+    });
+  },
+
+  deleteOperator(id) {
+    set(s => {
+      const operators = (s.operators ?? []).filter(o => o.id !== id);
+      persist({ ...s, operators });
+      return { operators };
+    });
+  },
+
+  // ── goals ─────────────────────────────────────────────────────────────────
+  setGoalConfig(cfg) {
+    set(s => {
+      persist({ ...s, goalConfig: cfg });
+      return { goalConfig: cfg };
+    });
+  },
+
+  // ── bookmaker transactions ─────────────────────────────────────────────────
+  addBookmakerTransaction(bmId, tx) {
+    set(s => {
+      const newTx: BookmakerTransaction = { ...tx, id: `bmt_${Date.now()}` };
+      // adjust initial_balance: deposito = +amount, saque = -amount, transferencia handled separately
+      const bms = s.bms.map(b => {
+        if (b.id !== bmId) return b;
+        const delta = tx.type === 'deposito' ? tx.amount : tx.type === 'saque' ? -tx.amount : 0;
+        return {
+          ...b,
+          initial_balance: b.initial_balance + delta,
+          transactions: [...(b.transactions ?? []), newTx],
+        };
+      });
+      const { totalCash } = recalc({ ...s, bms });
+      persist({ ...s, bms });
+      return { bms, totalCash };
     });
   },
 

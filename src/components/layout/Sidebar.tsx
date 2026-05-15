@@ -7,6 +7,7 @@ import {
   LayoutDashboard, Activity, Building2, Wallet,
   BarChart3, ShieldCheck, Receipt, Users, X,
   UserCircle, LogOut, NotebookPen,
+  CalendarDays, Target, UserCog, ChevronDown,
 } from 'lucide-react';
 import { getMySubscription } from '@/lib/supabase/subscription';
 import type { Subscription } from '@/lib/supabase/subscription';
@@ -17,23 +18,44 @@ interface NavItem {
   icon: React.ReactNode;
 }
 
-const NAV_MAIN: NavItem[] = [
-  { id: 'dash', label: 'Dashboard',      icon: <LayoutDashboard size={15} strokeWidth={2} /> },
-  { id: 'ops',  label: 'Operações',      icon: <Activity        size={15} strokeWidth={2} /> },
-];
+interface NavGroup {
+  id: string;
+  label: string;
+  items: NavItem[];
+}
 
-const NAV_FINANCE: NavItem[] = [
-  { id: 'bm',     label: 'Casas de Aposta', icon: <Building2  size={15} strokeWidth={2} /> },
-  { id: 'caixa',  label: 'Caixa',           icon: <Wallet     size={15} strokeWidth={2} /> },
-  { id: 'gastos', label: 'Gastos',          icon: <Receipt    size={15} strokeWidth={2} /> },
-  { id: 'contas', label: 'Contas',          icon: <Users      size={15} strokeWidth={2} /> },
-];
-
-const NAV_OTHER: NavItem[] = [
-  { id: 'analise',   label: 'Análise',    icon: <BarChart3     size={15} strokeWidth={2} /> },
-  { id: 'notas',     label: 'Notas',      icon: <NotebookPen   size={15} strokeWidth={2} /> },
-  { id: 'admin',     label: 'Admin',      icon: <ShieldCheck   size={15} strokeWidth={2} /> },
-  { id: 'perfil',    label: 'Perfil',     icon: <UserCircle    size={15} strokeWidth={2} /> },
+const NAV_GROUPS: NavGroup[] = [
+  {
+    id: 'principal',
+    label: 'Principal',
+    items: [
+      { id: 'dash',   label: 'Dashboard', icon: <LayoutDashboard size={15} strokeWidth={2} /> },
+      { id: 'ops',    label: 'Operações', icon: <Activity        size={15} strokeWidth={2} /> },
+      { id: 'resumo', label: 'Resumo',    icon: <CalendarDays    size={15} strokeWidth={2} /> },
+      { id: 'metas',  label: 'Metas',     icon: <Target          size={15} strokeWidth={2} /> },
+    ],
+  },
+  {
+    id: 'financas',
+    label: 'Finanças',
+    items: [
+      { id: 'bm',     label: 'Casas de Aposta', icon: <Building2  size={15} strokeWidth={2} /> },
+      { id: 'caixa',  label: 'Caixa',           icon: <Wallet     size={15} strokeWidth={2} /> },
+      { id: 'gastos', label: 'Gastos',          icon: <Receipt    size={15} strokeWidth={2} /> },
+      { id: 'contas', label: 'Contas',          icon: <Users      size={15} strokeWidth={2} /> },
+    ],
+  },
+  {
+    id: 'gestao',
+    label: 'Gestão',
+    items: [
+      { id: 'analise',    label: 'Análise',    icon: <BarChart3   size={15} strokeWidth={2} /> },
+      { id: 'notas',      label: 'Notas',      icon: <NotebookPen size={15} strokeWidth={2} /> },
+      { id: 'operadores', label: 'Operadores', icon: <UserCog     size={15} strokeWidth={2} /> },
+      { id: 'admin',      label: 'Admin',      icon: <ShieldCheck size={15} strokeWidth={2} /> },
+      { id: 'perfil',     label: 'Perfil',     icon: <UserCircle  size={15} strokeWidth={2} /> },
+    ],
+  },
 ];
 
 interface SidebarProps {
@@ -93,17 +115,48 @@ function NavButton({ item, onClose }: { item: NavItem; onClose?: () => void }) {
   );
 }
 
-function SectionLabel({ label }: { label: string }) {
+function NavGroupSection({
+  group,
+  open,
+  onToggle,
+  onClose,
+}: {
+  group: NavGroup;
+  open: boolean;
+  onToggle: () => void;
+  onClose?: () => void;
+}) {
   return (
-    <div className="px-3 pt-5 pb-1.5 flex items-center gap-2">
-      <span style={{ width: 4, height: 4, borderRadius: '50%', background: 'var(--g)', opacity: .4, flexShrink: 0 }} />
-      <span
-        className="text-[9px] font-black tracking-[.16em] uppercase"
-        style={{ color: 'var(--t3)', fontFamily: "'Manrope', sans-serif" }}
+    <div className="mt-1">
+      {/* Group header — clickable toggle */}
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-[10px] font-black uppercase tracking-widest transition-colors"
+        style={{ color: 'var(--t3)' }}
+        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,.03)'; }}
+        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = ''; }}
       >
-        {label}
-      </span>
-      <span className="flex-1 h-px" style={{ background: 'linear-gradient(90deg, rgba(255,255,255,.07), transparent)' }} />
+        <span style={{ width: 4, height: 4, borderRadius: '50%', background: 'var(--g)', opacity: .4, flexShrink: 0 }} />
+        <span className="flex-1 text-left">{group.label}</span>
+        <ChevronDown
+          size={12}
+          style={{
+            transition: 'transform 200ms ease',
+            transform: open ? 'rotate(0deg)' : 'rotate(-90deg)',
+            flexShrink: 0,
+          }}
+        />
+      </button>
+
+      {/* Items */}
+      {open && (
+        <div className="flex flex-col">
+          {group.items.map(item => (
+            <NavButton key={item.id} item={item} onClose={onClose} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -246,6 +299,19 @@ function ProfileFooter({ onClose }: { onClose?: () => void }) {
 }
 
 function SidebarContent({ onClose }: { onClose?: () => void }) {
+  const [openGroups, setOpenGroups] = useState<Set<string>>(
+    new Set(['principal', 'financas', 'gestao'])
+  );
+
+  const toggle = (id: string) => {
+    setOpenGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
   return (
     <>
       {/* Logo */}
@@ -299,15 +365,16 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 px-2 py-1 flex flex-col overflow-y-auto">
-        <SectionLabel label="Menu" />
-        {NAV_MAIN.map(item => <NavButton key={item.id} item={item} onClose={onClose} />)}
-
-        <SectionLabel label="Finanças" />
-        {NAV_FINANCE.map(item => <NavButton key={item.id} item={item} onClose={onClose} />)}
-
-        <SectionLabel label="Sistema" />
-        {NAV_OTHER.map(item => <NavButton key={item.id} item={item} onClose={onClose} />)}
+      <nav className="flex-1 px-2 py-2 flex flex-col overflow-y-auto">
+        {NAV_GROUPS.map(group => (
+          <NavGroupSection
+            key={group.id}
+            group={group}
+            open={openGroups.has(group.id)}
+            onToggle={() => toggle(group.id)}
+            onClose={onClose}
+          />
+        ))}
       </nav>
 
       {/* Profile footer */}

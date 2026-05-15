@@ -8,11 +8,12 @@ import { groupLegsIntoOps, calcLegProfit } from '@/lib/finance/calculator';
 import { currentMonth } from '@/lib/parsers/dateParser';
 import {
   Trash2, Plus, AlertTriangle, Zap, Clock, ChevronDown,
-  Pencil, Check, X, Copy, Shuffle, DollarSign, Calculator,
+  Pencil, Check, X, Copy, Shuffle, DollarSign, Calculator, CircleHelp,
 } from 'lucide-react';
 import type { Leg, ResultType, OpType } from '@/types';
 import { houseFavicon } from '@/lib/bookmakers/logos';
 import { SurebetCalc } from '@/components/calcalendario/SurebetCalc';
+import { CalculadoraPage } from '@/components/calculadora/CalculadoraPage';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -1847,6 +1848,54 @@ function OpCard({
   );
 }
 
+// ── Guide Modal ───────────────────────────────────────────────────────────────
+
+function OpsGuideModal({ onClose }: { onClose: () => void }) {
+  const items = [
+    { q: 'O que é uma Surebet?', a: 'Uma surebet é quando você aposta em todos os resultados possíveis de um evento em casas diferentes, garantindo lucro independente do resultado. O sistema calcula o lucro/ROI automaticamente.' },
+    { q: 'O que é Duplo Green?', a: 'Estratégia onde você aposta em dois mercados correlacionados (ex: 1X e X2), buscando um green antecipado se o placar mudar. Use a aba "Duplo Green" para registrar.' },
+    { q: 'O que é Delay?', a: 'Aposta aproveitando o delay das casas de apostas. Você identifica o resultado provável antes do mercado ser atualizado.' },
+    { q: 'Como funciona o lucro calculado?', a: 'Para Surebet: lucro = (odd - 1) * stake para Green; −stake para Red; (odd - 1) * stake / 2 para Meio Green. Para Cashout: valor do cashout recebido.' },
+    { q: 'O que são as flags de anomalia?', a: 'Alertas automáticos quando as odds ou stakes divergem muito do esperado, ou quando há apostas suspeitas. Vermelho = crítico, amarelo = atenção, cinza = informativo.' },
+    { q: 'Qual a diferença entre Manual e Importado?', a: 'Operações manuais afetam o saldo das casas de aposta. Operações importadas da planilha são dados históricos e não alteram saldos.' },
+  ];
+  const [open, setOpen] = useState<number | null>(0);
+  return (
+    <>
+      <div className="fixed inset-0 z-40" style={{ background: 'rgba(0,0,0,.6)', backdropFilter: 'blur(4px)' }} onClick={onClose} />
+      <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[calc(100%-2rem)] max-w-lg rounded-2xl overflow-hidden"
+        style={{ background: 'var(--bg)', border: '1px solid var(--b)' }}>
+        <div className="flex items-center justify-between px-5 pt-5 pb-3" style={{ borderBottom: '1px solid var(--b)' }}>
+          <div>
+            <h2 className="font-bold text-base" style={{ color: 'var(--t)' }}>Guia — Operações</h2>
+            <p className="text-xs" style={{ color: 'var(--t3)' }}>Tudo sobre registro e resultados</p>
+          </div>
+          <button type="button" onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg" style={{ background: 'rgba(255,255,255,.06)', color: 'var(--t3)' }}>
+            <X size={14} />
+          </button>
+        </div>
+        <div className="overflow-y-auto max-h-[60vh] p-4 space-y-2">
+          {items.map((item, i) => (
+            <div key={i} className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--b)' }}>
+              <button type="button" onClick={() => setOpen(open === i ? null : i)}
+                className="flex items-center justify-between gap-3 w-full px-4 py-3 text-left text-sm font-bold"
+                style={{ color: 'var(--t)', background: open === i ? 'rgba(63,255,33,.05)' : 'transparent' }}>
+                {item.q}
+                <ChevronDown size={14} style={{ transform: open === i ? 'rotate(180deg)' : 'none', transition: 'transform .2s', color: 'var(--t3)', flexShrink: 0 }} />
+              </button>
+              {open === i && (
+                <div className="px-4 pb-4 pt-1 text-sm leading-relaxed" style={{ color: 'var(--t3)', borderTop: '1px solid var(--b)', background: 'rgba(255,255,255,.02)' }}>
+                  {item.a}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </>
+  );
+}
+
 // ── Main page ──────────────────────────────────────────────────────────────────
 
 export function OperationsPage() {
@@ -1858,6 +1907,7 @@ export function OperationsPage() {
   const [showAdd,     setShowAdd]     = useState(false);
   const [showAltAdd,  setShowAltAdd]  = useState(false);
   const [showDGAdd,   setShowDGAdd]   = useState(false);
+  const [guideOpen,   setGuideOpen]   = useState(false);
   const [editingOid,  setEditingOid]  = useState<string | null>(null);
   const [search,      setSearch]      = useState('');
   const [onlyFlag,    setOnlyFlag]    = useState(false);
@@ -1991,6 +2041,9 @@ export function OperationsPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Button size="sm" variant="outline" onClick={() => setGuideOpen(true)}>
+            <CircleHelp size={13} /><span className="hidden sm:inline">Guia</span>
+          </Button>
           <Button size="sm" variant="outline" onClick={() => setFilterOpType('calculadora')}>
             <Calculator size={13} /><span className="hidden sm:inline">Calculadora</span>
           </Button>
@@ -2055,7 +2108,7 @@ export function OperationsPage() {
       </div>
 
       {/* ── Calculator view ── */}
-      {filterOpType === 'calculadora' && <SurebetCalc />}
+      {filterOpType === 'calculadora' && <CalculadoraPage />}
 
       {/* ── Filters + Cards (hidden when calculator tab active) ── */}
       {filterOpType !== 'calculadora' && <>
@@ -2133,6 +2186,7 @@ export function OperationsPage() {
       {showAdd && <OpModal onClose={() => setShowAdd(false)} onOpenCalc={() => { setShowAdd(false); setFilterOpType('calculadora'); }} />}
       {showAltAdd && <AltOpModal onClose={() => setShowAltAdd(false)} />}
       {showDGAdd && <DuploGreenModal onClose={() => setShowDGAdd(false)} onOpenCalc={() => { setShowDGAdd(false); setFilterOpType('calculadora'); }} />}
+      {guideOpen && <OpsGuideModal onClose={() => setGuideOpen(false)} />}
     </div>
   );
 }
