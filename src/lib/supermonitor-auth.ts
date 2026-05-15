@@ -1,140 +1,126 @@
 /**
  * supermonitor-auth.ts
- * Auto-login no SuperMonitor com cache de sessão.
- * Armazena email/senha em variáveis de ambiente e renova o cookie automaticamente.
+ * Auto-login com cache de sessão server-side.
  */
 
 const BASE       = 'https://painel.supermonitor.pro';
-const UA         = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
+const LOGIN_PAGE = `${BASE}/login.php`;
+const UA         = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
 const COOKIE_TTL = 6 * 60 * 60 * 1000; // 6 horas
 
 interface SessionCache {
-  cookie:     string;
-  fetchedAt:  number;
+  cookie:    string;
+  fetchedAt: number;
 }
 
-// Cache em memória no processo do servidor (persiste enquanto o servidor rodar)
 let _cache: SessionCache | null = null;
 
 // ── Utilitários ────────────────────────────────────────────────────────────────
 
-function extractPhpSessionId(setCookieHeader: string): string | null {
-  const match = setCookieHeader.match(/PHPSESSID=([^;,\s]+)/i);
-  return match ? `PHPSESSID=${match[1]}` : null;
+function extractPHPSESSID(header: string): string | null {
+  const m = header.match(/PHPSESSID=([^;,\s]+)/i);
+  return m ? `PHPSESSID=${m[1]}` : null;
 }
 
-function collectSetCookies(headers: Headers): string[] {
-  // Next.js / node-fetch: múltiplos Set-Cookie vêm separados ou juntos
-  const raw = headers.get('set-cookie') ?? '';
-  return raw.split(/,(?=\s*[a-zA-Z_][a-zA-Z0-9_-]*=)/);
+/** Node.js Headers.get('set-cookie') retorna todos os cookies numa só string separada por vírgula */
+function firstSetCookie(headers: Headers): string {
+  return headers.get('set-cookie') ?? '';
 }
 
-// ── Login automático ───────────────────────────────────────────────────────────
+// ── Login ─────────────────────────────────────────────────────────────────────
 
 async function doLogin(email: string, password: string): Promise<string> {
-  // 1. Baixa a página de login para capturar PHPSESSID inicial e campos do form
-  const loginUrl  = `${BASE}/login`;
-  const pageRes   = await fetch(loginUrl, {
-    headers: { 'User-Agent': UA, 'Accept': 'text/html' },
+  // ── Passo 1: GET login.php → captura sessão anônima + csrf_token ──────────
+  const getRes = await fetch(LOGIN_PAGE, {
+    headers: {
+      'User-Agent':       UA,
+      'Accept':           'text/html,application/xhtml+xml,*/*;q=0.9',
+      'Accept-Language':  'pt-BR,pt;q=0.9',
+      'Cache-Control':    'no-cache',
+    },
     redirect: 'follow',
   });
 
-  const html = await pageRes.text();
+  if (!getRes.ok) throw new Error(`GET login falhou (${getRes.status})`);
 
-  // Pega PHPSESSID da página de login (sessão anônima)
-  const pageSetCookies = collectSetCookies(pageRes.headers);
-  let initSession = '';
-  for (const sc of pageSetCookies) {
-    const id = extractPhpSessionId(sc);
-    if (id) { initSession = id; break; }
-  }
+  const html = await getRes.text();
 
-  // Detecta token CSRF (Laravel, CodeIgniter, etc.)
-  const csrfMatch = html.match(/name=["']?_token["']?[^>]+value=["']([^"']+)["']/i)
-    ?? html.match(/name=["']?csrf_token["']?[^>]+value=["']([^"']+)["']/i)
-    ?? html.match(/<meta[^>]+name=["']csrf-token["'][^>]+content=["']([^"']+)["']/i);
-  const csrf = csrfMatch?.[1] ?? '';
+  // PHPSESSID anônimo (sessão será autenticada após o POST)
+  const anonCookie = extractPHPSESSID(firstSetCookie(getRes.headers));
+  if (!anonCookie) throw new Error('Não foi possível obter sessão do servidor');
 
-  // Detecta nomes dos campos do form (pode ser email/password, login/senha, etc.)
-  const emailFieldMatch    = html.match(/name=["']?(email|login|usuario|user|username)["']?/i);
-  const passwordFieldMatch = html.match(/name=["']?(password|senha|pass|pwd)["']?/i);
-  const emailField    = emailFieldMatch?.[1]    ?? 'email';
-  const passwordField = passwordFieldMatch?.[1] ?? 'password';
+  // csrf_token (campo hidden na página)
+  const csrfMatch = html.match(/name=["']csrf_token["'][^>]+value=["']([a-f0-9]+)["']/i)
+    ?? html.match(/value=["']([a-f0-9]{40,})["'][^>]+name=["']csrf_token["']/i);
+  const csrfToken = csrfMatch?.[1] ?? '';
 
-  // Detecta action do formulário
-  const actionMatch = html.match(/<form[^>]+action=["']([^"']+)["'][^>]*>/i);
-  const formAction  = actionMatch?.[1] ?? loginUrl;
-  const submitUrl   = formAction.startsWith('http')
-    ? formAction
-    : `${BASE}${formAction.startsWith('/') ? '' : '/'}${formAction}`;
-
-  // 2. Envia as credenciais
+  // ── Passo 2: POST login.php com as credenciais ────────────────────────────
+  // Campos confirmados pelo debug:
+  //   csrf_token (hidden), email (email), senha (password), website (honeypot = vazio)
   const body = new URLSearchParams();
-  body.set(emailField, email);
-  body.set(passwordField, password);
-  if (csrf) body.set('_token', csrf);
+  if (csrfToken) body.set('csrf_token', csrfToken);
+  body.set('email',   email);
+  body.set('senha',   password);
+  // NÃO preenche 'website' — é honeypot anti-bot (tabindex="-1")
 
-  const loginRes = await fetch(submitUrl, {
-    method:   'POST',
-    headers:  {
-      'User-Agent':    UA,
-      'Content-Type':  'application/x-www-form-urlencoded',
-      'Referer':       loginUrl,
-      'Cookie':        initSession,
-      'Accept':        'text/html,application/xhtml+xml,*/*',
-      'Cache-Control': 'no-cache',
+  const postRes = await fetch(LOGIN_PAGE, {
+    method:  'POST',
+    headers: {
+      'User-Agent':      UA,
+      'Content-Type':    'application/x-www-form-urlencoded',
+      'Accept':          'text/html,application/xhtml+xml,*/*;q=0.9',
+      'Accept-Language': 'pt-BR,pt;q=0.9',
+      'Referer':         LOGIN_PAGE,
+      'Origin':          BASE,
+      'Cookie':          anonCookie,
+      'Cache-Control':   'no-cache',
     },
-    body:     body.toString(),
-    redirect: 'manual', // não segue redirect para pegar o Set-Cookie
+    body:    body.toString(),
+    redirect: 'manual', // importante: não seguir redirect para ver o Location
   });
 
-  // Pega cookie da resposta (e de qualquer redirect)
-  const setCookies = collectSetCookies(loginRes.headers);
-  for (const sc of setCookies) {
-    const id = extractPhpSessionId(sc);
-    if (id) return id;
-  }
+  // ── Passo 3: verificar resultado ──────────────────────────────────────────
+  const location = postRes.headers.get('location') ?? '';
+  const newCookie = extractPHPSESSID(firstSetCookie(postRes.headers));
 
-  // Se houve redirect, segue e pega o cookie de lá
-  const location = loginRes.headers.get('location');
-  if (location) {
-    const redirectUrl = location.startsWith('http')
-      ? location
-      : `${BASE}${location.startsWith('/') ? '' : '/'}${location}`;
+  // Login bem-sucedido: servidor redireciona para fora de login.php
+  if (postRes.status >= 300 && postRes.status < 400) {
+    const normalizedLoc = location.toLowerCase();
+    const isStillLogin  = normalizedLoc.includes('login') || normalizedLoc.includes('erro') || normalizedLoc.includes('error');
 
-    const redirRes = await fetch(redirectUrl, {
-      headers: { 'User-Agent': UA, 'Cookie': initSession },
-      redirect: 'manual',
-    });
-    const redirCookies = collectSetCookies(redirRes.headers);
-    for (const sc of redirCookies) {
-      const id = extractPhpSessionId(sc);
-      if (id) return id;
+    if (!isStillLogin) {
+      // Redireciona para o painel — login OK
+      // Usa o novo cookie se o servidor emitiu um, senão usa o da sessão anônima
+      return newCookie ?? anonCookie;
     }
+
+    // Redirecionou de volta ao login → credenciais inválidas
+    throw new Error('Credenciais inválidas — verifique SUPERMONITOR_EMAIL e SUPERMONITOR_PASSWORD');
   }
 
-  // Verifica se o cookie inicial ainda é válido verificando a sessão
-  if (initSession) return initSession;
+  // Resposta 200 no POST (sem redirect) — verifica se ainda está na página de login
+  if (postRes.status === 200) {
+    const body200 = await postRes.text();
+    if (body200.includes('csrf_token') && body200.includes('name="senha"')) {
+      // Ainda está na página de login → credenciais incorretas
+      throw new Error('Credenciais inválidas — verifique SUPERMONITOR_EMAIL e SUPERMONITOR_PASSWORD');
+    }
+    // Página diferente — login OK
+    return newCookie ?? anonCookie;
+  }
 
-  throw new Error('Login falhou — verifique e-mail e senha do SuperMonitor');
+  throw new Error(`Login retornou status inesperado (${postRes.status})`);
 }
 
 // ── API pública ────────────────────────────────────────────────────────────────
 
-/**
- * Invalida o cache forçando renovação na próxima chamada de getActiveCookie().
- */
 export function invalidateCache() {
   _cache = null;
 }
 
 /**
- * Retorna o cookie ativo.
- * Ordem de prioridade:
- *  1. Cache em memória (se não expirado)
- *  2. Auto-login com EMAIL + PASSWORD do .env.local
- *  3. Cookie estático SUPERMONITOR_COOKIE do .env.local
- *  4. Cookie passado pelo cliente (fallback para retrocompatibilidade)
+ * Retorna cookie ativo.
+ * Prioridade: cache em memória → auto-login → cookie estático → cookie do cliente
  */
 export async function getActiveCookie(clientCookie?: string): Promise<string> {
   // 1. Cache fresco
@@ -142,26 +128,28 @@ export async function getActiveCookie(clientCookie?: string): Promise<string> {
     return _cache.cookie;
   }
 
-  const email    = process.env.SUPERMONITOR_EMAIL    ?? '';
-  const password = process.env.SUPERMONITOR_PASSWORD ?? '';
+  const email    = (process.env.SUPERMONITOR_EMAIL    ?? '').trim();
+  const password = (process.env.SUPERMONITOR_PASSWORD ?? '').trim();
 
-  // 2. Auto-login com credenciais
+  // 2. Auto-login com credenciais configuradas
   if (email && password) {
     try {
-      const cookie = await doLogin(email.trim(), password.trim());
+      const cookie = await doLogin(email, password);
       _cache = { cookie, fetchedAt: Date.now() };
+      console.log('[auth] sessão renovada via auto-login');
       return cookie;
     } catch (err) {
-      // Falhou — tenta cookie estático / cliente como fallback
-      console.error('[supermonitor-auth] auto-login falhou:', err);
+      console.error('[auth] auto-login falhou:', (err as Error).message);
     }
   }
 
   // 3. Cookie estático no .env
-  const staticCookie = process.env.SUPERMONITOR_COOKIE ?? '';
-  if (staticCookie) return staticCookie;
+  const staticCookie = (process.env.SUPERMONITOR_COOKIE ?? '').trim();
+  if (staticCookie) {
+    _cache = { cookie: staticCookie, fetchedAt: Date.now() };
+    return staticCookie;
+  }
 
-  // 4. Passado pelo cliente
+  // 4. Passado pelo cliente (retrocompatibilidade)
   return clientCookie ?? '';
 }
-
