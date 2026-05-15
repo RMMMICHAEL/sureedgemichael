@@ -42,7 +42,7 @@ const page = await context.newPage();
 try {
   // ── Passo 1: abrir página de login ─────────────────────────────────────────
   console.log('📄  Abrindo página de login…');
-  await page.goto(LOGIN_PAGE, { waitUntil: 'networkidle', timeout: 30_000 });
+  await page.goto(LOGIN_PAGE, { waitUntil: 'domcontentloaded', timeout: 30_000 });
 
   console.log(`🌐  URL atual: ${page.url()}`);
   console.log(`📋  Título: ${await page.title()}`);
