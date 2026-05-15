@@ -13,10 +13,15 @@ import { BookmakersPage }  from '@/components/bookmakers/BookmakersPage';
 import { CaixaPage }       from '@/components/caixa/CaixaPage';
 import { GastosPage }      from '@/components/gastos/GastosPage';
 import { ContasPage }      from '@/components/contas/ContasPage';
-import { AnalisePage }     from '@/components/analise/AnalisePage';
-import { AdminPage }       from '@/components/admin/AdminPage';
+import { AnalisePage }       from '@/components/analise/AnalisePage';
+import { CalculadoraPage }   from '@/components/calculadora/CalculadoraPage';
+import { BuscarOddsPage }   from '@/components/odds/BuscarOddsPage';
+import { AdminPage }         from '@/components/admin/AdminPage';
 import { PerfilPage }      from '@/components/perfil/PerfilPage';
 import { NotasPage }       from '@/components/notas/NotasPage';
+import { ResumoPage }      from '@/components/resumo/ResumoPage';
+import { MetasPage }       from '@/components/metas/MetasPage';
+import { OperadoresPage }  from '@/components/operadores/OperadoresPage';
 import { LandingPage }     from '@/components/landing/LandingPage';
 import { syncFromSheet }   from '@/lib/import/sheetsSync';
 import { commitRows }      from '@/lib/import/importEngine';
@@ -167,8 +172,13 @@ export function AppShell() {
           {view === 'gastos'  && <GastosPage />}
           {view === 'contas'  && <ContasPage />}
           {view === 'analise'   && <AnalisePage />}
-          {view === 'notas'     && <NotasPage />}
-          {view === 'admin'   && <AdminPage />}
+          {view === 'calc'      && <CalculadoraPage />}
+          {view === 'odds'      && <BuscarOddsPage />}
+          {view === 'notas'      && <NotasPage />}
+          {view === 'resumo'     && <ResumoPage />}
+          {view === 'metas'      && <MetasPage />}
+          {view === 'operadores' && <OperadoresPage />}
+          {view === 'admin'      && <AdminPage />}
           {view === 'perfil'  && <PerfilPage />}
         </main>
       </div>

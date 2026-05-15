@@ -323,6 +323,7 @@ export type ViewId =
   | 'contas'
   | 'analise'
   | 'calc'
+  | 'odds'
   | 'resumo'
   | 'metas'
   | 'operadores'

@@ -7,7 +7,7 @@ import {
   LayoutDashboard, Activity, Building2, Wallet,
   BarChart3, ShieldCheck, Receipt, Users, X,
   UserCircle, LogOut, NotebookPen,
-  CalendarDays, Target, UserCog, ChevronDown,
+  CalendarDays, Target, UserCog, ChevronDown, ScanSearch,
 } from 'lucide-react';
 import { getMySubscription } from '@/lib/supabase/subscription';
 import type { Subscription } from '@/lib/supabase/subscription';
@@ -29,10 +29,11 @@ const NAV_GROUPS: NavGroup[] = [
     id: 'principal',
     label: 'Principal',
     items: [
-      { id: 'dash',   label: 'Dashboard', icon: <LayoutDashboard size={15} strokeWidth={2} /> },
-      { id: 'ops',    label: 'Operações', icon: <Activity        size={15} strokeWidth={2} /> },
-      { id: 'resumo', label: 'Resumo',    icon: <CalendarDays    size={15} strokeWidth={2} /> },
-      { id: 'metas',  label: 'Metas',     icon: <Target          size={15} strokeWidth={2} /> },
+      { id: 'dash',   label: 'Dashboard',  icon: <LayoutDashboard size={15} strokeWidth={2} /> },
+      { id: 'ops',    label: 'Operações',  icon: <Activity        size={15} strokeWidth={2} /> },
+      { id: 'odds',   label: 'Buscar Odds',icon: <ScanSearch      size={15} strokeWidth={2} /> },
+      { id: 'resumo', label: 'Resumo',     icon: <CalendarDays    size={15} strokeWidth={2} /> },
+      { id: 'metas',  label: 'Metas',      icon: <Target          size={15} strokeWidth={2} /> },
     ],
   },
   {
