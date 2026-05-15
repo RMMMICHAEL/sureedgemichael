@@ -83,6 +83,8 @@ export interface Bookmaker {
   notes: string;
   ops: number;
   credentials?: BookmakerCredentials;
+  clientId?: string;        // linked client/parceiro id
+  transactions?: BookmakerTransaction[]; // deposit/withdrawal history
 }
 
 // ── Bank account ─────────────────────────────────────────
@@ -223,6 +225,8 @@ export interface AppDB {
   profile?: UserProfile;
   notes?: Note[];
   transfers?: Transfer[];
+  operators?: Operator[];
+  goalConfig?: GoalConfig;
   /**
    * Set of "ho|mk|bd.slice(0,16)" keys for import rows manually
    * edited/overridden. commitRows() skips these on re-import.
@@ -265,14 +269,48 @@ export interface Transfer {
 }
 
 // ── Notes ────────────────────────────────────────────────
+export type NotePriority = 'urgent' | 'important' | 'normal';
+export type NoteStatus   = 'todo'   | 'doing'     | 'done'   | 'lost';
+
 export interface Note {
   id: string;
   title: string;
   body: string;
-  color: string;       // color key: 'default' | 'yellow' | 'orange' | 'green' | 'blue' | 'pink' | 'purple'
+  color: string;        // 'default' | 'yellow' | 'orange' | 'green' | 'blue' | 'pink' | 'purple'
   pinned: boolean;
-  created_at: string;  // ISO
-  updated_at: string;  // ISO
+  created_at: string;   // ISO
+  updated_at: string;   // ISO
+  priority?: NotePriority;
+  status?:   NoteStatus;
+  dueDate?:  string;    // ISO date — triggers alert banner when past due
+}
+
+// ── Operators ────────────────────────────────────────────
+export interface Operator {
+  id: string;
+  name: string;
+  status: 'ativo' | 'inativo' | 'pausado';
+  isPrimary?: boolean;
+  commission?: number;  // % commission owed to operator
+  notes?: string;
+  createdAt: string;    // ISO
+}
+
+// ── Goals / Metas ────────────────────────────────────────
+export interface GoalConfig {
+  dailyGoal: number;    // R$
+  daysMode: 'all' | 'weekdays' | 'custom_20' | 'custom_25';
+  monthlyGoal?: number; // optional manual override
+}
+
+// ── Bookmaker transactions ───────────────────────────────
+export interface BookmakerTransaction {
+  id: string;
+  date: string;         // ISO
+  type: 'deposito' | 'saque' | 'transferencia';
+  amount: number;       // always positive
+  notes?: string;
+  toBookmakerId?: string; // transferencia: target bookmaker id
 }
 
 // ── View / navigation ────────────────────────────────────
@@ -284,6 +322,10 @@ export type ViewId =
   | 'gastos'
   | 'contas'
   | 'analise'
+  | 'calc'
+  | 'resumo'
+  | 'metas'
+  | 'operadores'
   | 'sugestoes'
   | 'admin'
   | 'perfil'
