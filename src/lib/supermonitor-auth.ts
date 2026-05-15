@@ -165,53 +165,88 @@ async function doLogin(email: string, password: string): Promise<string> {
 
   console.log('[auth] passo 1 ok — cookie:', anonCookie.slice(0,20), '— csrf:', csrfToken ? 'encontrado' : 'não encontrado');
 
-  // Passo 2: POST login
+  // Pequeno delay para simular comportamento humano (400-900ms)
+  await new Promise(r => setTimeout(r, 400 + Math.random() * 500));
+
+  // Passo 2: POST login — inclui TODOS os campos do formulário (incluindo honeypot vazio)
+  // Bots que sabem do honeypot costumam omiti-lo; aqui incluímos explicitamente vazio
   const body = new URLSearchParams();
   if (csrfToken) body.set('csrf_token', csrfToken);
-  body.set('email', email);
-  body.set('senha', password);
+  body.set('email',   email);
+  body.set('senha',   password);
+  body.set('website', ''); // honeypot — deve estar presente e vazio
 
+  const postHeaders = {
+    'User-Agent':               UA,
+    'Accept':                   'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+    'Accept-Language':          'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+    'Accept-Encoding':          'gzip, deflate, br',
+    'Content-Type':             'application/x-www-form-urlencoded',
+    'Content-Length':           String(Buffer.byteLength(body.toString())),
+    'Origin':                   BASE,
+    'Referer':                  LOGIN_PAGE,
+    'Cookie':                   anonCookie,
+    'Cache-Control':            'max-age=0',
+    'Sec-Ch-Ua':                '"Google Chrome";v="124", "Chromium";v="124", "Not-A.Brand";v="99"',
+    'Sec-Ch-Ua-Mobile':         '?0',
+    'Sec-Ch-Ua-Platform':       '"Windows"',
+    'Sec-Fetch-Dest':           'document',
+    'Sec-Fetch-Mode':           'navigate',
+    'Sec-Fetch-Site':           'same-origin',
+    'Sec-Fetch-User':           '?1',
+    'Upgrade-Insecure-Requests':'1',
+    'Connection':               'keep-alive',
+  };
+
+  // Tenta primeiro seguindo redirect (alguns PHP apps autenticam e redirecionam)
+  const postResFollow = await fetch(LOGIN_PAGE, {
+    method:  'POST',
+    headers: postHeaders,
+    body:    body.toString(),
+    redirect: 'follow',
+  });
+
+  console.log('[auth] passo 2 (follow) — status:', postResFollow.status, 'url:', postResFollow.url);
+
+  // Se redirecionou para fora do login, é sucesso
+  if (!postResFollow.url.toLowerCase().includes('login')) {
+    const cookieFollow = extractPHPSESSID(postResFollow.headers) ?? anonCookie;
+    console.log('[auth] login OK via redirect (follow)');
+    return cookieFollow;
+  }
+
+  // Se voltou ao login, tenta com redirect: 'manual' para capturar o Location header
   const postRes = await fetch(LOGIN_PAGE, {
-    method: 'POST',
-    headers: {
-      'User-Agent':               UA,
-      'Accept':                   'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-      'Accept-Language':          'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
-      'Accept-Encoding':          'gzip, deflate, br',
-      'Content-Type':             'application/x-www-form-urlencoded',
-      'Origin':                   BASE,
-      'Referer':                  LOGIN_PAGE,
-      'Cookie':                   anonCookie,
-      'Cache-Control':            'max-age=0',
-      'Sec-Ch-Ua':                '"Google Chrome";v="124", "Chromium";v="124", "Not-A.Brand";v="99"',
-      'Sec-Ch-Ua-Mobile':         '?0',
-      'Sec-Ch-Ua-Platform':       '"Windows"',
-      'Sec-Fetch-Dest':           'document',
-      'Sec-Fetch-Mode':           'navigate',
-      'Sec-Fetch-Site':           'same-origin',
-      'Sec-Fetch-User':           '?1',
-      'Upgrade-Insecure-Requests':'1',
-    },
-    body:     body.toString(),
+    method:  'POST',
+    headers: postHeaders,
+    body:    body.toString(),
     redirect: 'manual',
   });
 
   const location  = postRes.headers.get('location') ?? '';
   const newCookie = extractPHPSESSID(postRes.headers);
 
-  console.log('[auth] passo 2 — status:', postRes.status, '— location:', location || '(nenhum)');
+  console.log('[auth] passo 2 (manual) — status:', postRes.status, '— location:', location || '(nenhum)');
 
   if (postRes.status >= 300 && postRes.status < 400) {
     if (!location.toLowerCase().includes('login') && !location.toLowerCase().includes('erro')) {
       return newCookie ?? anonCookie;
     }
-    throw new Error('Credenciais inválidas');
+    throw new Error('Credenciais inválidas — servidor retornou redirect para login');
   }
 
   if (postRes.status === 200) {
     const html200 = await postRes.text();
     if (html200.includes('name="senha"') || html200.includes("name='senha'")) {
-      throw new Error('Credenciais inválidas — verifique SUPERMONITOR_EMAIL e SUPERMONITOR_PASSWORD no Vercel');
+      // Tenta extrair mensagem de erro da página
+      const errMsg = html200.match(/class=["'][^"']*alert[^"']*["'][^>]*>([^<]{5,100})</i)?.[1]?.trim()
+        ?? html200.match(/class=["'][^"']*erro[^"']*["'][^>]*>([^<]{5,100})</i)?.[1]?.trim()
+        ?? '';
+      throw new Error(
+        errMsg
+          ? `Login rejeitado: ${errMsg}`
+          : 'Login rejeitado pelo servidor — verifique SUPERMONITOR_EMAIL e SUPERMONITOR_PASSWORD no Vercel'
+      );
     }
     return newCookie ?? anonCookie;
   }
