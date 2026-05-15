@@ -77,7 +77,7 @@ try {
       );
       const tokenPreview = await page.$eval(
         'input[name="cf-turnstile-response"]',
-        (el) => (el as HTMLInputElement).value.slice(0, 20),
+        (el) => el.value.slice(0, 20),
       );
       console.log(`✅  Turnstile resolvido: ${tokenPreview}…`);
     } catch {
@@ -101,14 +101,14 @@ try {
       const selectors = ['.alert', '.alert-danger', '.erro', '.error', '[class*="alert"]', 'p'];
       for (const sel of selectors) {
         const el = document.querySelector(sel);
-        if (el?.textContent?.trim().length ?? 0 > 5) return el!.textContent!.trim().slice(0, 300);
+        if (el && el.textContent && el.textContent.trim().length > 5) return el.textContent.trim().slice(0, 300);
       }
       return null;
     });
 
     const turnstileValue = await page.$eval(
       'input[name="cf-turnstile-response"]',
-      (el) => (el as HTMLInputElement).value,
+      (el) => el.value,
     ).catch(() => '(campo não encontrado)');
 
     console.log(`⚠️  URL após submit: ${page.url()}`);
