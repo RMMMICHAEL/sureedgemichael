@@ -1,11 +1,15 @@
 /**
  * renew-cookie.mjs
- * Abre o Chrome real (Playwright), faz login no SuperMonitor
- * e salva o PHPSESSID no Supabase para a Vercel usar.
+ * Abre Chrome com stealth mode, resolve Cloudflare Turnstile automaticamente,
+ * faz login no SuperMonitor e salva o PHPSESSID no Supabase.
  */
 
-import { chromium } from 'playwright';
+import { chromium } from 'playwright-extra';
+import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 import { createClient } from '@supabase/supabase-js';
+
+// Stealth: mascara o browser como Chrome real (passa Cloudflare Turnstile)
+chromium.use(StealthPlugin());
 
 const BASE       = 'https://painel.supermonitor.pro';
 const LOGIN_PAGE = `${BASE}/login.php`;
@@ -44,83 +48,84 @@ try {
   console.log('📄  Abrindo página de login…');
   await page.goto(LOGIN_PAGE, { waitUntil: 'domcontentloaded', timeout: 30_000 });
 
-  console.log(`🌐  URL atual: ${page.url()}`);
+  console.log(`🌐  URL: ${page.url()}`);
   console.log(`📋  Título: ${await page.title()}`);
 
-  // Screenshot da página de login
   await page.screenshot({ path: 'step1-login-page.png', fullPage: true });
 
-  // ── Passo 2: verificar se há Cloudflare challenge ──────────────────────────
-  const pageContent = await page.content();
-  if (pageContent.includes('cf-challenge') || pageContent.includes('cf_clearance') || pageContent.includes('Checking your browser')) {
-    console.log('⚠️  Cloudflare challenge detectado — aguardando resolução…');
-    await page.waitForTimeout(8_000);
-    await page.screenshot({ path: 'step1b-after-cf.png', fullPage: true });
-  }
-
-  // ── Passo 3: preencher formulário ──────────────────────────────────────────
+  // ── Passo 2: preencher formulário ──────────────────────────────────────────
   await page.waitForSelector('input[name="email"]', { timeout: 15_000 });
-
-  // Log dos campos disponíveis no formulário
-  const inputs = await page.$$eval('input', els => els.map(e => ({ name: e.name, type: e.type })));
-  console.log('📝  Campos encontrados:', JSON.stringify(inputs));
-
   await page.fill('input[name="email"]',  email);
   await page.fill('input[name="senha"]',  password);
 
   const honeypot = page.locator('input[name="website"]');
   if (await honeypot.count() > 0) await honeypot.fill('');
 
-  await page.screenshot({ path: 'step2-form-filled.png', fullPage: true });
-  console.log('📝  Formulário preenchido, enviando…');
+  // ── Passo 3: aguardar Turnstile resolver automaticamente ───────────────────
+  const hasTurnstile = await page.locator('input[name="cf-turnstile-response"]').count() > 0;
+  console.log(`🔍  Turnstile presente: ${hasTurnstile}`);
+
+  if (hasTurnstile) {
+    console.log('⏳  Aguardando Turnstile resolver (até 30s)…');
+    try {
+      await page.waitForFunction(
+        () => {
+          const el = document.querySelector('input[name="cf-turnstile-response"]');
+          return el instanceof HTMLInputElement && el.value.length > 0;
+        },
+        { timeout: 30_000 },
+      );
+      const tokenPreview = await page.$eval(
+        'input[name="cf-turnstile-response"]',
+        (el) => (el as HTMLInputElement).value.slice(0, 20),
+      );
+      console.log(`✅  Turnstile resolvido: ${tokenPreview}…`);
+    } catch {
+      console.log('⚠️  Turnstile não resolveu automaticamente — tentando submit assim mesmo…');
+    }
+  }
+
+  await page.screenshot({ path: 'step2-before-submit.png', fullPage: true });
 
   // ── Passo 4: submit ────────────────────────────────────────────────────────
+  console.log('📤  Enviando formulário…');
   await page.click('button[type="submit"]');
 
-  // Aguarda navegação ou mudança na URL (até 20s)
   try {
     await page.waitForURL(url => !url.toString().includes('login'), { timeout: 20_000 });
     console.log(`✅  Redirecionado para: ${page.url()}`);
   } catch {
-    // Não redirecionou — captura mensagem de erro da página
     await page.screenshot({ path: 'step3-after-submit.png', fullPage: true });
 
     const errText = await page.evaluate(() => {
-      const selectors = [
-        '.alert', '.alert-danger', '.erro', '.error',
-        '[class*="alert"]', '[class*="erro"]', '[class*="error"]',
-        'p', '.mensagem',
-      ];
+      const selectors = ['.alert', '.alert-danger', '.erro', '.error', '[class*="alert"]', 'p'];
       for (const sel of selectors) {
         const el = document.querySelector(sel);
-        if (el && el.textContent?.trim().length > 5) {
-          return el.textContent.trim().slice(0, 300);
-        }
+        if (el?.textContent?.trim().length ?? 0 > 5) return el!.textContent!.trim().slice(0, 300);
       }
       return null;
     });
 
-    const url = page.url();
-    console.log(`⚠️  URL após submit: ${url}`);
-    console.log(`⚠️  Mensagem de erro na página: ${errText ?? '(nenhuma encontrada)'}`);
+    const turnstileValue = await page.$eval(
+      'input[name="cf-turnstile-response"]',
+      (el) => (el as HTMLInputElement).value,
+    ).catch(() => '(campo não encontrado)');
 
-    // Verifica se tem Turnstile / CAPTCHA
-    const hasTurnstile = await page.locator('iframe[src*="turnstile"], iframe[src*="captcha"], .cf-turnstile').count() > 0;
-    console.log(`🔍  Turnstile/CAPTCHA detectado: ${hasTurnstile}`);
+    console.log(`⚠️  URL após submit: ${page.url()}`);
+    console.log(`⚠️  Erro na página: ${errText ?? 'nenhum'}`);
+    console.log(`🔍  Valor cf-turnstile-response: ${turnstileValue ? turnstileValue.slice(0, 30) + '…' : '(vazio)'}`);
 
-    throw new Error(`Login falhou — ficou em ${url}. Erro: ${errText ?? 'desconhecido'}`);
+    throw new Error(`Login falhou. Erro: ${errText ?? 'desconhecido'}`);
   }
 
   // ── Passo 5: extrair PHPSESSID ─────────────────────────────────────────────
   const cookies = await context.cookies(BASE);
   const sessid  = cookies.find(c => c.name === 'PHPSESSID');
 
-  if (!sessid?.value) {
-    throw new Error('PHPSESSID não encontrado após login');
-  }
+  if (!sessid?.value) throw new Error('PHPSESSID não encontrado após login');
 
   const cookieStr = `PHPSESSID=${sessid.value}`;
-  console.log(`🍪  Cookie obtido: ${cookieStr.slice(0, 24)}…`);
+  console.log(`🍪  Cookie: ${cookieStr.slice(0, 24)}…`);
 
   // ── Passo 6: salvar no Supabase ────────────────────────────────────────────
   const sb = createClient(sbUrl, sbKey);
@@ -133,7 +138,7 @@ try {
 
   if (error) throw new Error(`Supabase: ${error.message}`);
 
-  console.log('💾  Cookie salvo no Supabase com sucesso.');
+  console.log('💾  Cookie salvo no Supabase.');
   console.log('🎉  Renovação concluída!');
 
 } finally {
