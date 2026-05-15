@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { SurebetCalc } from '@/components/calcalendario/SurebetCalc';
-import { Calculator, TrendingUp, Gift, Percent, Search, X, Building2, Settings2, Zap, AlertCircle } from 'lucide-react';
+import { Calculator, TrendingUp, Gift, Percent, Search, X, Building2, Settings2, Zap } from 'lucide-react';
 
 const SM_COOKIE_KEY = 'sm_cookie';
 
@@ -410,49 +410,6 @@ function EventSearchCard({
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  async function loadFromSuperMonitor(cookie: string, date?: string): Promise<CachedEvent[] | null> {
-    try {
-      const res = await fetch('/api/supermonitor/events', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ cookie, date }),
-      });
-      const json = await res.json();
-      if (!json.ok) return null;
-      return json.events as CachedEvent[];
-    } catch {
-      return null;
-    }
-  }
-
-  async function loadFromSportsDB(date?: string): Promise<CachedEvent[]> {
-    const targetDate = date ?? new Date().toISOString().slice(0, 10);
-    const res  = await fetch(`/api/sports/today?date=${targetDate}`);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const json = await res.json();
-    if (json.error) throw new Error(json.error);
-
-    const sports: Record<string, unknown[]> = json.sports ?? {};
-    const all: CachedEvent[] = [];
-
-    for (const [sportKey, evList] of Object.entries(sports)) {
-      for (const raw of evList as Record<string, unknown>[]) {
-        const dateStr = (raw.dateEvent as string) ?? targetDate;
-        const timeStr = (raw.strTime   as string) ?? '00:00:00';
-        all.push({
-          id:          (raw.idEvent   as string) ?? String(Math.random()),
-          name:        (raw.strEvent  as string) ?? `${raw.strHomeTeam} vs ${raw.strAwayTeam}`,
-          sport:       sportKey,
-          league:      (raw.strLeague as string) ?? sportKey,
-          start_utc:   `${dateStr}T${timeStr}`,
-          house_count: 0,
-        });
-      }
-    }
-    all.sort((a, b) => a.start_utc.localeCompare(b.start_utc));
-    return all;
-  }
-
   async function loadEvents(date?: string) {
     setLoading(true);
     setFetchErr('');
@@ -461,23 +418,23 @@ function EventSearchCard({
     const targetDate = date ?? new Date().toISOString().slice(0, 10);
 
     try {
-      const cookie = typeof window !== 'undefined' ? localStorage.getItem(SM_COOKIE_KEY) ?? '' : smCookie;
+      const cookie = (typeof window !== 'undefined' ? localStorage.getItem(SM_COOKIE_KEY) ?? '' : smCookie);
 
-      // Try SuperMonitor first — server uses env var cookie automatically, user cookie overrides if set
-      const smEvents = await loadFromSuperMonitor(cookie, targetDate);
-      if (smEvents && smEvents.length > 0) {
-        setEvents(smEvents);
-        setFetchedDate(targetDate);
-        setSource('supermonitor');
-        return;
+      const res  = await fetch('/api/supermonitor/events', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ cookie, date: targetDate }),
+      });
+      const json = await res.json() as { ok: boolean; events?: CachedEvent[]; error?: string };
+
+      if (!json.ok) {
+        throw new Error(json.error ?? 'Erro ao buscar eventos do SuperMonitor');
       }
-      // SM returned empty or failed — fall through to SportsDB
 
-      // Fallback: TheSportsDB
-      const sdbEvents = await loadFromSportsDB(targetDate);
-      setEvents(sdbEvents);
+      const events = json.events ?? [];
+      setEvents(events);
       setFetchedDate(targetDate);
-      setSource('sportsdb');
+      setSource('supermonitor');
     } catch (e: unknown) {
       setFetchErr((e as Error).message ?? 'Erro ao buscar eventos');
     } finally {
@@ -553,12 +510,6 @@ function EventSearchCard({
             <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md"
               style={{ background: 'rgba(99,102,241,.15)', color: '#818cf8', border: '1px solid rgba(99,102,241,.3)' }}>
               <Zap size={9} /> SuperMonitor
-            </span>
-          )}
-          {source === 'sportsdb' && smCookie && (
-            <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md"
-              style={{ background: 'rgba(255,159,10,.12)', color: '#FF9F0A', border: '1px solid rgba(255,159,10,.25)' }}>
-              <AlertCircle size={9} /> SM falhou · TheSportsDB
             </span>
           )}
         </div>
