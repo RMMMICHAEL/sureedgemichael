@@ -1,0 +1,44 @@
+name: Renew SuperMonitor Cookie
+
+on:
+  schedule:
+    - cron: '0 */2 * * *'   # a cada 2 horas
+  workflow_dispatch:          # disparo manual pelo GitHub
+
+jobs:
+  renew:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-v1
+
+      - name: Install dependencies
+        run: npm install --prefix scripts playwright @supabase/supabase-js
+
+      - name: Install Chromium
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx --prefix scripts playwright install chromium --with-deps
+
+      - name: Install Chromium system deps (cache hit)
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx --prefix scripts playwright install-deps chromium
+
+      - name: Renovar cookie
+        env:
+          SUPERMONITOR_EMAIL:      ${{ secrets.SUPERMONITOR_EMAIL }}
+          SUPERMONITOR_PASSWORD:   ${{ secrets.SUPERMONITOR_PASSWORD }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node scripts/renew-cookie.mjs
