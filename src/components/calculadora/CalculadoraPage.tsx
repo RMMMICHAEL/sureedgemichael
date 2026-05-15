@@ -425,11 +425,14 @@ function EventSearchCard({
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ cookie, date: targetDate }),
       });
-      const json = await res.json() as { ok: boolean; events?: CachedEvent[]; error?: string };
+      const json = await res.json() as { ok: boolean; events?: CachedEvent[]; error?: string; raw_sample?: unknown };
 
       if (!json.ok) {
         throw new Error(json.error ?? 'Erro ao buscar eventos do SuperMonitor');
       }
+
+      // DEBUG — remove depois
+      if (json.raw_sample) console.log('[SM raw_sample]', JSON.stringify(json.raw_sample, null, 2));
 
       const events = json.events ?? [];
       setEvents(events);

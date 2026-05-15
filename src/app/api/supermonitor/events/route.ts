@@ -178,7 +178,10 @@ export async function POST(req: NextRequest) {
     const events = rawEvents.map(normaliseEvent);
     events.sort((a, b) => a.start_utc.localeCompare(b.start_utc));
 
-    return NextResponse.json({ ok: true, events, source: 'supermonitor' });
+    // DEBUG: include raw sample so we can see the real field names
+    const raw_sample = rawEvents.slice(0, 2);
+
+    return NextResponse.json({ ok: true, events, source: 'supermonitor', raw_sample });
 
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
