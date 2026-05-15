@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { SurebetCalc } from '@/components/calcalendario/SurebetCalc';
-import { Calculator, TrendingUp, Gift, Percent, Search, X, Building2, Settings2, Zap } from 'lucide-react';
+import { Calculator, TrendingUp, Gift, Percent, Search, X, Building2, Settings2, Zap, ScanSearch } from 'lucide-react';
 
 const SM_COOKIE_KEY = 'sm_cookie';
 
@@ -708,13 +708,150 @@ function EventSearchCard({
   );
 }
 
+// ── Buscar Odds Tab ────────────────────────────────────────────────────────────
+
+interface OddEntry {
+  house:   string;
+  odd:     number;
+  pa:      boolean;   // pagamento antecipado
+  result:  string;    // '1' | 'X' | '2' | '1X' | '2X' | etc.
+}
+
+interface OddsData {
+  event:    string;
+  date:     string;
+  league:   string;
+  outcomes: { result: string; label: string; best: { house: string; odd: number; pa: boolean }; all: OddEntry[] }[];
+  raw?:     unknown;
+}
+
+function parseOddsData(raw: unknown): OddsData | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as Record<string, unknown>;
+
+  // Log para debug — remover depois
+  console.log('[SM search raw]', JSON.stringify(r, null, 2));
+
+  // Tenta montar um objeto normalizado com o que vier
+  return {
+    event:    String(r.event ?? r.name ?? r.title ?? ''),
+    date:     String(r.date ?? r.start ?? r.start_time ?? ''),
+    league:   String(r.league ?? r.competition ?? ''),
+    outcomes: [],
+    raw,
+  };
+}
+
+function BuscarOddsTab({ selectedEvent }: { selectedEvent: CachedEvent | null }) {
+  const [loading,   setLoading]   = useState(false);
+  const [oddsData,  setOddsData]  = useState<OddsData | null>(null);
+  const [fetchErr,  setFetchErr]  = useState('');
+  const [rawData,   setRawData]   = useState<unknown>(null);
+  const [totalStake, setTotalStake] = useState('1000');
+
+  async function fetchOdds(event: CachedEvent) {
+    setLoading(true);
+    setFetchErr('');
+    setOddsData(null);
+    setRawData(null);
+    try {
+      const cookie = typeof window !== 'undefined' ? localStorage.getItem(SM_COOKIE_KEY) ?? '' : '';
+      const res  = await fetch('/api/supermonitor/search', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ query: event.name, cookie }),
+      });
+      const json = await res.json() as { ok: boolean; data?: unknown; error?: string };
+      if (!json.ok) throw new Error(json.error ?? 'Erro ao buscar odds');
+      setRawData(json.data);
+      const parsed = parseOddsData(json.data);
+      setOddsData(parsed);
+    } catch (e: unknown) {
+      setFetchErr((e as Error).message ?? 'Erro');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (selectedEvent) fetchOdds(selectedEvent);
+  }, [selectedEvent?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (!selectedEvent) {
+    return (
+      <div className="rounded-2xl p-8 text-center" style={{ background: 'var(--bg2)', border: '1px solid var(--b)' }}>
+        <ScanSearch size={28} style={{ color: 'var(--t3)', margin: '0 auto 12px' }} />
+        <p className="text-sm font-bold" style={{ color: 'var(--t2)' }}>Selecione um evento acima</p>
+        <p className="text-xs mt-1" style={{ color: 'var(--t3)' }}>As odds de todas as casas aparecerão aqui</p>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="rounded-2xl p-8 text-center" style={{ background: 'var(--bg2)', border: '1px solid var(--b)' }}>
+        <p className="text-sm" style={{ color: 'var(--t3)' }}>Buscando odds para <strong style={{ color: 'var(--t)' }}>{selectedEvent.name}</strong>...</p>
+      </div>
+    );
+  }
+
+  if (fetchErr) {
+    return (
+      <div className="rounded-2xl p-6" style={{ background: 'rgba(255,77,109,.07)', border: '1px solid rgba(255,77,109,.2)' }}>
+        <p className="text-sm font-bold" style={{ color: 'var(--r)' }}>⚠ {fetchErr}</p>
+        <button type="button" onClick={() => fetchOdds(selectedEvent)} className="mt-3 text-xs font-bold px-3 py-1.5 rounded-lg"
+          style={{ background: 'rgba(255,255,255,.06)', color: 'var(--t3)', border: '1px solid var(--b)' }}>
+          Tentar novamente
+        </button>
+      </div>
+    );
+  }
+
+  if (rawData) {
+    const raw = rawData as Record<string, unknown>;
+
+    // Extrai resultados/mercados do objeto retornado
+    // A estrutura real é descoberta aqui — o objeto completo é mostrado
+    const keys = Object.keys(raw);
+
+    return (
+      <div className="flex flex-col gap-4">
+        {/* Cabeçalho do evento */}
+        <div className="rounded-2xl p-4 flex items-center gap-3" style={{ background: 'var(--bg2)', border: '1px solid var(--b)' }}>
+          <ScanSearch size={16} style={{ color: '#818cf8', flexShrink: 0 }} />
+          <div>
+            <div className="text-sm font-black" style={{ color: 'var(--t)' }}>{selectedEvent.name}</div>
+            <div className="text-[11px]" style={{ color: 'var(--t3)' }}>{selectedEvent.league} · {selectedEvent.start_utc}</div>
+          </div>
+          <button type="button" onClick={() => fetchOdds(selectedEvent)}
+            className="ml-auto text-[10px] font-bold px-2 py-1 rounded-lg"
+            style={{ background: 'rgba(99,102,241,.15)', color: '#818cf8', border: '1px solid rgba(99,102,241,.3)' }}>
+            Atualizar
+          </button>
+        </div>
+
+        {/* DEBUG — estrutura do retorno */}
+        <div className="rounded-2xl p-4 text-[11px] font-mono overflow-auto" style={{ background: 'var(--bg2)', border: '1px solid var(--b)', maxHeight: 400 }}>
+          <div className="font-bold mb-2 text-xs" style={{ color: 'var(--t3)' }}>Campos retornados: {keys.join(', ')}</div>
+          <pre style={{ color: 'var(--t2)', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+            {JSON.stringify(rawData, null, 2).slice(0, 3000)}
+          </pre>
+        </div>
+      </div>
+    );
+  }
+
+  return null;
+}
+
 // ── Tab definitions ────────────────────────────────────────────────────────────
 
 const TABS = [
-  { id: 'surebet',  label: 'Surebet',  icon: <Calculator size={13} strokeWidth={2} /> },
-  { id: 'missao',   label: 'Missão',   icon: <Gift       size={13} strokeWidth={2} /> },
-  { id: 'odd',      label: 'Aumentadas', icon: <TrendingUp size={13} strokeWidth={2} /> },
-  { id: 'cashback', label: 'Cashback', icon: <Percent    size={13} strokeWidth={2} /> },
+  { id: 'surebet',  label: 'Surebet',    icon: <Calculator  size={13} strokeWidth={2} /> },
+  { id: 'missao',   label: 'Missão',     icon: <Gift        size={13} strokeWidth={2} /> },
+  { id: 'odd',      label: 'Aumentadas', icon: <TrendingUp  size={13} strokeWidth={2} /> },
+  { id: 'cashback', label: 'Cashback',   icon: <Percent     size={13} strokeWidth={2} /> },
+  { id: 'odds',     label: 'Buscar Odds',icon: <ScanSearch  size={13} strokeWidth={2} /> },
 ] as const;
 
 type TabId = typeof TABS[number]['id'];
@@ -816,6 +953,7 @@ export function CalculadoraPage() {
       {tab === 'missao'   && <FreeBetTab />}
       {tab === 'odd'      && <OddAumentadaTab />}
       {tab === 'cashback' && <CashbackTab />}
+      {tab === 'odds'     && <BuscarOddsTab selectedEvent={selectedEvent} />}
     </div>
   );
 }
