@@ -2,8 +2,8 @@ name: Renew SuperMonitor Cookie
 
 on:
   schedule:
-    - cron: '0 */2 * * *'   # a cada 2 horas
-  workflow_dispatch:          # disparo manual pelo GitHub
+    - cron: '0 */2 * * *'
+  workflow_dispatch:
 
 jobs:
   renew:
@@ -25,20 +25,31 @@ jobs:
           key: playwright-chromium-${{ runner.os }}-v1
 
       - name: Install dependencies
-        run: npm install --prefix scripts playwright @supabase/supabase-js
+        run: npm install
+        working-directory: scripts
 
       - name: Install Chromium
         if: steps.playwright-cache.outputs.cache-hit != 'true'
-        run: npx --prefix scripts playwright install chromium --with-deps
+        run: npx playwright install chromium --with-deps
+        working-directory: scripts
 
       - name: Install Chromium system deps (cache hit)
         if: steps.playwright-cache.outputs.cache-hit == 'true'
-        run: npx --prefix scripts playwright install-deps chromium
+        run: sudo npx playwright install-deps chromium
+        working-directory: scripts
 
       - name: Renovar cookie
         env:
-          SUPERMONITOR_EMAIL:      ${{ secrets.SUPERMONITOR_EMAIL }}
-          SUPERMONITOR_PASSWORD:   ${{ secrets.SUPERMONITOR_PASSWORD }}
+          SUPERMONITOR_EMAIL:       ${{ secrets.SUPERMONITOR_EMAIL }}
+          SUPERMONITOR_PASSWORD:    ${{ secrets.SUPERMONITOR_PASSWORD }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: node scripts/renew-cookie.mjs
+
+      - name: Upload screenshots (debug)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: "*.png"
+          if-no-files-found: ignore
