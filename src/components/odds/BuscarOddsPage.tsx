@@ -233,18 +233,33 @@ const DC_COLS:  ColKey[] = ['dc1X','dcX2','dc12'];
 function OCell({ val, best }: { val?: number; best: boolean }) {
   if (!val || val <= 1) {
     return (
-      <td style={{ textAlign: 'center', padding: '6px 8px', fontSize: 11, color: 'rgba(255,255,255,.15)' }}>—</td>
+      <td style={{ textAlign: 'center', padding: '9px 5px' }}>
+        <span style={{ fontSize: 12, color: 'rgba(255,255,255,.1)', fontFamily: 'inherit' }}>—</span>
+      </td>
     );
   }
   return (
-    <td style={{
-      textAlign: 'center', padding: '6px 8px', fontSize: 12,
-      fontWeight: best ? 800 : 500,
-      color: best ? '#3fff21' : 'var(--t2)',
-      background: best ? 'rgba(63,255,33,.08)' : undefined,
-      fontVariantNumeric: 'tabular-nums',
-    }}>
-      {val.toFixed(2)}
+    <td style={{ textAlign: 'center', padding: '9px 5px' }}>
+      <span style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minWidth: 56,
+        padding: '5px 10px',
+        borderRadius: 7,
+        fontSize: 14,
+        fontWeight: 800,
+        fontFamily: '"JetBrains Mono", "Fira Mono", "Consolas", monospace',
+        fontVariantNumeric: 'tabular-nums',
+        letterSpacing: '-0.01em',
+        background: best ? 'rgba(63,255,33,.16)' : 'rgba(255,255,255,.055)',
+        color: best ? '#3fff21' : 'oklch(82% 0.01 250)',
+        border: best ? '1px solid rgba(63,255,33,.32)' : '1px solid rgba(255,255,255,.08)',
+        boxShadow: best ? '0 0 10px rgba(63,255,33,.13)' : 'none',
+        transition: 'background .15s',
+      }}>
+        {val.toFixed(2)}
+      </span>
     </td>
   );
 }
@@ -268,57 +283,68 @@ function OddsSection({
     });
   if (!filtered.length) return null;
 
-  const accentColor = pa ? '#FF9F0A' : '#3fff21';
-  const bgColor     = pa ? 'rgba(255,159,10,.05)' : 'rgba(63,255,33,.05)';
-  const label       = pa ? 'COM Pagamento Antecipado (PA)' : 'SEM Pagamento Antecipado';
+  const accentColor  = pa ? '#FF9F0A' : '#3fff21';
+  const accentBg     = pa ? 'rgba(255,159,10,.07)' : 'rgba(63,255,33,.06)';
+  const accentBorder = pa ? 'rgba(255,159,10,.22)' : 'rgba(63,255,33,.18)';
+  const label        = pa ? 'PAGAMENTO ANTECIPADO' : 'CASAS SEM PA';
 
   return (
     <>
-      {/* Section header */}
+      {/* Section banner */}
       <tr>
         <td colSpan={8} style={{ padding: 0 }}>
           <div style={{
-            display: 'flex', alignItems: 'center', gap: 8,
-            padding: '7px 12px',
-            background: bgColor,
+            display: 'flex', alignItems: 'center', gap: 10,
+            padding: '11px 16px',
+            background: accentBg,
             borderTop: '1px solid var(--b)',
-            borderBottom: `1px solid ${pa ? 'rgba(255,159,10,.2)' : 'rgba(63,255,33,.15)'}`,
+            borderBottom: `2px solid ${accentBorder}`,
           }}>
-            <div style={{
-              width: 3, height: 14, borderRadius: 2,
-              background: accentColor, flexShrink: 0,
-            }} />
             <span style={{
-              fontSize: 10, fontWeight: 900, textTransform: 'uppercase',
-              letterSpacing: '.12em', color: accentColor,
+              fontSize: 11, fontWeight: 900, textTransform: 'uppercase',
+              letterSpacing: '.15em', color: accentColor,
             }}>
               {label}
             </span>
             <span style={{
-              marginLeft: 'auto', fontSize: 10, fontWeight: 700,
-              color: pa ? 'rgba(255,159,10,.6)' : 'rgba(63,255,33,.6)',
+              marginLeft: 'auto',
+              fontSize: 11, fontWeight: 700,
+              padding: '2px 9px',
+              borderRadius: 5,
+              background: pa ? 'rgba(255,159,10,.12)' : 'rgba(63,255,33,.1)',
+              color: accentColor,
+              border: `1px solid ${accentBorder}`,
             }}>
-              {filtered.length} casa{filtered.length !== 1 ? 's' : ''}
+              {filtered.length} {filtered.length !== 1 ? 'casas' : 'casa'}
             </span>
           </div>
         </td>
       </tr>
 
-      {filtered.map(row => (
-        <tr key={row.house}
-          style={{ borderBottom: '1px solid rgba(255,255,255,.03)', transition: 'background .1s' }}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,.025)'; }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = ''; }}>
-
-          {/* House name (clickable if URL exists) */}
-          <td style={{ padding: '6px 12px', fontSize: 11, fontWeight: 700, color: 'var(--t2)', whiteSpace: 'nowrap' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+      {filtered.map((row, idx) => (
+        <tr
+          key={row.house}
+          style={{
+            background: idx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,.022)',
+            borderBottom: '1px solid rgba(255,255,255,.04)',
+            transition: 'background .12s',
+          }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,.048)'; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = idx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,.022)'; }}
+        >
+          {/* House name */}
+          <td style={{ padding: '0 16px', height: 46, fontSize: 13, fontWeight: 700, color: 'oklch(88% 0.01 250)', whiteSpace: 'nowrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
               {pa && (
                 <span style={{
-                  fontSize: 8, fontWeight: 900, letterSpacing: '.06em',
-                  color: '#FF9F0A', background: 'rgba(255,159,10,.12)',
-                  border: '1px solid rgba(255,159,10,.25)', borderRadius: 3,
-                  padding: '1px 4px', flexShrink: 0,
+                  fontSize: 9, fontWeight: 900, letterSpacing: '.07em',
+                  color: '#FF9F0A',
+                  background: 'rgba(255,159,10,.14)',
+                  border: '1px solid rgba(255,159,10,.3)',
+                  borderRadius: 4,
+                  padding: '2px 5px',
+                  flexShrink: 0,
+                  lineHeight: 1,
                 }}>PA</span>
               )}
               {row.url ? (
@@ -338,7 +364,7 @@ function OddsSection({
           ))}
 
           {/* Separator */}
-          <td style={{ width: 1, padding: 0, borderLeft: '1px solid rgba(255,255,255,.06)' }} />
+          <td style={{ width: 1, padding: 0, borderLeft: '1px solid rgba(255,255,255,.07)' }} />
 
           {/* DC odds */}
           {DC_COLS.map(col => (
@@ -1134,42 +1160,66 @@ export function BuscarOddsPage() {
 
           {/* Column headers */}
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 440 }}>
-              <thead>
-                <tr style={{ background: 'rgba(255,255,255,.025)' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 500 }}>
+              <thead style={{ position: 'sticky', top: 0, zIndex: 2 }}>
+                {/* Group row */}
+                <tr style={{ background: 'oklch(16% 0.008 250)' }}>
                   <th style={{
-                    padding: '7px 12px', textAlign: 'left', fontSize: 10, fontWeight: 900,
-                    textTransform: 'uppercase', letterSpacing: '.1em', color: 'var(--t3)',
-                    whiteSpace: 'nowrap', minWidth: 130,
-                  }}>Casa</th>
+                    padding: '10px 16px', textAlign: 'left', fontSize: 10, fontWeight: 900,
+                    textTransform: 'uppercase', letterSpacing: '.13em',
+                    color: 'oklch(55% 0.01 250)', whiteSpace: 'nowrap', minWidth: 160,
+                  }}>EVENTO</th>
 
-                  {/* ML headers with group label */}
-                  <th colSpan={3} style={{ padding: '3px 8px 0', textAlign: 'center' }}>
-                    <div style={{ fontSize: 8, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '.12em', color: 'rgba(63,255,33,.6)', marginBottom: 2 }}>
+                  <th colSpan={3} style={{ padding: '10px 8px', textAlign: 'center' }}>
+                    <span style={{
+                      display: 'inline-block',
+                      fontSize: 9, fontWeight: 900, textTransform: 'uppercase',
+                      letterSpacing: '.14em', color: 'rgba(63,255,33,.7)',
+                      padding: '2px 10px', borderRadius: 4,
+                      background: 'rgba(63,255,33,.07)',
+                      border: '1px solid rgba(63,255,33,.15)',
+                    }}>
                       ML — 1×2
-                    </div>
+                    </span>
                   </th>
                   <th style={{ padding: 0, width: 1 }} />
-
-                  {/* DC headers with group label */}
-                  <th colSpan={3} style={{ padding: '3px 8px 0', textAlign: 'center' }}>
-                    <div style={{ fontSize: 8, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '.12em', color: 'rgba(255,255,255,.3)', marginBottom: 2 }}>
+                  <th colSpan={3} style={{ padding: '10px 8px', textAlign: 'center' }}>
+                    <span style={{
+                      display: 'inline-block',
+                      fontSize: 9, fontWeight: 900, textTransform: 'uppercase',
+                      letterSpacing: '.14em', color: 'rgba(255,255,255,.35)',
+                      padding: '2px 10px', borderRadius: 4,
+                      background: 'rgba(255,255,255,.04)',
+                      border: '1px solid rgba(255,255,255,.08)',
+                    }}>
                       Dupla Chance
-                    </div>
+                    </span>
                   </th>
                 </tr>
-                <tr style={{ background: 'rgba(255,255,255,.02)' }}>
-                  <th />
+
+                {/* Column labels row */}
+                <tr style={{ background: 'oklch(14% 0.007 250)', borderBottom: '2px solid rgba(255,255,255,.07)' }}>
+                  <th style={{ padding: '0 16px', height: 32 }} />
                   {ML_COLS.map(col => (
-                    <th key={col} style={{ padding: '4px 8px', textAlign: 'center', fontSize: 10, fontWeight: 800,
-                      textTransform: 'uppercase', letterSpacing: '.1em', color: 'rgba(63,255,33,.7)', minWidth: 54 }}>
+                    <th key={col} style={{
+                      padding: '0 5px', textAlign: 'center',
+                      fontSize: 13, fontWeight: 900,
+                      color: 'rgba(63,255,33,.85)',
+                      minWidth: 68,
+                      letterSpacing: '.02em',
+                    }}>
                       {COL_LABELS[col]}
                     </th>
                   ))}
-                  <th style={{ padding: 0, width: 1, borderLeft: '1px solid rgba(255,255,255,.06)' }} />
+                  <th style={{ padding: 0, width: 1, borderLeft: '1px solid rgba(255,255,255,.07)' }} />
                   {DC_COLS.map(col => (
-                    <th key={col} style={{ padding: '4px 8px', textAlign: 'center', fontSize: 10, fontWeight: 800,
-                      textTransform: 'uppercase', letterSpacing: '.1em', color: 'rgba(255,255,255,.3)', minWidth: 54 }}>
+                    <th key={col} style={{
+                      padding: '0 5px', textAlign: 'center',
+                      fontSize: 12, fontWeight: 800,
+                      color: 'rgba(255,255,255,.35)',
+                      minWidth: 68,
+                      letterSpacing: '.02em',
+                    }}>
                       {COL_LABELS[col]}
                     </th>
                   ))}
