@@ -185,6 +185,18 @@ create table if not exists public.sheet_sync (
 alter table public.sheet_sync enable row level security;
 create policy "sheet_sync: own all" on public.sheet_sync for all using (auth.uid() = user_id);
 
+-- ── App config (chave-valor global — armazena cookie do SuperMonitor) ────────
+
+create table if not exists public.app_config (
+  key        text primary key,
+  value      text not null,
+  updated_at timestamptz default now()
+);
+
+-- Sem RLS (tabela interna de config — acesso via service_role key apenas)
+-- A leitura pelo backend usa SUPABASE_SERVICE_ROLE_KEY que ignora RLS.
+-- Não expõe dados de usuários.
+
 -- ══════════════════════════════════════════════════════════════════════════════
 -- MANAGER ROLE: Allows viewing all users' data (for admin/manager access level)
 -- Only enable if you need multi-user management
