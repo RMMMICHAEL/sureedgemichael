@@ -1,9 +1,11 @@
 name: Renew SuperMonitor Cookie
 
 on:
-  schedule:
-    - cron: '0 */2 * * *'   # a cada 2 horas
-  workflow_dispatch:         # disparo manual
+  # Cron desativado: GitHub Actions usa IPs de datacenter bloqueados pelo Cloudflare.
+  # A renovação agora roda localmente via Windows Task Scheduler (scripts/setup-task-scheduler.ps1).
+  # schedule:
+  #   - cron: '0 */2 * * *'
+  workflow_dispatch:   # mantido para testes manuais ocasionais
 
 jobs:
   renew:

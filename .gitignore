@@ -18,6 +18,7 @@ tsconfig.tsbuildinfo
 .env.development.local
 .env.test.local
 .env.production.local
+scripts/.env
 
 # Debug logs
 npm-debug.log*

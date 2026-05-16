@@ -12,10 +12,23 @@
  *   SUPABASE_SERVICE_ROLE_KEY — chave de serviço Supabase
  */
 
-import https from 'node:https';
-import http  from 'node:http';
-import { URL } from 'node:url';
-import { createClient } from '@supabase/supabase-js';
+import https    from 'node:https';
+import http     from 'node:http';
+import { URL }  from 'node:url';
+import { readFileSync, existsSync } from 'node:fs';
+import { resolve, dirname }        from 'node:path';
+import { fileURLToPath }           from 'node:url';
+import { createClient }            from '@supabase/supabase-js';
+
+// ── Carrega .env local se existir (para rodar no PC sem variáveis de sistema) ──
+const __dir = dirname(fileURLToPath(import.meta.url));
+const envFile = resolve(__dir, '.env');
+if (existsSync(envFile)) {
+  for (const line of readFileSync(envFile, 'utf8').split('\n')) {
+    const m = line.match(/^\s*([^#=\s][^=]*?)\s*=\s*(.*)\s*$/);
+    if (m) process.env[m[1]] ??= m[2].replace(/^["']|["']$/g, '');
+  }
+}
 
 // ── Configuração ──────────────────────────────────────────────────────────────
 
