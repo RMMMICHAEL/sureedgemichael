@@ -223,8 +223,26 @@ export const useStore = create<StoreState>()((set, get) => ({
           if (hasLocalData && userId) saveToSupabase(localDb);
           return;
         }
-        persist(remoteDb);
-        applyDB(remoteDb);
+
+        // Merge seguro: nunca descarta legs que existem só localmente.
+        // Se o local tem legs que o Supabase não tem (adicionadas antes do sync),
+        // elas são preservadas na versão mesclada.
+        const remoteIds  = new Set(remoteDb.legs.map(l => l.id));
+        const localOnly  = localDb.legs.filter(l => !remoteIds.has(l.id));
+        const mergedLegs = localOnly.length > 0
+          ? [...remoteDb.legs, ...localOnly]
+          : remoteDb.legs;
+
+        const merged = { ...remoteDb, legs: mergedLegs };
+
+        // Se houve merge, salva a versão completa de volta no Supabase
+        if (localOnly.length > 0) {
+          console.log(`[sync] merge: +${localOnly.length} legs locais preservadas`);
+          saveToSupabase(merged);
+        }
+
+        persist(merged);
+        applyDB(merged);
       });
     });
   },
