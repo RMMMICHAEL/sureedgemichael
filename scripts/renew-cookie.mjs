@@ -35,7 +35,7 @@ async function solveTurnstile(siteKey, pageUrl) {
     body: JSON.stringify({
       clientKey: captchaApiKey,
       task: {
-        type:       'TurnstileTask',
+        type:       'TurnstileTaskProxyless',
         websiteURL: pageUrl,
         websiteKey: siteKey,
       },
