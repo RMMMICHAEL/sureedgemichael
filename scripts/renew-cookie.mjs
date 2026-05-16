@@ -404,9 +404,9 @@ async function fetchAndCache(cookie) {
   }
   console.log(`   💾  ${evSaved}/${events.length} eventos salvos`);
 
-  // Busca odds somente dos eventos com casas suficientes
-  const withOdds = events.filter(e => e.house_count >= 2);
-  console.log(`   🎯  Buscando odds para ${withOdds.length} eventos (house_count ≥ 2)…`);
+  // Busca odds de todos os eventos
+  const withOdds = events;
+  console.log(`   🎯  Buscando odds para ${withOdds.length} eventos…`);
 
   let oddsOk = 0, oddsFail = 0;
   const CONCURRENT = 3;
