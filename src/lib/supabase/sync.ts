@@ -51,9 +51,21 @@ export async function saveToSupabase(db: AppDB): Promise<{ ok: boolean; error?: 
 
 let _saveTimer: ReturnType<typeof setTimeout> | null = null;
 
-export function scheduleSaveToSupabase(db: AppDB, delayMs = 2000): void {
+export function scheduleSaveToSupabase(db: AppDB, delayMs = 800): void {
   if (_saveTimer) clearTimeout(_saveTimer);
   _saveTimer = setTimeout(() => saveToSupabase(db), delayMs);
+}
+
+// ── Mantém o DB mais recente para saves de emergência ────────────────────────
+
+let _lastDb: AppDB | null = null;
+
+export function updateLastDb(db: AppDB): void {
+  _lastDb = db;
+}
+
+export function getLastDb(): AppDB | null {
+  return _lastDb;
 }
 
 // ── Load Supabase profile ──────────────────────────────────────────────────────

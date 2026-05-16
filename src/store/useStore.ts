@@ -15,7 +15,7 @@ import type {
   Operator, GoalConfig, BookmakerTransaction,
 } from '@/types';
 import { loadDB, persistDB, loadUserId, saveUserId, wipeDB, EMPTY_DB } from '@/lib/storage/db';
-import { loadFromSupabase, saveToSupabase, scheduleSaveToSupabase } from '@/lib/supabase/sync';
+import { loadFromSupabase, saveToSupabase, scheduleSaveToSupabase, updateLastDb } from '@/lib/supabase/sync';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import { recalcBookmakers, normHouse, bmColor, bmAbbr } from '@/lib/finance/reconciler';
 import { calcLegProfit } from '@/lib/finance/calculator';
@@ -140,7 +140,20 @@ let toastSeq = 0;
 // ── Persist helper: localStorage + background Supabase sync ──────────────────
 function persist(db: AppDB): void {
   persistDB(db);
+  updateLastDb(db);           // guarda referência para o beforeunload
   scheduleSaveToSupabase(db);
+}
+
+// ── Garante save no Supabase ao fechar/recarregar a página ───────────────────
+if (typeof window !== 'undefined') {
+  window.addEventListener('visibilitychange', () => {
+    // Dispara quando a aba entra em background (inclui reload e fechar)
+    if (document.visibilityState === 'hidden') {
+      const { getLastDb } = require('@/lib/supabase/sync') as typeof import('@/lib/supabase/sync');
+      const db = getLastDb();
+      if (db) saveToSupabase(db).catch(() => {});
+    }
+  });
 }
 
 // ── Store ────────────────────────────────────────────────────────────────────
