@@ -282,23 +282,9 @@ export async function getActiveCookie(clientCookie?: string): Promise<string> {
     return _cache.cookie;
   }
 
-  const email    = (process.env.SUPERMONITOR_EMAIL    ?? '').trim();
-  const password = (process.env.SUPERMONITOR_PASSWORD ?? '').trim();
-
-  // 2. Auto-login
-  if (email && password) {
-    try {
-      const cookie = await doLogin(email, password);
-      _cache = { cookie, fetchedAt: Date.now() };
-      storeCookieInSupabase(cookie).catch(() => {}); // persiste como backup
-      console.log('[auth] sessão renovada via auto-login');
-      return cookie;
-    } catch (err) {
-      console.error('[auth] auto-login falhou:', (err as Error).message);
-    }
-  }
-
-  // 3. Cookie do Supabase (backup persistente)
+  // 2. Cookie do Supabase — renovado pelo script local a cada 2h
+  //    (auto-login direto foi removido: o Cloudflare agora exige Turnstile
+  //     no formulário de login, que só pode ser resolvido via 2captcha no PC do usuário)
   const sbCookie = await readCookieFromSupabase();
   if (sbCookie) {
     console.log('[auth] usando cookie do Supabase');
@@ -306,14 +292,15 @@ export async function getActiveCookie(clientCookie?: string): Promise<string> {
     return sbCookie;
   }
 
-  // 4. Cookie estático do env
+  // 3. Cookie estático do env (fallback de emergência)
   const staticCookie = (process.env.SUPERMONITOR_COOKIE ?? '').trim();
   if (staticCookie) {
+    console.log('[auth] usando cookie estático do env');
     _cache = { cookie: staticCookie, fetchedAt: Date.now() };
     return staticCookie;
   }
 
-  // 5. Cookie do cliente
+  // 4. Cookie do cliente
   if (clientCookie) return clientCookie;
 
   throw new Error('auth/no-cookie');
