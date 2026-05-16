@@ -67,7 +67,7 @@
 html {
   scroll-behavior: smooth;
   -webkit-text-size-adjust: 100%;
-  font-size: 106.25%; /* 1rem = 17px — escala todos os tamanhos Tailwind baseados em rem */
+  font-size: 112.5%; /* 1rem = 18px — escala todos os tamanhos Tailwind baseados em rem */
 }
 
 body {
@@ -75,7 +75,7 @@ body {
   background: var(--bg);
   color: var(--t);
   min-height: 100vh;
-  font-size: 15px;
+  font-size: 16px;
   line-height: 1.65;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;

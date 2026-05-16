@@ -842,7 +842,7 @@ export function BuscarOddsPage() {
   const comPaCount  = parsed?.rows.filter(r =>  r.pa && !disabledHouses.has(r.house)).length ?? 0;
 
   return (
-    <div className="flex flex-col gap-5 max-w-5xl mx-auto pb-10">
+    <div className="flex flex-col gap-4 pb-8">
 
       {/* ── Toast ── */}
       <FillToast visible={showToast} />

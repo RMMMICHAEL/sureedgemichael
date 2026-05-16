@@ -1173,7 +1173,7 @@ export function CalculadoraPage() {
   }
 
   return (
-    <div className="flex flex-col gap-4 max-w-4xl mx-auto">
+    <div className="flex flex-col gap-4">
       {/* Header */}
       <div>
         <h1 className="text-xl font-black tracking-tight" style={{ color: 'var(--t)' }}>

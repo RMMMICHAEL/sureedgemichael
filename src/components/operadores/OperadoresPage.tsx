@@ -229,7 +229,7 @@ export function OperadoresPage() {
   const [guideOpen,  setGuideOpen]  = useState(false);
 
   return (
-    <div className="flex flex-col gap-6 max-w-4xl mx-auto">
+    <div className="flex flex-col gap-6">
       {/* Header */}
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>

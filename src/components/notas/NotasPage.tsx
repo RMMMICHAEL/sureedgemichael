@@ -658,7 +658,7 @@ export function NotasPage() {
         @media (min-width: 1280px) { :root { --nota-cols: 4; } }
       `}</style>
 
-      <div className="max-w-5xl mx-auto">
+      <div>
         {/* Header */}
         <div className="mb-5">
           <div className="flex items-end justify-between mb-1">
