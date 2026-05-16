@@ -78,9 +78,12 @@ $action = New-ScheduledTaskAction `
     -Argument "`"$scriptPath`"" `
     -WorkingDirectory $scriptDir
 
-$trigger = New-ScheduledTaskTrigger `
+# Dois triggers: roda ao ligar/reiniciar o PC E a cada 30 minutos
+$triggerLogon  = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
+$triggerRepeat = New-ScheduledTaskTrigger `
     -RepetitionInterval (New-TimeSpan -Minutes 30) `
     -Once -At (Get-Date).AddMinutes(2)
+$trigger = @($triggerLogon, $triggerRepeat)
 
 $settings = New-ScheduledTaskSettingsSet `
     -ExecutionTimeLimit (New-TimeSpan -Minutes 10) `
@@ -114,7 +117,7 @@ try {
     Write-Host ""
     Write-Host "OK: Tarefa '$taskName' registrada!" -ForegroundColor Green
     Write-Host ""
-    Write-Host "   Roda: a cada 30 minutos"
+    Write-Host "   Roda: ao ligar o PC + a cada 30 minutos"
     Write-Host "   Node: $nodePath"
     Write-Host "   Script: $scriptPath"
     Write-Host ""
