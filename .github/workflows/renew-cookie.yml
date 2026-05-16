@@ -8,7 +8,7 @@ on:
 jobs:
   renew:
     runs-on: ubuntu-latest
-    timeout-minutes: 20      # aumentado: até 3 tentativas × 2captcha (2min cada) + CF handling
+    timeout-minutes: 5       # HTTP puro é rápido — sem browser, sem espera de captcha
 
     steps:
       - uses: actions/checkout@v4
@@ -17,25 +17,8 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Cache Playwright browsers
-        uses: actions/cache@v4
-        id: playwright-cache
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-chromium-${{ runner.os }}-v2
-
       - name: Install dependencies
         run: npm install
-        working-directory: scripts
-
-      - name: Install Chromium
-        if: steps.playwright-cache.outputs.cache-hit != 'true'
-        run: npx playwright install chromium --with-deps
-        working-directory: scripts
-
-      - name: Install Chromium system deps (cache hit)
-        if: steps.playwright-cache.outputs.cache-hit == 'true'
-        run: sudo npx playwright install-deps chromium
         working-directory: scripts
 
       - name: Renovar cookie
@@ -44,17 +27,4 @@ jobs:
           SUPERMONITOR_PASSWORD:     ${{ secrets.SUPERMONITOR_PASSWORD }}
           NEXT_PUBLIC_SUPABASE_URL:  ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          TWOCAPTCHA_API_KEY:        ${{ secrets.TWOCAPTCHA_API_KEY }}
-          # Opcional: proxy residencial para contornar bloqueio de IP de datacenter
-          # Formatos aceitos: http://user:pass@host:port  |  socks5://user:pass@host:port
-          PROXY_URL:                 ${{ secrets.PROXY_URL }}
         run: node scripts/renew-cookie.mjs
-
-      - name: Upload screenshots (debug)
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: debug-screenshots-run${{ github.run_number }}
-          path: "*.png"
-          if-no-files-found: ignore
-          retention-days: 7
