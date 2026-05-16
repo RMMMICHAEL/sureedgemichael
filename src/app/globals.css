@@ -67,6 +67,7 @@
 html {
   scroll-behavior: smooth;
   -webkit-text-size-adjust: 100%;
+  font-size: 106.25%; /* 1rem = 17px — escala todos os tamanhos Tailwind baseados em rem */
 }
 
 body {
@@ -74,8 +75,8 @@ body {
   background: var(--bg);
   color: var(--t);
   min-height: 100vh;
-  font-size: 14px;
-  line-height: 1.6;
+  font-size: 15px;
+  line-height: 1.65;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   letter-spacing: -0.01em;
@@ -243,19 +244,19 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 table { border-collapse: collapse; width: 100%; }
 th {
   text-align: left;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   color: var(--t3);
   letter-spacing: .08em;
   text-transform: uppercase;
-  padding: 10px 14px;
+  padding: 11px 14px;
   border-bottom: 1px solid var(--b);
   white-space: nowrap;
   background: rgba(255,255,255,.015);
 }
 td {
-  padding: 11px 14px;
-  font-size: 13px;
+  padding: 12px 14px;
+  font-size: 14px;
   color: var(--t2);
   border-bottom: 1px solid rgba(255,255,255,.04);
   transition: background .12s ease;
@@ -383,7 +384,7 @@ tr:hover td { background: rgba(255,255,255,.025); }
   width: 100%;
   padding: 8px 10px;
   border-radius: 10px;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   text-align: left;
   transition: all .18s ease;
