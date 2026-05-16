@@ -8,11 +8,43 @@ import { bmColor }  from '@/lib/finance/reconciler';
 import {
   Plus, Trash2, Pencil, TrendingUp, TrendingDown,
   KeyRound, Eye, EyeOff, Search, ChevronDown, ExternalLink,
-  Building2, GitBranch,
+  Building2, GitBranch, CircleHelp, X,
+  ArrowDownLeft, ArrowUpRight, ArrowLeftRight,
 } from 'lucide-react';
-import type { Bookmaker, BookmakerCredentials, Bank } from '@/types';
+import type { Bookmaker, BookmakerCredentials, Bank, BookmakerTransaction, Leg } from '@/types';
 import { houseFavicon } from '@/lib/bookmakers/logos';
-import { calcBmLegProfit } from '@/lib/finance/reconciler';
+import { normHouse } from '@/lib/finance/reconciler';
+
+// ── Effective balance ─────────────────────────────────────────────────────────
+// Computes the auto-updated balance for a bookmaker:
+//   base (bm.balance)
+//   − pending stakes (money tied up in open bets)
+//   + green gross returns  (stake × odd  → full amount returned to house)
+//   − red stakes           (money lost)
+//   HalfGreen/Cashout: stake + net profit as gross return proxy
+//   Void/Devolvido: no change (stake already returned)
+function calcEffectiveBalance(bm: Bookmaker, legs: Leg[]): number {
+  const bmKey = normHouse(bm.name).toLowerCase();
+  let delta = 0;
+  for (const leg of legs) {
+    if (normHouse(leg.ho).toLowerCase() !== bmKey) continue;
+    if (leg.re === 'Pendente') {
+      delta -= leg.st;
+    } else if (leg.re === 'Green' || leg.re === 'Green Antecipado') {
+      // Full gross return: stake comes back + profit
+      delta += leg.st * leg.od;
+    } else if (leg.re === 'Meio Green' || leg.re === 'Cashout') {
+      // Partial: use stored profit + stake as best approximation of gross return
+      delta += leg.st + leg.pr;
+    } else if (leg.re === 'Red') {
+      delta -= leg.st;
+    } else if (leg.re === 'Meio Red') {
+      delta -= leg.st - leg.pr; // lost portion only
+    }
+    // Devolvido: delta = 0 (stake returned, no gain/loss)
+  }
+  return bm.balance + delta;
+}
 
 // ── Clone groups data ─────────────────────────────────────────────────────────
 
@@ -627,6 +659,152 @@ function CloneGroupCard({ group, open, onToggle }: { group: CloneGroup; open: bo
   );
 }
 
+// ── Bookmakers Guide Modal ────────────────────────────────────────────────────
+
+function BmGuideModal({ onClose }: { onClose: () => void }) {
+  const items = [
+    { q: 'O que é saldo manual?', a: 'O saldo exibido na casa é o valor que você informa manualmente. Use os botões de Depósito e Saque para registrar movimentações e manter o saldo atualizado automaticamente.' },
+    { q: 'O que é lucro registrado?', a: 'Soma dos lucros de todas as operações com resultado confirmado nessa casa (Green, Red, Cashout, etc). Operações Pendentes não contam.' },
+    { q: 'Como funciona Depósito/Saque?', a: 'Depósito soma ao saldo da casa; Saque subtrai. Isso reflete as movimentações de dinheiro sem precisar editar o saldo manualmente. Transferência move valor entre duas casas.' },
+    { q: 'O que são clones de apostas?', a: 'Casas de aposta que rodam na mesma plataforma/sistema. São relevantes para surebet pois tendem a ter as mesmas odds — usá-las na mesma operação pode resultar em suspensão.' },
+    { q: 'O que é casa Limitada?', a: 'Quando a casa reduziu seus limites de apostas ou criou restrições na sua conta. Marque como Limitada para acompanhar sem remover do cadastro.' },
+  ];
+  const [open, setOpen] = useState<number | null>(0);
+  return (
+    <>
+      <div className="fixed inset-0 z-40" style={{ background: 'rgba(0,0,0,.6)', backdropFilter: 'blur(4px)' }} onClick={onClose} />
+      <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[calc(100%-2rem)] max-w-lg rounded-2xl overflow-hidden"
+        style={{ background: 'var(--bg)', border: '1px solid var(--b)' }}>
+        <div className="flex items-center justify-between px-5 pt-5 pb-3" style={{ borderBottom: '1px solid var(--b)' }}>
+          <div>
+            <h2 className="font-bold text-base" style={{ color: 'var(--t)' }}>Guia — Casas de Aposta</h2>
+            <p className="text-xs" style={{ color: 'var(--t3)' }}>Saldos, movimentações e clones</p>
+          </div>
+          <button type="button" onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg" style={{ background: 'rgba(255,255,255,.06)', color: 'var(--t3)' }}>
+            <X size={14} />
+          </button>
+        </div>
+        <div className="overflow-y-auto max-h-[60vh] p-4 space-y-2">
+          {items.map((item, i) => (
+            <div key={i} className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--b)' }}>
+              <button type="button" onClick={() => setOpen(open === i ? null : i)}
+                className="flex items-center justify-between gap-3 w-full px-4 py-3 text-left text-sm font-bold"
+                style={{ color: 'var(--t)', background: open === i ? 'rgba(63,255,33,.05)' : 'transparent' }}>
+                {item.q}
+                <ChevronDown size={14} style={{ transform: open === i ? 'rotate(180deg)' : 'none', transition: 'transform .2s', color: 'var(--t3)', flexShrink: 0 }} />
+              </button>
+              {open === i && (
+                <div className="px-4 pb-4 pt-1 text-sm leading-relaxed" style={{ color: 'var(--t3)', borderTop: '1px solid var(--b)', background: 'rgba(255,255,255,.02)' }}>
+                  {item.a}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ── Bookmaker transaction modal ───────────────────────────────────────────────
+
+function BmTxModal({ bm, type, bms, onClose }: {
+  bm: Bookmaker;
+  type: BookmakerTransaction['type'];
+  bms: Bookmaker[];
+  onClose: () => void;
+}) {
+  const addBookmakerTransaction = useStore(s => s.addBookmakerTransaction);
+  const toastFn                 = useStore(s => s.toast);
+
+  const [amount,   setAmount]   = useState('');
+  const [notes,    setNotes]    = useState('');
+  const [targetId, setTargetId] = useState('');
+
+  const labels = {
+    deposito:      { title: 'Registrar Depósito',     color: 'var(--g)', icon: <ArrowDownLeft size={16} /> },
+    saque:         { title: 'Registrar Saque',        color: 'var(--r)', icon: <ArrowUpRight  size={16} /> },
+    transferencia: { title: 'Registrar Transferência',color: 'var(--bl)',icon: <ArrowLeftRight size={16} /> },
+  }[type];
+
+  function save() {
+    const val = parseFloat(amount.replace(',', '.'));
+    if (!val || val <= 0) { toastFn('Valor inválido', 'wrn'); return; }
+    if (type === 'transferencia' && !targetId) { toastFn('Selecione a casa destino', 'wrn'); return; }
+
+    addBookmakerTransaction(bm.id, { date: new Date().toISOString().slice(0, 10), type, amount: val, notes: notes || undefined, toBookmakerId: targetId || undefined });
+
+    // For transfers: also register as a saque from origin and deposit to destination
+    if (type === 'transferencia' && targetId) {
+      addBookmakerTransaction(targetId, { date: new Date().toISOString().slice(0, 10), type: 'deposito', amount: val, notes: `Transferência recebida de ${bm.name}` });
+    }
+
+    toastFn(
+      type === 'deposito' ? `Depósito de R$ ${val.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} registrado` :
+      type === 'saque'    ? `Saque de R$ ${val.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} registrado` :
+      `Transferência de R$ ${val.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} registrada`, 'ok'
+    );
+    onClose();
+  }
+
+  const inputSt = { background: 'var(--sur)', border: '1px solid var(--b2)', color: 'var(--t)' };
+
+  return (
+    <>
+      <div className="fixed inset-0 z-40" style={{ background: 'rgba(0,0,0,.6)', backdropFilter: 'blur(4px)' }} onClick={onClose} />
+      <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[calc(100%-2rem)] max-w-sm rounded-2xl overflow-hidden"
+        style={{ background: 'var(--bg)', border: `1px solid ${labels.color}40` }}>
+        <div className="flex items-center justify-between px-5 pt-5 pb-3" style={{ borderBottom: '1px solid var(--b)' }}>
+          <div className="flex items-center gap-2">
+            <span style={{ color: labels.color }}>{labels.icon}</span>
+            <div>
+              <h2 className="font-bold text-base" style={{ color: 'var(--t)' }}>{labels.title}</h2>
+              <p className="text-xs" style={{ color: 'var(--t3)' }}>{bm.name}</p>
+            </div>
+          </div>
+          <button type="button" onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg" style={{ background: 'rgba(255,255,255,.06)', color: 'var(--t3)' }}>
+            <X size={14} />
+          </button>
+        </div>
+        <div className="p-5 flex flex-col gap-3">
+          <label className="flex flex-col gap-1.5">
+            <span className="text-xs font-bold" style={{ color: 'var(--t3)' }}>VALOR (R$)</span>
+            <input value={amount} onChange={e => setAmount(e.target.value)} placeholder="0,00" autoFocus
+              className="px-3 py-2.5 rounded-lg text-sm font-mono" style={inputSt} />
+          </label>
+          {type === 'transferencia' && (
+            <label className="flex flex-col gap-1.5">
+              <span className="text-xs font-bold" style={{ color: 'var(--t3)' }}>CASA DESTINO</span>
+              <select value={targetId} onChange={e => setTargetId(e.target.value)} className="px-3 py-2.5 rounded-lg text-sm" style={inputSt}>
+                <option value="">Selecionar...</option>
+                {bms.filter(b => b.id !== bm.id).map(b => (
+                  <option key={b.id} value={b.id}>{b.name}</option>
+                ))}
+              </select>
+            </label>
+          )}
+          <label className="flex flex-col gap-1.5">
+            <span className="text-xs font-bold" style={{ color: 'var(--t3)' }}>OBSERVAÇÃO (opcional)</span>
+            <input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Ex: depósito via Pix..."
+              className="px-3 py-2.5 rounded-lg text-sm" style={inputSt} />
+          </label>
+          <div className="flex gap-2 pt-1">
+            <button type="button" onClick={onClose}
+              className="flex-1 py-2.5 rounded-xl text-sm font-bold" style={{ background: 'var(--sur)', color: 'var(--t3)', border: '1px solid var(--b)' }}>
+              Cancelar
+            </button>
+            <button type="button" onClick={save}
+              className="flex-1 py-2.5 rounded-xl text-sm font-bold"
+              style={{ background: labels.color + '22', color: labels.color, border: `1px solid ${labels.color}44` }}>
+              Confirmar
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export function BookmakersPage() {
@@ -647,6 +825,8 @@ export function BookmakersPage() {
   const [presetColor,  setPresetColor]  = useState('');
   const [cloneSearch,  setCloneSearch]  = useState('');
   const [openCloneId,  setOpenCloneId]  = useState<string | null>(null);
+  const [guideOpen,    setGuideOpen]    = useState(false);
+  const [txState,      setTxState]      = useState<{ bm: Bookmaker; type: BookmakerTransaction['type'] } | null>(null);
 
   const totalBmCash   = bms.reduce((s, b) => s + b.balance, 0);
   const totalBankCash = banks.reduce((s, b) => s + b.balance, 0);
@@ -692,16 +872,21 @@ export function BookmakersPage() {
             {bms.length} {bms.length === 1 ? 'casa' : 'casas'} cadastradas
           </p>
         </div>
-        {tab === 'minhas' && (
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => setShowBankForm(true)}>
-              <Plus size={14} /> Banco
-            </Button>
-            <Button variant="primary" onClick={() => setShowCatalog(true)}>
-              <Plus size={14} /> Casa
-            </Button>
-          </div>
-        )}
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setGuideOpen(true)}>
+            <CircleHelp size={14} /> Guia
+          </Button>
+          {tab === 'minhas' && (
+            <>
+              <Button variant="outline" onClick={() => setShowBankForm(true)}>
+                <Plus size={14} /> Banco
+              </Button>
+              <Button variant="primary" onClick={() => setShowCatalog(true)}>
+                <Plus size={14} /> Casa
+              </Button>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Tabs */}
@@ -749,8 +934,8 @@ export function BookmakersPage() {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
               {bms.map(bm => {
-                const col       = bm.color || bmColor(bm.name);
-                const legProfit = calcBmLegProfit(bm.name, legs);
+                const col              = bm.color || bmColor(bm.name);
+                const effectiveBalance = calcEffectiveBalance(bm, legs);
                 return (
                   <div
                     key={bm.id}
@@ -801,19 +986,30 @@ export function BookmakersPage() {
                     {/* Balance breakdown */}
                     <div className="flex gap-2">
                       <div className="flex-1 rounded-xl p-3" style={{ background: 'var(--bg3, var(--bg))' }}>
-                        <div className="text-[10px] font-bold uppercase tracking-wide mb-0.5" style={{ color: 'var(--t3)' }}>Saldo manual</div>
-                        <div className="text-base font-extrabold font-mono" style={{ color: 'var(--g)' }}>
-                          R$ {bm.balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        <div className="text-[10px] font-bold uppercase tracking-wide mb-0.5" style={{ color: 'var(--t3)' }}>Saldo Atual</div>
+                        <div className="text-base font-extrabold font-mono" style={{ color: effectiveBalance >= 0 ? 'var(--g)' : 'var(--r)' }}>
+                          R$ {effectiveBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                         </div>
                       </div>
-                      {legProfit !== 0 && (
-                        <div className="flex-1 rounded-xl p-3" style={{ background: 'var(--bg3, var(--bg))' }}>
-                          <div className="text-[10px] font-bold uppercase tracking-wide mb-0.5" style={{ color: 'var(--t3)' }}>Lucro registrado</div>
-                          <div className="text-base font-extrabold font-mono" style={{ color: legProfit >= 0 ? 'var(--g)' : 'var(--r)' }}>
-                            {legProfit >= 0 ? '+' : '−'}R$ {Math.abs(legProfit).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                          </div>
-                        </div>
-                      )}
+                    </div>
+
+                    {/* Action buttons */}
+                    <div className="grid grid-cols-3 gap-1.5">
+                      <button type="button" onClick={() => setTxState({ bm, type: 'deposito' })}
+                        className="flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold"
+                        style={{ background: 'rgba(63,255,33,.08)', color: 'var(--g)', border: '1px solid rgba(63,255,33,.2)' }}>
+                        <ArrowDownLeft size={11} /> Depósito
+                      </button>
+                      <button type="button" onClick={() => setTxState({ bm, type: 'saque' })}
+                        className="flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold"
+                        style={{ background: 'rgba(255,77,109,.08)', color: 'var(--r)', border: '1px solid rgba(255,77,109,.2)' }}>
+                        <ArrowUpRight size={11} /> Saque
+                      </button>
+                      <button type="button" onClick={() => setTxState({ bm, type: 'transferencia' })}
+                        className="flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold"
+                        style={{ background: 'rgba(77,166,255,.08)', color: 'var(--bl)', border: '1px solid rgba(77,166,255,.2)' }}>
+                        <ArrowLeftRight size={11} /> Transfer.
+                      </button>
                     </div>
                   </div>
                 );
@@ -954,6 +1150,10 @@ export function BookmakersPage() {
       )}
       {showBankForm && (
         <BankForm existing={editingBank} onClose={() => { setShowBankForm(false); setEditingBank(undefined); }} />
+      )}
+      {guideOpen && <BmGuideModal onClose={() => setGuideOpen(false)} />}
+      {txState && (
+        <BmTxModal bm={txState.bm} type={txState.type} bms={bms} onClose={() => setTxState(null)} />
       )}
     </div>
   );
