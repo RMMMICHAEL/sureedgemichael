@@ -430,12 +430,20 @@ async function fetchAndCache(cookie) {
       try {
         const qs   = `action=search&q=${encodeURIComponent(event.name)}&type=all`;
         const data = await fetchDecrypted(session, qs);
-        const r    = await sbFetch('sm_odds', 'POST',
+
+        // Verifica se a resposta tem resultados reais
+        const results = Array.isArray(data) ? data
+          : Array.isArray(data?.results) ? data.results
+          : Array.isArray(data?.data)    ? data.data
+          : [];
+        if (!results.length) return; // sem odds disponíveis — não conta como falha
+
+        const r = await sbFetch('sm_odds', 'POST',
           { event_id: event.id, event_name: event.name, data, updated_at: new Date().toISOString() },
           { 'Prefer': 'resolution=merge-duplicates' }
         );
         if (r.ok) oddsOk++;
-        else { oddsFail++; }
+        else oddsFail++;
       } catch { oddsFail++; }
     }));
 
