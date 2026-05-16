@@ -18,7 +18,7 @@ import { URL }  from 'node:url';
 import { readFileSync, existsSync } from 'node:fs';
 import { resolve, dirname }        from 'node:path';
 import { fileURLToPath }           from 'node:url';
-import { createClient }            from '@supabase/supabase-js';
+// Supabase: usa REST direto (evita problemas de WebSocket no Node < 22)
 
 // ── Carrega .env local se existir (para rodar no PC sem variáveis de sistema) ──
 const __dir = dirname(fileURLToPath(import.meta.url));
@@ -36,13 +36,16 @@ const BASE       = 'https://painel.supermonitor.pro';
 const LOGIN_PAGE = `${BASE}/login.php`;
 const UA         = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
 
-const email    = (process.env.SUPERMONITOR_EMAIL        ?? '').trim();
-const password = (process.env.SUPERMONITOR_PASSWORD     ?? '').trim();
-const sbUrl    = (process.env.NEXT_PUBLIC_SUPABASE_URL  ?? '').trim();
-const sbKey    = (process.env.SUPABASE_SERVICE_ROLE_KEY ?? '').trim();
+const email         = (process.env.SUPERMONITOR_EMAIL        ?? '').trim();
+const password      = (process.env.SUPERMONITOR_PASSWORD     ?? '').trim();
+const sbUrl         = (process.env.NEXT_PUBLIC_SUPABASE_URL  ?? '').trim();
+const captchaApiKey = (process.env.TWOCAPTCHA_API_KEY        ?? '').trim();
+// Aceita service role key ou anon key (fallback para ambiente local)
+const sbKey    = (process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '').trim();
 
 if (!email || !password) { console.error('❌  SUPERMONITOR_EMAIL / PASSWORD não configurados.'); process.exit(1); }
 if (!sbUrl  || !sbKey)   { console.error('❌  Supabase não configurado.');                       process.exit(1); }
+if (!captchaApiKey)      { console.warn('⚠️   TWOCAPTCHA_API_KEY não configurada — login pode falhar se Turnstile obrigatório.'); }
 
 // ── Agent keepAlive — garante mesmo IP/socket para GET e POST ─────────────────
 // O Cloudflare amarra o CSRF token ao IP. keepAlive força a mesma conexão TCP.
@@ -84,6 +87,57 @@ function request(method, urlStr, headers, body) {
     if (body) req.write(body);
     req.end();
   });
+}
+
+// ── 2captcha: resolve Turnstile sem browser ───────────────────────────────────
+
+async function solveTurnstile(siteKey, pageUrl) {
+  if (!captchaApiKey) return null;
+  console.log(`🤖  2captcha Turnstile — siteKey: ${siteKey.slice(0, 14)}…`);
+
+  const createRes = await fetch('https://api.2captcha.com/createTask', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      clientKey: captchaApiKey,
+      task: { type: 'TurnstileTaskProxyless', websiteURL: pageUrl, websiteKey: siteKey },
+    }),
+  });
+  const created = await createRes.json();
+  if (created.errorId !== 0) throw new Error(`2captcha createTask: ${created.errorCode}`);
+
+  const taskId = created.taskId;
+  console.log(`⏳  Task ${taskId} criada. Aguardando token…`);
+
+  for (let i = 0; i < 24; i++) {
+    await new Promise(r => setTimeout(r, 5_000));
+    const res    = await fetch('https://api.2captcha.com/getTaskResult', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clientKey: captchaApiKey, taskId }),
+    });
+    const result = await res.json();
+    if (result.errorId !== 0) throw new Error(`2captcha getTaskResult: ${result.errorCode}`);
+    if (result.status === 'ready') {
+      const token = result.solution?.token;
+      console.log(`✅  Turnstile resolvido: ${token.slice(0, 20)}…`);
+      return token;
+    }
+    console.log(`   … ${(i + 1) * 5}s`);
+  }
+  throw new Error('2captcha timeout — token não chegou em 2 minutos');
+}
+
+// ── Extrai Turnstile siteKey do HTML ──────────────────────────────────────────
+
+function extractSiteKey(html) {
+  // data-sitekey em qualquer elemento
+  const m1 = html.match(/data-sitekey=["']([0-9a-zA-Z_-]{20,})["']/);
+  if (m1) return m1[1];
+  // sitekey em script inline
+  const m2 = html.match(/sitekey['":\s]+['"]([0-9a-zA-Z_-]{20,})['"]/);
+  if (m2) return m2[1];
+  return null;
 }
 
 // ── Extrai PHPSESSID do header Set-Cookie ─────────────────────────────────────
@@ -147,7 +201,15 @@ async function doLogin() {
     html.match(/value=["']([^"']{32,})["'][^>]*name=["']csrf_token["']/i);
   const csrfToken = csrfMatch?.[1] ?? '';
 
-  console.log(`   sessid: ${anonCookie.slice(0, 24)}…  csrf: ${csrfToken ? '✓' : 'ausente'}`);
+  // Extrai Turnstile siteKey se presente no formulário
+  const siteKey = extractSiteKey(html);
+  console.log(`   sessid: ${anonCookie.slice(0, 24)}…  csrf: ${csrfToken ? '✓' : 'ausente'}  turnstile: ${siteKey ? '✓' : 'ausente'}`);
+
+  // Resolve Turnstile via 2captcha (sem browser — apenas a API)
+  let turnstileToken = null;
+  if (siteKey) {
+    turnstileToken = await solveTurnstile(siteKey, LOGIN_PAGE);
+  }
 
   // Delay humano (evita rate-limit)
   await new Promise(r => setTimeout(r, 600 + Math.random() * 400));
@@ -159,6 +221,7 @@ async function doLogin() {
     params.set('email',   email);
     params.set('senha',   password);
     params.set('website', ''); // honeypot
+    if (turnstileToken)  params.set('cf-turnstile-response', turnstileToken);
 
     const bodyStr = params.toString();
 
@@ -279,18 +342,26 @@ if (!valid) {
   console.log('✅  Cookie válido');
 }
 
-// Salva no Supabase
+// Salva no Supabase via REST (sem SDK, compatível com qualquer versão do Node)
 console.log(`🍪  Cookie: ${cookie.slice(0, 24)}…`);
-const sb = createClient(sbUrl, sbKey);
-const { error } = await sb
-  .from('app_config')
-  .upsert(
-    { key: 'supermonitor_cookie', value: cookie, updated_at: new Date().toISOString() },
-    { onConflict: 'key' }
-  );
+const sbRes = await fetch(`${sbUrl}/rest/v1/app_config`, {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'apikey':        sbKey,
+    'Authorization': `Bearer ${sbKey}`,
+    'Prefer':        'resolution=merge-duplicates',
+  },
+  body: JSON.stringify({
+    key:        'supermonitor_cookie',
+    value:      cookie,
+    updated_at: new Date().toISOString(),
+  }),
+});
 
-if (error) {
-  console.error(`❌  Supabase: ${error.message}`);
+if (!sbRes.ok) {
+  const msg = await sbRes.text().catch(() => sbRes.status);
+  console.error(`❌  Supabase: ${msg}`);
   process.exit(1);
 }
 
