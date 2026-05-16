@@ -152,61 +152,41 @@ function getBests(rows: BMRow[]): Record<ColKey, number | undefined> {
 }
 
 // ── Top 5 PA ranking algorithm ──────────────────────────────────────────────────
+// Rules: 1 (casa) = PA only · X (empate) = qualquer casa · 2 (fora) = PA only
 
 function getTop5PA(rows: BMRow[], disabledHouses: Set<string>): RankItem[] {
   const active = rows.filter(r => !disabledHouses.has(r.house));
+  const paRows = active.filter(r => r.pa);
   const results: RankItem[] = [];
 
-  // PA Casa: PA house provides home odd (1)
-  for (const paRow of active.filter(r => r.pa && r.mlHome)) {
-    const bestX = active
-      .filter(r => r.house !== paRow.house && r.mlDraw)
-      .sort((a, b) => (b.mlDraw ?? 0) - (a.mlDraw ?? 0))[0];
-    const bestAway = active
-      .filter(r => r.house !== paRow.house && r.mlAway)
-      .sort((a, b) => (b.mlAway ?? 0) - (a.mlAway ?? 0))[0];
-    if (!bestX?.mlDraw || !bestAway?.mlAway) continue;
+  // For every PA home × PA away combination, use the best available draw from any house
+  for (const homeRow of paRows.filter(r => r.mlHome)) {
+    for (const awayRow of paRows.filter(r => r.mlAway)) {
+      // Best draw from any active house (PA or SEM PA)
+      const bestX = active
+        .filter(r => r.mlDraw)
+        .sort((a, b) => (b.mlDraw ?? 0) - (a.mlDraw ?? 0))[0];
+      if (!bestX?.mlDraw) continue;
 
-    const margin = 1 / paRow.mlHome! + 1 / bestX.mlDraw + 1 / bestAway.mlAway;
-    results.push({
-      legs: [
-        { house: paRow.house, label: '1', odd: paRow.mlHome! },
-        { house: bestX.house, label: 'X', odd: bestX.mlDraw },
-        { house: bestAway.house, label: '2', odd: bestAway.mlAway },
-      ],
-      margin,
-      profit: (1 / margin - 1) * 100,
-    });
+      const margin = 1 / homeRow.mlHome! + 1 / bestX.mlDraw + 1 / awayRow.mlAway!;
+      results.push({
+        legs: [
+          { house: homeRow.house, label: '1', odd: homeRow.mlHome! },
+          { house: bestX.house,   label: 'X', odd: bestX.mlDraw },
+          { house: awayRow.house, label: '2', odd: awayRow.mlAway! },
+        ],
+        margin,
+        profit: (1 / margin - 1) * 100,
+      });
+    }
   }
 
-  // PA Fora: PA house provides away odd (2)
-  for (const paRow of active.filter(r => r.pa && r.mlAway)) {
-    const bestHome = active
-      .filter(r => r.house !== paRow.house && r.mlHome)
-      .sort((a, b) => (b.mlHome ?? 0) - (a.mlHome ?? 0))[0];
-    const bestX = active
-      .filter(r => r.house !== paRow.house && r.mlDraw)
-      .sort((a, b) => (b.mlDraw ?? 0) - (a.mlDraw ?? 0))[0];
-    if (!bestHome?.mlHome || !bestX?.mlDraw) continue;
-
-    const margin = 1 / bestHome.mlHome + 1 / bestX.mlDraw + 1 / paRow.mlAway!;
-    results.push({
-      legs: [
-        { house: bestHome.house, label: '1', odd: bestHome.mlHome },
-        { house: bestX.house,    label: 'X', odd: bestX.mlDraw },
-        { house: paRow.house,    label: '2', odd: paRow.mlAway! },
-      ],
-      margin,
-      profit: (1 / margin - 1) * 100,
-    });
-  }
-
-  // Sort by margin ascending, deduplicate by house trio, take top 5
+  // Sort by margin ascending, deduplicate by PA home+away pair, take top 5
   const seen = new Set<string>();
   return results
     .sort((a, b) => a.margin - b.margin)
     .filter(item => {
-      const key = item.legs.map(l => l.house).sort().join('|');
+      const key = `${item.legs[0].house}|${item.legs[2].house}`;
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
