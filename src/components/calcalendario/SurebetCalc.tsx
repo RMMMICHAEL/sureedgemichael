@@ -32,7 +32,7 @@ function nowBRT(): string {
     .replace(' ', 'T');
 }
 
-const ALL_HOUSES = [
+export const ALL_HOUSES = [
   '7Games','Aposta1','Apostaganha','Apostatudo','Apostefacil','B1bet','B2xbet','Bateubet',
   'Bet365','Bet365Arg','Bet365Pe','Bet4','Bet7k','Betagora','Betaki','Betano','Betao',
   'Betbet','Betboo','Betboom','Betdasorte','Betesporte','Betfair Ex','Betfair SB','Betfast',
@@ -92,9 +92,10 @@ interface AddToPanelProps {
   stakes: number[];
   onClose: () => void;
   selectedEvent?: { name: string; start_utc: string } | null;
+  initialHouses?: string[];
 }
 
-function AddToPanelModal({ numOutcomes, formulaOpt, effectiveOdds, stakes, onClose, selectedEvent }: AddToPanelProps) {
+function AddToPanelModal({ numOutcomes, formulaOpt, effectiveOdds, stakes, onClose, selectedEvent, initialHouses }: AddToPanelProps) {
   const addLeg  = useStore(s => s.addLeg);
   const toastFn = useStore(s => s.toast);
 
@@ -112,7 +113,9 @@ function AddToPanelModal({ numOutcomes, formulaOpt, effectiveOdds, stakes, onClo
   });
   const [sp,   setSp]   = useState('Futebol');
   const [opT,  setOpT]  = useState<OpType>('surebet');
-  const [houses, setHouses] = useState<string[]>(Array(numOutcomes).fill(''));
+  const [houses, setHouses] = useState<string[]>(() =>
+    Array.from({ length: numOutcomes }, (_, i) => initialHouses?.[i] ?? '')
+  );
 
   function setHouse(i: number, val: string) {
     setHouses(prev => prev.map((h, idx) => idx === i ? val : h));
@@ -246,8 +249,14 @@ function AddToPanelModal({ numOutcomes, formulaOpt, effectiveOdds, stakes, onClo
 
 // ── Main calculator ───────────────────────────────────────────────────────────
 
-export function SurebetCalc({ selectedEvent }: { selectedEvent?: { name: string; start_utc: string } | null } = {}) {
-  const [numOutcomes, setNumOutcomes] = useState<2 | 3>(2);
+interface SurebetCalcProps {
+  selectedEvent?: { name: string; start_utc: string } | null;
+  externalFill?: { odds: string[]; houses: string[] } | null;
+  defaultNumOutcomes?: 2 | 3;
+}
+
+export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 2 }: SurebetCalcProps = {}) {
+  const [numOutcomes, setNumOutcomes] = useState<2 | 3>(defaultNumOutcomes);
   const [formulaVal,  setFormulaVal]  = useState(0);
   const [odds,        setOdds]        = useState(['2.10', '1.95', '2.80']);
   const [fixedMode,   setFixedMode]   = useState<'sum' | 0 | 1 | 2>('sum');
@@ -256,12 +265,29 @@ export function SurebetCalc({ selectedEvent }: { selectedEvent?: { name: string;
   const [roundEnabled, setRoundEnabled] = useState(false);
   const [roundToStr,  setRoundToStr]  = useState('5');
   const [showAdd,     setShowAdd]     = useState(false);
+  const [injectedHouses, setInjectedHouses] = useState<string[]>([]);
 
   // Polymarket state
   const [polymarket,  setPolymarket]  = useState([false, false, false]);
   const [quotePrices, setQuotePrices] = useState(['22', '22', '22']);
   const [exchangeRate, setExchangeRate] = useState('5.50');
   const [fetchingRate, setFetchingRate] = useState(false);
+
+  // External fill from BuscarOddsPage (odd-click or ranking fill)
+  useEffect(() => {
+    if (!externalFill) return;
+    const n = (externalFill.odds.length === 2 ? 2 : 3) as 2 | 3;
+    setNumOutcomes(n);
+    const opts = n === 2 ? FORMULA_OPTIONS_2WAY : FORMULA_OPTIONS_3WAY;
+    setFormulaVal(opts[0].value);
+    setOdds(prev => {
+      const next = [...prev];
+      externalFill.odds.forEach((o, i) => { if (i < 3) next[i] = o; });
+      return next;
+    });
+    setInjectedHouses(externalFill.houses?.slice(0, n) ?? []);
+    setFixedMode('sum');
+  }, [externalFill]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const formulaOptions: FormulaOption[] = numOutcomes === 2
     ? FORMULA_OPTIONS_2WAY
@@ -892,6 +918,7 @@ export function SurebetCalc({ selectedEvent }: { selectedEvent?: { name: string;
           stakes={result.stakes}
           onClose={() => setShowAdd(false)}
           selectedEvent={selectedEvent}
+          initialHouses={injectedHouses}
         />
       )}
     </div>

@@ -5,6 +5,7 @@ import {
   ScanSearch, Search, X, Building2, Filter, RefreshCw,
   TrendingUp, ChevronDown, ChevronUp, Star,
 } from 'lucide-react';
+import { SurebetCalc, ALL_HOUSES } from '@/components/calcalendario/SurebetCalc';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -63,11 +64,18 @@ const PA_SET = new Set([
 
 function isPa(house: string): boolean {
   const n = house.toLowerCase().replace(/[\s\-_.]/g, '');
+  // Suffix "SO" (Sem Odds / sem pagamento antecipado) — never PA, even if base name is PA
+  if (n.endsWith('so')) return false;
   if (PA_SET.has(n)) return true;
   for (const pa of PA_SET) {
     if (n.length >= 4 && pa.length >= 4 && (n.startsWith(pa) || pa.startsWith(n))) return true;
   }
   return false;
+}
+
+function normHouseForCalc(raw: string): string {
+  const s = (h: string) => h.toLowerCase().replace(/[\s\-_.]/g, '');
+  return ALL_HOUSES.find(h => s(h) === s(raw)) ?? raw;
 }
 
 // ── Parse search results ───────────────────────────────────────────────────────
@@ -230,7 +238,7 @@ const DC_COLS:  ColKey[] = ['dc1X','dcX2','dc12'];
 
 // ── Odds cell ──────────────────────────────────────────────────────────────────
 
-function OCell({ val, best }: { val?: number; best: boolean }) {
+function OCell({ val, best, onClick }: { val?: number; best: boolean; onClick?: () => void }) {
   if (!val || val <= 1) {
     return (
       <td style={{ textAlign: 'center', padding: '9px 5px' }}>
@@ -240,24 +248,28 @@ function OCell({ val, best }: { val?: number; best: boolean }) {
   }
   return (
     <td style={{ textAlign: 'center', padding: '9px 5px' }}>
-      <span style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        minWidth: 56,
-        padding: '5px 10px',
-        borderRadius: 7,
-        fontSize: 14,
-        fontWeight: 800,
-        fontFamily: '"JetBrains Mono", "Fira Mono", "Consolas", monospace',
-        fontVariantNumeric: 'tabular-nums',
-        letterSpacing: '-0.01em',
-        background: best ? 'rgba(63,255,33,.16)' : 'rgba(255,255,255,.055)',
-        color: best ? '#3fff21' : 'oklch(82% 0.01 250)',
-        border: best ? '1px solid rgba(63,255,33,.32)' : '1px solid rgba(255,255,255,.08)',
-        boxShadow: best ? '0 0 10px rgba(63,255,33,.13)' : 'none',
-        transition: 'background .15s',
-      }}>
+      <span
+        onClick={onClick}
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minWidth: 56,
+          padding: '5px 10px',
+          borderRadius: 7,
+          fontSize: 14,
+          fontWeight: 800,
+          fontFamily: '"JetBrains Mono", "Fira Mono", "Consolas", monospace',
+          fontVariantNumeric: 'tabular-nums',
+          letterSpacing: '-0.01em',
+          background: best ? 'rgba(63,255,33,.16)' : 'rgba(255,255,255,.055)',
+          color: best ? '#3fff21' : 'oklch(82% 0.01 250)',
+          border: best ? '1px solid rgba(63,255,33,.32)' : '1px solid rgba(255,255,255,.08)',
+          boxShadow: best ? '0 0 10px rgba(63,255,33,.13)' : 'none',
+          transition: 'background .15s, box-shadow .15s',
+          cursor: onClick ? 'pointer' : 'default',
+        }}
+      >
         {val.toFixed(2)}
       </span>
     </td>
@@ -267,12 +279,13 @@ function OCell({ val, best }: { val?: number; best: boolean }) {
 // ── Odds section (SEM PA or COM PA) ───────────────────────────────────────────
 
 function OddsSection({
-  pa, rows, bests, disabledHouses,
+  pa, rows, bests, disabledHouses, onCellClick,
 }: {
   pa: boolean;
   rows: BMRow[];
   bests: Record<ColKey, number | undefined>;
   disabledHouses: Set<string>;
+  onCellClick?: (house: string, col: ColKey, val: number) => void;
 }) {
   const filtered = rows
     .filter(r => r.pa === pa && !disabledHouses.has(r.house))
@@ -360,7 +373,14 @@ function OddsSection({
 
           {/* ML odds */}
           {ML_COLS.map(col => (
-            <OCell key={col} val={row[col]} best={!!(row[col] && row[col] === bests[col])} />
+            <OCell
+              key={col}
+              val={row[col]}
+              best={!!(row[col] && row[col] === bests[col])}
+              onClick={onCellClick && row[col] && row[col]! > 1
+                ? () => onCellClick!(row.house, col, row[col]!)
+                : undefined}
+            />
           ))}
 
           {/* Separator */}
@@ -616,7 +636,7 @@ function FillToast({ visible }: { visible: boolean }) {
     >
       <span style={{ fontSize: 16 }}>✓</span>
       <span style={{ fontSize: 13, fontWeight: 700, color: '#3fff21' }}>
-        Suas apostas foram preenchidas automaticamente na calculadora
+        Odd preenchida — clique em Adicionar ao Painel para salvar
       </span>
     </div>
   );
@@ -711,9 +731,9 @@ export function BuscarOddsPage() {
   const [showFilter,      setShowFilter]      = useState(false);
 
   // ── Calculator fill state ────────────────────────────────────────────────────
-  const [calcFill,  setCalcFill]  = useState<[string, string, string] | null>(null);
+  const [surebetFill, setSurebetFill] = useState<{ odds: string[]; houses: string[] } | null>(null);
   const [showToast, setShowToast] = useState(false);
-  const calcRef = useRef<HTMLDivElement>(null);
+  const surebetCalcRef = useRef<HTMLDivElement>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── Normalize ────────────────────────────────────────────────────────────────
@@ -769,7 +789,7 @@ export function BuscarOddsPage() {
     setOddsErr('');
     setParsed(null);
     setDisabledHouses(new Set());
-    setCalcFill(null);
+    setSurebetFill(null);
     try {
       const res  = await fetch('/api/supermonitor/search', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -811,13 +831,11 @@ export function BuscarOddsPage() {
 
   // ── Handle ranking fill ──────────────────────────────────────────────────────
   function handleRankingFill(item: RankItem) {
-    const fill: [string, string, string] = [
-      item.legs[0].odd.toFixed(2),
-      item.legs[1].odd.toFixed(2),
-      item.legs[2].odd.toFixed(2),
-    ];
-    setCalcFill(fill);
-    calcRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setSurebetFill({
+      odds:   item.legs.map(l => l.odd.toFixed(2)),
+      houses: item.legs.map(l => normHouseForCalc(l.house)),
+    });
+    surebetCalcRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     setShowToast(true);
     if (toastTimer.current) clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => setShowToast(false), 3000);
@@ -837,9 +855,30 @@ export function BuscarOddsPage() {
   const today       = new Date().toISOString().slice(0, 10);
   const isOlderData = fetchedDate && fetchedDate !== today;
   const bests       = useMemo(() => parsed ? getBests(parsed.rows.filter(r => !disabledHouses.has(r.house))) : {} as Record<ColKey, number | undefined>, [parsed, disabledHouses]);
+  const bestsPa     = useMemo(() => parsed ? getBests(parsed.rows.filter(r =>  r.pa && !disabledHouses.has(r.house))) : {} as Record<ColKey, number | undefined>, [parsed, disabledHouses]);
+  const bestsNonPa  = useMemo(() => parsed ? getBests(parsed.rows.filter(r => !r.pa && !disabledHouses.has(r.house))) : {} as Record<ColKey, number | undefined>, [parsed, disabledHouses]);
   const top5        = useMemo(() => parsed ? getTop5PA(parsed.rows, disabledHouses) : [], [parsed, disabledHouses]);
   const semPaCount  = parsed?.rows.filter(r => !r.pa && !disabledHouses.has(r.house)).length ?? 0;
   const comPaCount  = parsed?.rows.filter(r =>  r.pa && !disabledHouses.has(r.house)).length ?? 0;
+
+  // ── Odd click → fill SurebetCalc ─────────────────────────────────────────────
+  function handleCellClick(house: string, col: ColKey, val: number) {
+    const legMap: Record<ColKey, number> = {
+      mlHome: 0, mlDraw: 1, mlAway: 2, dc1X: 0, dcX2: 1, dc12: 2,
+    };
+    const legIndex = legMap[col];
+    // Build 3-way ML odds: clicked value for this leg, global best for others
+    const mlOdds = ML_COLS.map((c, i) =>
+      i === legIndex ? val.toFixed(2) : (bests[c] ? bests[c]!.toFixed(2) : '')
+    );
+    const houses = ['', '', ''];
+    houses[legIndex] = normHouseForCalc(house);
+    setSurebetFill({ odds: mlOdds, houses });
+    surebetCalcRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    setShowToast(true);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setShowToast(false), 3000);
+  }
 
   return (
     <div className="flex flex-col gap-4 pb-8">
@@ -1031,23 +1070,18 @@ export function BuscarOddsPage() {
 
       {/* ── Calculator ── */}
       {parsed && (
-        <div>
-          <div className="flex items-center gap-2 mb-3">
-            <span className="text-[10px] font-black uppercase tracking-[.12em]" style={{ color: 'var(--t3)' }}>
-              Calculadora ML (1×2)
-            </span>
-            <span className="text-[10px]" style={{ color: 'rgba(255,255,255,.2)' }}>—</span>
-            <span className="text-[10px]" style={{ color: 'var(--t3)' }}>
-              Preenchida automaticamente com as melhores odds disponíveis
+        <div ref={surebetCalcRef} className="rounded-2xl p-5" style={{ background: 'var(--bg2)', border: '1px solid var(--b)' }}>
+          <div className="flex items-center gap-2 mb-4 flex-wrap">
+            <span className="text-sm font-black" style={{ color: 'var(--t)' }}>Calculadora</span>
+            <span className="text-[10px] px-2 py-0.5 rounded-md font-bold"
+              style={{ background: 'rgba(63,255,33,.08)', color: 'rgba(63,255,33,.75)', border: '1px solid rgba(63,255,33,.15)' }}>
+              Clique em qualquer odd para preencher
             </span>
           </div>
-          <Calc3Way
-            title="Calculadora ML — 1 × X × 2"
-            labels={['Casa (1)', 'Empate (X)', 'Fora (2)']}
-            cols={['mlHome', 'mlDraw', 'mlAway']}
-            bests={bests}
-            externalFill={calcFill}
-            calcRef={calcRef}
+          <SurebetCalc
+            selectedEvent={selectedEvent ? { name: selectedEvent.name, start_utc: selectedEvent.start_utc } : null}
+            externalFill={surebetFill}
+            defaultNumOutcomes={3}
           />
         </div>
       )}
@@ -1226,10 +1260,10 @@ export function BuscarOddsPage() {
                 </tr>
               </thead>
               <tbody>
-                {/* SEM PA first */}
-                <OddsSection pa={false} rows={parsed.rows} bests={bests} disabledHouses={disabledHouses} />
-                {/* COM PA second */}
-                <OddsSection pa={true}  rows={parsed.rows} bests={bests} disabledHouses={disabledHouses} />
+                {/* COM PA first */}
+                <OddsSection pa={true}  rows={parsed.rows} bests={bestsPa}    disabledHouses={disabledHouses} onCellClick={handleCellClick} />
+                {/* SEM PA second */}
+                <OddsSection pa={false} rows={parsed.rows} bests={bestsNonPa} disabledHouses={disabledHouses} onCellClick={handleCellClick} />
               </tbody>
             </table>
           </div>
