@@ -2,13 +2,13 @@ name: Renew SuperMonitor Cookie
 
 on:
   schedule:
-    - cron: '0 */2 * * *'
-  workflow_dispatch:
+    - cron: '0 */2 * * *'   # a cada 2 horas
+  workflow_dispatch:         # disparo manual
 
 jobs:
   renew:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20      # aumentado: até 3 tentativas × 2captcha (2min cada) + CF handling
 
     steps:
       - uses: actions/checkout@v4
@@ -22,7 +22,7 @@ jobs:
         id: playwright-cache
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-chromium-${{ runner.os }}-v1
+          key: playwright-chromium-${{ runner.os }}-v2
 
       - name: Install dependencies
         run: npm install
@@ -45,8 +45,8 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL:  ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           TWOCAPTCHA_API_KEY:        ${{ secrets.TWOCAPTCHA_API_KEY }}
-          # PROXY_URL é opcional — configure o secret se o Cloudflare bloquear o IP do runner
-          # Exemplo: http://user:pass@gate.smartproxy.com:10000
+          # Opcional: proxy residencial para contornar bloqueio de IP de datacenter
+          # Formatos aceitos: http://user:pass@host:port  |  socks5://user:pass@host:port
           PROXY_URL:                 ${{ secrets.PROXY_URL }}
         run: node scripts/renew-cookie.mjs
 
@@ -54,7 +54,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: screenshots-${{ github.run_number }}
+          name: debug-screenshots-run${{ github.run_number }}
           path: "*.png"
           if-no-files-found: ignore
-          retention-days: 3
+          retention-days: 7
