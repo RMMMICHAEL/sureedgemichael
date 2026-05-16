@@ -773,10 +773,10 @@ export function BuscarOddsPage() {
     try {
       const res  = await fetch('/api/supermonitor/search', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: event.name }),
+        body: JSON.stringify({ query: event.name, eventId: event.id }),
       });
-      const json = await res.json() as { ok: boolean; data?: unknown; error?: string };
-      if (!json.ok) throw new Error(json.error ?? '');
+      const json = await res.json() as { ok: boolean; data?: unknown; error?: string; hint?: string };
+      if (!json.ok) throw new Error(json.hint ?? json.error ?? '');
       const p = parseSearchResults(json.data);
       if (!p) throw new Error('Nenhuma odd encontrada para este evento');
       setParsed(p);

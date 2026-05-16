@@ -1,5 +1,5 @@
 # setup-task-scheduler.ps1
-# Registra a renovação automática de cookie no Agendador de Tarefas do Windows.
+# Registra a renovação automática de cookie + cache no Agendador de Tarefas.
 # Execute UMA VEZ como Administrador:
 #   Right-click PowerShell → "Executar como administrador"
 #   cd "C:\Users\rmmic\OneDrive\Documentos\suredge-app\scripts"
@@ -10,7 +10,6 @@ $scriptDir  = Split-Path -Parent $MyInvocation.MyCommand.Path
 $scriptPath = Join-Path $scriptDir "renew-cookie.mjs"
 $envFile    = Join-Path $scriptDir ".env"
 $taskName   = "SureEdge-RenewCookie"
-$logFile    = Join-Path $scriptDir "renew-cookie.log"
 
 # ── Valida pré-requisitos ────────────────────────────────────────────────────
 
@@ -45,12 +44,13 @@ $action   = New-ScheduledTaskAction `
     -Argument "`"$scriptPath`"" `
     -WorkingDirectory $scriptDir
 
-# A cada 2 horas, começa em 10 minutos
-$trigger = New-ScheduledTaskTrigger -RepetitionInterval (New-TimeSpan -Hours 2) `
-    -Once -At (Get-Date).AddMinutes(10)
+# A cada 30 minutos — atualiza eventos + odds para o site
+$trigger = New-ScheduledTaskTrigger `
+    -RepetitionInterval (New-TimeSpan -Minutes 30) `
+    -Once -At (Get-Date).AddMinutes(2)
 
 $settings = New-ScheduledTaskSettingsSet `
-    -ExecutionTimeLimit (New-TimeSpan -Minutes 5) `
+    -ExecutionTimeLimit (New-TimeSpan -Minutes 10) `
     -StartWhenAvailable `
     -RunOnlyIfNetworkAvailable `
     -MultipleInstances IgnoreNew
@@ -75,19 +75,21 @@ Register-ScheduledTask `
     -Trigger   $trigger `
     -Settings  $settings `
     -Principal $principal `
-    -Description "Renova o cookie do SuperMonitor a cada 2 horas (SureEdge)" | Out-Null
+    -Description "Renova cookie + cache de eventos/odds (SureEdge) a cada 30 min" | Out-Null
 
 Write-Host ""
-Write-Host "✅  Tarefa '$taskName' registrada com sucesso!" -ForegroundColor Green
+Write-Host "✅  Tarefa '$taskName' registrada!" -ForegroundColor Green
 Write-Host ""
-Write-Host "   Roda: a cada 2 horas enquanto o PC estiver ligado"
+Write-Host "   Roda: a cada 30 minutos enquanto o PC estiver ligado"
 Write-Host "   Node: $nodePath"
 Write-Host "   Script: $scriptPath"
 Write-Host ""
-Write-Host "🔍  Para verificar:" -ForegroundColor Cyan
-Write-Host "   Abra 'Agendador de Tarefas' → Biblioteca → SureEdge-RenewCookie"
+Write-Host "   O script agora faz 3 coisas em sequência:"
+Write-Host "   1. Valida/renova o cookie de login"
+Write-Host "   2. Busca a lista de eventos do dia"
+Write-Host "   3. Busca as odds de cada evento"
 Write-Host ""
-Write-Host "▶  Rodando agora para testar..." -ForegroundColor Cyan
+Write-Host "▶  Rodando agora para popular o cache inicial..." -ForegroundColor Cyan
 Write-Host ""
 
 # Roda imediatamente para testar
@@ -100,9 +102,9 @@ $result = Start-Process -FilePath $nodePath `
 
 if ($result.ExitCode -eq 0) {
     Write-Host ""
-    Write-Host "🎉  Teste bem-sucedido! Cookie renovado." -ForegroundColor Green
+    Write-Host "🎉  Cache populado com sucesso! Acesse o site para ver os eventos." -ForegroundColor Green
 } else {
     Write-Host ""
-    Write-Host "❌  Teste falhou com código $($result.ExitCode)." -ForegroundColor Red
+    Write-Host "❌  Falhou com código $($result.ExitCode)." -ForegroundColor Red
     Write-Host "   Verifique as credenciais no arquivo .env"
 }
