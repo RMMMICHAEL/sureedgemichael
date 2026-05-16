@@ -1,7 +1,15 @@
 /**
  * renew-cookie.mjs
- * Abre Chrome, resolve Cloudflare Turnstile via 2captcha,
+ * Abre Chrome, lida com Cloudflare (JS challenge + Turnstile),
  * faz login no SuperMonitor e salva o PHPSESSID no Supabase.
+ *
+ * Variáveis de ambiente:
+ *   SUPERMONITOR_EMAIL        — e-mail de login
+ *   SUPERMONITOR_PASSWORD     — senha de login
+ *   NEXT_PUBLIC_SUPABASE_URL  — URL do Supabase
+ *   SUPABASE_SERVICE_ROLE_KEY — chave de serviço Supabase
+ *   TWOCAPTCHA_API_KEY        — chave da API 2captcha
+ *   PROXY_URL (opcional)      — proxy residencial, ex: http://user:pass@host:port
  */
 
 import { chromium } from 'playwright-extra';
@@ -18,17 +26,23 @@ const password      = (process.env.SUPERMONITOR_PASSWORD   ?? '').trim();
 const sbUrl         = (process.env.NEXT_PUBLIC_SUPABASE_URL  ?? '').trim();
 const sbKey         = (process.env.SUPABASE_SERVICE_ROLE_KEY ?? '').trim();
 const captchaApiKey = (process.env.TWOCAPTCHA_API_KEY        ?? '').trim();
+const proxyUrl      = (process.env.PROXY_URL                 ?? '').trim();
 
 if (!email || !password) { console.error('❌  Credenciais não configuradas.'); process.exit(1); }
 if (!sbUrl  || !sbKey)   { console.error('❌  Supabase não configurado.');      process.exit(1); }
 if (!captchaApiKey)      { console.error('❌  TWOCAPTCHA_API_KEY não configurada.'); process.exit(1); }
 
-// ── 2captcha: resolve Cloudflare Turnstile ────────────────────────────────────
+if (proxyUrl) {
+  console.log(`🌐  Proxy configurado: ${proxyUrl.replace(/:([^:@]+)@/, ':***@')}`);
+} else {
+  console.log('ℹ️  Sem proxy — usando IP do runner (pode ser bloqueado pelo Cloudflare)');
+}
+
+// ── 2captcha: resolve Turnstile (tanto do site quanto do CF challenge) ─────────
 
 async function solveTurnstile(siteKey, pageUrl) {
   console.log(`🤖  Enviando Turnstile para 2captcha (siteKey: ${siteKey.slice(0, 12)}…)`);
 
-  // Cria task
   const createRes = await fetch('https://api.2captcha.com/createTask', {
     method:  'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -50,7 +64,6 @@ async function solveTurnstile(siteKey, pageUrl) {
   const taskId = createData.taskId;
   console.log(`⏳  Task criada (id: ${taskId}). Aguardando solução…`);
 
-  // Polling a cada 5s por até 2 minutos
   for (let i = 0; i < 24; i++) {
     await new Promise(r => setTimeout(r, 5_000));
 
@@ -77,6 +90,86 @@ async function solveTurnstile(siteKey, pageUrl) {
   throw new Error('2captcha timeout — solução não chegou em 2 minutos');
 }
 
+// ── Lida com Cloudflare challenge page ────────────────────────────────────────
+
+/**
+ * Verifica se o título é uma página de challenge do Cloudflare e tenta resolver.
+ * 1) Aguarda auto-resolução (funciona para CF JS challenge com browser stealth)
+ * 2) Se persistir, tenta extrair sitekey do CF e resolver via 2captcha
+ * 3) Se não tiver sitekey, levanta erro com orientação de proxy
+ */
+async function handleCloudflarePage(page) {
+  const title = await page.title();
+  const isCF  = /cloudflare|attention required|just a moment/i.test(title);
+
+  if (!isCF) return; // página normal, não precisa fazer nada
+
+  console.log(`⚠️  Cloudflare challenge detectado (título: "${title}")`);
+  console.log('   Aguardando resolução automática do JS challenge (30s)…');
+  await page.screenshot({ path: 'cf-challenge-before.png', fullPage: true });
+
+  // Tentativa 1: aguardar auto-resolução (CF JS challenge demora 5-15s)
+  try {
+    await page.waitForFunction(
+      () => !/cloudflare|attention required|just a moment/i.test(document.title),
+      { timeout: 30_000, polling: 2_000 }
+    );
+    console.log(`✅  CF resolvido automaticamente. Título: "${await page.title()}"`);
+    return;
+  } catch {
+    console.log('⚠️  Auto-resolução falhou. Tentando via 2captcha na página CF…');
+  }
+
+  // Tentativa 2: extrair sitekey do widget Turnstile na página CF e resolver
+  const cfSiteKey = await page.evaluate(() => {
+    const widget = document.querySelector('[data-sitekey]');
+    if (widget) return widget.getAttribute('data-sitekey');
+    // tenta em script inline
+    for (const s of Array.from(document.querySelectorAll('script'))) {
+      const m = (s.textContent || '').match(/sitekey['":\s]+['"]([0-9a-zA-Z_-]{20,})['"]/);
+      if (m) return m[1];
+    }
+    return null;
+  });
+
+  if (!cfSiteKey) {
+    await page.screenshot({ path: 'cf-hard-block.png', fullPage: true });
+    throw new Error(
+      'Cloudflare bloqueou o IP do runner e não há Turnstile visível para resolver. ' +
+      'Configure PROXY_URL com um proxy residencial (ex: BrightData, Smartproxy) ' +
+      'ou use um self-hosted runner com IP residencial.'
+    );
+  }
+
+  console.log(`🔑  SiteKey CF: ${cfSiteKey.slice(0, 16)}…`);
+  const token = await solveTurnstile(cfSiteKey, LOGIN_PAGE);
+
+  // Injeta token no widget CF e aguarda submit automático
+  await page.evaluate((t) => {
+    const input = document.querySelector('input[name="cf-turnstile-response"]');
+    if (input) {
+      input.value = t;
+      const form = input.closest('form');
+      if (form) form.submit();
+    } else {
+      // Alguns casos usam callback no widget
+      if (window.turnstile) window.turnstile.reset();
+    }
+  }, token);
+
+  // Aguarda sair da página CF
+  try {
+    await page.waitForFunction(
+      () => !/cloudflare|attention required|just a moment/i.test(document.title),
+      { timeout: 30_000, polling: 2_000 }
+    );
+    console.log(`✅  CF resolvido via 2captcha. Título: "${await page.title()}"`);
+  } catch {
+    await page.screenshot({ path: 'cf-still-blocked.png', fullPage: true });
+    throw new Error('CF não resolveu mesmo após 2captcha — IP com bloqueio severo. Use proxy residencial.');
+  }
+}
+
 // ── Login principal ───────────────────────────────────────────────────────────
 
 console.log(`🔐  Iniciando login para ${email.slice(0, 3)}…`);
@@ -84,6 +177,7 @@ console.log(`🔐  Iniciando login para ${email.slice(0, 3)}…`);
 const browser = await chromium.launch({
   headless: true,
   args: ['--no-sandbox', '--disable-setuid-sandbox'],
+  ...(proxyUrl ? { proxy: { server: proxyUrl } } : {}),
 });
 
 const context = await browser.newContext({
@@ -100,46 +194,46 @@ try {
   await page.goto(LOGIN_PAGE, { waitUntil: 'domcontentloaded', timeout: 30_000 });
   console.log(`📋  Título: ${await page.title()}`);
 
-  // ── Passo 2: extrair siteKey do Turnstile ──────────────────────────────────
-  await page.waitForSelector('input[name="email"]', { timeout: 15_000 });
+  // ── Passo 2: lidar com Cloudflare (se presente) ────────────────────────────
+  await handleCloudflarePage(page);
 
+  // ── Passo 3: aguardar formulário de login (timeout aumentado) ──────────────
+  await page.waitForSelector('input[name="email"]', { timeout: 30_000 });
+
+  // ── Passo 4: extrair siteKey do Turnstile do site (se houver) ─────────────
   const siteKey = await page.evaluate(() => {
-    // Tenta no widget .cf-turnstile
     const widget = document.querySelector('[data-sitekey]');
     if (widget) return widget.getAttribute('data-sitekey');
-    // Tenta no script inline
-    const scripts = Array.from(document.querySelectorAll('script'));
-    for (const s of scripts) {
-      const m = s.textContent.match(/sitekey['":\s]+['"]([0-9a-zA-Z_-]{20,})['"]/);
+    for (const s of Array.from(document.querySelectorAll('script'))) {
+      const m = (s.textContent || '').match(/sitekey['":\s]+['"]([0-9a-zA-Z_-]{20,})['"]/);
       if (m) return m[1];
     }
     return null;
   });
 
-  console.log(`🔑  SiteKey Turnstile: ${siteKey ? siteKey.slice(0, 16) + '…' : 'não encontrada'}`);
+  console.log(`🔑  SiteKey Turnstile do site: ${siteKey ? siteKey.slice(0, 16) + '…' : 'não encontrada'}`);
 
-  // ── Passo 3: preencher formulário ──────────────────────────────────────────
+  // ── Passo 5: preencher formulário ──────────────────────────────────────────
   await page.fill('input[name="email"]',  email);
   await page.fill('input[name="senha"]',  password);
   const honeypot = page.locator('input[name="website"]');
   if (await honeypot.count() > 0) await honeypot.fill('');
 
-  // ── Passo 4: resolver Turnstile via 2captcha ───────────────────────────────
+  // ── Passo 6: resolver Turnstile do site via 2captcha ──────────────────────
   if (siteKey) {
     const token = await solveTurnstile(siteKey, LOGIN_PAGE);
-    // Injeta token no campo oculto
     await page.evaluate((t) => {
       const el = document.querySelector('input[name="cf-turnstile-response"]');
       if (el) el.value = t;
     }, token);
     console.log('💉  Token injetado no formulário.');
   } else {
-    console.log('⚠️  SiteKey não encontrada — tentando sem Turnstile…');
+    console.log('⚠️  SiteKey do site não encontrada — tentando sem Turnstile…');
   }
 
   await page.screenshot({ path: 'before-submit.png', fullPage: true });
 
-  // ── Passo 5: submit ────────────────────────────────────────────────────────
+  // ── Passo 7: submit ────────────────────────────────────────────────────────
   console.log('📤  Enviando formulário…');
   await page.click('button[type="submit"]');
 
@@ -155,7 +249,7 @@ try {
     throw new Error(`Login falhou. Erro: ${errText ?? 'desconhecido'}`);
   }
 
-  // ── Passo 6: extrair PHPSESSID ─────────────────────────────────────────────
+  // ── Passo 8: extrair PHPSESSID ─────────────────────────────────────────────
   const cookies = await context.cookies(BASE);
   const sessid  = cookies.find(c => c.name === 'PHPSESSID');
   if (!sessid?.value) throw new Error('PHPSESSID não encontrado após login');
@@ -163,7 +257,7 @@ try {
   const cookieStr = `PHPSESSID=${sessid.value}`;
   console.log(`🍪  Cookie: ${cookieStr.slice(0, 24)}…`);
 
-  // ── Passo 7: salvar no Supabase ────────────────────────────────────────────
+  // ── Passo 9: salvar no Supabase ────────────────────────────────────────────
   const sb = createClient(sbUrl, sbKey);
   const { error } = await sb
     .from('app_config')
