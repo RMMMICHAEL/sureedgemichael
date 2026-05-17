@@ -621,20 +621,6 @@ function RankingCard({
   const urlLegs  = item.legs.filter(l => l.url);
   const hasUrls  = urlLegs.length > 0;
 
-  function handleOpenTabs() {
-    for (const leg of item.legs) {
-      if (!leg.url) continue;
-      const a = document.createElement('a');
-      a.href = leg.url;
-      a.target = '_blank';
-      a.rel = 'noopener noreferrer';
-      a.style.display = 'none';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-    }
-  }
-
   return (
     <div
       className="rounded-xl p-3 flex flex-col gap-2.5"
@@ -661,24 +647,45 @@ function RankingCard({
         </span>
       </div>
 
-      {/* Legs */}
-      <div className="flex flex-col gap-1.5">
+      {/* Legs — nome da casa clicável */}
+      <div className="flex flex-col gap-2">
         {item.legs.map((leg, i) => (
           <div key={i} className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-1.5 min-w-0">
-              {/* Número da leg */}
+            <div className="flex items-center gap-2 min-w-0 flex-1">
               <span className="text-[10px] font-black w-4 text-center flex-shrink-0"
                 style={{ color: 'var(--t3)' }}>{i + 1}</span>
-              <span className="text-[11px] font-semibold truncate" style={{ color: 'var(--t2)' }}>
-                {leg.house}
-              </span>
+
+              {leg.url ? (
+                <a
+                  href={leg.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 min-w-0 group"
+                  style={{ textDecoration: 'none' }}
+                >
+                  <span
+                    className="text-sm font-bold truncate"
+                    style={{ color: '#818cf8', transition: 'color .15s' }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#a5b4fc'; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = '#818cf8'; }}
+                  >
+                    {leg.house}
+                  </span>
+                  <ExternalLink size={10} style={{ color: 'rgba(129,140,248,.5)', flexShrink: 0 }} />
+                </a>
+              ) : (
+                <span className="text-sm font-bold truncate" style={{ color: 'var(--t2)' }}>
+                  {leg.house}
+                </span>
+              )}
             </div>
+
             <div className="flex items-center gap-2 flex-shrink-0">
               <span className="text-[10px] font-bold px-1.5 py-0.5 rounded"
                 style={{ background: 'rgba(255,255,255,.07)', color: 'var(--t3)' }}>
                 {leg.label}
               </span>
-              <span className="text-[12px] font-black tabular-nums" style={{ color: 'var(--t)' }}>
+              <span className="text-[13px] font-black tabular-nums" style={{ color: 'var(--t)' }}>
                 {leg.odd.toFixed(2)}
               </span>
             </div>
@@ -686,54 +693,22 @@ function RankingCard({
         ))}
       </div>
 
-      {/* Buttons */}
-      <div className="flex gap-2 mt-0.5">
-        {/* Preencher calculadora */}
-        <button
-          type="button"
-          onClick={() => onFill(item)}
-          className="flex-1 rounded-lg py-1.5 text-xs font-bold flex items-center justify-center gap-1.5 transition-all"
-          style={{
-            background: 'rgba(63,255,33,.08)',
-            color: '#3fff21',
-            border: '1px solid rgba(63,255,33,.2)',
-          }}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(63,255,33,.15)'; }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(63,255,33,.08)'; }}
-        >
-          <span style={{ fontSize: 14, lineHeight: 1 }}>+</span>
-          Calculadora
-        </button>
-
-        {/* Abrir casas em novas guias */}
-        <button
-          type="button"
-          onClick={handleOpenTabs}
-          disabled={!hasUrls}
-          title={hasUrls
-            ? `Abrir ${urlLegs.length} casa${urlLegs.length !== 1 ? 's' : ''} em novas guias`
-            : 'Links indisponíveis para este evento'}
-          className="flex-1 rounded-lg py-1.5 text-xs font-bold flex items-center justify-center gap-1.5 transition-all"
-          style={{
-            background: hasUrls ? 'rgba(129,140,248,.1)' : 'rgba(255,255,255,.03)',
-            color: hasUrls ? '#818cf8' : 'rgba(255,255,255,.2)',
-            border: `1px solid ${hasUrls ? 'rgba(129,140,248,.25)' : 'rgba(255,255,255,.07)'}`,
-            cursor: hasUrls ? 'pointer' : 'not-allowed',
-          }}
-          onMouseEnter={e => { if (hasUrls) (e.currentTarget as HTMLElement).style.background = 'rgba(129,140,248,.18)'; }}
-          onMouseLeave={e => { if (hasUrls) (e.currentTarget as HTMLElement).style.background = 'rgba(129,140,248,.1)'; }}
-        >
-          <ExternalLink size={11} />
-          Abrir casas
-        </button>
-      </div>
-
-      {/* Aviso de quantas guias serão abertas */}
-      {hasUrls && urlLegs.length < item.legs.length && (
-        <p className="text-[9px] text-center" style={{ color: 'var(--t3)', marginTop: -4 }}>
-          {item.legs.length - urlLegs.length} casa{item.legs.length - urlLegs.length !== 1 ? 's' : ''} sem link disponível
-        </p>
-      )}
+      {/* Preencher calculadora */}
+      <button
+        type="button"
+        onClick={() => onFill(item)}
+        className="w-full rounded-lg py-1.5 text-xs font-bold flex items-center justify-center gap-1.5 transition-all mt-0.5"
+        style={{
+          background: 'rgba(63,255,33,.08)',
+          color: '#3fff21',
+          border: '1px solid rgba(63,255,33,.2)',
+        }}
+        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(63,255,33,.15)'; }}
+        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(63,255,33,.08)'; }}
+      >
+        <span style={{ fontSize: 14, lineHeight: 1 }}>+</span>
+        Preencher calculadora
+      </button>
     </div>
   );
 }
