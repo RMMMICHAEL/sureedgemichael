@@ -3,9 +3,25 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import {
   ScanSearch, Search, X, Building2, Filter, RefreshCw,
-  TrendingUp, ChevronDown, ChevronUp, Star,
+  ChevronDown, ChevronUp, Star,
 } from 'lucide-react';
 import { SurebetCalc, ALL_HOUSES } from '@/components/calcalendario/SurebetCalc';
+
+// ── CSS keyframes (injected once) ─────────────────────────────────────────────
+const LIVE_STYLES = `
+@keyframes oddBounce {
+  0%   { transform: scale(1); }
+  18%  { transform: scale(1.22); }
+  38%  { transform: scale(0.93); }
+  58%  { transform: scale(1.1);  }
+  78%  { transform: scale(0.97); }
+  100% { transform: scale(1);   }
+}
+@keyframes livePulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: .4; transform: scale(0.75); }
+}
+`;
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -51,6 +67,11 @@ interface RankItem {
   margin: number;
   profit: number;
 }
+
+// ── Live odds types ────────────────────────────────────────────────────────────
+type ChangeDir = 'up' | 'down';
+interface OddChange { direction: ChangeDir; changedAt: number; }
+type LiveChanges = Map<string, OddChange>; // key = `${house}:${colKey}`
 
 // ── PA bookmakers set ──────────────────────────────────────────────────────────
 
@@ -216,9 +237,53 @@ const ALL_COLS: ColKey[] = ['mlHome','mlDraw','mlAway','dc1X','dcX2','dc12'];
 const ML_COLS:  ColKey[] = ['mlHome','mlDraw','mlAway'];
 const DC_COLS:  ColKey[] = ['dc1X','dcX2','dc12'];
 
+// ── SSE helpers ────────────────────────────────────────────────────────────────
+
+/** Converte mercado SSE (market + label) → ColKey da tabela */
+function marketToColKey(market: string, label: string): ColKey | null {
+  const m = market.toUpperCase();
+  const l = label.toUpperCase();
+  if (m === 'ML' || m === '1X2' || m === 'MONEYLINE') {
+    if (l === '1') return 'mlHome';
+    if (l === 'X') return 'mlDraw';
+    if (l === '2') return 'mlAway';
+  }
+  if (m === 'DC' || m === 'DOUBLE_CHANCE') {
+    if (l === '1X') return 'dc1X';
+    if (l === 'X2') return 'dcX2';
+    if (l === '12') return 'dc12';
+  }
+  return null;
+}
+
+/** Normaliza string para comparação de nomes (remove acentos, espaços, lowercase) */
+function normStr(s: string) {
+  return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[\s\-_]/g, '');
+}
+
+/** Verifica se event_key do SSE bate com o evento carregado */
+function matchEventKey(eventKey: string, home: string, away: string): boolean {
+  const parts = eventKey.split('|');
+  if (parts.length < 2) return false;
+  const kh = normStr(parts[0]);
+  const ka = normStr(parts[1]);
+  const h  = normStr(home);
+  const a  = normStr(away);
+  // Aceita se home ou away incluem a parte da chave (ou vice-versa)
+  return (h.includes(kh) || kh.includes(h) || kh.startsWith(h.slice(0, 5)))
+      && (a.includes(ka) || ka.includes(a) || ka.startsWith(a.slice(0, 5)));
+}
+
 // ── Odds cell ──────────────────────────────────────────────────────────────────
 
-function OCell({ val, best, onClick }: { val?: number; best: boolean; onClick?: () => void }) {
+function OCell({
+  val, best, onClick, change,
+}: {
+  val?: number;
+  best: boolean;
+  onClick?: () => void;
+  change?: OddChange;
+}) {
   if (!val || val <= 1) {
     return (
       <td style={{ textAlign: 'center', padding: '9px 5px' }}>
@@ -226,6 +291,11 @@ function OCell({ val, best, onClick }: { val?: number; best: boolean; onClick?: 
       </td>
     );
   }
+
+  const isUp   = change?.direction === 'up';
+  const isDown = change?.direction === 'down';
+  const isLive = !!change;
+
   return (
     <td style={{ textAlign: 'center', padding: '9px 5px' }}>
       <span
@@ -234,6 +304,7 @@ function OCell({ val, best, onClick }: { val?: number; best: boolean; onClick?: 
           display: 'inline-flex',
           alignItems: 'center',
           justifyContent: 'center',
+          gap: 3,
           minWidth: 56,
           padding: '5px 10px',
           borderRadius: 7,
@@ -242,14 +313,26 @@ function OCell({ val, best, onClick }: { val?: number; best: boolean; onClick?: 
           fontFamily: '"JetBrains Mono", "Fira Mono", "Consolas", monospace',
           fontVariantNumeric: 'tabular-nums',
           letterSpacing: '-0.01em',
-          background: best ? 'rgba(63,255,33,.16)' : 'rgba(255,255,255,.055)',
-          color: best ? '#3fff21' : 'oklch(82% 0.01 250)',
-          border: best ? '1px solid rgba(63,255,33,.32)' : '1px solid rgba(255,255,255,.08)',
-          boxShadow: best ? '0 0 10px rgba(63,255,33,.13)' : 'none',
-          transition: 'background .15s, box-shadow .15s',
+          background: isLive
+            ? (isUp ? 'rgba(63,255,33,.26)' : 'rgba(255,77,109,.22)')
+            : (best ? 'rgba(63,255,33,.16)' : 'rgba(255,255,255,.055)'),
+          color: isLive
+            ? (isUp ? '#3fff21' : '#ff4d6d')
+            : (best ? '#3fff21' : 'oklch(82% 0.01 250)'),
+          border: isLive
+            ? `1px solid ${isUp ? 'rgba(63,255,33,.55)' : 'rgba(255,77,109,.45)'}`
+            : (best ? '1px solid rgba(63,255,33,.32)' : '1px solid rgba(255,255,255,.08)'),
+          boxShadow: isLive
+            ? `0 0 14px ${isUp ? 'rgba(63,255,33,.35)' : 'rgba(255,77,109,.35)'}`
+            : (best ? '0 0 10px rgba(63,255,33,.13)' : 'none'),
+          transition: isLive ? 'none' : 'background .15s, box-shadow .15s',
           cursor: onClick ? 'pointer' : 'default',
+          animation: isLive ? 'oddBounce 0.52s ease-out' : 'none',
         }}
       >
+        {/* Ícone de direção */}
+        {isUp   && <span style={{ fontSize: 9, lineHeight: 1, marginRight: 1 }}>▲</span>}
+        {isDown && <span style={{ fontSize: 9, lineHeight: 1, marginRight: 1 }}>▼</span>}
         {val.toFixed(2)}
       </span>
     </td>
@@ -259,13 +342,14 @@ function OCell({ val, best, onClick }: { val?: number; best: boolean; onClick?: 
 // ── Odds section (SEM PA or COM PA) ───────────────────────────────────────────
 
 function OddsSection({
-  pa, rows, bests, disabledHouses, onCellClick,
+  pa, rows, bests, disabledHouses, onCellClick, liveChanges,
 }: {
   pa: boolean;
   rows: BMRow[];
   bests: Record<ColKey, number | undefined>;
   disabledHouses: Set<string>;
   onCellClick?: (house: string, col: ColKey, val: number) => void;
+  liveChanges?: LiveChanges;
 }) {
   const filtered = rows
     .filter(r => r.pa === pa && !disabledHouses.has(r.house))
@@ -360,6 +444,7 @@ function OddsSection({
               onClick={onCellClick && row[col] && row[col]! > 1
                 ? () => onCellClick!(row.house, col, row[col]!)
                 : undefined}
+              change={liveChanges?.get(`${row.house}:${col}`)}
             />
           ))}
 
@@ -368,7 +453,12 @@ function OddsSection({
 
           {/* DC odds */}
           {DC_COLS.map(col => (
-            <OCell key={col} val={row[col]} best={!!(row[col] && row[col] === bests[col])} />
+            <OCell
+              key={col}
+              val={row[col]}
+              best={!!(row[col] && row[col] === bests[col])}
+              change={liveChanges?.get(`${row.house}:${col}`)}
+            />
           ))}
         </tr>
       ))}
@@ -705,6 +795,7 @@ export function BuscarOddsPage() {
   // ── Odds state ───────────────────────────────────────────────────────────────
   const [selectedEvent,   setSelectedEvent]   = useState<CachedEvent | null>(null);
   const [oddsLoading,     setOddsLoading]     = useState(false);
+  const [oddsLoadingMsg,  setOddsLoadingMsg]  = useState('Buscando odds...');
   const [parsed,          setParsed]          = useState<ParsedSearch | null>(null);
   const [oddsErr,         setOddsErr]         = useState('');
   const [disabledHouses,  setDisabledHouses]  = useState<Set<string>>(new Set());
@@ -715,6 +806,13 @@ export function BuscarOddsPage() {
   const [showToast, setShowToast] = useState(false);
   const surebetCalcRef = useRef<HTMLDivElement>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ── Live odds state ──────────────────────────────────────────────────────────
+  const [liveChanges, setLiveChanges] = useState<LiveChanges>(new Map());
+  const [liveStatus, setLiveStatus] = useState<'off' | 'connecting' | 'connected' | 'error'>('off');
+  const parsedRef  = useRef<ParsedSearch | null>(null);
+  const sseRef     = useRef<EventSource | null>(null);
+  const sseTimer   = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── Normalize ────────────────────────────────────────────────────────────────
   const normalize = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
@@ -763,30 +861,208 @@ export function BuscarOddsPage() {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  // ── Load odds for selected event ─────────────────────────────────────────────
+  // ── Mantém parsedRef sincronizado ───────────────────────────────────────────
+  useEffect(() => { parsedRef.current = parsed; }, [parsed]);
+
+  // ── Limpa indicadores após 4 s ───────────────────────────────────────────────
+  useEffect(() => {
+    if (liveChanges.size === 0) return;
+    const timer = setTimeout(() => {
+      const now = Date.now();
+      setLiveChanges(prev => {
+        const next = new Map(prev);
+        for (const [k, v] of next) {
+          if (now - v.changedAt > 4000) next.delete(k);
+        }
+        return next.size !== prev.size ? next : prev;
+      });
+    }, 4200);
+    return () => clearTimeout(timer);
+  }, [liveChanges]);
+
+  // ── Conexão SSE ──────────────────────────────────────────────────────────────
+  useEffect(() => {
+    let active = true;
+
+    function closeSse() {
+      sseRef.current?.close();
+      sseRef.current = null;
+    }
+
+    function clearTimer() {
+      if (sseTimer.current) { clearTimeout(sseTimer.current); sseTimer.current = null; }
+    }
+
+    async function connect() {
+      if (!active) return;
+      clearTimer();
+      setLiveStatus('connecting');
+
+      try {
+        const res  = await fetch('/api/supermonitor/sse-token');
+        const json = await res.json() as { ok: boolean; token?: string };
+        if (!active) return;
+        if (!json.ok || !json.token) {
+          setLiveStatus('off');
+          return; // script ainda não rodou — silencioso
+        }
+
+        closeSse();
+        const es = new EventSource(
+          `https://api5.nomacisoft.com/search/events?temp_token=${encodeURIComponent(json.token)}`
+        );
+        sseRef.current = es;
+
+        es.addEventListener('update', (e: MessageEvent) => {
+          if (!active) return;
+          try {
+            const payload = JSON.parse(e.data) as {
+              type?: string;
+              deltas?: { event_key: string; house: string; market: string; label: string; odd: number }[];
+            };
+            if (payload.type !== 'odds_delta' || !payload.deltas?.length) return;
+
+            const current = parsedRef.current;
+            if (!current) return;
+
+            const relevant = payload.deltas.filter(d =>
+              matchEventKey(d.event_key, current.home, current.away)
+            );
+            if (!relevant.length) return;
+
+            const pendingChanges = new Map<string, OddChange>();
+            let anyChange = false;
+
+            const newRows = current.rows.map(row => {
+              const matching = relevant.filter(d => d.house === row.house);
+              if (!matching.length) return row;
+              let updated = { ...row };
+              for (const d of matching) {
+                const col = marketToColKey(d.market, d.label);
+                if (!col) continue;
+                const oldVal = row[col];
+                if (oldVal === d.odd) continue;
+                const dir: ChangeDir = d.odd > (oldVal ?? 0) ? 'up' : 'down';
+                pendingChanges.set(`${d.house}:${col}`, { direction: dir, changedAt: Date.now() });
+                updated = { ...updated, [col]: d.odd };
+                anyChange = true;
+              }
+              return updated;
+            });
+
+            if (!anyChange) return;
+
+            setParsed({ ...current, rows: newRows });
+            setLiveChanges(prev => {
+              const next = new Map(prev);
+              for (const [k, v] of pendingChanges) next.set(k, v);
+              return next;
+            });
+          } catch { /* ignore parse errors */ }
+        });
+
+        es.onopen = () => { if (active) setLiveStatus('connected'); };
+
+        es.onerror = () => {
+          closeSse();
+          if (!active) return;
+          setLiveStatus('error');
+          // Tenta reconectar em 45 s (token pode ter expirado → pega novo)
+          sseTimer.current = setTimeout(connect, 45_000);
+        };
+
+      } catch {
+        if (!active) return;
+        setLiveStatus('error');
+        sseTimer.current = setTimeout(connect, 60_000);
+      }
+    }
+
+    connect();
+
+    return () => {
+      active = false;
+      clearTimer();
+      closeSse();
+      setLiveStatus('off');
+    };
+  }, []); // monta uma vez; parsedRef atualiza automaticamente
+
+  // ── Load odds for selected event (queue-aware) ───────────────────────────────
   const fetchOdds = useCallback(async (event: CachedEvent) => {
     setOddsLoading(true);
+    setOddsLoadingMsg('Buscando odds...');
     setOddsErr('');
     setParsed(null);
     setDisabledHouses(new Set());
     setSurebetFill(null);
+
     try {
-      const res  = await fetch('/api/supermonitor/search', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+      // 1. Tenta cache primeiro
+      const res = await fetch('/api/supermonitor/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query: event.name, eventId: event.id }),
       });
-      const json = await res.json() as { ok: boolean; data?: unknown; error?: string; hint?: string };
-      if (!json.ok) throw new Error(json.hint ?? json.error ?? '');
-      const p = parseSearchResults(json.data);
-      if (!p) throw new Error('Nenhuma odd encontrada para este evento');
-      setParsed(p);
+      const json = await res.json() as {
+        ok: boolean; data?: unknown; reason?: string;
+        event_id?: string; event_name?: string; hint?: string; error?: string;
+      };
+
+      if (json.ok) {
+        // Cache hit — mostra imediatamente
+        const p = parseSearchResults(json.data);
+        if (!p) throw new Error('Nenhuma odd encontrada para este evento');
+        setParsed(p);
+        setOddsLoading(false);
+        return;
+      }
+
+      // 2. Cache miss ou dado velho — enfileira
+      if (json.reason === 'stale' || json.reason === 'not_found') {
+        setOddsLoadingMsg('Pedindo ao PC...');
+
+        await fetch('/api/supermonitor/queue', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ event_id: event.id, event_name: event.name }),
+        });
+
+        // 3. Polling até ficar pronto (máx 90s)
+        const start = Date.now();
+        while (Date.now() - start < 90_000) {
+          await new Promise(r => setTimeout(r, 3000));
+
+          const pollRes  = await fetch(`/api/supermonitor/queue?event_id=${encodeURIComponent(event.id)}`);
+          const pollJson = await pollRes.json() as { ok: boolean; ready?: boolean; cached_at?: string };
+
+          if (pollJson.ready) {
+            // Dado pronto — busca o resultado final
+            const finalRes  = await fetch('/api/supermonitor/search', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ query: event.name, eventId: event.id }),
+            });
+            const finalJson = await finalRes.json() as { ok: boolean; data?: unknown };
+            if (finalJson.ok) {
+              const p = parseSearchResults(finalJson.data);
+              if (p) { setParsed(p); setOddsLoading(false); return; }
+            }
+          }
+
+          const elapsed = Math.round((Date.now() - start) / 1000);
+          const pcNote  = elapsed >= 10 ? ' · PC precisa estar ligado' : '';
+          setOddsLoadingMsg(`Aguardando PC... ${elapsed}s${pcNote}`);
+        }
+
+        // Timeout
+        throw new Error('PC offline ou demorando. Verifique se o script process-queue.mjs está rodando.');
+      }
+
+      throw new Error(json.hint ?? json.error ?? 'Erro desconhecido');
     } catch (e: unknown) {
       const msg = (e as Error).message ?? '';
-      setOddsErr(
-        msg === 'Nenhuma odd encontrada para este evento' ? msg
-          : 'Não foi possível carregar as odds.'
-      );
-    } finally {
+      setOddsErr(msg || 'Não foi possível carregar as odds.');
       setOddsLoading(false);
     }
   }, []);
@@ -862,6 +1138,9 @@ export function BuscarOddsPage() {
 
   return (
     <div className="flex flex-col gap-4 pb-8">
+
+      {/* ── CSS keyframes (montado uma vez) ── */}
+      <style dangerouslySetInnerHTML={{ __html: LIVE_STYLES }} />
 
       {/* ── Toast ── */}
       <FillToast visible={showToast} />
@@ -1115,7 +1394,7 @@ export function BuscarOddsPage() {
 
       {oddsLoading && (
         <div className="rounded-2xl p-10 text-center" style={{ background: 'var(--bg2)', border: '1px solid var(--b)' }}>
-          <div className="text-xs mb-2" style={{ color: 'var(--t3)' }}>Buscando odds para</div>
+          <div className="text-xs mb-2" style={{ color: 'var(--t3)' }}>{oddsLoadingMsg}</div>
           <div className="text-sm font-black" style={{ color: 'var(--t)' }}>{selectedEvent?.name}</div>
           <div className="mt-4 flex justify-center gap-1">
             {[0,1,2].map(i => (
@@ -1124,6 +1403,11 @@ export function BuscarOddsPage() {
                   animation: `pulse 1.2s ease-in-out ${i * 0.2}s infinite` }} />
             ))}
           </div>
+          {oddsLoadingMsg.includes('PC') && (
+            <p className="mt-4 text-[10px]" style={{ color: 'var(--t3)' }}>
+              O PC precisa estar ligado e com o script process-queue.mjs rodando
+            </p>
+          )}
         </div>
       )}
 
@@ -1163,6 +1447,29 @@ export function BuscarOddsPage() {
                 <span style={{ color: 'rgba(255,255,255,.2)' }}>·</span>
                 <span style={{ color: 'rgba(255,159,10,.8)' }}>{comPaCount} com PA</span>
               </div>
+
+              {/* Indicador SSE */}
+              {liveStatus === 'connected' && (
+                <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg"
+                  style={{ background: 'rgba(63,255,33,.08)', border: '1px solid rgba(63,255,33,.22)' }}>
+                  <span style={{
+                    width: 7, height: 7, borderRadius: '50%', background: '#3fff21', display: 'block', flexShrink: 0,
+                    animation: 'livePulse 2s ease-in-out infinite',
+                  }} />
+                  <span style={{ fontSize: 9, fontWeight: 900, letterSpacing: '.08em', color: '#3fff21' }}>LIVE</span>
+                </div>
+              )}
+              {liveStatus === 'connecting' && (
+                <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg"
+                  style={{ background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.1)' }}>
+                  <span style={{
+                    width: 7, height: 7, borderRadius: '50%', background: 'rgba(255,255,255,.4)', display: 'block', flexShrink: 0,
+                    animation: 'livePulse 1s ease-in-out infinite',
+                  }} />
+                  <span style={{ fontSize: 9, fontWeight: 900, letterSpacing: '.08em', color: 'rgba(255,255,255,.4)' }}>SYNC</span>
+                </div>
+              )}
+
               <button type="button" onClick={() => fetchOdds(selectedEvent!)}
                 className="flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1.5 rounded-lg"
                 style={{ background: 'rgba(99,102,241,.12)', color: '#818cf8', border: '1px solid rgba(99,102,241,.25)' }}>
@@ -1241,9 +1548,9 @@ export function BuscarOddsPage() {
               </thead>
               <tbody>
                 {/* COM PA first */}
-                <OddsSection pa={true}  rows={parsed.rows} bests={bestsPa}    disabledHouses={disabledHouses} onCellClick={handleCellClick} />
+                <OddsSection pa={true}  rows={parsed.rows} bests={bestsPa}    disabledHouses={disabledHouses} onCellClick={handleCellClick} liveChanges={liveChanges} />
                 {/* SEM PA second */}
-                <OddsSection pa={false} rows={parsed.rows} bests={bestsNonPa} disabledHouses={disabledHouses} onCellClick={handleCellClick} />
+                <OddsSection pa={false} rows={parsed.rows} bests={bestsNonPa} disabledHouses={disabledHouses} onCellClick={handleCellClick} liveChanges={liveChanges} />
               </tbody>
             </table>
           </div>

@@ -1,15 +1,21 @@
 # setup-task-scheduler.ps1
-# Registra a renovacao automatica de cookie + cache no Agendador de Tarefas.
+# Registra as tarefas automaticas do SureEdge no Agendador de Tarefas:
+#   SureEdge-Events  — renew-cookie.mjs (lista de eventos) 1x ao dia as 07:00 + ao ligar
+#   SureEdge-Queue   — process-queue.mjs (fila de odds on-demand) a cada 2 minutos
+#
 # Execute UMA VEZ como Administrador:
 #   Right-click PowerShell -> "Executar como administrador"
 #   cd "C:\Users\rmmic\OneDrive\Documentos\suredge-app\scripts"
 #   Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 #   .\setup-task-scheduler.ps1
 
-$scriptDir  = Split-Path -Parent $MyInvocation.MyCommand.Path
-$scriptPath = Join-Path $scriptDir "renew-cookie.mjs"
-$envFile    = Join-Path $scriptDir ".env"
-$taskName   = "SureEdge-RenewCookie"
+$scriptDir       = Split-Path -Parent $MyInvocation.MyCommand.Path
+$eventsScript    = Join-Path $scriptDir "renew-cookie.mjs"
+$queueScript     = Join-Path $scriptDir "process-queue.mjs"
+$envFile         = Join-Path $scriptDir ".env"
+$eventsTaskName  = "SureEdge-Events"
+$queueTaskName   = "SureEdge-Queue"
+$oldTaskName     = "SureEdge-RenewCookie"  # tarefa legada a remover
 
 # -- Encontra o Node.js (funciona mesmo em sessao de Admin) -------------------
 
@@ -71,21 +77,9 @@ if (-not $?) {
 }
 Pop-Location
 
-# -- Monta o agendamento ------------------------------------------------------
+# -- Configuracoes comuns -----------------------------------------------------
 
-$action = New-ScheduledTaskAction `
-    -Execute $nodePath `
-    -Argument "`"$scriptPath`"" `
-    -WorkingDirectory $scriptDir
-
-# Dois triggers: roda ao ligar/reiniciar o PC E a cada 30 minutos
-$triggerLogon  = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
-$triggerRepeat = New-ScheduledTaskTrigger `
-    -RepetitionInterval (New-TimeSpan -Minutes 30) `
-    -Once -At (Get-Date).AddMinutes(2)
-$trigger = @($triggerLogon, $triggerRepeat)
-
-$settings = New-ScheduledTaskSettingsSet `
+$commonSettings = New-ScheduledTaskSettingsSet `
     -ExecutionTimeLimit (New-TimeSpan -Minutes 10) `
     -StartWhenAvailable `
     -RunOnlyIfNetworkAvailable `
@@ -96,50 +90,113 @@ $principal = New-ScheduledTaskPrincipal `
     -LogonType Interactive `
     -RunLevel Limited
 
-# -- Remove tarefa antiga se existir ------------------------------------------
+# -- Remove tarefas antigas se existirem --------------------------------------
 
-if (Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue) {
-    Unregister-ScheduledTask -TaskName $taskName -Confirm:$false
-    Write-Host "Tarefa antiga removida." -ForegroundColor Gray
+foreach ($oldName in @($oldTaskName, $eventsTaskName, $queueTaskName)) {
+    if (Get-ScheduledTask -TaskName $oldName -ErrorAction SilentlyContinue) {
+        Unregister-ScheduledTask -TaskName $oldName -Confirm:$false
+        Write-Host "Tarefa '$oldName' removida." -ForegroundColor Gray
+    }
 }
 
-# -- Registra nova tarefa -----------------------------------------------------
+# -- Tarefa 1: SureEdge-Events (renew-cookie.mjs) — 1x ao dia ----------------
+# Roda as 07:00 + ao ligar o PC
+
+$eventsAction = New-ScheduledTaskAction `
+    -Execute $nodePath `
+    -Argument "`"$eventsScript`"" `
+    -WorkingDirectory $scriptDir
+
+$eventsTriggerDaily  = New-ScheduledTaskTrigger -Daily -At "07:00"
+$eventsTriggerLogon  = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
+$eventsTrigger = @($eventsTriggerDaily, $eventsTriggerLogon)
 
 try {
     Register-ScheduledTask `
-        -TaskName   $taskName `
-        -Action     $action `
-        -Trigger    $trigger `
-        -Settings   $settings `
+        -TaskName   $eventsTaskName `
+        -Action     $eventsAction `
+        -Trigger    $eventsTrigger `
+        -Settings   $commonSettings `
         -Principal  $principal `
-        -Description "Renova cookie + cache eventos/odds (SureEdge) a cada 30 min" | Out-Null
+        -Description "SureEdge: busca lista de eventos do dia (1x ao dia as 07:00 + logon)" | Out-Null
 
     Write-Host ""
-    Write-Host "OK: Tarefa '$taskName' registrada!" -ForegroundColor Green
-    Write-Host ""
-    Write-Host "   Roda: ao ligar o PC + a cada 30 minutos"
-    Write-Host "   Node: $nodePath"
-    Write-Host "   Script: $scriptPath"
-    Write-Host ""
+    Write-Host "OK: Tarefa '$eventsTaskName' registrada!" -ForegroundColor Green
+    Write-Host "   Roda: diariamente as 07:00 + ao ligar o PC"
+    Write-Host "   Script: $eventsScript"
 } catch {
-    Write-Host "ERRO ao registrar tarefa: $_" -ForegroundColor Red
+    Write-Host "ERRO ao registrar '$eventsTaskName': $_" -ForegroundColor Red
     exit 1
 }
 
-# -- Roda agora para testar ---------------------------------------------------
+# -- Tarefa 2: SureEdge-Queue (process-queue.mjs) — a cada 2 min -------------
 
-Write-Host "Rodando agora para popular o cache..." -ForegroundColor Cyan
+$queueAction = New-ScheduledTaskAction `
+    -Execute $nodePath `
+    -Argument "`"$queueScript`"" `
+    -WorkingDirectory $scriptDir
+
+# Roda uma vez a partir de agora com repeticao a cada 2 minutos, indefinidamente
+$queueTrigger = New-ScheduledTaskTrigger `
+    -Once `
+    -At (Get-Date).AddMinutes(1) `
+    -RepetitionInterval (New-TimeSpan -Minutes 2) `
+    -RepetitionDuration ([TimeSpan]::MaxValue)
+
+$queueSettings = New-ScheduledTaskSettingsSet `
+    -ExecutionTimeLimit (New-TimeSpan -Minutes 5) `
+    -StartWhenAvailable `
+    -RunOnlyIfNetworkAvailable `
+    -MultipleInstances IgnoreNew
+
+try {
+    Register-ScheduledTask `
+        -TaskName   $queueTaskName `
+        -Action     $queueAction `
+        -Trigger    $queueTrigger `
+        -Settings   $queueSettings `
+        -Principal  $principal `
+        -Description "SureEdge: processa fila de odds on-demand a cada 2 minutos" | Out-Null
+
+    Write-Host ""
+    Write-Host "OK: Tarefa '$queueTaskName' registrada!" -ForegroundColor Green
+    Write-Host "   Roda: a cada 2 minutos (se fila vazia = zero chamadas ao SuperMonitor)"
+    Write-Host "   Script: $queueScript"
+} catch {
+    Write-Host "ERRO ao registrar '$queueTaskName': $_" -ForegroundColor Red
+    exit 1
+}
+
+# -- Resumo -------------------------------------------------------------------
+
+Write-Host ""
+Write-Host "========================================" -ForegroundColor Cyan
+Write-Host " SureEdge Task Scheduler configurado!  " -ForegroundColor Cyan
+Write-Host "========================================" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "  $eventsTaskName  — lista de eventos (1x/dia)" -ForegroundColor White
+Write-Host "  $queueTaskName   — odds on-demand (2 em 2 min)" -ForegroundColor White
+Write-Host ""
+Write-Host "Node: $nodePath" -ForegroundColor Gray
+Write-Host ""
+
+# -- Roda renew-cookie.mjs agora para popular eventos ------------------------
+
+Write-Host "Rodando $eventsTaskName agora para popular os eventos..." -ForegroundColor Cyan
 Write-Host ""
 
 $result = Start-Process `
     -FilePath $nodePath `
-    -ArgumentList "`"$scriptPath`"" `
+    -ArgumentList "`"$eventsScript`"" `
     -WorkingDirectory $scriptDir `
     -Wait -PassThru -NoNewWindow
 
 if ($result.ExitCode -eq 0) {
     Write-Host ""
-    Write-Host "SUCESSO! Cache populado. Acesse o site para ver os eventos." -ForegroundColor Green
+    Write-Host "SUCESSO! Eventos carregados. Acesse o site para ver." -ForegroundColor Green
+    Write-Host ""
+    Write-Host "O process-queue.mjs iniciara em 1 minuto e rodara a cada 2 minutos." -ForegroundColor Gray
+    Write-Host "Odds serao buscadas apenas quando voce abrir um evento no site." -ForegroundColor Gray
 } else {
     Write-Host ""
     Write-Host "ERRO: codigo $($result.ExitCode). Verifique o arquivo .env" -ForegroundColor Red

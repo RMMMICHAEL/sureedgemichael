@@ -1,14 +1,16 @@
 /**
- * renew-cookie.mjs — v5.0 (cache completo)
+ * renew-cookie.mjs — v6.0 (somente eventos, sem odds)
  *
  * 1. Valida o cookie existente no Supabase.
  *    - Válido: pula o login (economiza 2captcha).
  *    - Inválido/ausente: faz login completo (node:https + 2captcha Turnstile).
  * 2. Após ter um cookie válido, faz ECDH com o SuperMonitor e salva no Supabase:
- *    - sm_events  — lista de eventos do dia
- *    - sm_odds    — odds de cada evento (house_count ≥ 2)
+ *    - sm_events  — lista de eventos do dia (UMA vez por dia)
  *
- * Execute a cada 30 min pelo Task Scheduler para manter o cache fresco.
+ * ATENÇÃO: odds NÃO são mais buscadas em bulk — usam o sistema de fila on-demand
+ * (process-queue.mjs) para evitar ban no SuperMonitor.
+ *
+ * Execute UMA VEZ ao dia (07:00) pelo Task Scheduler.
  *
  * Variáveis de ambiente (scripts/.env):
  *   SUPERMONITOR_EMAIL / SUPERMONITOR_PASSWORD
@@ -365,9 +367,10 @@ function normaliseEvent(raw) {
   return { id, name, sport, league, start_utc, house_count };
 }
 
-// ── Busca e salva eventos + odds no Supabase ──────────────────────────────────
+// ── Busca e salva apenas eventos no Supabase ──────────────────────────────────
+// Odds são buscadas on-demand pelo process-queue.mjs (evita ban no SuperMonitor)
 async function fetchAndCache(cookie) {
-  console.log('\n📊  Iniciando cache de eventos e odds…');
+  console.log('\n📊  Iniciando cache de eventos do dia…');
 
   // Cria sessão ECDH
   let session;
@@ -403,60 +406,7 @@ async function fetchAndCache(cookie) {
     else console.warn(`   ⚠️  Chunk eventos: ${await r.text()}`);
   }
   console.log(`   💾  ${evSaved}/${events.length} eventos salvos`);
-
-  // Busca odds de todos os eventos
-  const withOdds = events;
-  console.log(`   🎯  Buscando odds para ${withOdds.length} eventos…`);
-
-  let oddsOk = 0, oddsFail = 0;
-  const CONCURRENT = 3;
-  let sessionAge = 0;
-
-  for (let i = 0; i < withOdds.length; i += CONCURRENT) {
-    // Renova sessão a cada 60 eventos para evitar expiração
-    sessionAge += CONCURRENT;
-    if (sessionAge >= 60) {
-      try {
-        session    = await createSession(cookie);
-        sessionAge = 0;
-      } catch (err) {
-        console.error(`   ❌  Renovação de sessão falhou em i=${i}: ${err.message}`);
-        break;
-      }
-    }
-
-    const batch = withOdds.slice(i, i + CONCURRENT);
-    await Promise.all(batch.map(async event => {
-      try {
-        const qs   = `action=search&q=${encodeURIComponent(event.name)}&type=all`;
-        const data = await fetchDecrypted(session, qs);
-
-        // Verifica se a resposta tem resultados reais
-        const results = Array.isArray(data) ? data
-          : Array.isArray(data?.results) ? data.results
-          : Array.isArray(data?.data)    ? data.data
-          : [];
-        if (!results.length) return; // sem odds disponíveis — não conta como falha
-
-        const r = await sbFetch('sm_odds', 'POST',
-          { event_id: event.id, event_name: event.name, data, updated_at: new Date().toISOString() },
-          { 'Prefer': 'resolution=merge-duplicates' }
-        );
-        if (r.ok) oddsOk++;
-        else oddsFail++;
-      } catch { oddsFail++; }
-    }));
-
-    // Progresso a cada 30 eventos
-    if (i > 0 && i % 30 === 0)
-      console.log(`   … ${i}/${withOdds.length} (ok: ${oddsOk}, fail: ${oddsFail})`);
-
-    // Pausa entre lotes para não sobrecarregar
-    if (i + CONCURRENT < withOdds.length)
-      await new Promise(r => setTimeout(r, 250));
-  }
-
-  console.log(`   ✅  Odds concluído: ${oddsOk} salvos, ${oddsFail} falhas`);
+  console.log(`   ℹ️  Odds serão buscadas on-demand pelo process-queue.mjs`);
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
@@ -519,7 +469,7 @@ if (!cookie) {
   console.log('💾  Cookie salvo no Supabase.');
 }
 
-// Passo 3: Busca e cacheia eventos + odds
+// Passo 3: Busca e cacheia lista de eventos (sem odds — on-demand pelo process-queue.mjs)
 await fetchAndCache(cookie);
 
 console.log('\n🎉  Concluído!\n');

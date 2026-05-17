@@ -4,10 +4,21 @@
  * Body: { query: string, eventId?: string }
  *   eventId — ID do evento (preferencial, busca exata)
  *   query   — nome do evento (fallback, busca por semelhança)
+ *
+ * Resposta quando dado existe e fresco (< 15 min):
+ *   { ok: true, data, cached_at }
+ *
+ * Resposta quando dado está velho (>= 15 min):
+ *   { ok: false, reason: 'stale', event_id, event_name }
+ *
+ * Resposta quando não encontrado:
+ *   { ok: false, reason: 'not_found', event_id }
  */
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
+
+const CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutos
 
 async function getSupabaseAdmin() {
   const { createClient } = await import('@supabase/supabase-js');
@@ -41,7 +52,23 @@ export async function POST(req: NextRequest) {
         .single();
 
       if (!error && data) {
+        const age = Date.now() - new Date(data.updated_at).getTime();
+        if (age >= CACHE_TTL_MS) {
+          // Dado existe mas está velho — frontend deve enfileirar
+          return NextResponse.json({
+            ok: false,
+            reason: 'stale',
+            event_id: eventId,
+            event_name: data.event_name,
+            cached_at: data.updated_at,
+          });
+        }
         return NextResponse.json({ ok: true, data: data.data, cached_at: data.updated_at });
+      }
+
+      // Não encontrado por eventId
+      if (!query) {
+        return NextResponse.json({ ok: false, reason: 'not_found', event_id: eventId });
       }
     }
 
@@ -56,6 +83,16 @@ export async function POST(req: NextRequest) {
         .single();
 
       if (exact) {
+        const age = Date.now() - new Date(exact.updated_at).getTime();
+        if (age >= CACHE_TTL_MS) {
+          return NextResponse.json({
+            ok: false,
+            reason: 'stale',
+            event_id: eventId || '',
+            event_name: exact.event_name,
+            cached_at: exact.updated_at,
+          });
+        }
         return NextResponse.json({ ok: true, data: exact.data, cached_at: exact.updated_at });
       }
 
@@ -71,20 +108,31 @@ export async function POST(req: NextRequest) {
         .single();
 
       if (partial) {
+        const age = Date.now() - new Date(partial.updated_at).getTime();
+        if (age >= CACHE_TTL_MS) {
+          return NextResponse.json({
+            ok: false,
+            reason: 'stale',
+            event_id: eventId || '',
+            event_name: partial.event_name,
+            cached_at: partial.updated_at,
+          });
+        }
         return NextResponse.json({ ok: true, data: partial.data, cached_at: partial.updated_at });
       }
     }
 
-    // Nenhum resultado
+    // Nenhum resultado encontrado
     return NextResponse.json({
       ok: false,
-      error: 'cache/not-found',
-      hint: 'Odds ainda não disponíveis. O cache é atualizado a cada 30 min pelo PC.',
+      reason: 'not_found',
+      event_id: eventId,
+      hint: 'Odds ainda não disponíveis. Selecione o evento para enfileirar a busca.',
     });
 
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error('[search] unexpected error:', msg);
-    return NextResponse.json({ ok: false, error: msg });
+    return NextResponse.json({ ok: false, error: msg, reason: 'error' });
   }
 }
