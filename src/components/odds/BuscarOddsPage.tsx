@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import {
   ScanSearch, Search, X, Building2, Filter, RefreshCw,
-  ChevronDown, ChevronUp, Star,
+  ChevronDown, ChevronUp, Star, ExternalLink,
 } from 'lucide-react';
 import { SurebetCalc, ALL_HOUSES } from '@/components/calcalendario/SurebetCalc';
 
@@ -60,6 +60,7 @@ interface RankLeg {
   house: string;
   label: string;
   odd: number;
+  url?: string;
 }
 
 interface RankItem {
@@ -192,9 +193,9 @@ function getTop5PA(rows: BMRow[], disabledHouses: Set<string>): RankItem[] {
       const margin = 1 / homeRow.mlHome! + 1 / bestX.mlDraw + 1 / awayRow.mlAway!;
       results.push({
         legs: [
-          { house: homeRow.house, label: '1', odd: homeRow.mlHome! },
-          { house: bestX.house,   label: 'X', odd: bestX.mlDraw },
-          { house: awayRow.house, label: '2', odd: awayRow.mlAway! },
+          { house: homeRow.house, label: '1', odd: homeRow.mlHome!, url: homeRow.url },
+          { house: bestX.house,   label: 'X', odd: bestX.mlDraw,    url: bestX.url },
+          { house: awayRow.house, label: '2', odd: awayRow.mlAway!, url: awayRow.url },
         ],
         margin,
         profit: (1 / margin - 1) * 100,
@@ -617,6 +618,14 @@ function RankingCard({
   onFill: (item: RankItem) => void;
 }) {
   const isProfit = item.profit >= 0;
+  const urlLegs  = item.legs.filter(l => l.url);
+  const hasUrls  = urlLegs.length > 0;
+
+  function handleOpenTabs() {
+    for (const leg of item.legs) {
+      if (leg.url) window.open(leg.url, '_blank', 'noopener,noreferrer');
+    }
+  }
 
   return (
     <div
@@ -648,9 +657,14 @@ function RankingCard({
       <div className="flex flex-col gap-1.5">
         {item.legs.map((leg, i) => (
           <div key={i} className="flex items-center justify-between gap-2">
-            <span className="text-[11px] font-semibold truncate" style={{ color: 'var(--t2)' }}>
-              {leg.house}
-            </span>
+            <div className="flex items-center gap-1.5 min-w-0">
+              {/* Número da leg */}
+              <span className="text-[10px] font-black w-4 text-center flex-shrink-0"
+                style={{ color: 'var(--t3)' }}>{i + 1}</span>
+              <span className="text-[11px] font-semibold truncate" style={{ color: 'var(--t2)' }}>
+                {leg.house}
+              </span>
+            </div>
             <div className="flex items-center gap-2 flex-shrink-0">
               <span className="text-[10px] font-bold px-1.5 py-0.5 rounded"
                 style={{ background: 'rgba(255,255,255,.07)', color: 'var(--t3)' }}>
@@ -664,22 +678,54 @@ function RankingCard({
         ))}
       </div>
 
-      {/* Fill button */}
-      <button
-        type="button"
-        onClick={() => onFill(item)}
-        className="w-full rounded-lg py-1.5 text-xs font-bold flex items-center justify-center gap-1.5 transition-all"
-        style={{
-          background: 'rgba(63,255,33,.08)',
-          color: '#3fff21',
-          border: '1px solid rgba(63,255,33,.2)',
-        }}
-        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(63,255,33,.15)'; }}
-        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(63,255,33,.08)'; }}
-      >
-        <span style={{ fontSize: 14, lineHeight: 1 }}>+</span>
-        Preencher calculadora
-      </button>
+      {/* Buttons */}
+      <div className="flex gap-2 mt-0.5">
+        {/* Preencher calculadora */}
+        <button
+          type="button"
+          onClick={() => onFill(item)}
+          className="flex-1 rounded-lg py-1.5 text-xs font-bold flex items-center justify-center gap-1.5 transition-all"
+          style={{
+            background: 'rgba(63,255,33,.08)',
+            color: '#3fff21',
+            border: '1px solid rgba(63,255,33,.2)',
+          }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(63,255,33,.15)'; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(63,255,33,.08)'; }}
+        >
+          <span style={{ fontSize: 14, lineHeight: 1 }}>+</span>
+          Calculadora
+        </button>
+
+        {/* Abrir casas em novas guias */}
+        <button
+          type="button"
+          onClick={handleOpenTabs}
+          disabled={!hasUrls}
+          title={hasUrls
+            ? `Abrir ${urlLegs.length} casa${urlLegs.length !== 1 ? 's' : ''} em novas guias`
+            : 'Links indisponíveis para este evento'}
+          className="flex-1 rounded-lg py-1.5 text-xs font-bold flex items-center justify-center gap-1.5 transition-all"
+          style={{
+            background: hasUrls ? 'rgba(129,140,248,.1)' : 'rgba(255,255,255,.03)',
+            color: hasUrls ? '#818cf8' : 'rgba(255,255,255,.2)',
+            border: `1px solid ${hasUrls ? 'rgba(129,140,248,.25)' : 'rgba(255,255,255,.07)'}`,
+            cursor: hasUrls ? 'pointer' : 'not-allowed',
+          }}
+          onMouseEnter={e => { if (hasUrls) (e.currentTarget as HTMLElement).style.background = 'rgba(129,140,248,.18)'; }}
+          onMouseLeave={e => { if (hasUrls) (e.currentTarget as HTMLElement).style.background = 'rgba(129,140,248,.1)'; }}
+        >
+          <ExternalLink size={11} />
+          Abrir casas
+        </button>
+      </div>
+
+      {/* Aviso de quantas guias serão abertas */}
+      {hasUrls && urlLegs.length < item.legs.length && (
+        <p className="text-[9px] text-center" style={{ color: 'var(--t3)', marginTop: -4 }}>
+          {item.legs.length - urlLegs.length} casa{item.legs.length - urlLegs.length !== 1 ? 's' : ''} sem link disponível
+        </p>
+      )}
     </div>
   );
 }
