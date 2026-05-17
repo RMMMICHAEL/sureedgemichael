@@ -900,16 +900,20 @@ export function BuscarOddsPage() {
 
       try {
         const res  = await fetch('/api/supermonitor/sse-token');
-        const json = await res.json() as { ok: boolean; token?: string };
+        const json = await res.json() as { ok: boolean; token?: string; sse_url?: string | null };
         if (!active) return;
         if (!json.ok || !json.token) {
           setLiveStatus('off');
-          return; // script ainda não rodou — silencioso
+          return; // daemon ainda não rodou — silencioso
         }
+
+        // URL dinâmica vinda do Supabase (salva pelo daemon).
+        // Fallback para o endpoint conhecido caso a URL ainda não esteja salva.
+        const sseBase = (json.sse_url ?? 'https://api5.nomacisoft.com').replace(/\/$/, '');
 
         closeSse();
         const es = new EventSource(
-          `https://api5.nomacisoft.com/search/events?temp_token=${encodeURIComponent(json.token)}`
+          `${sseBase}/events?temp_token=${encodeURIComponent(json.token)}`
         );
         sseRef.current = es;
 

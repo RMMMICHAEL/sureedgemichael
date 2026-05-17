@@ -370,14 +370,80 @@ async function processOneCycle() {
   }
 }
 
+// ── SSE Token refresh ─────────────────────────────────────────────────────────
+// Roda no startup e a cada 12 min (TTL do token é 840s = 14 min).
+// Salva temp_token + sse_url no Supabase para o frontend consumir.
+const SSE_REFRESH_INTERVAL = 720_000; // 12 min
+let _lastSseTokenFetch = 0;
+
+async function fetchSseToken(cookie) {
+  try {
+    const hdrs = {
+      'User-Agent': UA,
+      'Accept': 'application/json',
+      'Cache-Control': 'no-store',
+      'Referer': `${BASE}/index.php?page=buscador`,
+      'Cookie': cookie,
+    };
+
+    // 1. Nonce específico do buscador
+    const nonceRes = await fetch(`${BASE}/api/proxy_nonce_buscador.php`, { headers: hdrs });
+    if (!nonceRes.ok) throw new Error(`nonce_buscador falhou (${nonceRes.status})`);
+    const { nonce } = await nonceRes.json();
+    if (!nonce) throw new Error('nonce_buscador: campo nonce ausente');
+
+    // 2. Token SSE
+    const tokenRes = await fetch(`${BASE}/api/sse_token_buscador_proxy.php`, {
+      headers: { ...hdrs, 'X-Proxy-Nonce': nonce },
+    });
+    if (!tokenRes.ok) throw new Error(`sse_token_buscador_proxy falhou (${tokenRes.status})`);
+    const data = await tokenRes.json();
+
+    if (!data?.success || !data.temp_token || !data.sse_url) {
+      throw new Error(`resposta inválida: ${JSON.stringify(data).slice(0, 120)}`);
+    }
+
+    // 3. Salva no Supabase (upsert)
+    await sbFetch('app_config', 'POST',
+      { key: 'sse_temp_token', value: data.temp_token, updated_at: new Date().toISOString() },
+      { 'Prefer': 'resolution=merge-duplicates' }
+    );
+    await sbFetch('app_config', 'POST',
+      { key: 'sse_url', value: data.sse_url, updated_at: new Date().toISOString() },
+      { 'Prefer': 'resolution=merge-duplicates' }
+    );
+
+    _lastSseTokenFetch = Date.now();
+    const t = new Date().toLocaleTimeString('pt-BR');
+    console.log(`[${t}] SSE token OK: ...${data.temp_token.slice(-12)} | ${data.sse_url}`);
+    return true;
+  } catch (err) {
+    console.error(`   SSE token falhou: ${err.message}`);
+    return false;
+  }
+}
+
 // ── Daemon loop ───────────────────────────────────────────────────────────────
 console.log('SureEdge Queue Daemon v3 iniciado');
 console.log(`Verificando fila a cada ${POLL_INTERVAL / 1000}s | Ctrl+C para parar\n`);
+
+// Startup: busca SSE token imediatamente (antes de processar a fila)
+{
+  const initCookie = await getCookie();
+  if (initCookie) await fetchSseToken(initCookie);
+}
 
 await processOneCycle();
 
 while (true) {
   await sleep(POLL_INTERVAL);
+
+  // Renova SSE token a cada 12 min (independente da fila)
+  if (Date.now() - _lastSseTokenFetch > SSE_REFRESH_INTERVAL) {
+    const c = await getCookie();
+    if (c) await fetchSseToken(c);
+  }
+
   try {
     await processOneCycle();
   } catch (err) {
