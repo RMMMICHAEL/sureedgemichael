@@ -485,7 +485,7 @@ function EventSearchCard({
         </div>
       </div>
 
-      <div className="flex flex-col sm:flex-row sm:items-end gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
         {/* Event search */}
         <div className="flex-1 min-w-0" ref={wrapRef}>
           <div className="relative">
@@ -566,9 +566,6 @@ function EventSearchCard({
 
         {/* DateTime picker */}
         <div className="w-full sm:w-52 shrink-0">
-          <label className="block text-[10px] font-black uppercase tracking-[.12em] mb-1.5" style={{ color: 'var(--t3)' }}>
-            Data / Hora
-          </label>
           <input
             type="datetime-local"
             value={dateTime}
@@ -1128,7 +1125,7 @@ const TABS = [
   { id: 'missao',   label: 'Missão',     icon: <Gift        size={13} strokeWidth={2} /> },
   { id: 'odd',      label: 'Aumentadas', icon: <TrendingUp  size={13} strokeWidth={2} /> },
   { id: 'cashback', label: 'Cashback',   icon: <Percent     size={13} strokeWidth={2} /> },
-  { id: 'odds',     label: 'Buscar Odds',icon: <ScanSearch  size={13} strokeWidth={2} /> },
+  { id: 'odds',     label: 'Odds',        icon: <ScanSearch  size={13} strokeWidth={2} /> },
 ] as const;
 
 type TabId = typeof TABS[number]['id'];

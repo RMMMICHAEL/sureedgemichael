@@ -33,9 +33,9 @@ function nowBRT(): string {
 }
 
 export const ALL_HOUSES = [
-  '7Games','Aposta1','Apostaganha','Apostatudo','Apostefacil','B1bet','B2xbet','Bateubet',
+  '7Games','Aposta1','Aposta.bet.br','Apostaganha','Apostatudo','Apostefacil','B1bet','B2xbet','Bateubet',
   'Bet365','Bet365Arg','Bet365Pe','Bet4','Bet7k','Betagora','Betaki','Betano','Betao',
-  'Betbet','Betboo','Betboom','Betdasorte','Betesporte','Betfair Ex','Betfair SB','Betfast',
+  'Betbet','Betboo','Betboom','Betbra.bet.br','Betdasorte','Betesporte','Betfair Ex','Betfair SB','Betfast',
   'Betfusion','Betgorillas','Betmgm','Betnacional','Betonline','Betou','Betpark','Betpix365',
   'Betsson','Betsul','Betvip','BetWarrior','Bigbet','Blaze','Bolsadeaposta','Br4bet',
   'Brasildasorte','Bravobet','Brbet','Brx','Bullsbet','Casadeapostas','Cassinopix','Cgc',
@@ -197,9 +197,8 @@ function AddToPanelModal({ numOutcomes, formulaOpt, effectiveOdds, stakes, onClo
           <label>
             <span style={LABEL}>Tipo</span>
             <select style={SELECT} value={opT} onChange={e => setOpT(e.target.value as OpType)}>
-              <option value="surebet">Surebet</option>
-              <option value="delay">Delay</option>
               <option value="duplo_green">Duplo Green</option>
+              <option value="surebet">Surebet</option>
               <option value="outros">Outros</option>
             </select>
           </label>
@@ -654,7 +653,7 @@ export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 
                   />
                 )}
 
-                {/* Stake — editable only when C is active for this row */}
+                {/* Stake — sempre editável */}
                 <input
                   style={{
                     ...INPUT,
@@ -664,13 +663,12 @@ export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 
                         ? '1px solid rgba(77,166,255,.25)'
                         : '1px solid rgba(255,255,255,.1)',
                     color: isFixed ? '#FFBF00' : '#E2E8F0',
-                    cursor: isFixed ? 'text' : 'default',
-                    opacity: isFixed ? 1 : 0.85,
+                    cursor: 'text',
                   }}
                   inputMode="decimal"
-                  readOnly={!isFixed}
                   value={stakeDisplayVal}
                   onChange={e => handleStakeInput(i, e.target.value)}
+                  onFocus={e => e.target.select()}
                   placeholder="0.00"
                 />
 
@@ -804,6 +802,7 @@ export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 
             inputMode="decimal"
             value={fixedMode === 'sum' ? anchor : (result.totalBet > 0 ? result.totalBet.toFixed(2) : '')}
             onChange={e => handleStakeInput('sum', e.target.value)}
+            onFocus={e => e.target.select()}
             placeholder="0.00"
           />
 

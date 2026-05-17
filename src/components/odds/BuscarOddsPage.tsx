@@ -1362,14 +1362,7 @@ export function BuscarOddsPage() {
 
       {/* ── Calculator ── */}
       {parsed && (
-        <div ref={surebetCalcRef} className="rounded-2xl p-5" style={{ background: 'var(--bg2)', border: '1px solid var(--b)' }}>
-          <div className="flex items-center gap-2 mb-4 flex-wrap">
-            <span className="text-sm font-black" style={{ color: 'var(--t)' }}>Calculadora</span>
-            <span className="text-[10px] px-2 py-0.5 rounded-md font-bold"
-              style={{ background: 'rgba(63,255,33,.08)', color: 'rgba(63,255,33,.75)', border: '1px solid rgba(63,255,33,.15)' }}>
-              Clique em qualquer odd para preencher
-            </span>
-          </div>
+        <div ref={surebetCalcRef}>
           <SurebetCalc
             selectedEvent={selectedEvent ? { name: selectedEvent.name, start_utc: selectedEvent.start_utc } : null}
             externalFill={surebetFill}
