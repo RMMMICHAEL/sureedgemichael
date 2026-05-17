@@ -129,16 +129,24 @@ try {
     exit 1
 }
 
-# -- Tarefa 2: SureEdge-Queue (process-queue.mjs) — daemon no logon -----------
-# O script agora e um daemon (loop infinito, verifica a cada 20s).
-# Task Scheduler so precisa inicia-lo no logon — ele fica rodando sozinho.
+# -- Tarefa 2: SureEdge-Queue (process-queue.mjs) — daemon resiliente -----------
+# Triggers:
+#   1. Ao fazer logon — sobe o daemon imediatamente
+#   2. A cada 5 minutos — garante que o daemon reinicia apos suspensao/sono do PC
+# MultipleInstances IgnoreNew: se ja estiver rodando, o trigger de 5min nao abre segundo processo
 
 $queueAction = New-ScheduledTaskAction `
     -Execute $nodePath `
     -Argument "`"$queueScript`"" `
     -WorkingDirectory $scriptDir
 
-$queueTrigger = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
+$queueTriggerLogon = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
+
+# Trigger de repeticao a cada 5 minutos (reinicia apos suspensao do PC)
+$queueTriggerRepeat = New-ScheduledTaskTrigger -Once -At (Get-Date) `
+    -RepetitionInterval (New-TimeSpan -Minutes 5)
+
+$queueTrigger = @($queueTriggerLogon, $queueTriggerRepeat)
 
 $queueSettings = New-ScheduledTaskSettingsSet `
     -ExecutionTimeLimit (New-TimeSpan -Hours 23) `
@@ -153,11 +161,11 @@ try {
         -Trigger    $queueTrigger `
         -Settings   $queueSettings `
         -Principal  $principal `
-        -Description "SureEdge: daemon de odds on-demand (verifica fila a cada 20s)" | Out-Null
+        -Description "SureEdge: daemon de odds on-demand (reinicia automaticamente a cada 5min apos sono)" | Out-Null
 
     Write-Host ""
     Write-Host "OK: Tarefa '$queueTaskName' registrada!" -ForegroundColor Green
-    Write-Host "   Roda: ao ligar o PC (daemon — verifica fila a cada 20s)"
+    Write-Host "   Roda: ao ligar o PC + a cada 5min (reinicia apos suspensao)"
     Write-Host "   Script: $queueScript"
 } catch {
     Write-Host "ERRO ao registrar '$queueTaskName': $_" -ForegroundColor Red
@@ -171,8 +179,8 @@ Write-Host "========================================" -ForegroundColor Cyan
 Write-Host " SureEdge Task Scheduler configurado!  " -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "  $eventsTaskName  — lista de eventos (1x ao dia)" -ForegroundColor White
-Write-Host "  $queueTaskName   — odds on-demand (daemon, verifica a cada 20s)" -ForegroundColor White
+Write-Host "  $eventsTaskName  - lista de eventos (1x ao dia)" -ForegroundColor White
+Write-Host "  $queueTaskName   - odds on-demand (daemon, verifica a cada 20s)" -ForegroundColor White
 Write-Host ""
 Write-Host "Node: $nodePath" -ForegroundColor Gray
 Write-Host ""
