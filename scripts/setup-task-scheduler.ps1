@@ -129,22 +129,19 @@ try {
     exit 1
 }
 
-# -- Tarefa 2: SureEdge-Queue (process-queue.mjs) — a cada 2 min -------------
+# -- Tarefa 2: SureEdge-Queue (process-queue.mjs) — daemon no logon -----------
+# O script agora e um daemon (loop infinito, verifica a cada 20s).
+# Task Scheduler so precisa inicia-lo no logon — ele fica rodando sozinho.
 
 $queueAction = New-ScheduledTaskAction `
     -Execute $nodePath `
     -Argument "`"$queueScript`"" `
     -WorkingDirectory $scriptDir
 
-# Roda uma vez a partir de agora com repeticao a cada 2 minutos, indefinidamente
-$queueTrigger = New-ScheduledTaskTrigger `
-    -Once `
-    -At (Get-Date).AddMinutes(1) `
-    -RepetitionInterval (New-TimeSpan -Minutes 2) `
-    -RepetitionDuration ([TimeSpan]::MaxValue)
+$queueTrigger = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
 
 $queueSettings = New-ScheduledTaskSettingsSet `
-    -ExecutionTimeLimit (New-TimeSpan -Minutes 5) `
+    -ExecutionTimeLimit (New-TimeSpan -Hours 23) `
     -StartWhenAvailable `
     -RunOnlyIfNetworkAvailable `
     -MultipleInstances IgnoreNew
@@ -156,11 +153,11 @@ try {
         -Trigger    $queueTrigger `
         -Settings   $queueSettings `
         -Principal  $principal `
-        -Description "SureEdge: processa fila de odds on-demand a cada 2 minutos" | Out-Null
+        -Description "SureEdge: daemon de odds on-demand (verifica fila a cada 20s)" | Out-Null
 
     Write-Host ""
     Write-Host "OK: Tarefa '$queueTaskName' registrada!" -ForegroundColor Green
-    Write-Host "   Roda: a cada 2 minutos (se fila vazia = zero chamadas ao SuperMonitor)"
+    Write-Host "   Roda: ao ligar o PC (daemon — verifica fila a cada 20s)"
     Write-Host "   Script: $queueScript"
 } catch {
     Write-Host "ERRO ao registrar '$queueTaskName': $_" -ForegroundColor Red
@@ -174,8 +171,8 @@ Write-Host "========================================" -ForegroundColor Cyan
 Write-Host " SureEdge Task Scheduler configurado!  " -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "  $eventsTaskName  — lista de eventos (1x/dia)" -ForegroundColor White
-Write-Host "  $queueTaskName   — odds on-demand (2 em 2 min)" -ForegroundColor White
+Write-Host "  $eventsTaskName  — lista de eventos (1x ao dia)" -ForegroundColor White
+Write-Host "  $queueTaskName   — odds on-demand (daemon, verifica a cada 20s)" -ForegroundColor White
 Write-Host ""
 Write-Host "Node: $nodePath" -ForegroundColor Gray
 Write-Host ""
@@ -195,8 +192,8 @@ if ($result.ExitCode -eq 0) {
     Write-Host ""
     Write-Host "SUCESSO! Eventos carregados. Acesse o site para ver." -ForegroundColor Green
     Write-Host ""
-    Write-Host "O process-queue.mjs iniciara em 1 minuto e rodara a cada 2 minutos." -ForegroundColor Gray
-    Write-Host "Odds serao buscadas apenas quando voce abrir um evento no site." -ForegroundColor Gray
+    Write-Host "O process-queue.mjs sera iniciado agora como daemon..." -ForegroundColor Gray
+    Write-Host "Odds serao buscadas em ate 20s quando voce abrir um evento no site." -ForegroundColor Gray
 } else {
     Write-Host ""
     Write-Host "ERRO: codigo $($result.ExitCode). Verifique o arquivo .env" -ForegroundColor Red

@@ -1,20 +1,19 @@
 /**
- * process-queue.mjs — v1.0 (on-demand odds queue processor)
+ * process-queue.mjs — v2.0 (daemon — roda continuamente)
  *
- * Roda a cada 2 min pelo Task Scheduler.
- * - Lê itens pendentes em odds_queue no Supabase
- * - Se fila vazia → sai sem fazer NENHUMA chamada ao SuperMonitor
+ * Iniciado pelo Task Scheduler no logon. Fica em loop eterno,
+ * verificando a fila a cada 20 segundos.
+ *
+ * - Fila vazia → dorme 20s sem chamar SuperMonitor
+ * - Fila com pedidos → processa e volta a dormir
  * - Deduplica por event_id
- * - Para cada evento único: verifica se sm_odds já tem dado fresco (< 15 min)
- *   → se sim, marca como done sem buscar
- *   → se não, busca odds no SuperMonitor
+ * - Cache TTL 15 min: não re-busca se já tem dado fresco
  * - Máximo 5 eventos únicos por ciclo (anti-ban)
- * - UMA sessão ECDH criada e reutilizada para todo o lote
+ * - UMA sessão ECDH reutilizada para todo o lote
  * - Delay aleatório 3–6s entre requisições
  *
  * Variáveis de ambiente (scripts/.env):
  *   NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY
- *   SUPERMONITOR_EMAIL / SUPERMONITOR_PASSWORD  (usados só se cookie inválido)
  */
 
 import https   from 'node:https';
@@ -203,10 +202,10 @@ async function fetchDecrypted(session, qs) {
   return enc;
 }
 
-// ── Delay aleatório ───────────────────────────────────────────────────────────
+// ── Delay ─────────────────────────────────────────────────────────────────────
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 function randomDelay(minMs = 3000, maxMs = 6000) {
-  const ms = minMs + Math.random() * (maxMs - minMs);
-  return new Promise(r => setTimeout(r, ms));
+  return sleep(minMs + Math.random() * (maxMs - minMs));
 }
 
 // ── Verifica idade de sm_odds para um evento ──────────────────────────────────
@@ -241,158 +240,119 @@ async function markQueueError(eventId) {
   );
 }
 
-// ── Main ──────────────────────────────────────────────────────────────────────
-console.log('═'.repeat(60));
-console.log(`⚡  SureEdge Queue Processor — ${new Date().toISOString()}`);
-console.log('═'.repeat(60));
-
-// 1. Lê itens pendentes da fila
-let pending = [];
-try {
-  const res = await sbFetch(
-    'odds_queue?status=eq.pending&order=created_at.asc&limit=50',
-    'GET', null,
-    { 'Accept': 'application/json' }
-  );
-  if (!res.ok) throw new Error(await res.text());
-  pending = await res.json();
-} catch (err) {
-  console.error(`❌  Falha ao ler fila: ${err.message}`);
-  process.exit(1);
-}
-
-if (!pending.length) {
-  console.log('\n✅  Fila vazia — nenhuma chamada ao SuperMonitor.\n');
-  process.exit(0);
-}
-
-console.log(`\n📋  ${pending.length} item(ns) na fila.`);
-
-// 2. Deduplica por event_id
-const seen = new Map(); // event_id → event_name
-for (const item of pending) {
-  if (!seen.has(item.event_id)) seen.set(item.event_id, item.event_name);
-}
-const uniqueEvents = Array.from(seen.entries()).map(([id, name]) => ({ id, name }));
-console.log(`   ${uniqueEvents.length} evento(s) único(s).`);
-
-// 3. Separa quem já tem dados frescos de quem precisa buscar
-const needFetch = [];
-const alreadyFresh = [];
-
-for (const ev of uniqueEvents) {
-  const age = await getOddsAge(ev.id);
-  if (age < CACHE_TTL_MS) {
-    alreadyFresh.push(ev);
-  } else {
-    needFetch.push(ev);
-  }
-}
-
-// Marca os já frescos como done imediatamente (sem chamar SuperMonitor)
-if (alreadyFresh.length) {
-  console.log(`\n✅  ${alreadyFresh.length} evento(s) com cache fresco — marcando done sem buscar.`);
-  for (const ev of alreadyFresh) {
-    await markQueueDone(ev.id);
-    console.log(`   ✓ ${ev.name}`);
-  }
-}
-
-if (!needFetch.length) {
-  console.log('\n🎉  Todos os eventos já tinham cache fresco. Zero chamadas ao SuperMonitor.\n');
-  process.exit(0);
-}
-
-// Limita a MAX_PER_CYCLE eventos por ciclo
-const batch = needFetch.slice(0, MAX_PER_CYCLE);
-if (needFetch.length > MAX_PER_CYCLE) {
-  console.log(`\n⚠️  ${needFetch.length} eventos precisam de fetch — limitando a ${MAX_PER_CYCLE} por ciclo.`);
-}
-console.log(`\n🎯  Buscando odds para ${batch.length} evento(s) no SuperMonitor…`);
-
-// 4. Lê e valida cookie
-const cookie = await readCookieFromSupabase();
-if (!cookie) {
-  console.error('❌  Cookie não encontrado no Supabase. Execute renew-cookie.mjs primeiro.');
-  for (const ev of batch) await markQueueError(ev.id);
-  process.exit(1);
-}
-
-const valid = await validateCookie(cookie);
-if (!valid) {
-  console.error('❌  Cookie inválido ou expirado. Execute renew-cookie.mjs para renovar.');
-  for (const ev of batch) await markQueueError(ev.id);
-  process.exit(1);
-}
-
-// 5. Cria UMA sessão ECDH para o lote inteiro
-let session;
-try {
-  session = await createSession(cookie);
-  console.log('   ✅  Sessão ECDH criada (será reutilizada para todos os eventos)');
-} catch (err) {
-  console.error(`❌  Falha ao criar sessão ECDH: ${err.message}`);
-  for (const ev of batch) await markQueueError(ev.id);
-  process.exit(1);
-}
-
-// 6. Busca odds de cada evento (sequencial, com delay)
-let fetchOk = 0;
-let fetchFail = 0;
-
-for (let i = 0; i < batch.length; i++) {
-  const ev = batch[i];
-  console.log(`\n   [${i + 1}/${batch.length}] ${ev.name}`);
-
+// ── Um ciclo de processamento ─────────────────────────────────────────────────
+async function processOneCycle() {
+  // 1. Lê itens pendentes da fila
+  let pending = [];
   try {
-    const qs   = `action=search&q=${encodeURIComponent(ev.name)}&type=all`;
-    const data = await fetchDecrypted(session, qs);
-
-    // Verifica se há resultados reais
-    const results = Array.isArray(data) ? data
-      : Array.isArray(data?.results) ? data.results
-      : Array.isArray(data?.data)    ? data.data
-      : [];
-
-    if (!results.length) {
-      console.log(`   ⚠️  Sem resultados — marcando done (sem dados disponíveis)`);
-      await markQueueDone(ev.id);
-      fetchOk++;
-    } else {
-      // Salva em sm_odds (upsert)
-      const r = await sbFetch(
-        'sm_odds', 'POST',
-        { event_id: ev.id, event_name: ev.name, data, updated_at: new Date().toISOString() },
-        { 'Prefer': 'resolution=merge-duplicates' }
-      );
-      if (r.ok) {
-        await markQueueDone(ev.id);
-        console.log(`   ✅  Odds salvas (${results.length} resultado(s))`);
-        fetchOk++;
-      } else {
-        const errText = await r.text();
-        console.error(`   ❌  Falha ao salvar sm_odds: ${errText}`);
-        await markQueueError(ev.id);
-        fetchFail++;
-      }
-    }
+    const res = await sbFetch(
+      'odds_queue?status=eq.pending&order=created_at.asc&limit=50',
+      'GET', null, { 'Accept': 'application/json' }
+    );
+    if (!res.ok) throw new Error(await res.text());
+    pending = await res.json();
   } catch (err) {
-    console.error(`   ❌  Erro: ${err.message}`);
-    await markQueueError(ev.id);
-    fetchFail++;
+    console.error(`❌  Falha ao ler fila: ${err.message}`);
+    return;
   }
 
-  // Delay entre requests (exceto após o último)
-  if (i < batch.length - 1) {
-    const delayMs = 3000 + Math.random() * 3000;
-    console.log(`   ⏱️  Aguardando ${(delayMs / 1000).toFixed(1)}s antes do próximo…`);
-    await new Promise(r => setTimeout(r, delayMs));
+  if (!pending.length) return; // fila vazia — silencioso, volta a dormir
+
+  console.log(`\n[${new Date().toLocaleTimeString('pt-BR')}] 📋  ${pending.length} item(ns) na fila`);
+
+  // 2. Deduplica por event_id
+  const seen = new Map();
+  for (const item of pending) {
+    if (!seen.has(item.event_id)) seen.set(item.event_id, item.event_name);
+  }
+  const uniqueEvents = Array.from(seen.entries()).map(([id, name]) => ({ id, name }));
+
+  // 3. Separa frescos de quem precisa buscar
+  const needFetch = [];
+  for (const ev of uniqueEvents) {
+    const age = await getOddsAge(ev.id);
+    if (age < CACHE_TTL_MS) {
+      await markQueueDone(ev.id);
+      console.log(`   ✓ Cache fresco: ${ev.name}`);
+    } else {
+      needFetch.push(ev);
+    }
+  }
+
+  if (!needFetch.length) return;
+
+  const batch = needFetch.slice(0, MAX_PER_CYCLE);
+  console.log(`   🎯  Buscando ${batch.length} evento(s) no SuperMonitor…`);
+
+  // 4. Cookie
+  const cookie = await readCookieFromSupabase();
+  if (!cookie) {
+    console.error('   ❌  Cookie não encontrado. Execute renew-cookie.mjs.');
+    for (const ev of batch) await markQueueError(ev.id);
+    return;
+  }
+
+  const valid = await validateCookie(cookie);
+  if (!valid) {
+    console.error('   ❌  Cookie expirado. Execute renew-cookie.mjs.');
+    for (const ev of batch) await markQueueError(ev.id);
+    return;
+  }
+
+  // 5. UMA sessão ECDH para o lote
+  let session;
+  try {
+    session = await createSession(cookie);
+  } catch (err) {
+    console.error(`   ❌  ECDH falhou: ${err.message}`);
+    for (const ev of batch) await markQueueError(ev.id);
+    return;
+  }
+
+  // 6. Busca sequencial com delay
+  for (let i = 0; i < batch.length; i++) {
+    const ev = batch[i];
+    try {
+      const data    = await fetchDecrypted(session, `action=search&q=${encodeURIComponent(ev.name)}&type=all`);
+      const results = Array.isArray(data) ? data : (data?.results ?? data?.data ?? []);
+
+      if (!results.length) {
+        await markQueueDone(ev.id);
+        console.log(`   ⚠️  Sem odds: ${ev.name}`);
+      } else {
+        const r = await sbFetch('sm_odds', 'POST',
+          { event_id: ev.id, event_name: ev.name, data, updated_at: new Date().toISOString() },
+          { 'Prefer': 'resolution=merge-duplicates' }
+        );
+        if (r.ok) {
+          await markQueueDone(ev.id);
+          console.log(`   ✅  ${ev.name} (${results.length} resultados)`);
+        } else {
+          await markQueueError(ev.id);
+          console.error(`   ❌  Supabase: ${await r.text()}`);
+        }
+      }
+    } catch (err) {
+      await markQueueError(ev.id);
+      console.error(`   ❌  ${ev.name}: ${err.message}`);
+    }
+
+    if (i < batch.length - 1) await randomDelay(3000, 6000);
   }
 }
 
-console.log('\n═'.repeat(60));
-console.log(`✅  Ciclo concluído: ${fetchOk} ok, ${fetchFail} falhas.`);
-if (needFetch.length > MAX_PER_CYCLE) {
-  console.log(`   ℹ️  ${needFetch.length - MAX_PER_CYCLE} evento(s) aguardam o próximo ciclo.`);
+// ── Daemon loop ───────────────────────────────────────────────────────────────
+const POLL_INTERVAL = 20_000; // 20 segundos
+
+console.log('⚡  SureEdge Queue Daemon iniciado');
+console.log(`   Verificando fila a cada ${POLL_INTERVAL / 1000}s`);
+console.log('   Ctrl+C para parar\n');
+
+// Primeiro ciclo imediato
+await processOneCycle();
+
+// Loop eterno
+while (true) {
+  await sleep(POLL_INTERVAL);
+  await processOneCycle();
 }
-console.log('');
