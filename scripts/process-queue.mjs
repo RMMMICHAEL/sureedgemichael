@@ -94,9 +94,39 @@ async function validateCookie(cookie) {
       'User-Agent': UA, 'Cookie': cookie, 'Accept': 'application/json', 'Referer': `${BASE}/`,
     });
     if (res.status !== 200) return false;
+    // Sessão expirada → servidor retorna HTML (redirecionamento para login)
+    // Verificações explícitas + genérica: qualquer HTML indica sessão inválida
     if (res.body.includes('<title>Login') || res.body.includes('name="senha"')) return false;
+    if (res.body.trimStart().startsWith('<')) return false; // HTML = inválido
     return true;
   } catch { return false; }
+}
+
+// ── Keepalive de sessão ───────────────────────────────────────────────────────
+// Pinga o servidor a cada 18 min para evitar expiração da sessão PHP (TTL padrão = 24 min).
+const KEEPALIVE_INTERVAL = 18 * 60 * 1000;
+let _lastKeepalive = 0;
+
+async function keepalive() {
+  if (!_cookie) return;
+  if (Date.now() - _lastKeepalive < KEEPALIVE_INTERVAL) return;
+  try {
+    const res = await request('GET', `${BASE}/ajax.php?action=events_lite`, {
+      'User-Agent': UA, 'Cookie': _cookie, 'Accept': 'application/json', 'Referer': `${BASE}/`,
+    });
+    const ok = res.status === 200
+      && !res.body.includes('name="senha"')
+      && !res.body.trimStart().startsWith('<');
+    if (ok) {
+      _lastKeepalive = Date.now();
+    } else {
+      // Sessão expirou — invalida cache para renovação no próximo ciclo
+      console.log('   [keepalive] Sessao expirada — sera renovada no proximo ciclo');
+      _cookie = null;
+      _cookieValidatedAt = 0;
+      invalidateSession();
+    }
+  } catch { /* ignora erros de rede temporários */ }
 }
 
 // ── Auto-renovação: chama renew-cookie.mjs ────────────────────────────────────
@@ -317,18 +347,41 @@ async function processOneCycle() {
   try {
     session = await getSession(cookie);
   } catch (err) {
-    // Sessão pode ter expirado — invalida e tenta uma vez com cookie renovado
     invalidateSession();
-    _cookieValidatedAt = 0; // força revalidação do cookie
-    console.error(`   Sessao falhou: ${err.message} — tentando renovar...`);
-    const freshCookie = await getCookie();
-    if (!freshCookie) { for (const ev of batch) await markQueueError(ev.id); return; }
-    try {
-      session = await getSession(freshCookie);
-    } catch (err2) {
-      console.error(`   Sessao falhou novamente: ${err2.message}`);
-      for (const ev of batch) await markQueueError(ev.id);
-      return;
+    console.error(`   Sessao falhou: ${err.message}`);
+
+    // Se o handshake rejeitou o cookie explicitamente → força login imediato
+    // (não passa pelo validateCookie que pode retornar true erroneamente)
+    const cookieInvalid = err.message.includes('handshake') || err.message.includes('cookie');
+    if (cookieInvalid) {
+      console.log('   Cookie rejeitado pelo servidor — renovando agora...');
+      _cookie = null;
+      _cookieValidatedAt = 0;
+      _lastKeepalive = 0;
+      const renewed = await autoRenewCookie();
+      if (!renewed) { for (const ev of batch) await markQueueError(ev.id); return; }
+      _cookie = renewed;
+      _cookieValidatedAt = Date.now();
+      _lastKeepalive = Date.now();
+      try {
+        session = await getSession(renewed);
+      } catch (err2) {
+        console.error(`   Sessao falhou apos renovacao: ${err2.message}`);
+        for (const ev of batch) await markQueueError(ev.id);
+        return;
+      }
+    } else {
+      // Erro de rede ou nonce — tenta com o cookie atual sem renovar
+      _cookieValidatedAt = 0;
+      const freshCookie = await getCookie();
+      if (!freshCookie) { for (const ev of batch) await markQueueError(ev.id); return; }
+      try {
+        session = await getSession(freshCookie);
+      } catch (err2) {
+        console.error(`   Sessao falhou novamente: ${err2.message}`);
+        for (const ev of batch) await markQueueError(ev.id);
+        return;
+      }
     }
   }
 
@@ -437,6 +490,9 @@ await processOneCycle();
 
 while (true) {
   await sleep(POLL_INTERVAL);
+
+  // Keepalive: pinga servidor a cada 18 min para manter sessão PHP viva
+  await keepalive();
 
   // Renova SSE token a cada 12 min (independente da fila)
   if (Date.now() - _lastSseTokenFetch > SSE_REFRESH_INTERVAL) {
