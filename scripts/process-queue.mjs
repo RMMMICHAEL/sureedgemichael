@@ -34,7 +34,7 @@ const BASE          = 'https://painel.supermonitor.pro';
 const UA            = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
 const CACHE_TTL_MS  = 15 * 60 * 1000; // 15 minutos
 const MAX_PER_CYCLE = 5;
-const POLL_INTERVAL = 8_000;           // 8 segundos
+const POLL_INTERVAL = 4_000;           // 4 segundos
 
 const sbUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL  ?? '').trim();
 const sbKey = (process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '').trim();

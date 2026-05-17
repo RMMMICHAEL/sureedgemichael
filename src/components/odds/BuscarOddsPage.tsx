@@ -1035,7 +1035,7 @@ export function BuscarOddsPage() {
         // 3. Polling até ficar pronto (máx 90s)
         const start = Date.now();
         while (Date.now() - start < 90_000) {
-          await new Promise(r => setTimeout(r, 3000));
+          await new Promise(r => setTimeout(r, 2000));
 
           const pollRes  = await fetch(`/api/supermonitor/queue?event_id=${encodeURIComponent(event.id)}`);
           const pollJson = await pollRes.json() as { ok: boolean; ready?: boolean; cached_at?: string };
