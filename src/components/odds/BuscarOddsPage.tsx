@@ -623,7 +623,15 @@ function RankingCard({
 
   function handleOpenTabs() {
     for (const leg of item.legs) {
-      if (leg.url) window.open(leg.url, '_blank', 'noopener,noreferrer');
+      if (!leg.url) continue;
+      const a = document.createElement('a');
+      a.href = leg.url;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
     }
   }
 
