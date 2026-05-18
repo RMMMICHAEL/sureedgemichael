@@ -928,22 +928,9 @@ export function BuscarOddsPage() {
       setLiveStatus('connecting');
 
       try {
-        const res  = await fetch('/api/supermonitor/sse-token');
-        const json = await res.json() as { ok: boolean; token?: string; sse_url?: string | null };
-        if (!active) return;
-        if (!json.ok || !json.token) {
-          setLiveStatus('off');
-          return; // daemon ainda não rodou — silencioso
-        }
-
-        // URL dinâmica vinda do Supabase (salva pelo daemon).
-        // Fallback para o endpoint conhecido caso a URL ainda não esteja salva.
-        const sseBase = (json.sse_url ?? 'https://api5.nomacisoft.com').replace(/\/$/, '');
-
+        // Proxy SSE server-to-server → sem CORS, token gerenciado pelo servidor
         closeSse();
-        const es = new EventSource(
-          `${sseBase}/events?temp_token=${encodeURIComponent(json.token)}`
-        );
+        const es = new EventSource('/api/supermonitor/sse-proxy');
         sseRef.current = es;
 
         es.addEventListener('update', (e: MessageEvent) => {
@@ -1000,14 +987,14 @@ export function BuscarOddsPage() {
           closeSse();
           if (!active) return;
           setLiveStatus('error');
-          // Tenta reconectar em 45 s (token pode ter expirado → pega novo)
-          sseTimer.current = setTimeout(connect, 45_000);
+          // Reconecta em 8s — proxy pega token novo automaticamente do Supabase
+          sseTimer.current = setTimeout(connect, 8_000);
         };
 
       } catch {
         if (!active) return;
         setLiveStatus('error');
-        sseTimer.current = setTimeout(connect, 60_000);
+        sseTimer.current = setTimeout(connect, 10_000);
       }
     }
 
@@ -1051,45 +1038,61 @@ export function BuscarOddsPage() {
         return;
       }
 
-      // 2. Cache miss ou dado velho — enfileira
+      // 2. Cache miss ou dado velho — enfileira com auto-retry (até 3 tentativas)
       if (json.reason === 'stale' || json.reason === 'not_found') {
-        setOddsLoadingMsg('Pedindo ao PC...');
+        const MAX_ATTEMPTS = 3;
 
-        await fetch('/api/supermonitor/queue', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ event_id: event.id, event_name: event.name }),
-        });
+        for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+          const attemptLabel = MAX_ATTEMPTS > 1 ? ` (tentativa ${attempt}/${MAX_ATTEMPTS})` : '';
+          setOddsLoadingMsg(`Pedindo ao PC...${attemptLabel}`);
 
-        // 3. Polling até ficar pronto (máx 90s)
-        const start = Date.now();
-        while (Date.now() - start < 90_000) {
-          await new Promise(r => setTimeout(r, 2000));
+          await fetch('/api/supermonitor/queue', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ event_id: event.id, event_name: event.name }),
+          });
 
-          const pollRes  = await fetch(`/api/supermonitor/queue?event_id=${encodeURIComponent(event.id)}`);
-          const pollJson = await pollRes.json() as { ok: boolean; ready?: boolean; cached_at?: string };
+          // Polling até ficar pronto (máx 90s por tentativa)
+          const start = Date.now();
+          let ready = false;
 
-          if (pollJson.ready) {
-            // Dado pronto — busca o resultado final
-            const finalRes  = await fetch('/api/supermonitor/search', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ query: event.name, eventId: event.id }),
-            });
-            const finalJson = await finalRes.json() as { ok: boolean; data?: unknown };
-            if (finalJson.ok) {
-              const p = parseSearchResults(finalJson.data);
-              if (p) { setParsed(p); setOddsLoading(false); return; }
+          while (Date.now() - start < 90_000) {
+            await new Promise(r => setTimeout(r, 2000));
+
+            const pollRes  = await fetch(`/api/supermonitor/queue?event_id=${encodeURIComponent(event.id)}`);
+            const pollJson = await pollRes.json() as { ok: boolean; ready?: boolean; cached_at?: string };
+
+            if (pollJson.ready) {
+              // Dado pronto — busca o resultado final
+              const finalRes  = await fetch('/api/supermonitor/search', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ query: event.name, eventId: event.id }),
+              });
+              const finalJson = await finalRes.json() as { ok: boolean; data?: unknown };
+              if (finalJson.ok) {
+                const p = parseSearchResults(finalJson.data);
+                if (p) { setParsed(p); setOddsLoading(false); return; }
+              }
+              ready = true;
+              break;
             }
+
+            const elapsed = Math.round((Date.now() - start) / 1000);
+            setOddsLoadingMsg(`Aguardando PC... ${elapsed}s${attemptLabel}`);
           }
 
-          const elapsed = Math.round((Date.now() - start) / 1000);
-          const pcNote  = elapsed >= 10 ? ' · PC precisa estar ligado' : '';
-          setOddsLoadingMsg(`Aguardando PC... ${elapsed}s${pcNote}`);
+          if (ready) break;
+
+          // Tentativa falhou — re-enfileira se ainda há tentativas
+          if (attempt < MAX_ATTEMPTS) {
+            setOddsLoadingMsg(`Sem resposta. Re-enfileirando...`);
+            await new Promise(r => setTimeout(r, 2000));
+          }
         }
 
-        // Timeout
-        throw new Error('PC offline ou demorando. Verifique se o script process-queue.mjs está rodando.');
+        // Todas as tentativas falharam
+        throw new Error('Daemon não respondeu após 3 tentativas. Verifique se o PC está ligado e o daemon ativo.');
       }
 
       throw new Error(json.hint ?? json.error ?? 'Erro desconhecido');
