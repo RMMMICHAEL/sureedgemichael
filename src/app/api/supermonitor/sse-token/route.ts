@@ -7,6 +7,7 @@
  * Aqui rejeitamos tokens com mais de 15 min.
  */
 export const dynamic = 'force-dynamic';
+export const preferredRegion = ['gru1']; // São Paulo — evita bloqueio IP no SuperMonitor
 
 import { NextResponse } from 'next/server';
 

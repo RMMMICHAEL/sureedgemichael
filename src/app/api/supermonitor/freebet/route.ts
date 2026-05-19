@@ -12,6 +12,8 @@
  */
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
+// Força execução na região de São Paulo para evitar bloqueio de IP estrangeiro no SuperMonitor
+export const preferredRegion = ['gru1'];
 
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -190,15 +192,24 @@ export async function GET(req: NextRequest) {
     const sb = await getSupabaseAdmin();
     const { data: row } = await sb
       .from('app_config')
-      .select('value')
+      .select('value, updated_at')
       .eq('key', 'supermonitor_cookie')
       .single();
 
     if (!row?.value) {
-      return NextResponse.json({
-        ok: false,
-        error: 'Cookie não disponível. Inicie o daemon (start-daemon.vbs) e aguarde alguns segundos.',
-      });
+      return NextResponse.json(
+        { ok: false, error: 'Cookie não disponível. Rode o renew-cookie.mjs e aguarde alguns segundos.' },
+        { status: 503 },
+      );
+    }
+
+    // Cookie com mais de 3h tende a ser rejeitado pelo handshake ECDH
+    const cookieAge = Date.now() - new Date((row as { updated_at: string }).updated_at).getTime();
+    if (cookieAge > 3 * 60 * 60 * 1000) {
+      return NextResponse.json(
+        { ok: false, error: 'Sessão expirada. Rode o renew-cookie.mjs para renovar o cookie.' },
+        { status: 503 },
+      );
     }
 
     const session = await createECDHSession(row.value as string);
@@ -208,6 +219,8 @@ export async function GET(req: NextRequest) {
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     console.error('[freebet]', msg);
-    return NextResponse.json({ ok: false, error: msg });
+    // Retorna 502 para falhas de gateway externo (SuperMonitor)
+    const status = msg.includes('403') || msg.includes('handshake') || msg.includes('proxy') ? 502 : 500;
+    return NextResponse.json({ ok: false, error: msg }, { status });
   }
 }

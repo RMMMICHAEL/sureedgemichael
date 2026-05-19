@@ -4,6 +4,7 @@
  * O PC roda renew-cookie.mjs a cada 30 min e salva em sm_events.
  */
 export const dynamic = 'force-dynamic';
+export const preferredRegion = ['gru1']; // São Paulo — evita bloqueio IP no SuperMonitor
 
 import { NextRequest, NextResponse } from 'next/server';
 

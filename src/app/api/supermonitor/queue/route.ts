@@ -12,6 +12,7 @@
  *   → retorna { ok, ready, cached_at? }
  */
 export const dynamic = 'force-dynamic';
+export const preferredRegion = ['gru1']; // São Paulo — evita bloqueio IP no SuperMonitor
 
 import { NextRequest, NextResponse } from 'next/server';
 

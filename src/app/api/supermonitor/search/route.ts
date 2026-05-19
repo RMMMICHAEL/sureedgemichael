@@ -15,6 +15,7 @@
  *   { ok: false, reason: 'not_found', event_id }
  */
 export const dynamic = 'force-dynamic';
+export const preferredRegion = ['gru1']; // São Paulo — evita bloqueio IP no SuperMonitor
 
 import { NextRequest, NextResponse } from 'next/server';
 

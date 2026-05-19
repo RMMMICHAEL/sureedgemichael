@@ -11,6 +11,7 @@
  *  - Token transparente: frontend não precisa saber o sse_url nem o token
  */
 export const dynamic = 'force-dynamic';
+export const preferredRegion = ['gru1']; // São Paulo — evita bloqueio IP no SuperMonitor
 export const runtime = 'nodejs';
 
 async function getSupabaseAdmin() {
