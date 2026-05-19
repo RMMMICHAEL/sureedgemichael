@@ -796,25 +796,55 @@ export function FreebetConverterPage() {
     setStep(4);
 
     try {
-      const qs = new URLSearchParams({
-        bookmaker: house,
-        value:     value,
-        min_odd:   minOdd,
-        max_odd:   maxOdd,
-        pa_filter: paFilter,
-      }).toString();
+      // 1. Enfileira a requisição no daemon local via Supabase
+      const postRes  = await fetch('/api/supermonitor/freebet', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+          bookmaker: house,
+          value:     parseFloat(value),
+          min_odd:   parseFloat(minOdd),
+          max_odd:   parseFloat(maxOdd),
+          pa_filter: paFilter,
+        }),
+      });
+      const postJson = await postRes.json() as { ok: boolean; request_id?: string; error?: string };
+      if (!postJson.ok) throw new Error(postJson.error ?? 'Erro ao enfileirar requisição');
 
-      const res  = await fetch(`/api/supermonitor/freebet?${qs}`);
-      const json = await res.json() as { ok: boolean; data?: unknown; error?: string };
+      const requestId = postJson.request_id!;
 
-      if (!json.ok) throw new Error(json.error ?? 'Erro ao buscar conversões');
+      // 2. Polling até o daemon processar (max 3 min, intervalo 3s)
+      const deadline = Date.now() + 3 * 60 * 1000;
+      while (Date.now() < deadline) {
+        await new Promise(r => setTimeout(r, 3000));
 
-      const parsed = parseApiResponse(json.data);
-      if (parsed.length === 0) {
-        setError('Nenhuma conversão encontrada com esses filtros. Tente ajustar a faixa de odds ou o filtro de PA.');
-      } else {
-        setResults(parsed);
+        const pollRes  = await fetch(`/api/supermonitor/freebet?request_id=${requestId}`);
+        const pollJson = await pollRes.json() as {
+          ok: boolean; status?: string; data?: unknown; error_msg?: string; error?: string;
+        };
+
+        if (!pollJson.ok) throw new Error(pollJson.error ?? 'Erro ao verificar resultado');
+
+        if (pollJson.status === 'done') {
+          const parsed = parseApiResponse(pollJson.data);
+          if (parsed.length === 0) {
+            setError('Nenhuma conversão encontrada. Tente ajustar a faixa de odds ou o filtro de PA.');
+          } else {
+            setResults(parsed);
+          }
+          return;
+        }
+
+        if (pollJson.status === 'error') {
+          throw new Error(pollJson.error_msg ?? 'Daemon retornou erro ao processar');
+        }
+
+        if (pollJson.status === 'timeout') {
+          throw new Error('Daemon não respondeu. Verifique se o process-queue.mjs está rodando.');
+        }
       }
+
+      throw new Error('Tempo esgotado. Verifique se o daemon está ativo e tente novamente.');
     } catch (e: unknown) {
       setError((e as Error).message ?? 'Erro desconhecido');
     } finally {

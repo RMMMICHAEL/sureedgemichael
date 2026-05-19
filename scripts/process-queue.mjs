@@ -423,6 +423,115 @@ async function processOneCycle() {
   }
 }
 
+// ── Freebet queue ─────────────────────────────────────────────────────────────
+// Busca requisições pendentes de freebet e processa localmente (IP residencial)
+
+async function fetchFreebetFromSuperMonitor(session, { bookmaker, value, min_odd, max_odd, pa_filter }) {
+  const freebetHdrs = { ...session.hdrs, 'Referer': `${BASE}/index.php?page=converter-freebet` };
+
+  // Tenta nonces em ordem de preferência
+  let nonce = null;
+  for (const endpoint of [
+    `${BASE}/api/proxy_nonce_freebet.php`,
+    `${BASE}/api/proxy_nonce_buscador.php`,
+    `${BASE}/api/proxy_nonce.php`,
+  ]) {
+    try {
+      const r = await fetch(endpoint, { headers: freebetHdrs });
+      if (r.ok) {
+        const body = await r.json();
+        if (body.nonce) { nonce = body.nonce; break; }
+      }
+    } catch { /* tenta próximo */ }
+  }
+  if (!nonce) throw new Error('Não foi possível obter nonce para freebet');
+
+  const qs = new URLSearchParams({
+    endpoint:  'api/v2/freebet/convert',
+    bookmaker: String(bookmaker),
+    value:     String(value),
+    min_odd:   String(min_odd),
+    max_odd:   String(max_odd),
+    pa_filter: String(pa_filter),
+  }).toString();
+
+  const res = await fetch(`${BASE}/api/freebet_proxy-v2.php?${qs}`, {
+    headers: { ...freebetHdrs, 'Accept': 'application/json', 'X-Proxy-Nonce': nonce },
+  });
+  if (!res.ok) throw new Error(`freebet_proxy falhou (${res.status})`);
+
+  const enc = await res.json();
+  if (enc.encrypted && enc.data) {
+    const encBytes = base64ToBytes(enc.data);
+    const plain    = await subtle.decrypt(
+      { name: 'AES-CBC', iv: encBytes.slice(0, 16) },
+      session.aesKey,
+      encBytes.slice(16),
+    );
+    return JSON.parse(new TextDecoder().decode(plain));
+  }
+  return enc;
+}
+
+async function processFreebetCycle() {
+  let pending = [];
+  try {
+    const res = await sbFetch(
+      'freebet_queue?status=eq.pending&order=created_at.asc&limit=5',
+      'GET', null, { 'Accept': 'application/json' },
+    );
+    pending = await res.json();
+    if (!Array.isArray(pending)) pending = [];
+  } catch { return; }
+
+  if (!pending.length) return;
+
+  const t = new Date().toLocaleTimeString('pt-BR');
+  console.log(`\n[${t}] ${pending.length} freebet(s) na fila`);
+
+  const cookie = await getCookie();
+  if (!cookie) {
+    console.error('   Freebet: sem cookie válido');
+    return;
+  }
+
+  let session;
+  try {
+    session = await getSession(cookie);
+  } catch (err) {
+    invalidateSession();
+    console.error(`   Freebet: sessão falhou: ${err.message}`);
+    return;
+  }
+
+  for (const req of pending) {
+    // Marca como processing
+    await sbFetch(
+      `freebet_queue?id=eq.${req.id}`,
+      'PATCH', { status: 'processing', updated_at: new Date().toISOString() },
+    );
+
+    try {
+      const result = await fetchFreebetFromSuperMonitor(session, req);
+      await sbFetch(
+        `freebet_queue?id=eq.${req.id}`,
+        'PATCH', { status: 'done', result, updated_at: new Date().toISOString() },
+      );
+      console.log(`   Freebet OK: ${req.bookmaker} R$${req.value}`);
+    } catch (err) {
+      await sbFetch(
+        `freebet_queue?id=eq.${req.id}`,
+        'PATCH', { status: 'error', error_msg: err.message, updated_at: new Date().toISOString() },
+      );
+      console.error(`   Freebet erro: ${req.bookmaker} R$${req.value}: ${err.message}`);
+      // Se foi o handshake, invalida sessão
+      if (err.message.includes('403') || err.message.includes('handshake')) invalidateSession();
+    }
+
+    await sleep(1000 + Math.random() * 1000);
+  }
+}
+
 // ── SSE Token refresh ─────────────────────────────────────────────────────────
 // Roda no startup e a cada 12 min (TTL do token é 840s = 14 min).
 // Salva temp_token + sse_url no Supabase para o frontend consumir.
@@ -487,6 +596,7 @@ console.log(`Verificando fila a cada ${POLL_INTERVAL / 1000}s | Ctrl+C para para
 }
 
 await processOneCycle();
+await processFreebetCycle();
 
 while (true) {
   await sleep(POLL_INTERVAL);
@@ -503,6 +613,12 @@ while (true) {
   try {
     await processOneCycle();
   } catch (err) {
-    console.error(`Erro no ciclo: ${err.message}`);
+    console.error(`Erro no ciclo odds: ${err.message}`);
+  }
+
+  try {
+    await processFreebetCycle();
+  } catch (err) {
+    console.error(`Erro no ciclo freebet: ${err.message}`);
   }
 }
