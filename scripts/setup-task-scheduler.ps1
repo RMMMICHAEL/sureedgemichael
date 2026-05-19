@@ -107,9 +107,11 @@ $eventsAction = New-ScheduledTaskAction `
     -Argument "`"$eventsScript`"" `
     -WorkingDirectory $scriptDir
 
-$eventsTriggerDaily  = New-ScheduledTaskTrigger -Daily -At "07:00"
+# Roda ao logar + a cada 4 horas (mantem cookie fresco para freebet e handshake ECDH)
 $eventsTriggerLogon  = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
-$eventsTrigger = @($eventsTriggerDaily, $eventsTriggerLogon)
+$eventsTriggerRepeat = New-ScheduledTaskTrigger -Once -At (Get-Date) `
+    -RepetitionInterval (New-TimeSpan -Hours 4)
+$eventsTrigger = @($eventsTriggerLogon, $eventsTriggerRepeat)
 
 try {
     Register-ScheduledTask `
@@ -122,7 +124,7 @@ try {
 
     Write-Host ""
     Write-Host "OK: Tarefa '$eventsTaskName' registrada!" -ForegroundColor Green
-    Write-Host "   Roda: diariamente as 07:00 + ao ligar o PC"
+    Write-Host "   Roda: ao ligar o PC + a cada 4 horas (cookie fresco para freebet)"
     Write-Host "   Script: $eventsScript"
 } catch {
     Write-Host "ERRO ao registrar '$eventsTaskName': $_" -ForegroundColor Red
@@ -179,7 +181,7 @@ Write-Host "========================================" -ForegroundColor Cyan
 Write-Host " SureEdge Task Scheduler configurado!  " -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "  $eventsTaskName  - lista de eventos (1x ao dia)" -ForegroundColor White
+Write-Host "  $eventsTaskName  - lista de eventos + cookie (a cada 4h)" -ForegroundColor White
 Write-Host "  $queueTaskName   - odds on-demand (daemon, verifica a cada 20s)" -ForegroundColor White
 Write-Host ""
 Write-Host "Node: $nodePath" -ForegroundColor Gray
