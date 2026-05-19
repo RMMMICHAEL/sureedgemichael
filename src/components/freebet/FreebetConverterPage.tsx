@@ -65,45 +65,110 @@ function fmtDate(iso?: string) {
   } catch { return iso; }
 }
 
-/** Normaliza o JSON retornado pelo SuperMonitor em um array de FreebetResult */
+/** Normaliza o JSON retornado pelo SuperMonitor em um array de FreebetResult.
+ *  Estrutura real da API:
+ *  { recommendations: [{ event, freebet, hedges, pa_count, conversion }] }
+ *  onde conversion = { conversion_rate, avg_profit, total_hedge_stake, hedge_stakes, ... }
+ */
 function parseApiResponse(data: unknown): FreebetResult[] {
   if (!data || typeof data !== 'object') return [];
   const d = data as Record<string, unknown>;
 
-  // Array direto
-  const arr: unknown[] = Array.isArray(data)
-    ? data
-    : Array.isArray(d.results) ? d.results as unknown[]
-    : Array.isArray(d.data) ? d.data as unknown[]
-    : Array.isArray(d.events) ? d.events as unknown[]
+  // Localiza o array de itens — testa todas as chaves conhecidas
+  const arr: unknown[] = Array.isArray(data)            ? data
+    : Array.isArray(d.recommendations)  ? d.recommendations as unknown[]
+    : Array.isArray(d.results)          ? d.results          as unknown[]
+    : Array.isArray(d.data)             ? d.data             as unknown[]
+    : Array.isArray(d.events)           ? d.events           as unknown[]
     : [];
 
   return arr
     .filter(item => item && typeof item === 'object')
     .map(item => {
       const r = item as Record<string, unknown>;
-      const bets: FreebetBet[] = (Array.isArray(r.bets) ? r.bets : []).map((b: unknown) => {
-        const bet = (b as Record<string, unknown>);
-        return {
-          outcome:    String(bet.outcome ?? bet.label ?? ''),
-          house:      String(bet.house   ?? bet.bookmaker ?? ''),
-          url:        typeof bet.url === 'string' ? bet.url : undefined,
-          odd:        Number(bet.odd ?? bet.odds ?? 0),
-          stake:      Number(bet.stake ?? 0),
-          is_freebet: Boolean(bet.is_freebet ?? bet.freebet ?? false),
-          is_pa:      Boolean(bet.is_pa ?? bet.pa ?? false),
-        };
+
+      // ── Estrutura nova: { event, freebet, hedges, conversion } ───────────────
+      const ev   = (r.event   as Record<string, unknown> | undefined) ?? {};
+      const fb   = (r.freebet as Record<string, unknown> | undefined) ?? {};
+      const conv = (r.conversion as Record<string, unknown> | undefined) ?? {};
+      const hedgeArr: unknown[] = Array.isArray(r.hedges) ? r.hedges : [];
+
+      // Nomes e metadata do evento
+      const home = String(ev.home ?? '');
+      const away = String(ev.away ?? '');
+      const eventName = home && away
+        ? `${home} x ${away}`
+        : String(r.event_name ?? r.name ?? home ?? away ?? '');
+
+      const eventUrls = (ev.urls ?? {}) as Record<string, string>;
+      const fbHouse   = String(fb.house ?? '');
+
+      // URL do evento — usa a URL da casa freebet ou a primeira disponível
+      const eventUrl = eventUrls[fbHouse] ?? Object.values(eventUrls)[0] ?? undefined;
+
+      // ── Apostas ──────────────────────────────────────────────────────────────
+      const hedgeStakes: number[] = Array.isArray(conv.hedge_stakes)
+        ? (conv.hedge_stakes as unknown[]).map(s => Number(s))
+        : [];
+
+      const bets: FreebetBet[] = [];
+
+      // Aposta freebet
+      if (fb.house) {
+        bets.push({
+          outcome:    String(fb.selection ?? fb.outcome ?? ''),
+          house:      fbHouse,
+          url:        eventUrls[fbHouse] ?? undefined,
+          odd:        Number(fb.odd ?? 0),
+          stake:      Number(fb.value ?? conv.freebet_value ?? 0),
+          is_freebet: true,
+          is_pa:      false,
+        });
+      }
+
+      // Apostas de cobertura (hedges)
+      hedgeArr.forEach((h, i) => {
+        const hedge = h as Record<string, unknown>;
+        bets.push({
+          outcome:    String(hedge.selection ?? hedge.outcome ?? ''),
+          house:      String(hedge.house ?? ''),
+          url:        eventUrls[String(hedge.house ?? '')] ?? undefined,
+          odd:        Number(hedge.odd ?? 0),
+          stake:      hedgeStakes[i] ?? 0,
+          is_freebet: false,
+          is_pa:      Boolean(hedge.pa ?? false),
+        });
       });
 
+      // Fallback: estrutura legada { bets: [...] }
+      if (bets.length === 0 && Array.isArray(r.bets)) {
+        for (const b of r.bets as Record<string, unknown>[]) {
+          bets.push({
+            outcome:    String(b.outcome ?? b.label ?? ''),
+            house:      String(b.house   ?? b.bookmaker ?? ''),
+            url:        typeof b.url === 'string' ? b.url : undefined,
+            odd:        Number(b.odd ?? b.odds ?? 0),
+            stake:      Number(b.stake ?? 0),
+            is_freebet: Boolean(b.is_freebet ?? b.freebet ?? false),
+            is_pa:      Boolean(b.is_pa ?? b.pa ?? false),
+          });
+        }
+      }
+
+      const convRate   = Number(conv.conversion_rate ?? r.conversion_pct ?? 0);
+      const avgProfit  = Number(conv.avg_profit      ?? r.profit          ?? 0);
+      const totalStake = Number(conv.total_hedge_stake ?? r.total_investment ?? 0);
+
       return {
-        event_name:       String(r.event_name ?? r.name ?? ''),
-        league:           String(r.league     ?? r.competition ?? ''),
-        event_date:       typeof r.event_date === 'string' ? r.event_date
-                        : typeof r.date       === 'string' ? r.date : undefined,
-        event_url:        typeof r.event_url === 'string' ? r.event_url : undefined,
-        total_investment: Number(r.total_investment ?? r.investment ?? 0),
-        conversion_pct:   Number(r.conversion_pct  ?? r.conversion  ?? 0),
-        profit:           Number(r.profit ?? 0),
+        event_name:       eventName,
+        league:           String(ev.league ?? r.league ?? r.competition ?? ''),
+        event_date:       typeof ev.date        === 'string' ? ev.date
+                        : typeof r.event_date   === 'string' ? r.event_date
+                        : typeof r.date         === 'string' ? r.date : undefined,
+        event_url:        typeof eventUrl === 'string' ? eventUrl : undefined,
+        total_investment: totalStake,
+        conversion_pct:   convRate,
+        profit:           avgProfit,
         bets,
       } as FreebetResult;
     })

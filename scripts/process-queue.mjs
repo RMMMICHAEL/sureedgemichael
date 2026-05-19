@@ -452,6 +452,8 @@ async function processOneCycle() {
 
 let _freebetSession = null;
 let _freebetSessionCookieHash = '';
+let _freebetSessionExpiresAt = 0;
+const FREEBET_SESSION_TTL = 240_000; // 4 min (server TTL = 4.5 min)
 
 async function createFreebetSession(cookie) {
   const cookieWithCf = await mergeCfClearance(cookie);
@@ -497,7 +499,7 @@ async function createFreebetSession(cookie) {
   }
   const hs = await hsRes.json();
   if (!hs.success) throw new Error(`freebet: app_handshake negado: ${JSON.stringify(hs).slice(0, 100)}`);
-  console.log('   Sessão ECDH freebet criada (app_handshake.php)');
+  console.log(`   Sessão ECDH freebet criada (app_handshake.php) | cookie=${cookieWithCf.slice(0,60)}`);
 
   // 4. Deriva chave AES — info string: 'app-aes256-v1'
   const srvRaw = new Uint8Array(65);
@@ -519,15 +521,21 @@ async function createFreebetSession(cookie) {
 }
 
 async function getFreebetSession(cookie) {
-  if (_freebetSession && _freebetSessionCookieHash === cookie.slice(0, 32)) return _freebetSession;
+  const cookieKey = cookie.slice(0, 32);
+  // Reutiliza apenas se o cookie não mudou E a sessão ainda não expirou
+  if (_freebetSession && _freebetSessionCookieHash === cookieKey && Date.now() < _freebetSessionExpiresAt) {
+    return _freebetSession;
+  }
   _freebetSession = await createFreebetSession(cookie);
-  _freebetSessionCookieHash = cookie.slice(0, 32);
+  _freebetSessionCookieHash = cookieKey;
+  _freebetSessionExpiresAt = Date.now() + FREEBET_SESSION_TTL;
   return _freebetSession;
 }
 
 function invalidateFreebetSession() {
   _freebetSession = null;
   _freebetSessionCookieHash = '';
+  _freebetSessionExpiresAt = 0;
 }
 
 // ── Freebet queue ─────────────────────────────────────────────────────────────
@@ -553,6 +561,7 @@ async function fetchFreebetFromSuperMonitor(freebetSession, { bookmaker, value, 
     } catch { /* tenta próximo */ }
   }
   if (!nonce) throw new Error('freebet: não foi possível obter nonce');
+  console.error(`   [DBG] nonce=${nonce.slice(0,8)}… cookie=${(freebetHdrs['Cookie']??'').slice(0,60)}`);
 
   const qs = new URLSearchParams({
     endpoint:  'api/v2/freebet/convert',
@@ -624,7 +633,21 @@ async function processFreebetCycle() {
     );
 
     try {
-      const result = await fetchFreebetFromSuperMonitor(freebetSession, req);
+      let result;
+      try {
+        result = await fetchFreebetFromSuperMonitor(freebetSession, req);
+      } catch (err) {
+        // Sessão expirou ou foi invalidada → tenta uma vez com nova sessão
+        const is401 = err.message.includes('401') || err.message.includes('INVALID_SESSION') || err.message.includes('NEEDS_HANDSHAKE');
+        if (is401) {
+          console.log(`   Freebet: sessão inválida — recriando e retentando...`);
+          invalidateFreebetSession();
+          freebetSession = await getFreebetSession(cookie);
+          result = await fetchFreebetFromSuperMonitor(freebetSession, req);
+        } else {
+          throw err;
+        }
+      }
       await sbFetch(
         `freebet_queue?id=eq.${req.id}`,
         'PATCH', { status: 'done', result, updated_at: new Date().toISOString() },
@@ -636,7 +659,6 @@ async function processFreebetCycle() {
         'PATCH', { status: 'error', error_msg: err.message, updated_at: new Date().toISOString() },
       );
       console.error(`   Freebet erro: ${req.bookmaker} R$${req.value}: ${err.message}`);
-      // Invalida sessão freebet se for erro de handshake/proxy
       if (err.message.includes('401') || err.message.includes('403') || err.message.includes('handshake')) {
         invalidateFreebetSession();
       }
