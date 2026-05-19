@@ -31,7 +31,7 @@ if (existsSync(envFile)) {
 
 // ── Configuração ──────────────────────────────────────────────────────────────
 const BASE          = 'https://painel.supermonitor.pro';
-const UA            = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
+const UA            = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36';
 const CACHE_TTL_MS  = 15 * 60 * 1000; // 15 minutos
 const MAX_PER_CYCLE = 5;
 const POLL_INTERVAL = 4_000;           // 4 segundos
@@ -427,7 +427,19 @@ async function processOneCycle() {
 // Busca requisições pendentes de freebet e processa localmente (IP residencial)
 
 async function fetchFreebetFromSuperMonitor(session, { bookmaker, value, min_odd, max_odd, pa_filter }) {
-  const freebetHdrs = { ...session.hdrs, 'Referer': `${BASE}/index.php?page=converter-freebet` };
+  // Headers completos imitando requisição AJAX real do browser (Cloudflare verifica)
+  const freebetHdrs = {
+    ...session.hdrs,
+    'Referer':           `${BASE}/index.php?page=converter-freebet`,
+    'Origin':            BASE,
+    'Sec-Fetch-Dest':    'empty',
+    'Sec-Fetch-Mode':    'cors',
+    'Sec-Fetch-Site':    'same-origin',
+    'Sec-Ch-Ua':         '"Chromium";v="148", "Google Chrome";v="148", "Not-A.Brand";v="99"',
+    'Sec-Ch-Ua-Mobile':  '?0',
+    'Sec-Ch-Ua-Platform':'"Windows"',
+    'X-Requested-With':  'XMLHttpRequest',
+  };
 
   // Tenta nonces em ordem de preferência
   let nonce = null;
