@@ -53,7 +53,8 @@ async function getSupabaseAdmin() {
 
 interface ECDHSession {
   aesKey: CryptoKey;
-  hdrs: Record<string, string>;
+  hdrs: Record<string, string>;        // headers base (referer=buscador — handshake)
+  freebetHdrs: Record<string, string>; // headers para chamadas freebet (referer=converter-freebet)
 }
 
 async function createECDHSession(cookie: string): Promise<ECDHSession> {
@@ -103,7 +104,12 @@ async function createECDHSession(cookie: string): Promise<ECDHSession> {
     hkdfKey, { name: 'AES-CBC', length: 256 }, false, ['decrypt'],
   );
 
-  return { aesKey, hdrs };
+  const freebetHdrs: Record<string, string> = {
+    ...hdrs,
+    'Referer': `${BASE}/index.php?page=converter-freebet`,
+  };
+
+  return { aesKey, hdrs, freebetHdrs };
 }
 
 // ── Busca e descriptografa resultado freebet ──────────────────────────────────
@@ -112,16 +118,23 @@ async function fetchFreebetData(
   session: ECDHSession,
   params: { bookmaker: string; value: number; min_odd: number; max_odd: number; pa_filter: string },
 ): Promise<unknown> {
-  // Nonce por requisição (buscador_proxy family)
-  const nonceRes = await fetch(`${BASE}/api/proxy_nonce_buscador.php`, { headers: session.hdrs });
-  if (!nonceRes.ok) {
-    // Fallback para o endpoint alternativo
-    const nonceRes2 = await fetch(`${BASE}/api/proxy_nonce.php`, { headers: session.hdrs });
-    if (!nonceRes2.ok) throw new Error(`proxy_nonce falhou (${nonceRes2.status})`);
-    const { nonce: nonce2 } = await nonceRes2.json() as { nonce: string };
-    return await callFreebet(session, nonce2, params);
+  // Tenta nonce endpoints em ordem de preferência (freebet → buscador → genérico)
+  const nonceEndpoints = [
+    `${BASE}/api/proxy_nonce_freebet.php`,
+    `${BASE}/api/proxy_nonce_buscador.php`,
+    `${BASE}/api/proxy_nonce.php`,
+  ];
+
+  let nonce: string | null = null;
+  for (const url of nonceEndpoints) {
+    const r = await fetch(url, { headers: session.freebetHdrs });
+    if (r.ok) {
+      const body = await r.json() as { nonce?: string };
+      if (body.nonce) { nonce = body.nonce; break; }
+    }
   }
-  const { nonce } = await nonceRes.json() as { nonce: string };
+  if (!nonce) throw new Error('Não foi possível obter nonce para freebet');
+
   return await callFreebet(session, nonce, params);
 }
 
@@ -140,7 +153,7 @@ async function callFreebet(
   }).toString();
 
   const res = await fetch(`${BASE}/api/freebet_proxy-v2.php?${qs}`, {
-    headers: { ...session.hdrs, 'Accept': 'application/json', 'X-Proxy-Nonce': nonce },
+    headers: { ...session.freebetHdrs, 'Accept': 'application/json', 'X-Proxy-Nonce': nonce },
   });
   if (!res.ok) throw new Error(`freebet_proxy falhou (${res.status})`);
 
