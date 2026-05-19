@@ -61,8 +61,9 @@ async function createECDHSession(cookie: string): Promise<ECDHSession> {
     'User-Agent': UA,
     'Accept': '*/*',
     'Cache-Control': 'no-cache',
+    'Pragma': 'no-cache',
     'Accept-Language': 'pt-BR,pt;q=0.9',
-    'Referer': `${BASE}/index.php?page=converter-freebet`,
+    'Referer': `${BASE}/index.php?page=buscador`,
     'Cookie': cookie,
   };
 
