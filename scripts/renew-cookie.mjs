@@ -179,6 +179,22 @@ function extractPHPSESSID(setCookie) {
   return null;
 }
 
+/** Extrai TODOS os cookies de set-cookie e retorna um mapa { nome: valor } */
+function extractAllCookieMap(setCookie) {
+  const list = Array.isArray(setCookie) ? setCookie : setCookie ? [setCookie] : [];
+  const map  = {};
+  for (const c of list) {
+    const m = c.match(/^([^=\s]+)=([^;]*)/);
+    if (m) map[m[1].trim()] = m[2].trim();
+  }
+  return map;
+}
+
+/** Serializa mapa de cookies para string "k=v; k=v" */
+function serializeCookies(map) {
+  return Object.entries(map).map(([k, v]) => `${k}=${v}`).join('; ');
+}
+
 // ── Login ─────────────────────────────────────────────────────────────────────
 async function doLogin() {
   if (!email || !password) throw new Error('SUPERMONITOR_EMAIL / PASSWORD não configurados');
@@ -202,22 +218,25 @@ async function doLogin() {
     throw new Error('Cloudflare bloqueou — IP em hard block');
   if (getRes.status !== 200) throw new Error(`GET login.php falhou: ${getRes.status}`);
 
-  const anonCookie = extractPHPSESSID(getRes.headers['set-cookie']);
-  if (!anonCookie) throw new Error('PHPSESSID não recebido');
+  // Captura TODOS os cookies do GET (inclui cf_clearance se Cloudflare já passou)
+  const getCookieMap = extractAllCookieMap(getRes.headers['set-cookie']);
+  if (!getCookieMap['PHPSESSID']) throw new Error('PHPSESSID não recebido no GET');
+  const anonCookieStr = serializeCookies(getCookieMap);
 
   const html      = getRes.body;
   const csrfMatch = html.match(/name=["']csrf_token["'][^>]*value=["']([^"']+)["']/i)
                  ?? html.match(/value=["']([^"']{32,})["'][^>]*name=["']csrf_token["']/i);
   const csrfToken = csrfMatch?.[1] ?? '';
   const siteKey   = extractSiteKey(html);
-  console.log(`   sessid: ${anonCookie.slice(0, 24)}  csrf: ${csrfToken ? '✓' : 'ausente'}  turnstile: ${siteKey ? '✓' : 'ausente'}`);
+  const cfKeys    = Object.keys(getCookieMap).filter(k => k.startsWith('cf_')).join(', ') || 'nenhum';
+  console.log(`   sessid: PHPSESSID=${getCookieMap['PHPSESSID'].slice(0, 16)}…  csrf: ${csrfToken ? '✓' : 'ausente'}  turnstile: ${siteKey ? '✓' : 'ausente'}  cf_cookies: ${cfKeys}`);
 
   let turnstileToken = null;
   if (siteKey) turnstileToken = await solveTurnstile(siteKey, LOGIN_PAGE);
 
   await new Promise(r => setTimeout(r, 600 + Math.random() * 400));
 
-  const tryPost = async (withCsrf) => {
+  const tryPost = async (withCsrf, cookieStr) => {
     const params = new URLSearchParams();
     if (withCsrf && csrfToken) params.set('csrf_token', csrfToken);
     params.set('email', email); params.set('senha', password); params.set('website', '');
@@ -227,32 +246,38 @@ async function doLogin() {
       ...commonHeaders,
       'Content-Type': 'application/x-www-form-urlencoded',
       'Content-Length': String(Buffer.byteLength(bodyStr)),
-      'Cookie': anonCookie, 'Origin': BASE, 'Referer': LOGIN_PAGE, 'Cache-Control': 'max-age=0',
+      'Cookie': cookieStr, 'Origin': BASE, 'Referer': LOGIN_PAGE, 'Cache-Control': 'max-age=0',
       'Sec-Fetch-Dest': 'document', 'Sec-Fetch-Mode': 'navigate',
       'Sec-Fetch-Site': 'same-origin', 'Sec-Fetch-User': '?1',
     }, bodyStr);
   };
 
+  /** Mescla cookies do GET com os do POST, sobrescrevendo onde necessário */
+  const mergeCookies = (postSetCookie) => {
+    const merged = { ...getCookieMap, ...extractAllCookieMap(postSetCookie) };
+    return serializeCookies(merged);
+  };
+
   console.log('📤  POST credenciais…');
-  let postRes   = await tryPost(true);
-  let newCookie = extractPHPSESSID(postRes.headers['set-cookie']);
-  const loc1    = String(postRes.headers['location'] ?? '');
+  let postRes    = await tryPost(true, anonCookieStr);
+  let fullCookie = mergeCookies(postRes.headers['set-cookie']);
+  const loc1     = String(postRes.headers['location'] ?? '');
   console.log(`   status: ${postRes.status}  location: ${loc1 || '(nenhum)'}`);
 
   if (postRes.status >= 300 && postRes.status < 400 && loc1 && !loc1.toLowerCase().includes('login')) {
     console.log('✅  Login OK (redirect com CSRF)');
-    return newCookie ?? anonCookie;
+    return fullCookie;
   }
 
   if (postRes.body.includes('csrf') || postRes.body.includes('verificação de segurança')) {
     console.log('   CSRF rejeitado — tentando sem token…');
     await new Promise(r => setTimeout(r, 400));
-    postRes   = await tryPost(false);
-    newCookie = extractPHPSESSID(postRes.headers['set-cookie']);
+    postRes    = await tryPost(false, anonCookieStr);
+    fullCookie = mergeCookies(postRes.headers['set-cookie']);
     const loc2 = String(postRes.headers['location'] ?? '');
     if (postRes.status >= 300 && postRes.status < 400 && loc2 && !loc2.toLowerCase().includes('login')) {
       console.log('✅  Login OK (sem CSRF)');
-      return newCookie ?? anonCookie;
+      return fullCookie;
     }
   }
 
@@ -263,7 +288,7 @@ async function doLogin() {
       throw new Error(errMsg ? `Login rejeitado: ${errMsg}` : 'Login rejeitado — credenciais inválidas');
     }
     console.log('✅  Login OK (status 200)');
-    return newCookie ?? anonCookie;
+    return fullCookie;
   }
 
   throw new Error(`Resposta inesperada: status ${postRes.status}`);
