@@ -123,7 +123,9 @@ async function validateCookie(cookie) {
 // ── Keepalive de sessão ───────────────────────────────────────────────────────
 // Pinga o servidor a cada 18 min para evitar expiração da sessão PHP (TTL padrão = 24 min).
 const KEEPALIVE_INTERVAL = 18 * 60 * 1000;
-let _lastKeepalive = 0;
+// Inicializa no momento atual para evitar ping imediato no startup
+// (acabamos de validar o cookie ao subir — não precisa pingar de novo)
+let _lastKeepalive = Date.now();
 
 async function keepalive() {
   if (!_cookie) return;
@@ -143,6 +145,7 @@ async function keepalive() {
       _cookie = null;
       _cookieValidatedAt = 0;
       invalidateSession();
+      invalidateFreebetSession();
     }
   } catch { /* ignora erros de rede temporários */ }
 }
@@ -150,7 +153,9 @@ async function keepalive() {
 // ── Auto-renovação: chama renew-cookie.mjs ────────────────────────────────────
 async function autoRenewCookie() {
   console.log('   Cookie expirado — renovando automaticamente...');
-  _session = null; // invalida sessao cacheada
+  _session = null;          // invalida sessao buscador cacheada
+  _freebetSession = null;   // invalida sessao freebet cacheada
+  _freebetSessionCookieHash = '';
   try {
     await execFileAsync(process.execPath, [resolve(__dir, 'renew-cookie.mjs')], {
       cwd: __dir, timeout: 150_000, // 2.5 min (inclui 2captcha)
@@ -441,19 +446,24 @@ async function processOneCycle() {
   }
 }
 
-// ── Freebet queue ─────────────────────────────────────────────────────────────
-// Busca requisições pendentes de freebet e processa localmente (IP residencial)
+// ── Sessão ECDH dedicada para freebet ─────────────────────────────────────────
+// freebet_proxy-v2.php exige handshake próprio com contexto converter-freebet.
+// Mantida separada da sessão buscador.
 
-async function fetchFreebetFromSuperMonitor(session, { bookmaker, value, min_odd, max_odd, pa_filter }) {
-  // Mescla cf_clearance salvo separadamente (sobrevive a renovações de PHPSESSID)
-  const cookieWithCf = await mergeCfClearance(session.hdrs['Cookie'] ?? '');
+let _freebetSession = null;
+let _freebetSessionCookieHash = '';
 
-  // Headers completos imitando requisição AJAX real do browser (Cloudflare verifica)
-  const freebetHdrs = {
-    ...session.hdrs,
-    'Cookie':            cookieWithCf,
-    'Referer':           `${BASE}/index.php?page=converter-freebet`,
+async function createFreebetSession(cookie) {
+  const cookieWithCf = await mergeCfClearance(cookie);
+
+  const hdrs = {
+    'User-Agent':        UA,
+    'Accept':            '*/*',
+    'Accept-Language':   'pt-BR,pt;q=0.9',
+    'Cache-Control':     'no-cache',
     'Origin':            BASE,
+    'Referer':           `${BASE}/index.php?page=converter-freebet`,
+    'Cookie':            cookieWithCf,
     'Sec-Fetch-Dest':    'empty',
     'Sec-Fetch-Mode':    'cors',
     'Sec-Fetch-Site':    'same-origin',
@@ -463,11 +473,75 @@ async function fetchFreebetFromSuperMonitor(session, { bookmaker, value, min_odd
     'X-Requested-With':  'XMLHttpRequest',
   };
 
-  // Tenta nonces em ordem de preferência
+  // 1. Nonce para o handshake (endpoint específico da app)
+  const nonceRes = await fetch(`${BASE}/api/proxy_nonce_app_handshake.php`, { headers: hdrs });
+  if (!nonceRes.ok) throw new Error(`freebet: proxy_nonce_app_handshake falhou (${nonceRes.status})`);
+  const { nonce: handshakeNonce } = await nonceRes.json();
+  if (!handshakeNonce) throw new Error('freebet: app handshake nonce inválido');
+
+  // 2. Gera par de chaves ECDH
+  const keyPair    = await subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits']);
+  const pubRaw     = new Uint8Array(await subtle.exportKey('raw', keyPair.publicKey));
+  const client_pub_x = bytesToHex(pubRaw.slice(1, 33));
+  const client_pub_y = bytesToHex(pubRaw.slice(33, 65));
+
+  // 3. Handshake via app_handshake.php (endpoint dedicado do freebet/app)
+  const hsRes = await fetch(`${BASE}/api/app_handshake.php`, {
+    method:  'POST',
+    headers: { ...hdrs, 'Content-Type': 'application/json', 'X-Handshake-Nonce': handshakeNonce },
+    body:    JSON.stringify({ client_pub_x, client_pub_y }),
+  });
+  if (!hsRes.ok) {
+    const body = await hsRes.text().catch(() => '');
+    throw new Error(`freebet: app_handshake falhou (${hsRes.status}) ${body.slice(0, 80)}`);
+  }
+  const hs = await hsRes.json();
+  if (!hs.success) throw new Error(`freebet: app_handshake negado: ${JSON.stringify(hs).slice(0, 100)}`);
+  console.log('   Sessão ECDH freebet criada (app_handshake.php)');
+
+  // 4. Deriva chave AES — info string: 'app-aes256-v1'
+  const srvRaw = new Uint8Array(65);
+  srvRaw[0] = 0x04;
+  srvRaw.set(hexToBytes(hs.server_pub_x ?? ''), 1);
+  srvRaw.set(hexToBytes(hs.server_pub_y ?? ''), 33);
+
+  const serverPub  = await subtle.importKey('raw', srvRaw, { name: 'ECDH', namedCurve: 'P-256' }, false, []);
+  const sharedBits = await subtle.deriveBits({ name: 'ECDH', public: serverPub }, keyPair.privateKey, 256);
+  const hkdfKey    = await subtle.importKey('raw', sharedBits, 'HKDF', false, ['deriveKey']);
+
+  // IMPORTANT: app session uses 32-byte zero salt (not empty) — matches app-crypto-loader.js
+  const aesKey = await subtle.deriveKey(
+    { name: 'HKDF', hash: 'SHA-256', salt: new Uint8Array(32), info: new TextEncoder().encode('app-aes256-v1') },
+    hkdfKey, { name: 'AES-CBC', length: 256 }, false, ['decrypt'],
+  );
+
+  return { aesKey, hdrs };
+}
+
+async function getFreebetSession(cookie) {
+  if (_freebetSession && _freebetSessionCookieHash === cookie.slice(0, 32)) return _freebetSession;
+  _freebetSession = await createFreebetSession(cookie);
+  _freebetSessionCookieHash = cookie.slice(0, 32);
+  return _freebetSession;
+}
+
+function invalidateFreebetSession() {
+  _freebetSession = null;
+  _freebetSessionCookieHash = '';
+}
+
+// ── Freebet queue ─────────────────────────────────────────────────────────────
+
+async function fetchFreebetFromSuperMonitor(freebetSession, { bookmaker, value, min_odd, max_odd, pa_filter }) {
+  const freebetHdrs = {
+    ...freebetSession.hdrs,
+    'Accept': 'application/json',
+  };
+
+  // Nonce para a requisição freebet
   let nonce = null;
   for (const endpoint of [
     `${BASE}/api/proxy_nonce_freebet.php`,
-    `${BASE}/api/proxy_nonce_buscador.php`,
     `${BASE}/api/proxy_nonce.php`,
   ]) {
     try {
@@ -478,7 +552,7 @@ async function fetchFreebetFromSuperMonitor(session, { bookmaker, value, min_odd
       }
     } catch { /* tenta próximo */ }
   }
-  if (!nonce) throw new Error('Não foi possível obter nonce para freebet');
+  if (!nonce) throw new Error('freebet: não foi possível obter nonce');
 
   const qs = new URLSearchParams({
     endpoint:  'api/v2/freebet/convert',
@@ -490,16 +564,21 @@ async function fetchFreebetFromSuperMonitor(session, { bookmaker, value, min_odd
   }).toString();
 
   const res = await fetch(`${BASE}/api/freebet_proxy-v2.php?${qs}`, {
-    headers: { ...freebetHdrs, 'Accept': 'application/json', 'X-Proxy-Nonce': nonce },
+    headers: { ...freebetHdrs, 'X-Proxy-Nonce': nonce },
   });
-  if (!res.ok) throw new Error(`freebet_proxy falhou (${res.status})`);
+
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    console.error(`   [freebet] proxy ${res.status}: ${body.slice(0, 300)}`);
+    throw new Error(`freebet_proxy falhou (${res.status})`);
+  }
 
   const enc = await res.json();
   if (enc.encrypted && enc.data) {
     const encBytes = base64ToBytes(enc.data);
     const plain    = await subtle.decrypt(
       { name: 'AES-CBC', iv: encBytes.slice(0, 16) },
-      session.aesKey,
+      freebetSession.aesKey,
       encBytes.slice(16),
     );
     return JSON.parse(new TextDecoder().decode(plain));
@@ -529,24 +608,23 @@ async function processFreebetCycle() {
     return;
   }
 
-  let session;
+  let freebetSession;
   try {
-    session = await getSession(cookie);
+    freebetSession = await getFreebetSession(cookie);
   } catch (err) {
-    invalidateSession();
-    console.error(`   Freebet: sessão falhou: ${err.message}`);
+    invalidateFreebetSession();
+    console.error(`   Freebet: sessão ECDH falhou: ${err.message}`);
     return;
   }
 
   for (const req of pending) {
-    // Marca como processing
     await sbFetch(
       `freebet_queue?id=eq.${req.id}`,
       'PATCH', { status: 'processing', updated_at: new Date().toISOString() },
     );
 
     try {
-      const result = await fetchFreebetFromSuperMonitor(session, req);
+      const result = await fetchFreebetFromSuperMonitor(freebetSession, req);
       await sbFetch(
         `freebet_queue?id=eq.${req.id}`,
         'PATCH', { status: 'done', result, updated_at: new Date().toISOString() },
@@ -558,8 +636,10 @@ async function processFreebetCycle() {
         'PATCH', { status: 'error', error_msg: err.message, updated_at: new Date().toISOString() },
       );
       console.error(`   Freebet erro: ${req.bookmaker} R$${req.value}: ${err.message}`);
-      // Se foi o handshake, invalida sessão
-      if (err.message.includes('403') || err.message.includes('handshake')) invalidateSession();
+      // Invalida sessão freebet se for erro de handshake/proxy
+      if (err.message.includes('401') || err.message.includes('403') || err.message.includes('handshake')) {
+        invalidateFreebetSession();
+      }
     }
 
     await sleep(1000 + Math.random() * 1000);
