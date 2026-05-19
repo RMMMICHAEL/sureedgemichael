@@ -499,7 +499,7 @@ async function createFreebetSession(cookie) {
   }
   const hs = await hsRes.json();
   if (!hs.success) throw new Error(`freebet: app_handshake negado: ${JSON.stringify(hs).slice(0, 100)}`);
-  console.log(`   Sessão ECDH freebet criada (app_handshake.php) | cookie=${cookieWithCf.slice(0,60)}`);
+  console.log('   Sessão ECDH freebet criada');
 
   // 4. Deriva chave AES — info string: 'app-aes256-v1'
   const srvRaw = new Uint8Array(65);
@@ -561,7 +561,6 @@ async function fetchFreebetFromSuperMonitor(freebetSession, { bookmaker, value, 
     } catch { /* tenta próximo */ }
   }
   if (!nonce) throw new Error('freebet: não foi possível obter nonce');
-  console.error(`   [DBG] nonce=${nonce.slice(0,8)}… cookie=${(freebetHdrs['Cookie']??'').slice(0,60)}`);
 
   const qs = new URLSearchParams({
     endpoint:  'api/v2/freebet/convert',
@@ -617,11 +616,15 @@ async function processFreebetCycle() {
     return;
   }
 
+  // Sempre cria sessão fresca por ciclo — evita INVALID_SESSION por TTL/cache
   let freebetSession;
   try {
-    freebetSession = await getFreebetSession(cookie);
-  } catch (err) {
     invalidateFreebetSession();
+    freebetSession = await createFreebetSession(cookie);
+    _freebetSession = freebetSession;
+    _freebetSessionCookieHash = cookie.slice(0, 32);
+    _freebetSessionExpiresAt = Date.now() + FREEBET_SESSION_TTL;
+  } catch (err) {
     console.error(`   Freebet: sessão ECDH falhou: ${err.message}`);
     return;
   }
