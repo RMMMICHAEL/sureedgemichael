@@ -18,7 +18,8 @@ import { CalculadoraPage }   from '@/components/calculadora/CalculadoraPage';
 import { BuscarOddsPage }   from '@/components/odds/BuscarOddsPage';
 import { AdminPage }         from '@/components/admin/AdminPage';
 import { PerfilPage }      from '@/components/perfil/PerfilPage';
-import { NotasPage }       from '@/components/notas/NotasPage';
+import { NotasPage }           from '@/components/notas/NotasPage';
+import { FreebetConverterPage } from '@/components/freebet/FreebetConverterPage';
 import { ResumoPage }      from '@/components/resumo/ResumoPage';
 import { MetasPage }       from '@/components/metas/MetasPage';
 import { OperadoresPage }  from '@/components/operadores/OperadoresPage';
@@ -51,18 +52,55 @@ export function AppShell() {
   //       session + !active → /pricing (renewal page)
   //       session + active  → app
   useEffect(() => {
-    getSupabaseClient().auth.getSession().then(({ data: { session } }) => {
-      const loggedIn = !!session;
-      setHasSession(loggedIn);
-      if (!loggedIn) {
-        setSubChecked(true);
-        return;
-      }
-      getMySubscription().then(sub => {
+    const sb = getSupabaseClient();
+
+    // Handle expired / revoked refresh tokens gracefully: if getSession()
+    // tries to refresh and the token is not found, clear the stale session
+    // from local storage so the user lands on the login page instead of a
+    // broken/frozen screen.
+    async function checkSession() {
+      try {
+        const { data: { session }, error } = await sb.auth.getSession();
+
+        // If there's an auth error (e.g. refresh_token_not_found), sign out
+        // locally so the stale tokens are cleared.
+        if (error) {
+          await sb.auth.signOut({ scope: 'local' });
+          setHasSession(false);
+          setSubChecked(true);
+          return;
+        }
+
+        const loggedIn = !!session;
+        setHasSession(loggedIn);
+        if (!loggedIn) {
+          setSubChecked(true);
+          return;
+        }
+        const sub = await getMySubscription();
         setSubActive(isSubscriptionActive(sub));
         setSubChecked(true);
-      });
+      } catch {
+        // Unexpected error — treat as not logged in
+        await sb.auth.signOut({ scope: 'local' }).catch(() => {});
+        setHasSession(false);
+        setSubChecked(true);
+      }
+    }
+
+    checkSession();
+
+    // Listen for auth changes so a token-refresh failure (SIGNED_OUT event
+    // fired by Supabase SDK after a failed refresh) is handled live.
+    const { data: { subscription: authSub } } = sb.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT' || (!session && event === 'TOKEN_REFRESHED')) {
+        setHasSession(false);
+        setSubActive(false);
+        setSubChecked(true);
+      }
     });
+
+    return () => { authSub.unsubscribe(); };
   }, []);
 
   // ── Auto-refresh: sync on mount + every 60 s ────────────────────────────────
@@ -175,6 +213,7 @@ export function AppShell() {
           {view === 'calc'      && <CalculadoraPage />}
           {view === 'odds'      && <BuscarOddsPage />}
           {view === 'notas'      && <NotasPage />}
+          {view === 'freebet'    && <FreebetConverterPage />}
           {view === 'resumo'     && <ResumoPage />}
           {view === 'metas'      && <MetasPage />}
           {view === 'operadores' && <OperadoresPage />}

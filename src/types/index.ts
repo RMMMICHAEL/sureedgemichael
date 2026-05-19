@@ -330,4 +330,5 @@ export type ViewId =
   | 'sugestoes'
   | 'admin'
   | 'perfil'
-  | 'notas';
+  | 'notas'
+  | 'freebet';
