@@ -87,6 +87,24 @@ async function readCookieFromSupabase() {
   } catch { return null; }
 }
 
+// ── Lê cf_clearance separado e mescla no cookie ───────────────────────────────
+async function mergeCfClearance(cookie) {
+  try {
+    const res  = await sbFetch('app_config?key=eq.cf_clearance&select=value,updated_at');
+    const rows = await res.json();
+    if (!rows?.length || !rows[0].value) return cookie;
+    // cf_clearance expira em ~24h no Cloudflare
+    const age = Date.now() - new Date(rows[0].updated_at).getTime();
+    if (age > 23 * 60 * 60 * 1000) return cookie; // expirado — não inclui
+    const cf = `cf_clearance=${rows[0].value}`;
+    // Remove cf_clearance antigo do cookie se existir, adiciona o salvo
+    const parts = cookie.split(';').map(p => p.trim())
+      .filter(p => p && !p.toLowerCase().startsWith('cf_clearance='));
+    parts.push(cf);
+    return parts.join('; ');
+  } catch { return cookie; }
+}
+
 // ── Validar cookie ────────────────────────────────────────────────────────────
 async function validateCookie(cookie) {
   try {
@@ -427,9 +445,13 @@ async function processOneCycle() {
 // Busca requisições pendentes de freebet e processa localmente (IP residencial)
 
 async function fetchFreebetFromSuperMonitor(session, { bookmaker, value, min_odd, max_odd, pa_filter }) {
+  // Mescla cf_clearance salvo separadamente (sobrevive a renovações de PHPSESSID)
+  const cookieWithCf = await mergeCfClearance(session.hdrs['Cookie'] ?? '');
+
   // Headers completos imitando requisição AJAX real do browser (Cloudflare verifica)
   const freebetHdrs = {
     ...session.hdrs,
+    'Cookie':            cookieWithCf,
     'Referer':           `${BASE}/index.php?page=converter-freebet`,
     'Origin':            BASE,
     'Sec-Fetch-Dest':    'empty',

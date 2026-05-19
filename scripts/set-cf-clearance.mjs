@@ -1,9 +1,10 @@
 /**
  * set-cf-clearance.mjs
  *
- * Adiciona o cf_clearance ao cookie salvo no Supabase.
- * O cf_clearance só pode ser obtido via browser — rode este script
- * sempre que o Cloudflare pedir um novo desafio (~24h).
+ * Salva o cf_clearance (cookie Cloudflare) no Supabase de duas formas:
+ *  1. Injeta no cookie principal (supermonitor_cookie)
+ *  2. Salva separadamente na chave "cf_clearance" para sobreviver
+ *     a renovações automáticas de PHPSESSID pelo daemon.
  *
  * Uso:
  *   node set-cf-clearance.mjs "SEU_CF_CLEARANCE_AQUI"
@@ -33,19 +34,28 @@ if (!cfClearance) {
   process.exit(1);
 }
 
-async function sbFetch(path, method = 'GET', body = null) {
+async function sbFetch(path, method = 'GET', body = null, extra = {}) {
   return fetch(`${sbUrl}/rest/v1/${path}`, {
     method,
     headers: {
       'Content-Type': 'application/json',
       'apikey': sbKey,
       'Authorization': `Bearer ${sbKey}`,
+      ...extra,
     },
     body: body ? JSON.stringify(body) : undefined,
   });
 }
 
-// Lê cookie atual
+async function upsert(key, value) {
+  const r = await sbFetch('app_config', 'POST',
+    { key, value, updated_at: new Date().toISOString() },
+    { 'Prefer': 'resolution=merge-duplicates' },
+  );
+  if (!r.ok) throw new Error(`upsert ${key} falhou: ${await r.text()}`);
+}
+
+// 1. Lê cookie atual para mesclar
 const res  = await sbFetch('app_config?key=eq.supermonitor_cookie&select=value');
 const rows = await res.json();
 if (!rows?.length || !rows[0].value) {
@@ -53,28 +63,22 @@ if (!rows?.length || !rows[0].value) {
   process.exit(1);
 }
 
-const existingCookie = rows[0].value;
-
-// Remove cf_clearance antigo se existir, adiciona o novo
-const parts = existingCookie
+// Remove cf_clearance antigo, adiciona o novo
+const parts = rows[0].value
   .split(';')
   .map(p => p.trim())
   .filter(p => p && !p.toLowerCase().startsWith('cf_clearance='));
-
 parts.push(`cf_clearance=${cfClearance}`);
 const newCookie = parts.join('; ');
 
-// Salva
-const upd = await sbFetch(
-  'app_config?key=eq.supermonitor_cookie',
-  'PATCH',
-  { value: newCookie, updated_at: new Date().toISOString() },
-);
+// 2. Salva cookie completo
+await upsert('supermonitor_cookie', newCookie);
 
-if (upd.ok) {
-  console.log('✅  cf_clearance adicionado ao cookie no Supabase!');
-  console.log(`   Cookie: ${newCookie.slice(0, 80)}…`);
-  console.log('\nReinicie o daemon para usar o cookie atualizado.');
-} else {
-  console.error(`❌  Falha ao atualizar Supabase: ${await upd.text()}`);
-}
+// 3. Salva cf_clearance SEPARADO — o daemon sempre mescla este valor
+//    mesmo após renovar o PHPSESSID automaticamente
+await upsert('cf_clearance', cfClearance);
+
+console.log('✅  cf_clearance salvo no Supabase!');
+console.log(`   Cookie: ${newCookie.slice(0, 80)}…`);
+console.log('   Chave separada "cf_clearance" salva — sobreviverá a renovações automáticas.');
+console.log('\nReinicie o daemon para usar o cookie atualizado.');
