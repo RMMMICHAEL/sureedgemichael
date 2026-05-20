@@ -12,17 +12,18 @@ import {
 interface MLLeg { house: string; pa: boolean; odd: number; url?: string; }
 
 interface MLSignal {
-  event_id:   string;
-  event_name: string;
-  league:     string;
-  start_utc:  string;
-  leg1:       MLLeg;
-  legX:       MLLeg;
-  leg2:       MLLeg;
-  margin:     number;
-  loss_pct:   number;
-  _key?:      string;
-  _newAt?:    number;
+  event_id:     string;
+  event_name:   string;
+  league:       string;
+  start_utc:    string;
+  leg1:         MLLeg;
+  legX:         MLLeg;
+  leg2:         MLLeg;
+  margin:       number;
+  loss_pct:     number;
+  data_age_min: number; // minutos desde última atualização das odds
+  _key?:        string;
+  _newAt?:      number;
 }
 
 // ── Houses (fonte: HAR painel.supermonitor.pro — casas reais do sistema) ───────
@@ -309,20 +310,34 @@ function SignalRow({
         borderRight: '1px solid rgba(255,255,255,.06)',
         display: 'flex', flexDirection: 'column', gap: 6, justifyContent: 'center',
       }}>
-        {/* Timer */}
-        <span style={{
-          alignSelf: 'flex-start',
-          fontSize: tu.live ? 9 : 10.5, fontWeight: 900,
-          padding: '2px 7px', borderRadius: 5,
-          background: tu.live ? 'rgba(255,159,10,.12)' : 'rgba(255,255,255,.05)',
-          color: tu.color,
-          border: `1px solid ${tu.live ? 'rgba(255,159,10,.28)' : 'rgba(255,255,255,.08)'}`,
-          fontFamily: "'JetBrains Mono', monospace",
-          letterSpacing: tu.live ? '.08em' : '-.01em',
-        }}>
-          {!tu.live && <span style={{ opacity: .5, marginRight: 2 }}>⏱</span>}
-          {tu.label}
-        </span>
+        {/* Timer + staleness badges */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
+          <span style={{
+            fontSize: tu.live ? 9 : 10.5, fontWeight: 900,
+            padding: '2px 7px', borderRadius: 5,
+            background: tu.live ? 'rgba(255,159,10,.12)' : 'rgba(255,255,255,.05)',
+            color: tu.color,
+            border: `1px solid ${tu.live ? 'rgba(255,159,10,.28)' : 'rgba(255,255,255,.08)'}`,
+            fontFamily: "'JetBrains Mono', monospace",
+            letterSpacing: tu.live ? '.08em' : '-.01em',
+          }}>
+            {!tu.live && <span style={{ opacity: .5, marginRight: 2 }}>⏱</span>}
+            {tu.label}
+          </span>
+          {sig.data_age_min >= 10 && (
+            <span style={{
+              fontSize: 9, fontWeight: 800, padding: '2px 6px', borderRadius: 4,
+              background: sig.data_age_min >= 30 ? 'rgba(239,68,68,.12)' : 'rgba(251,191,36,.1)',
+              color:      sig.data_age_min >= 30 ? '#f87171' : '#fbbf24',
+              border:    `1px solid ${sig.data_age_min >= 30 ? 'rgba(239,68,68,.25)' : 'rgba(251,191,36,.22)'}`,
+              fontFamily: "'JetBrains Mono', monospace",
+            }}
+              title="Tempo desde a última atualização das odds para este evento"
+            >
+              ⚠ {sig.data_age_min >= 60 ? `${Math.floor(sig.data_age_min / 60)}h` : `${sig.data_age_min}m`}
+            </span>
+          )}
+        </div>
 
         {/* Event name */}
         <div style={{ fontSize: 14, fontWeight: 900, color: 'oklch(0.96 0.005 250)', lineHeight: 1.25 }}>

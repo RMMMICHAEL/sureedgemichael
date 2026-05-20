@@ -26,15 +26,16 @@ interface BookmakerRow {
 }
 
 export interface MLSignal {
-  event_id:   string;
-  event_name: string;
-  league:     string;
-  start_utc:  string;
-  leg1:       { house: string; pa: boolean; odd: number; url?: string; };
-  legX:       { house: string; pa: boolean; odd: number; url?: string; };
-  leg2:       { house: string; pa: boolean; odd: number; url?: string; };
-  margin:     number;
-  loss_pct:   number;
+  event_id:     string;
+  event_name:   string;
+  league:       string;
+  start_utc:    string;
+  leg1:         { house: string; pa: boolean; odd: number; url?: string; };
+  legX:         { house: string; pa: boolean; odd: number; url?: string; };
+  leg2:         { house: string; pa: boolean; odd: number; url?: string; };
+  margin:       number;
+  loss_pct:     number;
+  data_age_min: number; // minutos desde última atualização do sm_odds para este evento
 }
 
 export interface GolsSignal {
@@ -142,7 +143,7 @@ function parseBookmakers(
 
 function computeMLSignals(
   rows: BookmakerRow[],
-  meta: { event_id: string; event_name: string; league: string; start_utc: string },
+  meta: { event_id: string; event_name: string; league: string; start_utc: string; data_age_min: number },
   paOnly: boolean,
 ): MLSignal[] {
   const homeRows = (paOnly ? rows.filter(r => r.pa) : rows).filter(r => r.mlHome);
@@ -170,11 +171,12 @@ function computeMLSignals(
 
       results.push({
         ...meta,
-        leg1: { house: hr.house,      pa: hr.pa,      odd: hr.mlHome!,     url: hr.url },
-        legX: { house: drawRow.house, pa: drawRow.pa, odd: drawRow.mlDraw, url: drawRow.url },
-        leg2: { house: ar.house,      pa: ar.pa,      odd: ar.mlAway!,     url: ar.url },
+        leg1:         { house: hr.house,      pa: hr.pa,      odd: hr.mlHome!,     url: hr.url },
+        legX:         { house: drawRow.house, pa: drawRow.pa, odd: drawRow.mlDraw, url: drawRow.url },
+        leg2:         { house: ar.house,      pa: ar.pa,      odd: ar.mlAway!,     url: ar.url },
         margin,
-        loss_pct: Math.round((margin - 1) * 10000) / 100,
+        loss_pct:     Math.round((margin - 1) * 10000) / 100,
+        data_age_min: meta.data_age_min,
       });
     }
   }
@@ -269,14 +271,19 @@ export async function POST(req: NextRequest) {
   try {
     const sb  = await getSupabaseAdmin();
     const now = new Date();
-    const today = now.toISOString().slice(0, 10);
 
-    // Pega IDs dos eventos de futebol de hoje
+    // Janela de jogos: até 4h atrás (jogos ao vivo) e até 24h à frente
+    // Usa start_utc em vez de event_date para evitar bug de fuso (Brasil UTC-3)
+    const rangeStart = new Date(now.getTime() - 4 * 60 * 60_000).toISOString();
+    const rangeEnd   = new Date(now.getTime() + 24 * 60 * 60_000).toISOString();
+
+    // Busca eventos no range de horário (sem filtro de sport — computeMLSignals
+    // naturalmente exige mercado 1X2 que só existe em futebol)
     const { data: footballEvents } = await sb
       .from('sm_events')
       .select('id, league, start_utc')
-      .eq('event_date', today)
-      .or('sport.ilike.%futebo%,sport.ilike.%soccer%,sport.ilike.%football%');
+      .gte('start_utc', rangeStart)
+      .lte('start_utc', rangeEnd);
 
     const eventMeta = new Map<string, { league: string; start_utc: string }>();
     const footballIds: string[] = [];
@@ -328,8 +335,14 @@ export async function POST(req: NextRequest) {
         newestUpdatedAt = row.updated_at;
       }
 
-      const bms  = parseBookmakers(row.data as Record<string, unknown>, disabledSet);
-      const meta = { ...( eventMeta.get(row.event_id) ?? { league: '', start_utc: '' }), event_id: row.event_id, event_name: row.event_name };
+      const bms        = parseBookmakers(row.data as Record<string, unknown>, disabledSet);
+      const dataAgeMin = Math.round((now.getTime() - new Date(row.updated_at).getTime()) / 60_000);
+      const meta = {
+        ...( eventMeta.get(row.event_id) ?? { league: '', start_utc: '' }),
+        event_id:     row.event_id,
+        event_name:   row.event_name,
+        data_age_min: dataAgeMin,
+      };
 
       mlAll.push(...computeMLSignals(bms, meta, paOnly));
       golsAll.push(...computeGolsSignals(bms, meta));
