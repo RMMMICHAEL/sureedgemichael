@@ -822,6 +822,70 @@ function getTimeBadge(utc: string): { label: string; color: string; bg: string; 
   return                           { label: fmtTime(utc), color: 'rgba(255,255,255,.4)',  bg: 'rgba(255,255,255,.03)', border: 'rgba(255,255,255,.06)' };
 }
 
+// ── Team avatar helpers ────────────────────────────────────────────────────────
+
+/** Gera iniciais limpas de um nome de time */
+function teamInitials(name: string): string {
+  const words = name
+    .replace(/[^a-zA-ZÀ-ÿ\s]/g, '')
+    .split(/\s+/)
+    .filter(w => w.length > 1 && !['FC', 'SC', 'AC', 'CF', 'EC', 'SE', 'CR', 'SL', 'RB', 'AF', 'OS', 'AS', 'SS'].includes(w.toUpperCase()));
+  if (words.length >= 2) return (words[0][0] + words[1][0]).toUpperCase();
+  if (name.length >= 2) return name.slice(0, 2).toUpperCase();
+  return name[0]?.toUpperCase() ?? '?';
+}
+
+/** Cor OKLCH consistente por nome de time via hash */
+function teamHue(name: string): number {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) & 0xffff;
+  return h % 360;
+}
+
+/** Avatar component — mostra logo externo se disponível, senão iniciais coloridas */
+function TeamAvatar({ name, size = 28 }: { name: string; size?: number }) {
+  const [err, setErr] = useState(false);
+  const initials = teamInitials(name);
+  const hue      = teamHue(name);
+  const radius   = Math.round(size * 0.28);
+
+  // Tenta logo via Sofascore CDN (sem auth, funciona para times conhecidos)
+  // fallback: initials
+  const logoUrl = `https://api.sofascore.app/api/v1/team/${encodeURIComponent(name)}/image`;
+
+  if (!err) {
+    return (
+      <div style={{
+        width: size, height: size, borderRadius: radius, flexShrink: 0, overflow: 'hidden',
+        background: `oklch(18% 0.04 ${hue})`,
+        border: `1px solid oklch(30% 0.06 ${hue} / .5)`,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>
+        <img
+          src={logoUrl}
+          alt={name}
+          style={{ width: '80%', height: '80%', objectFit: 'contain' }}
+          onError={() => setErr(true)}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div style={{
+      width: size, height: size, borderRadius: radius, flexShrink: 0,
+      background: `oklch(20% 0.06 ${hue})`,
+      border: `1px solid oklch(32% 0.09 ${hue} / .6)`,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      fontSize: size * 0.34, fontWeight: 900, letterSpacing: '-0.02em',
+      color: `oklch(82% 0.14 ${hue})`,
+      userSelect: 'none',
+    }}>
+      {initials}
+    </div>
+  );
+}
+
 /** Metadados estáticos de ligas conhecidas */
 const LEAGUE_META: Record<string, { flag: string; country: string; sport: string }> = {
   'brasileirao serie a': { flag: '🇧🇷', country: 'Brasil', sport: 'Futebol' },
@@ -858,20 +922,14 @@ function getLeagueMeta(league: string) {
 }
 
 function TodayGamesGrid({
-  events, loading, error, onSelect, onRetry, onLeagueSearch,
+  events, loading, error, onSelect, onRetry,
 }: {
-  events:          CachedEvent[];
-  loading:         boolean;
-  error:           string;
-  onSelect:        (ev: CachedEvent) => void;
-  onRetry:         () => void;
-  onLeagueSearch?: (league: string) => void;
+  events:   CachedEvent[];
+  loading:  boolean;
+  error:    string;
+  onSelect: (ev: CachedEvent) => void;
+  onRetry:  () => void;
 }) {
-  const [showAll,       setShowAll]       = useState(false);
-  const [leagueSearch,  setLeagueSearch]  = useState('');
-  const [leagueSort,    setLeagueSort]    = useState<'popular' | 'events'>('popular');
-  const [leagueView,    setLeagueView]    = useState<'list' | 'grid'>('list');
-
   // Top games by house_count = "melhores jogos do dia"
   const featuredEvents = useMemo(() =>
     [...events].sort((a, b) => b.house_count - a.house_count).slice(0, 8),
@@ -887,7 +945,7 @@ function TodayGamesGrid({
     [events],
   );
 
-  // Group events by league
+  // Group all events by league, sorted by time
   const grouped = useMemo(() => {
     const map = new Map<string, CachedEvent[]>();
     for (const ev of events) {
@@ -903,42 +961,29 @@ function TodayGamesGrid({
     );
   }, [events]);
 
-  // League stats for the Ligas section
-  const leagueStats = useMemo(() => {
-    const stats = grouped.map(([league, evs]) => ({
-      league,
-      eventCount: evs.length,
-      avgHouseCount: evs.reduce((s, ev) => s + ev.house_count, 0) / evs.length,
-    }));
-    const maxAvg = Math.max(...stats.map(s => s.avgHouseCount), 1);
-    return stats
-      .map(s => ({ ...s, popularity: Math.round((s.avgHouseCount / maxAvg) * 100) }))
-      .filter(s => leagueSearch
-        ? s.league.toLowerCase().includes(leagueSearch.toLowerCase())
-        : true)
-      .sort((a, b) => leagueSort === 'popular'
-        ? b.popularity - a.popularity
-        : b.eventCount - a.eventCount);
-  }, [grouped, leagueSearch, leagueSort]);
-
   // ── Loading skeleton ──────────────────────────────────────────────────────
   if (loading) {
     return (
-      <div className="flex flex-col gap-4">
-        <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid var(--b)' }}>
-          <div className="px-5 py-4 flex items-center gap-3"
-            style={{ background: 'var(--bg2)', borderBottom: '1px solid var(--b)' }}>
-            <Loader2 size={14} className="animate-spin" style={{ color: 'var(--g)' }} />
-            <span className="text-sm font-black" style={{ color: 'var(--t)' }}>Jogos de Hoje</span>
-            <span className="text-[10px] font-bold" style={{ color: 'var(--t3)' }}>Carregando...</span>
-          </div>
-          <div style={{ display: 'flex', gap: 12, padding: '16px 20px', overflowX: 'hidden' }}>
-            {[0,1,2,3,4].map(i => (
-              <div key={i} style={{ flexShrink: 0, width: 200, height: 110, borderRadius: 14,
-                background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.06)',
-                animation: `pulse 1.6s ease-in-out ${i * 0.12}s infinite` }} />
-            ))}
-          </div>
+      <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid var(--b)' }}>
+        <div className="px-5 py-4 flex items-center gap-3"
+          style={{ background: 'var(--bg2)', borderBottom: '1px solid var(--b)' }}>
+          <Loader2 size={14} className="animate-spin" style={{ color: 'var(--g)' }} />
+          <span className="text-sm font-black" style={{ color: 'var(--t)' }}>Jogos de Hoje</span>
+          <span className="text-[10px] font-bold" style={{ color: 'var(--t3)' }}>Carregando...</span>
+        </div>
+        <div style={{ display: 'flex', gap: 10, padding: '14px 16px' }}>
+          {[0,1,2,3,4].map(i => (
+            <div key={i} style={{ flexShrink: 0, width: 190, height: 106, borderRadius: 14,
+              background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.06)',
+              animation: `pulse 1.6s ease-in-out ${i * 0.12}s infinite` }} />
+          ))}
+        </div>
+        <div style={{ padding: '0 0 12px', display: 'flex', flexDirection: 'column', gap: 1 }}>
+          {[0,1,2,3,4,5].map(i => (
+            <div key={i} style={{ height: 44, margin: '0 0', background: 'rgba(255,255,255,.02)',
+              borderBottom: '1px solid rgba(255,255,255,.04)',
+              animation: `pulse 1.6s ease-in-out ${i * 0.08}s infinite` }} />
+          ))}
         </div>
       </div>
     );
@@ -971,495 +1016,261 @@ function TodayGamesGrid({
   const todayStr = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid var(--b)' }}>
 
-      {/* ── JOGOS EM DESTAQUE ─────────────────────────────────────────────── */}
-      <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid var(--b)' }}>
-
-        {/* Header */}
-        <div style={{
-          padding: '14px 20px',
-          background: 'var(--bg2)',
-          borderBottom: '1px solid var(--b)',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{
-              width: 32, height: 32, borderRadius: 9,
-              background: 'rgba(63,255,33,.1)', border: '1px solid rgba(63,255,33,.2)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-            }}>
-              <Trophy size={14} style={{ color: 'var(--g)' }} />
-            </div>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 14, fontWeight: 900, color: 'var(--t)' }}>Jogos de Hoje</span>
-                {liveCount > 0 && (
-                  <span style={{
-                    fontSize: 9, fontWeight: 900, padding: '2px 7px', borderRadius: 6,
-                    letterSpacing: '.06em',
-                    background: 'rgba(255,159,10,.12)', color: '#FF9F0A', border: '1px solid rgba(255,159,10,.25)',
-                    display: 'flex', alignItems: 'center', gap: 4,
-                  }}>
-                    <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#FF9F0A',
-                      animation: 'livePulse 1.5s ease-in-out infinite', display: 'inline-block' }} />
-                    AO VIVO
-                  </span>
-                )}
+      {/* ── Header ── */}
+      <div style={{
+        padding: '14px 20px',
+        background: 'var(--bg2)',
+        borderBottom: '1px solid var(--b)',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{
+            width: 32, height: 32, borderRadius: 9,
+            background: 'rgba(63,255,33,.1)', border: '1px solid rgba(63,255,33,.2)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+          }}>
+            <Trophy size={14} style={{ color: 'var(--g)' }} />
+          </div>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 14, fontWeight: 900, color: 'var(--t)' }}>Jogos de Hoje</span>
+              {liveCount > 0 && (
                 <span style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 4,
                   fontSize: 9, fontWeight: 900, padding: '2px 7px', borderRadius: 6, letterSpacing: '.06em',
-                  background: 'rgba(63,255,33,.1)', color: 'var(--g)', border: '1px solid rgba(63,255,33,.18)',
+                  background: 'rgba(255,159,10,.12)', color: '#FF9F0A', border: '1px solid rgba(255,159,10,.25)',
                 }}>
-                  EM BREVE
+                  <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#FF9F0A',
+                    animation: 'livePulse 1.5s ease-in-out infinite', display: 'inline-block' }} />
+                  AO VIVO
                 </span>
-              </div>
-              <div style={{ fontSize: 10, color: 'var(--t3)', marginTop: 1, textTransform: 'capitalize' }}>
-                {todayStr}
-              </div>
+              )}
+              <span style={{
+                fontSize: 9, fontWeight: 900, padding: '2px 7px', borderRadius: 6, letterSpacing: '.06em',
+                background: 'rgba(63,255,33,.1)', color: 'var(--g)', border: '1px solid rgba(63,255,33,.18)',
+              }}>
+                EM BREVE
+              </span>
+            </div>
+            <div style={{ fontSize: 10, color: 'var(--t3)', marginTop: 1, textTransform: 'capitalize' }}>
+              Não perca as melhores oportunidades
             </div>
           </div>
-
-          <button
-            type="button"
-            onClick={() => setShowAll(v => !v)}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 5,
-              fontSize: 11, fontWeight: 700, color: 'var(--t3)',
-              padding: '5px 10px', borderRadius: 8,
-              background: 'rgba(255,255,255,.04)', border: '1px solid var(--b)',
-              cursor: 'pointer', flexShrink: 0, transition: 'all .15s',
-            }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--t)'; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--t3)'; }}
-          >
-            {showAll ? 'Ocultar' : 'Ver todos'}
-            <ChevronRight size={12} style={{ transition: 'transform .2s', transform: showAll ? 'rotate(90deg)' : '' }} />
-          </button>
         </div>
+        <span style={{ fontSize: 10, color: 'var(--t3)', opacity: 0.6, textTransform: 'capitalize' }}>
+          {todayStr}
+        </span>
+      </div>
 
-        {/* Featured cards strip */}
-        <div style={{ background: 'var(--bg2)', padding: '12px 16px 14px' }}>
-          <div style={{
-            display: 'flex', gap: 10, overflowX: 'auto',
-            paddingBottom: 4,
-            scrollbarWidth: 'thin',
-            scrollbarColor: 'rgba(255,255,255,.08) transparent',
-          }}>
-            {featuredEvents.map(ev => {
-              const [home, away] = parseTeams(ev.name);
+      {/* ── Featured cards strip ── */}
+      <div style={{
+        background: 'var(--bg2)',
+        borderBottom: '1px solid var(--b)',
+        padding: '12px 16px 14px',
+      }}>
+        <div style={{
+          display: 'flex', gap: 10, overflowX: 'auto',
+          paddingBottom: 2,
+          scrollbarWidth: 'thin',
+          scrollbarColor: 'rgba(255,255,255,.08) transparent',
+        }}>
+          {featuredEvents.map(ev => {
+            const [home, away] = parseTeams(ev.name);
+            const badge = getTimeBadge(ev.start_utc);
+            const isLive = badge.live;
+            return (
+              <button
+                key={ev.id}
+                type="button"
+                onClick={() => onSelect(ev)}
+                style={{
+                  flexShrink: 0, width: 190,
+                  padding: '11px 13px', borderRadius: 14,
+                  background: isLive ? 'rgba(255,159,10,.05)' : 'rgba(255,255,255,.03)',
+                  border: `1px solid ${isLive ? 'rgba(255,159,10,.18)' : 'rgba(255,255,255,.07)'}`,
+                  cursor: 'pointer', textAlign: 'left', transition: 'all .15s',
+                }}
+                onMouseEnter={e => {
+                  const el = e.currentTarget as HTMLElement;
+                  el.style.background = 'rgba(63,255,33,.07)';
+                  el.style.borderColor = 'rgba(63,255,33,.22)';
+                  el.style.transform = 'translateY(-2px)';
+                }}
+                onMouseLeave={e => {
+                  const el = e.currentTarget as HTMLElement;
+                  el.style.background = isLive ? 'rgba(255,159,10,.05)' : 'rgba(255,255,255,.03)';
+                  el.style.borderColor = isLive ? 'rgba(255,159,10,.18)' : 'rgba(255,255,255,.07)';
+                  el.style.transform = '';
+                }}
+              >
+                {/* Badge row */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 9 }}>
+                  <span style={{
+                    display: 'inline-flex', alignItems: 'center',
+                    fontSize: 9, fontWeight: 900,
+                    padding: '2px 6px', borderRadius: 5,
+                    background: badge.bg, color: badge.color, border: `1px solid ${badge.border}`,
+                    fontFamily: badge.live ? 'inherit' : "'JetBrains Mono', monospace",
+                    letterSpacing: badge.live ? '.06em' : '-.01em',
+                  }}>
+                    {badge.label}
+                  </span>
+                  {ev.house_count > 0 && (
+                    <span style={{
+                      fontSize: 9, fontWeight: 800, padding: '2px 6px', borderRadius: 5,
+                      background: 'rgba(129,140,248,.08)', border: '1px solid rgba(129,140,248,.12)', color: '#818cf8',
+                      fontFamily: "'JetBrains Mono', monospace",
+                    }}>
+                      {ev.house_count}
+                    </span>
+                  )}
+                </div>
+
+                {/* Teams with avatar */}
+                {away ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <TeamAvatar name={home} size={26} />
+                      <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--t)',
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                        {home}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <TeamAvatar name={away} size={26} />
+                      <span style={{ fontSize: 11, fontWeight: 800, color: 'oklch(70% 0.01 250)',
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                        {away}
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--t)',
+                    lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2,
+                    WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                    {home}
+                  </div>
+                )}
+
+                {/* League footer */}
+                {ev.league && (
+                  <div style={{ marginTop: 7, fontSize: 9, color: 'var(--t3)', opacity: 0.55,
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {getLeagueMeta(ev.league).flag} {ev.league}
+                  </div>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ── All events grouped by league ── */}
+      <div style={{ maxHeight: 560, overflowY: 'auto' }}>
+        {grouped.map(([league, evs]) => (
+          <div key={league}>
+            {/* League sticky header */}
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              padding: '7px 20px',
+              background: 'oklch(13.5% 0.006 250)',
+              borderTop: '1px solid rgba(255,255,255,.04)',
+              borderBottom: '1px solid rgba(255,255,255,.04)',
+              position: 'sticky', top: 0, zIndex: 2,
+            }}>
+              <span style={{ fontSize: 13, lineHeight: 1, flexShrink: 0 }}>{getLeagueMeta(league).flag}</span>
+              <span style={{
+                fontSize: 10, fontWeight: 900, textTransform: 'uppercase',
+                letterSpacing: '.1em', color: 'var(--t3)',
+                flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              }}>
+                {league}
+              </span>
+              <span style={{
+                fontSize: 9, fontWeight: 800, padding: '1px 6px', borderRadius: 4,
+                background: 'rgba(255,255,255,.05)', color: 'rgba(255,255,255,.3)',
+                border: '1px solid rgba(255,255,255,.06)', flexShrink: 0,
+              }}>
+                {evs.length}
+              </span>
+            </div>
+
+            {/* Event rows */}
+            {evs.map(ev => {
               const badge = getTimeBadge(ev.start_utc);
-              const isLive = badge.live;
+              const [home, away] = parseTeams(ev.name);
               return (
                 <button
                   key={ev.id}
                   type="button"
                   onClick={() => onSelect(ev)}
                   style={{
-                    flexShrink: 0,
-                    width: 200,
-                    padding: '12px 14px',
-                    borderRadius: 14,
-                    background: isLive ? 'rgba(255,159,10,.06)' : 'rgba(255,255,255,.035)',
-                    border: `1px solid ${isLive ? 'rgba(255,159,10,.2)' : 'rgba(255,255,255,.08)'}`,
-                    cursor: 'pointer',
-                    textAlign: 'left',
-                    transition: 'all .15s',
-                    position: 'relative',
-                    overflow: 'hidden',
+                    width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+                    padding: '8px 20px',
+                    borderBottom: '1px solid rgba(255,255,255,.04)',
+                    background: 'transparent', cursor: 'pointer', transition: 'background .12s', textAlign: 'left',
                   }}
-                  onMouseEnter={e => {
-                    const el = e.currentTarget as HTMLElement;
-                    el.style.background = 'rgba(63,255,33,.07)';
-                    el.style.borderColor = 'rgba(63,255,33,.25)';
-                    el.style.transform = 'translateY(-2px)';
-                  }}
-                  onMouseLeave={e => {
-                    const el = e.currentTarget as HTMLElement;
-                    el.style.background = isLive ? 'rgba(255,159,10,.06)' : 'rgba(255,255,255,.035)';
-                    el.style.borderColor = isLive ? 'rgba(255,159,10,.2)' : 'rgba(255,255,255,.08)';
-                    el.style.transform = '';
-                  }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(63,255,33,.04)'; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
                 >
                   {/* Time badge */}
-                  <div style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    marginBottom: 10,
+                  <span style={{
+                    flexShrink: 0, fontSize: badge.live ? 8 : 11, fontWeight: 900,
+                    fontFamily: badge.live ? 'inherit' : "'JetBrains Mono', monospace",
+                    letterSpacing: badge.live ? '.08em' : '-.01em',
+                    padding: '3px 7px', borderRadius: 6, minWidth: badge.live ? 'auto' : 44, textAlign: 'center',
+                    background: badge.bg, color: badge.color, border: `1px solid ${badge.border}`,
                   }}>
-                    <span style={{
-                      display: 'inline-flex', alignItems: 'center', gap: 4,
-                      fontSize: 9, fontWeight: 900,
-                      padding: '2px 7px', borderRadius: 5,
-                      background: badge.bg, color: badge.color, border: `1px solid ${badge.border}`,
-                      fontFamily: badge.live ? 'inherit' : "'JetBrains Mono', monospace",
-                      letterSpacing: badge.live ? '.06em' : '-.01em',
-                    }}>
-                      {badge.label}
-                    </span>
-                    {ev.house_count > 0 && (
-                      <span style={{
-                        fontSize: 9, fontWeight: 800,
-                        padding: '2px 6px', borderRadius: 5,
-                        background: 'rgba(129,140,248,.08)',
-                        border: '1px solid rgba(129,140,248,.12)',
-                        color: '#818cf8',
-                        fontFamily: "'JetBrains Mono', monospace",
-                      }}>
-                        {ev.house_count}
+                    {badge.label}
+                  </span>
+
+                  {/* Team avatars + names */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    {away ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden' }}>
+                        <TeamAvatar name={home} size={22} />
+                        <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--t)',
+                          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '38%' }}>
+                          {home}
+                        </span>
+                        <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--t3)', flexShrink: 0 }}>×</span>
+                        <TeamAvatar name={away} size={22} />
+                        <span style={{ fontSize: 12, fontWeight: 800, color: 'oklch(72% 0.01 250)',
+                          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '38%' }}>
+                          {away}
+                        </span>
+                      </div>
+                    ) : (
+                      <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--t)',
+                        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}>
+                        {ev.name}
                       </span>
                     )}
                   </div>
 
-                  {/* Teams */}
-                  {away ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <div style={{
-                          width: 26, height: 26, borderRadius: 7, flexShrink: 0,
-                          background: 'rgba(255,255,255,.06)', border: '1px solid rgba(255,255,255,.08)',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          fontSize: 13,
-                        }}>
-                          {getLeagueMeta(ev.league ?? '').flag}
-                        </div>
-                        <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--t)',
-                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {home}
-                        </span>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <div style={{
-                          width: 26, height: 26, borderRadius: 7, flexShrink: 0,
-                          background: 'rgba(255,255,255,.06)', border: '1px solid rgba(255,255,255,.08)',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          fontSize: 13,
-                        }}>
-                          {getLeagueMeta(ev.league ?? '').flag}
-                        </div>
-                        <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--t)',
-                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {away}
-                        </span>
-                      </div>
-                    </div>
-                  ) : (
-                    <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--t)',
-                      lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2,
-                      WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                      {home}
+                  {/* House count pill */}
+                  {ev.house_count > 0 && (
+                    <div style={{
+                      flexShrink: 0, display: 'flex', alignItems: 'center', gap: 4,
+                      padding: '2px 7px', borderRadius: 6,
+                      background: 'rgba(129,140,248,.08)', border: '1px solid rgba(129,140,248,.14)',
+                    }}>
+                      <Building2 size={9} style={{ color: '#818cf8' }} />
+                      <span style={{ fontSize: 10, fontWeight: 800, color: '#818cf8',
+                        fontFamily: "'JetBrains Mono', monospace" }}>
+                        {ev.house_count}
+                      </span>
                     </div>
                   )}
 
-                  {/* League footer */}
-                  {ev.league && (
-                    <div style={{
-                      marginTop: 8, fontSize: 9, color: 'var(--t3)', opacity: 0.65,
-                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                    }}>
-                      {'› '}{ev.league}
-                    </div>
-                  )}
+                  <ChevronRight size={12} style={{ color: 'rgba(255,255,255,.12)', flexShrink: 0 }} />
                 </button>
               );
             })}
           </div>
-        </div>
-
-        {/* ── Full list (expandable) ── */}
-        {showAll && (
-          <div style={{ borderTop: '1px solid var(--b)', maxHeight: 480, overflowY: 'auto' }}>
-            {grouped.map(([league, evs]) => (
-              <div key={league}>
-                <div style={{
-                  display: 'flex', alignItems: 'center', gap: 8,
-                  padding: '7px 20px',
-                  background: 'oklch(13.5% 0.006 250)',
-                  borderBottom: '1px solid rgba(255,255,255,.05)',
-                  position: 'sticky', top: 0, zIndex: 2,
-                }}>
-                  <span style={{ fontSize: 12 }}>{getLeagueMeta(league).flag}</span>
-                  <span style={{ fontSize: 10, fontWeight: 900, textTransform: 'uppercase',
-                    letterSpacing: '.1em', color: 'var(--t3)',
-                    flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {league}
-                  </span>
-                  <span style={{ fontSize: 9, fontWeight: 800, padding: '1px 6px', borderRadius: 4,
-                    background: 'rgba(255,255,255,.05)', color: 'rgba(255,255,255,.3)',
-                    border: '1px solid rgba(255,255,255,.06)', flexShrink: 0 }}>
-                    {evs.length}
-                  </span>
-                </div>
-                {evs.map(ev => {
-                  const badge = getTimeBadge(ev.start_utc);
-                  const [home, away] = parseTeams(ev.name);
-                  return (
-                    <button key={ev.id} type="button" onClick={() => onSelect(ev)}
-                      style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10,
-                        padding: '9px 20px', borderBottom: '1px solid rgba(255,255,255,.04)',
-                        background: 'transparent', cursor: 'pointer', transition: 'background .12s', textAlign: 'left' }}
-                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(63,255,33,.05)'; }}
-                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
-                    >
-                      <span style={{ flexShrink: 0, fontSize: badge.live ? 8 : 11, fontWeight: 900,
-                        fontFamily: badge.live ? 'inherit' : "'JetBrains Mono', monospace",
-                        letterSpacing: badge.live ? '.08em' : '-.01em',
-                        padding: '3px 7px', borderRadius: 6, minWidth: badge.live ? 'auto' : 44, textAlign: 'center',
-                        background: badge.bg, color: badge.color, border: `1px solid ${badge.border}` }}>
-                        {badge.label}
-                      </span>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        {away ? (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 5, overflow: 'hidden' }}>
-                            <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--t)',
-                              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '45%' }}>{home}</span>
-                            <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--t3)', flexShrink: 0 }}>×</span>
-                            <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--t)',
-                              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '45%' }}>{away}</span>
-                          </div>
-                        ) : (
-                          <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--t)',
-                            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}>
-                            {ev.name}
-                          </span>
-                        )}
-                      </div>
-                      {ev.house_count > 0 && (
-                        <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 4,
-                          padding: '2px 7px', borderRadius: 6,
-                          background: 'rgba(129,140,248,.08)', border: '1px solid rgba(129,140,248,.15)' }}>
-                          <Building2 size={9} style={{ color: '#818cf8' }} />
-                          <span style={{ fontSize: 10, fontWeight: 800, color: '#818cf8',
-                            fontFamily: "'JetBrains Mono', monospace" }}>{ev.house_count}</span>
-                        </div>
-                      )}
-                      <ChevronRight size={12} style={{ color: 'rgba(255,255,255,.15)', flexShrink: 0 }} />
-                    </button>
-                  );
-                })}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* ── LIGAS E CAMPEONATOS ────────────────────────────────────────────── */}
-      <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid var(--b)' }}>
-
-        {/* Header */}
-        <div style={{
-          padding: '14px 20px',
-          background: 'var(--bg2)',
-          borderBottom: '1px solid var(--b)',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{
-              width: 32, height: 32, borderRadius: 9,
-              background: 'rgba(129,140,248,.08)', border: '1px solid rgba(129,140,248,.18)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-              fontSize: 14,
-            }}>🌐</div>
-            <div>
-              <span style={{ fontSize: 14, fontWeight: 900, color: 'var(--t)' }}>Ligas e Campeonatos</span>
-              <div style={{ fontSize: 10, color: 'var(--t3)', marginTop: 1 }}>
-                Selecione uma liga para ver os eventos
-              </div>
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            {/* Search */}
-            <div style={{ position: 'relative' }}>
-              <Search size={11} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)',
-                color: 'var(--t3)', pointerEvents: 'none' }} />
-              <input
-                value={leagueSearch}
-                onChange={e => setLeagueSearch(e.target.value)}
-                placeholder="Buscar liga..."
-                style={{
-                  width: 160, paddingLeft: 26, paddingRight: 10, paddingTop: 6, paddingBottom: 6,
-                  background: 'rgba(255,255,255,.04)', border: '1px solid var(--b)', borderRadius: 8,
-                  fontSize: 11, color: 'var(--t)', outline: 'none',
-                }}
-              />
-            </div>
-            {/* Sort select */}
-            <select
-              value={leagueSort}
-              onChange={e => setLeagueSort(e.target.value as 'popular' | 'events')}
-              style={{
-                padding: '6px 10px', borderRadius: 8, fontSize: 11, fontWeight: 700,
-                background: 'rgba(255,255,255,.04)', border: '1px solid var(--b)',
-                color: 'var(--t3)', outline: 'none', cursor: 'pointer',
-              }}
-            >
-              <option value="popular">Ordenar por popularidade</option>
-              <option value="events">Ordenar por eventos</option>
-            </select>
-            {/* View toggle */}
-            <div style={{ display: 'flex', borderRadius: 8, overflow: 'hidden', border: '1px solid var(--b)' }}>
-              {(['list', 'grid'] as const).map(v => (
-                <button key={v} type="button" onClick={() => setLeagueView(v)}
-                  style={{
-                    padding: '6px 8px',
-                    background: leagueView === v ? 'rgba(63,255,33,.1)' : 'rgba(255,255,255,.04)',
-                    color: leagueView === v ? 'var(--g)' : 'var(--t3)',
-                    border: 'none', cursor: 'pointer', transition: 'all .15s',
-                  }}>
-                  {v === 'list' ? (
-                    <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
-                      <rect x="0" y="1" width="13" height="2" rx="1" fill="currentColor"/>
-                      <rect x="0" y="5.5" width="13" height="2" rx="1" fill="currentColor"/>
-                      <rect x="0" y="10" width="13" height="2" rx="1" fill="currentColor"/>
-                    </svg>
-                  ) : (
-                    <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
-                      <rect x="0" y="0" width="5.5" height="5.5" rx="1.5" fill="currentColor"/>
-                      <rect x="7.5" y="0" width="5.5" height="5.5" rx="1.5" fill="currentColor"/>
-                      <rect x="0" y="7.5" width="5.5" height="5.5" rx="1.5" fill="currentColor"/>
-                      <rect x="7.5" y="7.5" width="5.5" height="5.5" rx="1.5" fill="currentColor"/>
-                    </svg>
-                  )}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Table header */}
-        {leagueView === 'list' && (
-          <div style={{
-            display: 'grid', gridTemplateColumns: '1fr 80px 160px 24px',
-            padding: '7px 20px', gap: 12,
-            borderBottom: '1px solid rgba(255,255,255,.05)',
-          }}>
-            {['LIGA', 'EVENTOS', 'POPULARIDADE', ''].map(h => (
-              <span key={h} style={{ fontSize: 9, fontWeight: 900, letterSpacing: '.1em',
-                color: 'rgba(255,255,255,.25)', textTransform: 'uppercase' }}>{h}</span>
-            ))}
-          </div>
-        )}
-
-        {/* League rows / grid */}
-        <div style={leagueView === 'grid' ? {
-          display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 8, padding: 12,
-        } : {}}>
-          {leagueStats.map(({ league, eventCount, popularity }) => {
-            const meta = getLeagueMeta(league);
-            return leagueView === 'list' ? (
-              <button
-                key={league}
-                type="button"
-                onClick={() => onLeagueSearch?.(league)}
-                style={{
-                  display: 'grid', gridTemplateColumns: '1fr 80px 160px 24px',
-                  alignItems: 'center', gap: 12,
-                  padding: '11px 20px',
-                  borderBottom: '1px solid rgba(255,255,255,.04)',
-                  background: 'transparent', cursor: 'pointer', transition: 'background .12s',
-                  textAlign: 'left', width: '100%',
-                }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,.028)'; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
-              >
-                {/* League name */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-                  <div style={{
-                    width: 32, height: 32, borderRadius: 8, flexShrink: 0,
-                    background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.07)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16,
-                  }}>
-                    {meta.flag}
-                  </div>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--t)',
-                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {league}
-                    </div>
-                    {(meta.country || meta.sport) && (
-                      <div style={{ fontSize: 10, color: 'var(--t3)', marginTop: 1 }}>
-                        {[meta.country, meta.sport].filter(Boolean).join(' • ')}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Event count */}
-                <span style={{
-                  fontSize: 13, fontWeight: 800, color: 'var(--t)',
-                  fontFamily: "'JetBrains Mono', monospace",
-                }}>
-                  {eventCount}
-                </span>
-
-                {/* Popularity bar */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <div style={{
-                    flex: 1, height: 4, borderRadius: 4,
-                    background: 'rgba(255,255,255,.06)', overflow: 'hidden',
-                  }}>
-                    <div style={{
-                      height: '100%', borderRadius: 4,
-                      width: `${popularity}%`,
-                      background: popularity >= 80
-                        ? 'var(--g)'
-                        : popularity >= 50
-                          ? 'oklch(75% 0.15 165)'
-                          : 'rgba(255,255,255,.2)',
-                      transition: 'width .4s ease',
-                    }} />
-                  </div>
-                  <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--t3)',
-                    fontFamily: "'JetBrains Mono', monospace", flexShrink: 0, width: 32, textAlign: 'right' }}>
-                    {popularity}%
-                  </span>
-                </div>
-
-                <ChevronRight size={12} style={{ color: 'rgba(255,255,255,.15)' }} />
-              </button>
-            ) : (
-              /* Grid card */
-              <button
-                key={league}
-                type="button"
-                onClick={() => onLeagueSearch?.(league)}
-                style={{
-                  padding: '12px 14px', borderRadius: 12,
-                  background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.07)',
-                  cursor: 'pointer', textAlign: 'left', transition: 'all .15s',
-                }}
-                onMouseEnter={e => {
-                  const el = e.currentTarget as HTMLElement;
-                  el.style.background = 'rgba(63,255,33,.06)';
-                  el.style.borderColor = 'rgba(63,255,33,.2)';
-                }}
-                onMouseLeave={e => {
-                  const el = e.currentTarget as HTMLElement;
-                  el.style.background = 'rgba(255,255,255,.03)';
-                  el.style.borderColor = 'rgba(255,255,255,.07)';
-                }}
-              >
-                <div style={{ fontSize: 22, marginBottom: 8 }}>{meta.flag}</div>
-                <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--t)',
-                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: 2 }}>
-                  {league}
-                </div>
-                {meta.country && (
-                  <div style={{ fontSize: 10, color: 'var(--t3)', marginBottom: 8 }}>
-                    {meta.country} • {meta.sport}
-                  </div>
-                )}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: 10, color: 'var(--t3)' }}>{eventCount} eventos</span>
-                  <span style={{ fontSize: 10, fontWeight: 800,
-                    color: popularity >= 80 ? 'var(--g)' : 'var(--t3)',
-                    fontFamily: "'JetBrains Mono', monospace" }}>
-                    {popularity}%
-                  </span>
-                </div>
-              </button>
-            );
-          })}
-        </div>
+        ))}
       </div>
     </div>
   );
@@ -2077,10 +1888,6 @@ export function BuscarOddsPage() {
           error={evErr}
           onSelect={handleSelect}
           onRetry={loadEvents}
-          onLeagueSearch={league => {
-            setQuery(league);
-            setDropOpen(true);
-          }}
         />
       )}
 
