@@ -34,15 +34,44 @@ export async function POST(req: NextRequest) {
     date = body.date ?? '';
   } catch (_e) { /* vazio */ }
 
-  const targetDate = date || new Date().toISOString().slice(0, 10);
+  // Usa data local se não recebeu nada (fallback: UTC — mas frontend deve sempre enviar local)
+  const targetDate = date || (() => {
+    const n = new Date(); const p = (x: number) => String(x).padStart(2, '0');
+    return `${n.getFullYear()}-${p(n.getMonth()+1)}-${p(n.getDate())}`;
+  })();
+
+  // Converte a data local (Brasil UTC-3) para janela UTC:
+  //   meia-noite BRT = 03:00 UTC do mesmo dia
+  //   meia-noite BRT seguinte = 03:00 UTC do dia seguinte
+  // Usa start_utc em vez de event_date para evitar mismatch de fuso
+  const dayStartUtc = `${targetDate}T03:00:00.000Z`;
+  const dayEndDate  = new Date(dayStartUtc);
+  dayEndDate.setUTCDate(dayEndDate.getUTCDate() + 1);
+  const dayEndUtc = dayEndDate.toISOString();
 
   try {
     const sb = await getSupabaseAdmin();
-    const { data, error } = await sb
+
+    // Tenta primeiro por start_utc range (mais confiável)
+    let { data, error } = await sb
       .from('sm_events')
       .select('id, name, sport, league, start_utc, house_count')
-      .eq('event_date', targetDate)
+      .gte('start_utc', dayStartUtc)
+      .lt('start_utc', dayEndUtc)
       .order('start_utc', { ascending: true });
+
+    // Fallback: se vazio, tenta event_date (compatibilidade)
+    if (!error && (!data || data.length === 0)) {
+      const fb = await sb
+        .from('sm_events')
+        .select('id, name, sport, league, start_utc, house_count')
+        .eq('event_date', targetDate)
+        .order('start_utc', { ascending: true });
+      if (!fb.error && fb.data && fb.data.length > 0) {
+        data  = fb.data;
+        error = fb.error;
+      }
+    }
 
     if (error) {
       console.error('[events] Supabase error:', error.message);

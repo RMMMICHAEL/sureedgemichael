@@ -1442,7 +1442,11 @@ export function BuscarOddsPage() {
     setEvLoading(true);
     setEvErr('');
     setEvents([]);
-    const targetDate = date ?? new Date().toISOString().slice(0, 10);
+    // Usa data local (não UTC) para evitar bug de fuso Brasil UTC-3
+    const localNow = new Date();
+    const pad = (x: number) => String(x).padStart(2, '0');
+    const localDateStr = `${localNow.getFullYear()}-${pad(localNow.getMonth()+1)}-${pad(localNow.getDate())}`;
+    const targetDate = date ?? localDateStr;
     try {
       const res  = await fetch('/api/supermonitor/events', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -1724,7 +1728,10 @@ export function BuscarOddsPage() {
   }
 
   // ── Derived data ─────────────────────────────────────────────────────────────
-  const today       = new Date().toISOString().slice(0, 10);
+  const today = (() => {
+    const n = new Date(); const p = (x: number) => String(x).padStart(2, '0');
+    return `${n.getFullYear()}-${p(n.getMonth()+1)}-${p(n.getDate())}`;
+  })();
   const isOlderData = fetchedDate && fetchedDate !== today;
   const bests       = useMemo(() => parsed ? getBests(parsed.rows.filter(r => !disabledHouses.has(r.house))) : {} as Record<ColKey, number | undefined>, [parsed, disabledHouses]);
   const bestsPa     = useMemo(() => parsed ? getBests(parsed.rows.filter(r =>  r.pa && !disabledHouses.has(r.house))) : {} as Record<ColKey, number | undefined>, [parsed, disabledHouses]);
