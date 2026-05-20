@@ -29,12 +29,18 @@ const NAV_GROUPS: NavGroup[] = [
     id: 'principal',
     label: 'Principal',
     items: [
-      { id: 'dash',   label: 'Dashboard',  icon: <LayoutDashboard size={15} strokeWidth={2} /> },
-      { id: 'ops',    label: 'Operações',  icon: <Activity        size={15} strokeWidth={2} /> },
-      { id: 'odds',   label: 'Buscar Odds',icon: <ScanSearch      size={15} strokeWidth={2} /> },
-      { id: 'resumo', label: 'Resumo',     icon: <CalendarDays    size={15} strokeWidth={2} /> },
-      { id: 'metas',   label: 'Metas',            icon: <Target   size={15} strokeWidth={2} /> },
-      { id: 'freebet', label: 'Converter Freebet', icon: <Gift     size={15} strokeWidth={2} /> },
+      { id: 'dash',   label: 'Dashboard', icon: <LayoutDashboard size={15} strokeWidth={2} /> },
+      { id: 'resumo', label: 'Resumo',    icon: <CalendarDays    size={15} strokeWidth={2} /> },
+      { id: 'metas',  label: 'Metas',     icon: <Target          size={15} strokeWidth={2} /> },
+    ],
+  },
+  {
+    id: 'operacional',
+    label: 'Operacional',
+    items: [
+      { id: 'ops',    label: 'Operações',        icon: <Activity   size={15} strokeWidth={2} /> },
+      { id: 'odds',   label: 'Buscar Odds',       icon: <ScanSearch size={15} strokeWidth={2} /> },
+      { id: 'freebet',label: 'Converter Freebet', icon: <Gift       size={15} strokeWidth={2} /> },
     ],
   },
   {
@@ -302,7 +308,7 @@ function ProfileFooter({ onClose }: { onClose?: () => void }) {
 
 function SidebarContent({ onClose }: { onClose?: () => void }) {
   const [openGroups, setOpenGroups] = useState<Set<string>>(
-    new Set(['principal', 'financas', 'gestao'])
+    new Set(['principal', 'operacional', 'financas', 'gestao'])
   );
 
   const toggle = (id: string) => {
