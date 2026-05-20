@@ -103,11 +103,14 @@ function fmtDate(utc: string): string {
 }
 
 function timeUntil(utc: string): { label: string; color: string; live?: boolean } {
-  const ms = new Date(utc).getTime() - Date.now();
+  if (!utc) return { label: '--', color: 'rgba(255,255,255,.22)' };
+  const startMs = new Date(utc).getTime();
+  if (isNaN(startMs)) return { label: '--', color: 'rgba(255,255,255,.22)' };
+  const ms = startMs - Date.now();
   if (ms < -90 * 60_000) return { label: 'Encerrado', color: 'rgba(255,255,255,.22)' };
   if (ms < 0) return { label: '● AO VIVO', color: '#FF9F0A', live: true };
   const totalSec = Math.floor(ms / 1_000);
-  const hrs = Math.floor(totalSec / 3600);
+  const hrs  = Math.floor(totalSec / 3600);
   const mins = Math.floor((totalSec % 3600) / 60);
   const secs = totalSec % 60;
   if (hrs > 0) {
@@ -915,8 +918,10 @@ export function DuploGreenPage() {
     const nowMs = Date.now();
     let visible = signals.filter(s => {
       if (skipped.has(s._key!)) return false;
-      // Remove jogos encerrados (mais de 90 min desde o início)
-      if (s.start_utc && new Date(s.start_utc).getTime() < nowMs - 90 * 60_000) return false;
+      // Excluir jogos sem data válida ou encerrados (> 90 min desde o início)
+      const startMs = s.start_utc ? new Date(s.start_utc).getTime() : NaN;
+      if (isNaN(startMs)) return false;
+      if (startMs < nowMs - 90 * 60_000) return false;
       return true;
     });
     // Client-side PA filter (server handles 'ambos' via pa_only=true; 'um' needs client filter)
