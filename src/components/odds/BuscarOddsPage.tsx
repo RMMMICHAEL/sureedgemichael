@@ -3,7 +3,8 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import {
   ScanSearch, Search, X, Building2, Filter, RefreshCw,
-  ChevronDown, ChevronUp, Star, ExternalLink, Trophy, Loader2, ChevronRight,
+  ChevronDown, ChevronUp, Star, ExternalLink, Loader2, ChevronRight,
+  Copy, Zap,
 } from 'lucide-react';
 import { SurebetCalc, ALL_HOUSES } from '@/components/calcalendario/SurebetCalc';
 
@@ -974,6 +975,248 @@ function getLeagueMeta(league: string) {
   return { flag: '⚽', country: '', sport: 'Esporte' };
 }
 
+// ── Scanner signal types (local, parallel to duplo-green types) ──────────────
+
+interface ScanMLSignal {
+  event_id:   string;
+  event_name: string;
+  league:     string;
+  start_utc:  string;
+  leg1: { house: string; pa: boolean; odd: number; url?: string };
+  legX: { house: string; pa: boolean; odd: number; url?: string };
+  leg2: { house: string; pa: boolean; odd: number; url?: string };
+  margin:   number;
+  loss_pct: number;
+}
+
+function sigProfitColor(loss: number): { color: string; bg: string; border: string } {
+  if (loss <= 0)   return { color: '#3FFF21',  bg: 'rgba(63,255,33,.12)',   border: 'rgba(63,255,33,.25)'   };
+  if (loss < 1)    return { color: '#AAEE44',  bg: 'rgba(170,238,68,.10)',  border: 'rgba(170,238,68,.22)'  };
+  if (loss < 3)    return { color: '#FFD60A',  bg: 'rgba(255,214,10,.10)',  border: 'rgba(255,214,10,.22)'  };
+  if (loss < 6)    return { color: '#FF9F0A',  bg: 'rgba(255,159,10,.10)',  border: 'rgba(255,159,10,.22)'  };
+  return                  { color: '#FF6B6B',  bg: 'rgba(255,107,107,.10)', border: 'rgba(255,107,107,.22)' };
+}
+
+function fmtLoss(loss: number): string {
+  if (loss <= 0) return `+${Math.abs(loss).toFixed(2)}%`;
+  return `-${loss.toFixed(2)}%`;
+}
+
+function fmtEventDate(utc: string): string {
+  const d = new Date(utc);
+  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) +
+    ' às ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+}
+
+function copyText(text: string) {
+  navigator.clipboard.writeText(text).catch(() => {});
+}
+
+function LegRow({
+  house, odd, label, url, pa,
+}: {
+  house: string; odd: number; label: string; url?: string; pa: boolean;
+}) {
+  const [copied, setCopied] = useState(false);
+  function handleCopy(e: React.MouseEvent) {
+    e.stopPropagation();
+    copyText(`${house} — ${label} @ ${odd.toFixed(2)}`);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 8,
+      padding: '4px 0',
+      borderBottom: '1px solid rgba(255,255,255,.04)',
+    }}>
+      {/* House + PA badge */}
+      <div style={{ flex: '0 0 130px', display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
+        <span style={{
+          fontSize: 11, fontWeight: 700, color: 'var(--t2)',
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        }}>
+          {house}
+        </span>
+        {pa && (
+          <span style={{
+            fontSize: 8, fontWeight: 900, padding: '1px 4px', borderRadius: 3, flexShrink: 0,
+            background: 'rgba(63,255,33,.1)', color: 'var(--g)', border: '1px solid rgba(63,255,33,.2)',
+            letterSpacing: '.04em',
+          }}>PA</span>
+        )}
+      </div>
+      {/* Odd */}
+      <span style={{
+        flex: '0 0 42px', textAlign: 'right',
+        fontSize: 13, fontWeight: 900, color: 'var(--t)',
+        fontFamily: "'JetBrains Mono', monospace", letterSpacing: '-.02em',
+      }}>
+        {odd.toFixed(2)}
+      </span>
+      {/* Outcome link */}
+      {url ? (
+        <a
+          href={url} target="_blank" rel="noopener noreferrer"
+          onClick={e => e.stopPropagation()}
+          style={{
+            flex: 1, display: 'flex', alignItems: 'center', gap: 4,
+            fontSize: 10, fontWeight: 800, color: 'oklch(70% 0.1 250)',
+            textDecoration: 'none', overflow: 'hidden',
+            transition: 'color .12s',
+          }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--g)'; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'oklch(70% 0.1 250)'; }}
+        >
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {label}
+          </span>
+          <ExternalLink size={9} style={{ flexShrink: 0 }} />
+        </a>
+      ) : (
+        <span style={{
+          flex: 1, fontSize: 10, fontWeight: 800, color: 'var(--t3)',
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        }}>
+          {label}
+        </span>
+      )}
+      {/* Copy */}
+      <button
+        type="button" onClick={handleCopy}
+        title="Copiar"
+        style={{
+          flexShrink: 0, width: 22, height: 22, borderRadius: 6,
+          background: copied ? 'rgba(63,255,33,.14)' : 'rgba(255,255,255,.05)',
+          border: `1px solid ${copied ? 'rgba(63,255,33,.3)' : 'rgba(255,255,255,.08)'}`,
+          cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          transition: 'all .12s',
+        }}
+      >
+        <Copy size={10} style={{ color: copied ? 'var(--g)' : 'var(--t3)' }} />
+      </button>
+    </div>
+  );
+}
+
+function SignalCard({
+  sig, evMap, onSelect,
+}: {
+  sig: ScanMLSignal;
+  evMap: Map<string, CachedEvent>;
+  onSelect: (ev: CachedEvent) => void;
+}) {
+  const ev = evMap.get(sig.event_id);
+  const pc = sigProfitColor(sig.loss_pct);
+  const badge = getTimeBadge(sig.start_utc);
+  const league = sig.league || ev?.league || '';
+  const meta = getLeagueMeta(league);
+
+  function handleClick() {
+    if (ev) onSelect(ev);
+  }
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={handleClick}
+      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') handleClick(); }}
+      style={{
+        display: 'flex', gap: 0,
+        background: 'var(--bg2)',
+        border: '1px solid rgba(255,255,255,.07)',
+        borderRadius: 14,
+        overflow: 'hidden',
+        cursor: ev ? 'pointer' : 'default',
+        transition: 'border-color .15s, background .15s',
+      }}
+      onMouseEnter={e => {
+        if (!ev) return;
+        const el = e.currentTarget as HTMLElement;
+        el.style.borderColor = 'rgba(63,255,33,.2)';
+        el.style.background = 'rgba(63,255,33,.025)';
+      }}
+      onMouseLeave={e => {
+        const el = e.currentTarget as HTMLElement;
+        el.style.borderColor = 'rgba(255,255,255,.07)';
+        el.style.background = 'var(--bg2)';
+      }}
+    >
+      {/* Left column — event info */}
+      <div style={{
+        flex: '0 0 200px', minWidth: 0,
+        padding: '14px 16px',
+        borderRight: '1px solid rgba(255,255,255,.06)',
+        display: 'flex', flexDirection: 'column', gap: 6,
+        justifyContent: 'center',
+      }}>
+        {/* Time badge */}
+        <span style={{
+          display: 'inline-flex', alignItems: 'center', alignSelf: 'flex-start',
+          fontSize: badge.live ? 8 : 10, fontWeight: 900,
+          padding: '2px 7px', borderRadius: 6,
+          background: badge.bg, color: badge.color, border: `1px solid ${badge.border}`,
+          fontFamily: badge.live ? 'inherit' : "'JetBrains Mono', monospace",
+          letterSpacing: badge.live ? '.08em' : '-.01em',
+        }}>
+          {badge.label}
+        </span>
+        {/* Event name */}
+        <div style={{
+          fontSize: 13, fontWeight: 900, color: 'var(--t)',
+          lineHeight: 1.3,
+          display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
+          overflow: 'hidden',
+        }}>
+          {sig.event_name}
+        </div>
+        {/* League + date */}
+        <div style={{ fontSize: 10, color: 'var(--t3)', lineHeight: 1.4 }}>
+          {meta.flag} {league}
+          {league && <br />}
+          {fmtEventDate(sig.start_utc)}
+        </div>
+      </div>
+
+      {/* Right column — odds legs + profit */}
+      <div style={{
+        flex: 1, minWidth: 0,
+        padding: '10px 14px 10px 14px',
+        display: 'flex', flexDirection: 'column',
+      }}>
+        <LegRow house={sig.leg1.house} odd={sig.leg1.odd} label="CASA (1)"   url={sig.leg1.url} pa={sig.leg1.pa} />
+        <LegRow house={sig.legX.house} odd={sig.legX.odd} label="EMPATE (X)" url={sig.legX.url} pa={sig.legX.pa} />
+        <LegRow house={sig.leg2.house} odd={sig.leg2.odd} label="FORA (2)"   url={sig.leg2.url} pa={sig.leg2.pa} />
+
+        {/* Footer: profit badge */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'flex-end',
+          marginTop: 8, paddingTop: 7,
+          borderTop: '1px solid rgba(255,255,255,.05)',
+          gap: 8,
+        }}>
+          {ev && (
+            <span style={{ fontSize: 9, color: 'var(--t3)' }}>
+              Clique para ver todas as odds
+            </span>
+          )}
+          <span style={{
+            fontSize: 12, fontWeight: 900,
+            padding: '3px 10px', borderRadius: 7,
+            background: pc.bg, color: pc.color, border: `1px solid ${pc.border}`,
+            fontFamily: "'JetBrains Mono', monospace", letterSpacing: '-.01em',
+          }}>
+            {fmtLoss(sig.loss_pct)}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+type ScanSort = 'melhor' | 'pior' | 'recentes' | 'antigos';
+
 function TodayGamesGrid({
   events, loading, error, onSelect, onRetry,
 }: {
@@ -983,61 +1226,71 @@ function TodayGamesGrid({
   onSelect: (ev: CachedEvent) => void;
   onRetry:  () => void;
 }) {
-  // Top games by house_count = "melhores jogos do dia"
-  const featuredEvents = useMemo(() =>
-    [...events].sort((a, b) => b.house_count - a.house_count).slice(0, 8),
-    [events],
-  );
+  const [signals,    setSignals]    = useState<ScanMLSignal[]>([]);
+  const [sigLoading, setSigLoading] = useState(false);
+  const [sortOrder,  setSortOrder]  = useState<ScanSort>('melhor');
+  const [showAll,    setShowAll]    = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
-  // Count live events
-  const liveCount = useMemo(() =>
-    events.filter(ev => {
-      const ms = new Date(ev.start_utc).getTime() - Date.now();
-      return ms < 0 && ms > -60 * 60_000;
-    }).length,
-    [events],
-  );
+  const hasEvents = events.length > 0;
 
-  // Group all events by league, sorted by time
-  const grouped = useMemo(() => {
-    const map = new Map<string, CachedEvent[]>();
-    for (const ev of events) {
-      const key = ev.league || 'Outros';
-      if (!map.has(key)) map.set(key, []);
-      map.get(key)!.push(ev);
-    }
-    for (const arr of map.values()) {
-      arr.sort((a, b) => new Date(a.start_utc).getTime() - new Date(b.start_utc).getTime());
-    }
-    return [...map.entries()].sort(([, a], [, b]) =>
-      new Date(a[0].start_utc).getTime() - new Date(b[0].start_utc).getTime()
-    );
+  // Build event lookup map
+  const evMap = useMemo(() => {
+    const m = new Map<string, CachedEvent>();
+    for (const ev of events) m.set(ev.id, ev);
+    return m;
   }, [events]);
+
+  // Fetch signals from duplo-green API whenever events are loaded
+  useEffect(() => {
+    if (!hasEvents) return;
+    setSigLoading(true);
+    fetch('/api/supermonitor/duplo-green', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    })
+      .then(r => r.json())
+      .then((data: { ok: boolean; ml?: ScanMLSignal[] }) => {
+        if (data.ok && Array.isArray(data.ml)) {
+          setSignals(data.ml);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setSigLoading(false));
+  }, [hasEvents, refreshKey]);
+
+  // Sort signals
+  const sorted = useMemo(() => {
+    const s = [...signals];
+    if (sortOrder === 'melhor') return s.sort((a, b) => a.loss_pct - b.loss_pct);
+    if (sortOrder === 'pior')   return s.sort((a, b) => b.loss_pct - a.loss_pct);
+    if (sortOrder === 'recentes') return s.sort((a, b) => new Date(b.start_utc).getTime() - new Date(a.start_utc).getTime());
+    if (sortOrder === 'antigos')  return s.sort((a, b) => new Date(a.start_utc).getTime() - new Date(b.start_utc).getTime());
+    return s;
+  }, [signals, sortOrder]);
+
+  const shown    = showAll ? sorted : sorted.slice(0, 30);
+  const evCount  = new Set(signals.map(s => s.event_id)).size;
+  const profitN  = signals.filter(s => s.loss_pct <= 0).length;
 
   // ── Loading skeleton ──────────────────────────────────────────────────────
   if (loading) {
     return (
-      <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid var(--b)' }}>
-        <div className="px-5 py-4 flex items-center gap-3"
-          style={{ background: 'var(--bg2)', borderBottom: '1px solid var(--b)' }}>
-          <Loader2 size={14} className="animate-spin" style={{ color: 'var(--g)' }} />
-          <span className="text-sm font-black" style={{ color: 'var(--t)' }}>Jogos de Hoje</span>
-          <span className="text-[10px] font-bold" style={{ color: 'var(--t3)' }}>Carregando...</span>
-        </div>
-        <div style={{ display: 'flex', gap: 10, padding: '14px 16px' }}>
-          {[0,1,2,3,4].map(i => (
-            <div key={i} style={{ flexShrink: 0, width: 190, height: 106, borderRadius: 14,
-              background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.06)',
-              animation: `pulse 1.6s ease-in-out ${i * 0.12}s infinite` }} />
-          ))}
-        </div>
-        <div style={{ padding: '0 0 12px', display: 'flex', flexDirection: 'column', gap: 1 }}>
-          {[0,1,2,3,4,5].map(i => (
-            <div key={i} style={{ height: 44, margin: '0 0', background: 'rgba(255,255,255,.02)',
-              borderBottom: '1px solid rgba(255,255,255,.04)',
-              animation: `pulse 1.6s ease-in-out ${i * 0.08}s infinite` }} />
-          ))}
-        </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {/* toolbar skeleton */}
+        <div style={{
+          height: 44, borderRadius: 12,
+          background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.06)',
+          animation: 'pulse 1.4s ease-in-out infinite',
+        }} />
+        {[0,1,2,3,4].map(i => (
+          <div key={i} style={{
+            height: 110, borderRadius: 14,
+            background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.06)',
+            animation: `pulse 1.6s ease-in-out ${i * 0.1}s infinite`,
+          }} />
+        ))}
       </div>
     );
   }
@@ -1064,267 +1317,180 @@ function TodayGamesGrid({
     );
   }
 
-  if (!grouped.length) return null;
-
-  const todayStr = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
+  if (!events.length) return null;
 
   return (
-    <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid var(--b)' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
 
-      {/* ── Header ── */}
+      {/* ── Toolbar ── */}
       <div style={{
-        padding: '14px 20px',
-        background: 'var(--bg2)',
-        borderBottom: '1px solid var(--b)',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+        display: 'flex', alignItems: 'center', gap: 10,
+        padding: '10px 14px',
+        background: 'var(--bg2)', border: '1px solid var(--b)', borderRadius: 12,
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{
-            width: 32, height: 32, borderRadius: 9,
-            background: 'rgba(63,255,33,.1)', border: '1px solid rgba(63,255,33,.2)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-          }}>
-            <Trophy size={14} style={{ color: 'var(--g)' }} />
-          </div>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 14, fontWeight: 900, color: 'var(--t)' }}>Jogos de Hoje</span>
-              {liveCount > 0 && (
+        {/* Scanner icon */}
+        <div style={{
+          width: 28, height: 28, borderRadius: 8, flexShrink: 0,
+          background: 'rgba(63,255,33,.1)', border: '1px solid rgba(63,255,33,.2)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <Zap size={12} style={{ color: 'var(--g)' }} />
+        </div>
+
+        {/* Counts */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {sigLoading ? (
+            <span style={{ fontSize: 12, color: 'var(--t3)', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Loader2 size={11} className="animate-spin" style={{ color: 'var(--g)' }} />
+              Escaneando sinais...
+            </span>
+          ) : (
+            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--t)' }}>
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 900 }}>
+                {signals.length}
+              </span>
+              <span style={{ color: 'var(--t3)' }}> sinais</span>
+              {evCount > 0 && (
+                <span style={{ color: 'var(--t3)' }}> · {evCount} eventos</span>
+              )}
+              {profitN > 0 && (
                 <span style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 4,
-                  fontSize: 9, fontWeight: 900, padding: '2px 7px', borderRadius: 6, letterSpacing: '.06em',
-                  background: 'rgba(255,159,10,.12)', color: '#FF9F0A', border: '1px solid rgba(255,159,10,.25)',
+                  marginLeft: 8, fontSize: 10, fontWeight: 900,
+                  padding: '1px 6px', borderRadius: 5,
+                  background: 'rgba(63,255,33,.1)', color: 'var(--g)', border: '1px solid rgba(63,255,33,.2)',
                 }}>
-                  <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#FF9F0A',
-                    animation: 'livePulse 1.5s ease-in-out infinite', display: 'inline-block' }} />
-                  AO VIVO
+                  {profitN} com lucro
                 </span>
               )}
-              <span style={{
-                fontSize: 9, fontWeight: 900, padding: '2px 7px', borderRadius: 6, letterSpacing: '.06em',
-                background: 'rgba(63,255,33,.1)', color: 'var(--g)', border: '1px solid rgba(63,255,33,.18)',
-              }}>
-                EM BREVE
-              </span>
-            </div>
-            <div style={{ fontSize: 10, color: 'var(--t3)', marginTop: 1, textTransform: 'capitalize' }}>
-              Não perca as melhores oportunidades
-            </div>
-          </div>
+            </span>
+          )}
         </div>
-        <span style={{ fontSize: 10, color: 'var(--t3)', opacity: 0.6, textTransform: 'capitalize' }}>
-          {todayStr}
-        </span>
+
+        {/* Sort */}
+        <select
+          value={sortOrder}
+          onChange={e => setSortOrder(e.target.value as ScanSort)}
+          style={{
+            fontSize: 11, fontWeight: 700, padding: '5px 8px', borderRadius: 8,
+            background: 'rgba(255,255,255,.06)', color: 'var(--t2)',
+            border: '1px solid rgba(255,255,255,.1)', cursor: 'pointer', outline: 'none',
+            appearance: 'none', WebkitAppearance: 'none',
+          }}
+        >
+          <option value="melhor">Melhor primeiro</option>
+          <option value="pior">Pior primeiro</option>
+          <option value="recentes">Mais recentes</option>
+          <option value="antigos">Mais antigos</option>
+        </select>
+
+        {/* Refresh */}
+        <button
+          type="button"
+          onClick={() => setRefreshKey(k => k + 1)}
+          title="Reescanear"
+          style={{
+            flexShrink: 0, width: 30, height: 30, borderRadius: 8,
+            background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.09)',
+            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            transition: 'all .15s',
+          }}
+          onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.background = 'rgba(63,255,33,.1)'; el.style.borderColor = 'rgba(63,255,33,.25)'; }}
+          onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.background = 'rgba(255,255,255,.05)'; el.style.borderColor = 'rgba(255,255,255,.09)'; }}
+        >
+          <RefreshCw size={12} style={{ color: sigLoading ? 'var(--g)' : 'var(--t3)' }}
+            className={sigLoading ? 'animate-spin' : ''} />
+        </button>
       </div>
 
-      {/* ── Featured cards strip ── */}
-      <div style={{
-        background: 'var(--bg2)',
-        borderBottom: '1px solid var(--b)',
-        padding: '12px 16px 14px',
-      }}>
-        <div style={{
-          display: 'flex', gap: 10, overflowX: 'auto',
-          paddingBottom: 2,
-          scrollbarWidth: 'thin',
-          scrollbarColor: 'rgba(255,255,255,.08) transparent',
-        }}>
-          {featuredEvents.map(ev => {
-            const [home, away] = parseTeams(ev.name);
-            const badge = getTimeBadge(ev.start_utc);
-            const isLive = badge.live;
-            return (
-              <button
-                key={ev.id}
-                type="button"
-                onClick={() => onSelect(ev)}
-                style={{
-                  flexShrink: 0, width: 190,
-                  padding: '11px 13px', borderRadius: 14,
-                  background: isLive ? 'rgba(255,159,10,.05)' : 'rgba(255,255,255,.03)',
-                  border: `1px solid ${isLive ? 'rgba(255,159,10,.18)' : 'rgba(255,255,255,.07)'}`,
-                  cursor: 'pointer', textAlign: 'left', transition: 'all .15s',
-                }}
-                onMouseEnter={e => {
-                  const el = e.currentTarget as HTMLElement;
-                  el.style.background = 'rgba(63,255,33,.07)';
-                  el.style.borderColor = 'rgba(63,255,33,.22)';
-                  el.style.transform = 'translateY(-2px)';
-                }}
-                onMouseLeave={e => {
-                  const el = e.currentTarget as HTMLElement;
-                  el.style.background = isLive ? 'rgba(255,159,10,.05)' : 'rgba(255,255,255,.03)';
-                  el.style.borderColor = isLive ? 'rgba(255,159,10,.18)' : 'rgba(255,255,255,.07)';
-                  el.style.transform = '';
-                }}
-              >
-                {/* Badge row */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 9 }}>
-                  <span style={{
-                    display: 'inline-flex', alignItems: 'center',
-                    fontSize: 9, fontWeight: 900,
-                    padding: '2px 6px', borderRadius: 5,
-                    background: badge.bg, color: badge.color, border: `1px solid ${badge.border}`,
-                    fontFamily: badge.live ? 'inherit' : "'JetBrains Mono', monospace",
-                    letterSpacing: badge.live ? '.06em' : '-.01em',
-                  }}>
-                    {badge.label}
-                  </span>
-                  {ev.house_count > 0 && (
-                    <span style={{
-                      fontSize: 9, fontWeight: 800, padding: '2px 6px', borderRadius: 5,
-                      background: 'rgba(129,140,248,.08)', border: '1px solid rgba(129,140,248,.12)', color: '#818cf8',
-                      fontFamily: "'JetBrains Mono', monospace",
-                    }}>
-                      {ev.house_count}
-                    </span>
-                  )}
-                </div>
-
-                {/* Teams with avatar */}
-                {away ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <TeamAvatar name={home} size={26} />
-                      <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--t)',
-                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
-                        {home}
-                      </span>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <TeamAvatar name={away} size={26} />
-                      <span style={{ fontSize: 11, fontWeight: 800, color: 'oklch(70% 0.01 250)',
-                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
-                        {away}
-                      </span>
-                    </div>
-                  </div>
-                ) : (
-                  <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--t)',
-                    lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2,
-                    WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                    {home}
-                  </div>
-                )}
-
-                {/* League footer */}
-                {ev.league && (
-                  <div style={{ marginTop: 7, fontSize: 9, color: 'var(--t3)', opacity: 0.55,
-                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {getLeagueMeta(ev.league).flag} {ev.league}
-                  </div>
-                )}
-              </button>
+      {/* ── No signals yet: show browse list ── */}
+      {!sigLoading && signals.length === 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 1,
+          background: 'var(--bg2)', border: '1px solid var(--b)', borderRadius: 14, overflow: 'hidden' }}>
+          {/* League-grouped compact rows */}
+          {(() => {
+            const map = new Map<string, CachedEvent[]>();
+            for (const ev of events) {
+              const key = ev.league || 'Outros';
+              if (!map.has(key)) map.set(key, []);
+              map.get(key)!.push(ev);
+            }
+            const grouped = [...map.entries()].sort(([, a], [, b]) =>
+              new Date(a[0].start_utc).getTime() - new Date(b[0].start_utc).getTime()
             );
-          })}
-        </div>
-      </div>
-
-      {/* ── All events grouped by league ── */}
-      <div style={{ maxHeight: 560, overflowY: 'auto' }}>
-        {grouped.map(([league, evs]) => (
-          <div key={league}>
-            {/* League sticky header */}
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 8,
-              padding: '7px 20px',
-              background: 'oklch(13.5% 0.006 250)',
-              borderTop: '1px solid rgba(255,255,255,.04)',
-              borderBottom: '1px solid rgba(255,255,255,.04)',
-              position: 'sticky', top: 0, zIndex: 2,
-            }}>
-              <span style={{ fontSize: 13, lineHeight: 1, flexShrink: 0 }}>{getLeagueMeta(league).flag}</span>
-              <span style={{
-                fontSize: 10, fontWeight: 900, textTransform: 'uppercase',
-                letterSpacing: '.1em', color: 'var(--t3)',
-                flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-              }}>
-                {league}
-              </span>
-              <span style={{
-                fontSize: 9, fontWeight: 800, padding: '1px 6px', borderRadius: 4,
-                background: 'rgba(255,255,255,.05)', color: 'rgba(255,255,255,.3)',
-                border: '1px solid rgba(255,255,255,.06)', flexShrink: 0,
-              }}>
-                {evs.length}
-              </span>
-            </div>
-
-            {/* Event rows */}
-            {evs.map(ev => {
-              const badge = getTimeBadge(ev.start_utc);
-              const [home, away] = parseTeams(ev.name);
-              return (
-                <button
-                  key={ev.id}
-                  type="button"
-                  onClick={() => onSelect(ev)}
-                  style={{
-                    width: '100%', display: 'flex', alignItems: 'center', gap: 10,
-                    padding: '8px 20px',
-                    borderBottom: '1px solid rgba(255,255,255,.04)',
-                    background: 'transparent', cursor: 'pointer', transition: 'background .12s', textAlign: 'left',
-                  }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(63,255,33,.04)'; }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
-                >
-                  {/* Time badge */}
-                  <span style={{
-                    flexShrink: 0, fontSize: badge.live ? 8 : 11, fontWeight: 900,
-                    fontFamily: badge.live ? 'inherit' : "'JetBrains Mono', monospace",
-                    letterSpacing: badge.live ? '.08em' : '-.01em',
-                    padding: '3px 7px', borderRadius: 6, minWidth: badge.live ? 'auto' : 44, textAlign: 'center',
-                    background: badge.bg, color: badge.color, border: `1px solid ${badge.border}`,
-                  }}>
-                    {badge.label}
+            return grouped.map(([league, evs]) => (
+              <div key={league}>
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 8, padding: '6px 16px',
+                  background: 'oklch(13.5% 0.006 250)',
+                  borderBottom: '1px solid rgba(255,255,255,.04)',
+                }}>
+                  <span style={{ fontSize: 11 }}>{getLeagueMeta(league).flag}</span>
+                  <span style={{ fontSize: 10, fontWeight: 900, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--t3)', flex: 1 }}>
+                    {league}
                   </span>
-
-                  {/* Team avatars + names */}
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    {away ? (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden' }}>
-                        <TeamAvatar name={home} size={22} />
-                        <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--t)',
-                          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '38%' }}>
-                          {home}
-                        </span>
-                        <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--t3)', flexShrink: 0 }}>×</span>
-                        <TeamAvatar name={away} size={22} />
-                        <span style={{ fontSize: 12, fontWeight: 800, color: 'oklch(72% 0.01 250)',
-                          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '38%' }}>
-                          {away}
-                        </span>
-                      </div>
-                    ) : (
-                      <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--t)',
-                        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}>
+                  <span style={{ fontSize: 9, fontWeight: 700, color: 'rgba(255,255,255,.25)' }}>{evs.length}</span>
+                </div>
+                {evs.map(ev => {
+                  const badge = getTimeBadge(ev.start_utc);
+                  return (
+                    <button key={ev.id} type="button" onClick={() => onSelect(ev)} style={{
+                      width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+                      padding: '8px 16px', borderBottom: '1px solid rgba(255,255,255,.04)',
+                      background: 'transparent', cursor: 'pointer', transition: 'background .12s', textAlign: 'left',
+                    }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(63,255,33,.04)'; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}>
+                      <span style={{
+                        flexShrink: 0, fontSize: badge.live ? 8 : 10, fontWeight: 900,
+                        padding: '2px 6px', borderRadius: 5, minWidth: 38, textAlign: 'center',
+                        background: badge.bg, color: badge.color, border: `1px solid ${badge.border}`,
+                        fontFamily: badge.live ? 'inherit' : "'JetBrains Mono', monospace",
+                      }}>{badge.label}</span>
+                      <span style={{ flex: 1, fontSize: 12, fontWeight: 800, color: 'var(--t)',
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {ev.name}
                       </span>
-                    )}
-                  </div>
+                      {ev.house_count > 0 && (
+                        <span style={{ fontSize: 10, fontWeight: 800, color: '#818cf8',
+                          padding: '1px 6px', borderRadius: 5,
+                          background: 'rgba(129,140,248,.08)', border: '1px solid rgba(129,140,248,.12)',
+                          fontFamily: "'JetBrains Mono', monospace" }}>
+                          {ev.house_count}
+                        </span>
+                      )}
+                      <ChevronRight size={11} style={{ color: 'rgba(255,255,255,.15)', flexShrink: 0 }} />
+                    </button>
+                  );
+                })}
+              </div>
+            ));
+          })()}
+        </div>
+      )}
 
-                  {/* House count pill */}
-                  {ev.house_count > 0 && (
-                    <div style={{
-                      flexShrink: 0, display: 'flex', alignItems: 'center', gap: 4,
-                      padding: '2px 7px', borderRadius: 6,
-                      background: 'rgba(129,140,248,.08)', border: '1px solid rgba(129,140,248,.14)',
-                    }}>
-                      <Building2 size={9} style={{ color: '#818cf8' }} />
-                      <span style={{ fontSize: 10, fontWeight: 800, color: '#818cf8',
-                        fontFamily: "'JetBrains Mono', monospace" }}>
-                        {ev.house_count}
-                      </span>
-                    </div>
-                  )}
+      {/* ── Signal cards ── */}
+      {shown.map((sig, i) => (
+        <SignalCard key={`${sig.event_id}-${sig.leg1.house}-${sig.leg2.house}-${i}`}
+          sig={sig} evMap={evMap} onSelect={onSelect} />
+      ))}
 
-                  <ChevronRight size={12} style={{ color: 'rgba(255,255,255,.12)', flexShrink: 0 }} />
-                </button>
-              );
-            })}
-          </div>
-        ))}
-      </div>
+      {/* ── Show more ── */}
+      {!showAll && sorted.length > 30 && (
+        <button
+          type="button"
+          onClick={() => setShowAll(true)}
+          style={{
+            width: '100%', padding: '12px', borderRadius: 12,
+            background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.08)',
+            cursor: 'pointer', fontSize: 12, fontWeight: 700, color: 'var(--t3)',
+            transition: 'all .15s',
+          }}
+          onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.background = 'rgba(63,255,33,.06)'; el.style.color = 'var(--g)'; }}
+          onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.background = 'rgba(255,255,255,.04)'; el.style.color = 'var(--t3)'; }}
+        >
+          Ver mais {sorted.length - 30} sinais
+        </button>
+      )}
     </div>
   );
 }
