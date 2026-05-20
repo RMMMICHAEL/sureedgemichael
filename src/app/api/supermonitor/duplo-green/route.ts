@@ -1,14 +1,10 @@
 /**
  * POST /api/supermonitor/duplo-green
- * Varre o cache sm_odds e computa sinais de Duplo Green:
- *   - ML: arbs 3 vias (1X2) com casas PA preferencial
- *   - Gols: pares Over X.5 + Under Y.5 onde X < Y (zona verde entre as linhas)
+ * Varre o cache sm_odds (apenas futebol) e computa sinais de Duplo Green:
+ *   - ML  : arbs 3 vias (1X2) — pernas 1 e 2 priorizadas em casas PA
+ *   - Gols: pares Over X.5 + Under Y.5 onde X < Y
  *
- * Body (opcional):
- *   { disabled_houses?: string[] }   — casas a ignorar (array de nomes lowercase)
- *
- * Resposta:
- *   { ok: true, ml: MLSignal[], gols: GolsSignal[], total_events: number, computed_at: string }
+ * Body: { disabled_houses?: string[], pa_only?: boolean }
  */
 export const dynamic = 'force-dynamic';
 export const preferredRegion = ['gru1'];
@@ -18,15 +14,15 @@ import { NextRequest, NextResponse } from 'next/server';
 // ── Tipos ──────────────────────────────────────────────────────────────────────
 
 interface BookmakerRow {
-  house:      string;
-  pa:         boolean;
-  url?:       string;
-  mlHome?:    number;
-  mlDraw?:    number;
-  mlAway?:    number;
-  ouHdp?:     number;
-  ouOver?:    number;
-  ouUnder?:   number;
+  house:   string;
+  pa:      boolean;
+  url?:    string;
+  mlHome?: number;
+  mlDraw?: number;
+  mlAway?: number;
+  ouHdp?:  number;
+  ouOver?: number;
+  ouUnder?:number;
 }
 
 export interface MLSignal {
@@ -38,7 +34,7 @@ export interface MLSignal {
   legX:       { house: string; pa: boolean; odd: number; url?: string; };
   leg2:       { house: string; pa: boolean; odd: number; url?: string; };
   margin:     number;
-  loss_pct:   number;   // (margin−1)×100 — negativo = lucro
+  loss_pct:   number;
 }
 
 export interface GolsSignal {
@@ -56,25 +52,29 @@ export interface GolsSignal {
   under_line:    number;
   under_odd:     number;
   under_url?:    string;
-  gap:           number;    // under_line − over_line
-  green_goals:   string;    // "4" ou "3–4"
-  both_win_pct:  number;    // % de retorno quando ambos ganham
-  loss_pct:      number;    // % de perda no cenário de 1 perna (balanced stakes)
+  gap:           number;
+  green_goals:   string;
+  both_win_pct:  number;
+  loss_pct:      number;
 }
 
-// ── PA set ─────────────────────────────────────────────────────────────────────
+// ── PA set (exclui sufixo SO = Odds Aumentadas, nunca PA) ─────────────────────
 
 const PA_SET = new Set([
   'betano','novibet','betvip','betsul','betesporte','brasilbet','betsson','bet365',
   'bet365arg','bet365pe','lotogreen','kto','vivasorte','sportingbet','superbet',
   'apostabet','br4bet','esportesdasorte','esportiva','esportivabet','sortenabet',
   'betmgm','estrelabet','bet7k','jogodeouro','mcgames','meridianbet','meridian',
-  'versusbet','vupi','vupibet','vaidebet',
+  'versusbet','vupi','vupibet','vaidebet','betnacional','pixbet','betfairsb',
+  'betfair','tradeball','sporty','alfabet','betbra',
 ]);
 
 function isPa(house: string): boolean {
   const n = house.toLowerCase().replace(/[\s\-_.]/g, '');
+  // Sufixo SO = "Sem Odds sujas" / Odds Aumentadas → NUNCA é PA
   if (n.endsWith('so')) return false;
+  // Sufixo OS = Odds Sujas → NUNCA é PA
+  if (n.endsWith('os')) return false;
   if (PA_SET.has(n)) return true;
   for (const pa of PA_SET) {
     if (n.length >= 4 && pa.length >= 4 && (n.startsWith(pa) || pa.startsWith(n))) return true;
@@ -103,8 +103,7 @@ function parseBookmakers(
 
     for (const [hn, markets] of Object.entries(bms)) {
       if (!Array.isArray(markets)) continue;
-      const hnLower = hn.toLowerCase();
-      if (disabledSet.has(hnLower)) continue;
+      if (disabledSet.has(hn.toLowerCase())) continue;
 
       let row = houseMap.get(hn);
       if (!row) {
@@ -129,9 +128,9 @@ function parseBookmakers(
           const ov = parseFloat(String(odds.over  ?? ''));
           const un = parseFloat(String(odds.under ?? ''));
           const hd = parseFloat(String(odds.hdp   ?? ''));
-          if (!isNaN(ov) && ov > 1) row.ouOver  = ov;
-          if (!isNaN(un) && un > 1) row.ouUnder  = un;
-          if (!isNaN(hd))           row.ouHdp    = hd;
+          if (!isNaN(ov) && ov > 1) row.ouOver   = ov;
+          if (!isNaN(un) && un > 1) row.ouUnder   = un;
+          if (!isNaN(hd))           row.ouHdp     = hd;
         }
       }
     }
@@ -145,25 +144,24 @@ function parseBookmakers(
 function computeMLSignals(
   rows: BookmakerRow[],
   meta: { event_id: string; event_name: string; league: string; start_utc: string },
+  paOnly: boolean,
 ): MLSignal[] {
-  const withHome = rows.filter(r => r.mlHome);
-  const withDraw = rows.filter(r => r.mlDraw);
-  const withAway = rows.filter(r => r.mlAway);
+  const homeRows = (paOnly ? rows.filter(r => r.pa) : rows).filter(r => r.mlHome);
+  const awayRows = (paOnly ? rows.filter(r => r.pa) : rows).filter(r => r.mlAway);
+  const drawRows = rows.filter(r => r.mlDraw);
 
-  if (!withHome.length || !withDraw.length || !withAway.length) return [];
+  if (!homeRows.length || !awayRows.length || !drawRows.length) return [];
 
   const results: MLSignal[] = [];
   const seen = new Set<string>();
 
-  for (const hr of withHome) {
-    for (const ar of withAway) {
+  for (const hr of homeRows) {
+    for (const ar of awayRows) {
       if (hr.house === ar.house) continue;
-      // melhor empate de casa diferente das outras duas
-      const drawRow = withDraw
-        .filter(r => r.house !== hr.house && r.house !== ar.house)
-        .sort((a, b) => (b.mlDraw ?? 0) - (a.mlDraw ?? 0))[0]
-        ?? withDraw.sort((a, b) => (b.mlDraw ?? 0) - (a.mlDraw ?? 0))[0];
-
+      const drawRow =
+        drawRows.filter(r => r.house !== hr.house && r.house !== ar.house)
+                .sort((a, b) => (b.mlDraw ?? 0) - (a.mlDraw ?? 0))[0]
+        ?? drawRows.sort((a, b) => (b.mlDraw ?? 0) - (a.mlDraw ?? 0))[0];
       if (!drawRow?.mlDraw) continue;
 
       const margin = 1 / hr.mlHome! + 1 / drawRow.mlDraw + 1 / ar.mlAway!;
@@ -182,14 +180,11 @@ function computeMLSignals(
     }
   }
 
-  // Deduplica por par 1×2 (home+away), mantém melhor margem
   const bestByPair = new Map<string, MLSignal>();
   for (const sig of results) {
-    const pairKey = `${sig.leg1.house}|${sig.leg2.house}`;
-    const existing = bestByPair.get(pairKey);
-    if (!existing || sig.margin < existing.margin) {
-      bestByPair.set(pairKey, sig);
-    }
+    const k = `${sig.leg1.house}|${sig.leg2.house}`;
+    const ex = bestByPair.get(k);
+    if (!ex || sig.margin < ex.margin) bestByPair.set(k, sig);
   }
 
   return Array.from(bestByPair.values()).sort((a, b) => a.margin - b.margin);
@@ -209,7 +204,7 @@ function computeGolsSignals(
   for (const overRow of withTotals) {
     for (const underRow of withTotals) {
       if (overRow.house === underRow.house) continue;
-      if (overRow.ouHdp! >= underRow.ouHdp!) continue; // precisa de gap positivo
+      if (overRow.ouHdp! >= underRow.ouHdp!) continue;
 
       const oLine = overRow.ouHdp!;
       const uLine = underRow.ouHdp!;
@@ -217,55 +212,39 @@ function computeGolsSignals(
       const uOdd  = underRow.ouUnder!;
       const gap   = uLine - oLine;
 
-      // Stakes balanceados: s_over * oOdd = s_under * uOdd
-      // → s_over = uOdd / (oOdd + uOdd), s_under = oOdd / (oOdd + uOdd)
-      // retorno balanceado (cenário de 1 perna) = oOdd * uOdd / (oOdd + uOdd)
       const balancedReturn = (oOdd * uOdd) / (oOdd + uOdd);
       const loss_pct       = Math.round((1 - balancedReturn) * 10000) / 100;
+      const s_over         = uOdd / (oOdd + uOdd);
+      const s_under        = oOdd / (oOdd + uOdd);
+      const bothWin        = s_over * oOdd + s_under * uOdd;
+      const both_win_pct   = Math.round((bothWin - 1) * 10000) / 100;
 
-      // retorno quando ambos ganham (zona verde)
-      const s_over  = uOdd / (oOdd + uOdd);
-      const s_under = oOdd / (oOdd + uOdd);
-      const bothWin = s_over * oOdd + s_under * uOdd; // = 2 * balancedReturn
-      const both_win_pct = Math.round((bothWin - 1) * 10000) / 100;
-
-      // Descrição da zona verde: goals where oLine < g <= uLine
       const lo = Math.floor(oLine) + 1;
       const hi = Math.floor(uLine);
       const green_goals = lo === hi ? String(lo) : `${lo}–${hi}`;
 
       results.push({
         ...meta,
-        over_house:  overRow.house,
-        over_pa:     overRow.pa,
-        over_line:   oLine,
-        over_odd:    oOdd,
-        over_url:    overRow.url,
-        under_house: underRow.house,
-        under_pa:    underRow.pa,
-        under_line:  uLine,
-        under_odd:   uOdd,
-        under_url:   underRow.url,
-        gap,
-        green_goals,
-        both_win_pct,
-        loss_pct,
+        over_house: overRow.house, over_pa: overRow.pa,
+        over_line: oLine, over_odd: oOdd, over_url: overRow.url,
+        under_house: underRow.house, under_pa: underRow.pa,
+        under_line: uLine, under_odd: uOdd, under_url: underRow.url,
+        gap, green_goals, both_win_pct, loss_pct,
       });
     }
   }
 
-  // Deduplica por par de casas, mantém o melhor (menor loss)
   const bestByPair = new Map<string, GolsSignal>();
   for (const sig of results) {
-    const key = `${sig.over_house}|${sig.under_house}`;
-    const ex  = bestByPair.get(key);
-    if (!ex || sig.loss_pct < ex.loss_pct) bestByPair.set(key, sig);
+    const k = `${sig.over_house}|${sig.under_house}`;
+    const ex = bestByPair.get(k);
+    if (!ex || sig.loss_pct < ex.loss_pct) bestByPair.set(k, sig);
   }
 
   return Array.from(bestByPair.values()).sort((a, b) => a.loss_pct - b.loss_pct);
 }
 
-// ── Supabase helper ───────────────────────────────────────────────────────────
+// ── Supabase ──────────────────────────────────────────────────────────────────
 
 async function getSupabaseAdmin() {
   const { createClient } = await import('@supabase/supabase-js');
@@ -279,42 +258,64 @@ async function getSupabaseAdmin() {
 
 export async function POST(req: NextRequest) {
   let disabledHouses: string[] = [];
+  let paOnly = false;
   try {
-    const body = await req.json() as { disabled_houses?: string[] };
+    const body = await req.json() as { disabled_houses?: string[]; pa_only?: boolean };
     disabledHouses = (body.disabled_houses ?? []).map(h => h.toLowerCase());
+    paOnly = body.pa_only ?? false;
   } catch { /* vazio */ }
 
   const disabledSet = new Set(disabledHouses);
 
   try {
-    const sb   = await getSupabaseAdmin();
-    const now  = new Date();
-
-    // Pega todos os eventos do dia com odds no cache (sem filtro de tempo —
-    // o usuário vê os dados mais recentes disponíveis e o frontend informa a idade)
+    const sb  = await getSupabaseAdmin();
+    const now = new Date();
     const today = now.toISOString().slice(0, 10);
-    const { data: oddsRows, error } = await sb
+
+    // Pega IDs dos eventos de futebol de hoje
+    const { data: footballEvents } = await sb
+      .from('sm_events')
+      .select('id, league, start_utc')
+      .eq('event_date', today)
+      .or('sport.ilike.%futebo%,sport.ilike.%soccer%,sport.ilike.%football%');
+
+    const eventMeta = new Map<string, { league: string; start_utc: string }>();
+    const footballIds: string[] = [];
+
+    for (const e of (footballEvents ?? [])) {
+      eventMeta.set(e.id, { league: e.league ?? '', start_utc: e.start_utc ?? '' });
+      footballIds.push(e.id);
+    }
+
+    // Query odds — se temos IDs de futebol, filtra por eles; caso contrário pega tudo
+    let oddsQuery = sb
       .from('sm_odds')
       .select('event_id, event_name, data, updated_at')
       .order('updated_at', { ascending: false })
       .limit(500);
 
-    if (error) {
-      return NextResponse.json({ ok: false, error: error.message });
+    if (footballIds.length > 0) {
+      oddsQuery = oddsQuery.in('event_id', footballIds);
     }
 
-    // Pega metadados dos eventos (liga, horário)
-    const { data: eventRows } = await sb
-      .from('sm_events')
-      .select('id, league, start_utc')
-      .eq('event_date', today);
+    const { data: oddsRows, error } = await oddsQuery;
 
-    const eventMeta = new Map<string, { league: string; start_utc: string }>();
-    for (const e of (eventRows ?? [])) {
-      eventMeta.set(e.id, { league: e.league ?? '', start_utc: e.start_utc ?? '' });
+    if (error) return NextResponse.json({ ok: false, error: error.message });
+
+    // Se ainda não temos metadados de evento (ex: sm_events vazia), carrega o que tiver
+    if (footballIds.length === 0 && oddsRows?.length) {
+      // Tenta enriquecer com lookup avulso
+      const ids = [...new Set((oddsRows ?? []).map(r => r.event_id))];
+      const { data: extra } = await sb
+        .from('sm_events')
+        .select('id, league, start_utc')
+        .in('id', ids.slice(0, 200));
+      for (const e of (extra ?? [])) {
+        eventMeta.set(e.id, { league: e.league ?? '', start_utc: e.start_utc ?? '' });
+      }
     }
 
-    // Deduplica por event_id (fica com a mais recente, já ordenado)
+    // Processa cada evento
     const seen = new Set<string>();
     const mlAll:   MLSignal[]   = [];
     const golsAll: GolsSignal[] = [];
@@ -328,28 +329,24 @@ export async function POST(req: NextRequest) {
         newestUpdatedAt = row.updated_at;
       }
 
-      const payload = row.data as Record<string, unknown>;
-      const bms     = parseBookmakers(payload, disabledSet);
-      const meta    = eventMeta.get(row.event_id) ?? { league: '', start_utc: '' };
-      const base    = { event_id: row.event_id, event_name: row.event_name, ...meta };
+      const bms  = parseBookmakers(row.data as Record<string, unknown>, disabledSet);
+      const meta = { ...( eventMeta.get(row.event_id) ?? { league: '', start_utc: '' }), event_id: row.event_id, event_name: row.event_name };
 
-      mlAll.push(...computeMLSignals(bms, base));
-      golsAll.push(...computeGolsSignals(bms, base));
+      mlAll.push(...computeMLSignals(bms, meta, paOnly));
+      golsAll.push(...computeGolsSignals(bms, meta));
     }
 
-    // Ordena globalmente por margem / loss%
     mlAll.sort((a, b)   => a.margin   - b.margin);
     golsAll.sort((a, b) => a.loss_pct - b.loss_pct);
 
-    // Calcula idade do cache em minutos
     const cacheAgeMin = newestUpdatedAt
       ? Math.round((now.getTime() - new Date(newestUpdatedAt).getTime()) / 60_000)
       : null;
 
     return NextResponse.json({
       ok:            true,
-      ml:            mlAll.slice(0, 200),
-      gols:          golsAll.slice(0, 200),
+      ml:            mlAll.slice(0, 300),
+      gols:          golsAll.slice(0, 300),
       total_events:  seen.size,
       cache_updated: newestUpdatedAt,
       cache_age_min: cacheAgeMin,
