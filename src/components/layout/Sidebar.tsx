@@ -7,7 +7,7 @@ import {
   LayoutDashboard, Activity, Building2, Wallet,
   BarChart3, ShieldCheck, Receipt, Users, X,
   UserCircle, LogOut, NotebookPen,
-  CalendarDays, Target, UserCog, ChevronDown, ScanSearch, Gift,
+  CalendarDays, Target, UserCog, ChevronDown, ScanSearch, Gift, Zap,
 } from 'lucide-react';
 import { getMySubscription } from '@/lib/supabase/subscription';
 import type { Subscription } from '@/lib/supabase/subscription';
@@ -41,6 +41,7 @@ const NAV_GROUPS: NavGroup[] = [
       { id: 'ops',    label: 'Operações',        icon: <Activity   size={15} strokeWidth={2} /> },
       { id: 'odds',   label: 'Buscar Odds',       icon: <ScanSearch size={15} strokeWidth={2} /> },
       { id: 'freebet',label: 'Converter Freebet', icon: <Gift       size={15} strokeWidth={2} /> },
+      { id: 'duplo',  label: 'Duplo Green',        icon: <Zap        size={15} strokeWidth={2} /> },
     ],
   },
   {

@@ -35,15 +35,33 @@ interface CachedEvent {
 }
 
 interface BMRow {
-  house:   string;
-  pa:      boolean;
-  url?:    string;
-  mlHome?: number;
-  mlDraw?: number;
-  mlAway?: number;
-  dc1X?:   number;
-  dcX2?:   number;
-  dc12?:   number;
+  house:      string;
+  pa:         boolean;
+  url?:       string;
+  // 1X2
+  mlHome?:    number;
+  mlDraw?:    number;
+  mlAway?:    number;
+  // Dupla Chance
+  dc1X?:      number;
+  dcX2?:      number;
+  dc12?:      number;
+  // Totals (Over/Under)
+  ouHdp?:     number;
+  ouOver?:    number;
+  ouUnder?:   number;
+  // Both Teams To Score
+  bttsYes?:   number;
+  bttsNo?:    number;
+  // Draw No Bet
+  dnbHome?:   number;
+  dnbAway?:   number;
+  // Spread (Handicap)
+  spreadHdp?: number;
+  spreadHome?:number;
+  // Primeiro Gol
+  fgHome?:    number;
+  fgAway?:    number;
 }
 
 interface ParsedSearch {
@@ -54,7 +72,9 @@ interface ParsedSearch {
   rows:   BMRow[];
 }
 
-type ColKey = 'mlHome' | 'mlDraw' | 'mlAway' | 'dc1X' | 'dcX2' | 'dc12';
+type ColKey = 'mlHome' | 'mlDraw' | 'mlAway' | 'dc1X' | 'dcX2' | 'dc12'
+            | 'ouOver' | 'ouUnder' | 'bttsYes' | 'bttsNo'
+            | 'dnbHome' | 'dnbAway' | 'spreadHome' | 'fgHome' | 'fgAway';
 
 interface RankLeg {
   house: string;
@@ -149,6 +169,33 @@ function parseSearchResults(raw: unknown): ParsedSearch | null {
           if (!isNaN(x1)  && x1  > 1) row.dc1X  = x1;
           if (!isNaN(x2)  && x2  > 1) row.dcX2  = x2;
           if (!isNaN(d12) && d12 > 1) row.dc12  = d12;
+        } else if (mName === 'totals' || mName.includes('over') || mName.includes('under')) {
+          const ov = parseFloat(String(odds.over  ?? ''));
+          const un = parseFloat(String(odds.under ?? ''));
+          const hd = parseFloat(String(odds.hdp   ?? ''));
+          if (!isNaN(ov) && ov > 1) row.ouOver  = ov;
+          if (!isNaN(un) && un > 1) row.ouUnder = un;
+          if (!isNaN(hd))           row.ouHdp   = hd;
+        } else if (mName.includes('both') || mName.includes('btts') || mName.includes('ambos')) {
+          const y = parseFloat(String(odds.yes ?? ''));
+          const n = parseFloat(String(odds.no  ?? ''));
+          if (!isNaN(y) && y > 1) row.bttsYes = y;
+          if (!isNaN(n) && n > 1) row.bttsNo  = n;
+        } else if (mName.includes('draw no bet') || mName === 'dnb') {
+          const h = parseFloat(String(odds.home ?? ''));
+          const a = parseFloat(String(odds.away ?? ''));
+          if (!isNaN(h) && h > 1) row.dnbHome = h;
+          if (!isNaN(a) && a > 1) row.dnbAway = a;
+        } else if (mName === 'spread' || mName.includes('handicap') || mName.includes('asian')) {
+          const hd = parseFloat(String(odds.hdp  ?? ''));
+          const h  = parseFloat(String(odds.home ?? ''));
+          if (!isNaN(h)  && h  > 1) row.spreadHome = h;
+          if (!isNaN(hd))            row.spreadHdp  = hd;
+        } else if (mName.includes('primeiro gol') || mName.includes('first goal') || mName.includes('primeiro a marcar')) {
+          const h = parseFloat(String(odds.home ?? ''));
+          const a = parseFloat(String(odds.away ?? ''));
+          if (!isNaN(h) && h > 1) row.fgHome = h;
+          if (!isNaN(a) && a > 1) row.fgAway = a;
         }
       }
     }
@@ -164,7 +211,11 @@ function parseSearchResults(raw: unknown): ParsedSearch | null {
 }
 
 function getBests(rows: BMRow[]): Record<ColKey, number | undefined> {
-  const cols: ColKey[] = ['mlHome','mlDraw','mlAway','dc1X','dcX2','dc12'];
+  const cols: ColKey[] = [
+    'mlHome','mlDraw','mlAway','dc1X','dcX2','dc12',
+    'ouOver','ouUnder','bttsYes','bttsNo',
+    'dnbHome','dnbAway','spreadHome','fgHome','fgAway',
+  ];
   const b = {} as Record<ColKey, number | undefined>;
   for (const col of cols) {
     const vals = rows.map(r => r[col]).filter((v): v is number => v != null && v > 1);
@@ -233,6 +284,8 @@ function fmtDate(utc: string) {
 
 const COL_LABELS: Record<ColKey, string> = {
   mlHome: '1', mlDraw: 'X', mlAway: '2', dc1X: '1X', dcX2: 'X2', dc12: '12',
+  ouOver: 'Over', ouUnder: 'Under', bttsYes: 'Sim', bttsNo: 'Não',
+  dnbHome: '1', dnbAway: '2', spreadHome: '1', fgHome: 'Casa', fgAway: 'Fora',
 };
 const ALL_COLS: ColKey[] = ['mlHome','mlDraw','mlAway','dc1X','dcX2','dc12'];
 const ML_COLS:  ColKey[] = ['mlHome','mlDraw','mlAway'];
@@ -1630,6 +1683,8 @@ export function BuscarOddsPage() {
   function handleCellClick(house: string, col: ColKey, val: number) {
     const legMap: Record<ColKey, number> = {
       mlHome: 0, mlDraw: 1, mlAway: 2, dc1X: 0, dcX2: 1, dc12: 2,
+      ouOver: 0, ouUnder: 1, bttsYes: 0, bttsNo: 1,
+      dnbHome: 0, dnbAway: 1, spreadHome: 0, fgHome: 0, fgAway: 1,
     };
     const legIndex = legMap[col];
     // Build 3-way ML odds: clicked value for this leg, global best for others
