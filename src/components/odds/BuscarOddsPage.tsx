@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import {
   ScanSearch, Search, X, Building2, Filter, RefreshCw,
-  ChevronDown, ChevronUp, Star, ExternalLink,
+  ChevronDown, ChevronUp, Star, ExternalLink, Trophy, Loader2, ChevronRight,
 } from 'lucide-react';
 import { SurebetCalc, ALL_HOUSES } from '@/components/calcalendario/SurebetCalc';
 
@@ -803,6 +803,139 @@ function HouseFilterPanel({
   );
 }
 
+// ── Today's games grid ────────────────────────────────────────────────────────
+
+function TodayGamesGrid({
+  events, loading, error, onSelect, onRetry,
+}: {
+  events:   CachedEvent[];
+  loading:  boolean;
+  error:    string;
+  onSelect: (ev: CachedEvent) => void;
+  onRetry:  () => void;
+}) {
+  // Group by league, sort within each by time
+  const grouped = useMemo(() => {
+    const map = new Map<string, CachedEvent[]>();
+    for (const ev of events) {
+      const key = ev.league || 'Outros';
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(ev);
+    }
+    // Sort events within each league by start time
+    for (const arr of map.values()) {
+      arr.sort((a, b) => new Date(a.start_utc).getTime() - new Date(b.start_utc).getTime());
+    }
+    // Sort leagues by earliest event time
+    return [...map.entries()].sort(([, a], [, b]) =>
+      new Date(a[0].start_utc).getTime() - new Date(b[0].start_utc).getTime()
+    );
+  }, [events]);
+
+  if (loading) {
+    return (
+      <div className="rounded-2xl p-8 flex flex-col items-center gap-3"
+        style={{ background: 'var(--bg2)', border: '1px solid var(--b)' }}>
+        <Loader2 size={22} className="animate-spin" style={{ color: 'var(--g)' }} />
+        <span className="text-xs font-bold" style={{ color: 'var(--t3)' }}>Carregando jogos do dia...</span>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="rounded-2xl p-6 flex flex-col items-center gap-3 text-center"
+        style={{ background: 'var(--bg2)', border: '1px solid var(--b)' }}>
+        <span className="text-xs font-bold" style={{ color: 'var(--r)' }}>Não foi possível carregar os jogos</span>
+        <button type="button" onClick={onRetry}
+          className="text-xs font-bold px-3 py-1.5 rounded-lg"
+          style={{ background: 'rgba(255,255,255,.06)', color: 'var(--t3)', border: '1px solid var(--b)' }}>
+          Tentar novamente
+        </button>
+      </div>
+    );
+  }
+
+  if (!grouped.length) return null;
+
+  return (
+    <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid var(--b)' }}>
+      {/* Header */}
+      <div className="px-5 py-3.5 flex items-center justify-between"
+        style={{ background: 'var(--bg2)', borderBottom: '1px solid var(--b)' }}>
+        <div>
+          <span className="text-sm font-black" style={{ color: 'var(--t)' }}>Jogos de Hoje</span>
+          <span className="text-[10px] ml-2 font-bold px-2 py-0.5 rounded-md"
+            style={{ background: 'rgba(63,255,33,.08)', color: 'var(--g)', border: '1px solid rgba(63,255,33,.15)' }}>
+            {events.length} evento{events.length !== 1 ? 's' : ''}
+          </span>
+        </div>
+        <span className="text-[10px]" style={{ color: 'var(--t3)' }}>
+          Clique em um jogo para ver as odds
+        </span>
+      </div>
+
+      {/* Leagues + events */}
+      <div style={{ maxHeight: 480, overflowY: 'auto' }}>
+        {grouped.map(([league, evs]) => (
+          <div key={league}>
+            {/* League header */}
+            <div className="flex items-center gap-2 px-4 py-2 sticky top-0"
+              style={{ background: 'oklch(14% 0.007 250)', borderBottom: '1px solid rgba(255,255,255,.05)', zIndex: 1 }}>
+              <Trophy size={10} style={{ color: 'var(--t3)', opacity: 0.6 }} />
+              <span className="text-[10px] font-black uppercase tracking-wider" style={{ color: 'var(--t3)' }}>
+                {league}
+              </span>
+              <span className="text-[9px] font-bold ml-auto" style={{ color: 'var(--t3)', opacity: 0.5 }}>
+                {evs.length} jogo{evs.length !== 1 ? 's' : ''}
+              </span>
+            </div>
+
+            {/* Event rows */}
+            {evs.map((ev, idx) => (
+              <button
+                key={ev.id}
+                type="button"
+                onClick={() => onSelect(ev)}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-all"
+                style={{
+                  background: idx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,.015)',
+                  borderBottom: '1px solid rgba(255,255,255,.04)',
+                }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(63,255,33,.05)'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = idx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,.015)'; }}
+              >
+                {/* Time */}
+                <span className="text-[11px] font-black tabular-nums flex-shrink-0 w-10 text-right"
+                  style={{ color: 'var(--g)', fontFamily: "'JetBrains Mono', monospace" }}>
+                  {fmtTime(ev.start_utc)}
+                </span>
+
+                {/* Event name */}
+                <span className="flex-1 text-xs font-bold truncate" style={{ color: 'var(--t)' }}>
+                  {ev.name}
+                </span>
+
+                {/* House count */}
+                {ev.house_count > 0 && (
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <Building2 size={10} style={{ color: '#818cf8', opacity: 0.7 }} />
+                    <span className="text-[10px] font-bold" style={{ color: '#818cf8', opacity: 0.7 }}>
+                      {ev.house_count}
+                    </span>
+                  </div>
+                )}
+
+                <ChevronRight size={12} style={{ color: 'var(--t3)', opacity: 0.3, flexShrink: 0 }} />
+              </button>
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── Main page ──────────────────────────────────────────────────────────────────
 
 export function BuscarOddsPage() {
@@ -1407,18 +1540,15 @@ export function BuscarOddsPage() {
         </div>
       )}
 
-      {/* ── Odds table ── */}
+      {/* ── Today's games (shown while no event is selected) ── */}
       {!selectedEvent && !oddsLoading && !parsed && !oddsErr && (
-        <div className="rounded-2xl p-12 text-center flex flex-col items-center gap-4"
-          style={{ background: 'var(--bg2)', border: '1px solid var(--b)' }}>
-          <ScanSearch size={36} style={{ color: 'var(--t3)' }} />
-          <div>
-            <p className="text-sm font-bold" style={{ color: 'var(--t2)' }}>Selecione um evento acima</p>
-            <p className="text-xs mt-1" style={{ color: 'var(--t3)' }}>
-              As odds de todas as casas aparecerão aqui, separadas por SEM PA e COM PA
-            </p>
-          </div>
-        </div>
+        <TodayGamesGrid
+          events={events}
+          loading={evLoading}
+          error={evErr}
+          onSelect={handleSelect}
+          onRetry={loadEvents}
+        />
       )}
 
       {oddsLoading && (
