@@ -507,13 +507,13 @@ function ProfitToast({ sig, onDismiss }: { sig: MLSignal; onDismiss: () => void 
 // ── Filter panel ──────────────────────────────────────────────────────────────
 
 function FilterPanel({
-  disabled, onToggle, onReset, paOnly, onPaToggle,
+  disabled, onToggle, onReset, paMode, onPaMode,
 }: {
   disabled: Set<string>;
   onToggle: (h: string) => void;
   onReset: () => void;
-  paOnly: boolean;
-  onPaToggle: () => void;
+  paMode: PaMode;
+  onPaMode: (m: PaMode) => void;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -541,14 +541,13 @@ function FilterPanel({
       >
         <Filter size={12} />
         Filtros
-        {disabled.size > 0 && (
-          <span style={{
-            fontSize: 9.5, fontWeight: 800, padding: '0 5px', borderRadius: 8,
-            background: 'rgba(63,255,33,.2)', color: 'oklch(0.78 0.22 138)',
-          }}>
-            {ALL_HOUSES.length - disabled.size}
-          </span>
-        )}
+        <span style={{
+          fontSize: 9.5, fontWeight: 800, padding: '0 6px', borderRadius: 6,
+          background: paMode !== 'nenhum' ? 'rgba(63,255,33,.18)' : 'rgba(255,255,255,.08)',
+          color: paMode !== 'nenhum' ? 'oklch(0.78 0.22 138)' : 'rgba(255,255,255,.4)',
+        }}>
+          PA: {paMode === 'ambos' ? '2x' : paMode === 'um' ? '1x' : 'off'}
+        </span>
         <ChevronDown size={11} style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }} />
       </button>
 
@@ -561,36 +560,39 @@ function FilterPanel({
           borderRadius: 14,
           boxShadow: '0 24px 64px rgba(0,0,0,.75)',
         }}>
-          {/* PA Only toggle */}
-          <div style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            marginBottom: 16, paddingBottom: 14,
-            borderBottom: '1px solid rgba(255,255,255,.07)',
-          }}>
-            <div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: 'oklch(0.92 0.005 250)' }}>
-                Apenas Pagamento Antecipado
-              </div>
-              <div style={{ fontSize: 10.5, color: 'rgba(255,255,255,.38)', marginTop: 2 }}>
-                Filtra pernas 1 e 2 para casas PA
-              </div>
+          {/* PA Mode segmented control */}
+          <div style={{ marginBottom: 16, paddingBottom: 14, borderBottom: '1px solid rgba(255,255,255,.07)' }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'oklch(0.92 0.005 250)', marginBottom: 10 }}>
+              Pagamento Antecipado
             </div>
-            <button
-              onClick={onPaToggle}
-              style={{
-                width: 42, height: 24, borderRadius: 12, border: 'none',
-                background: paOnly ? 'oklch(0.78 0.22 138)' : 'rgba(255,255,255,.1)',
-                cursor: 'pointer', position: 'relative', flexShrink: 0,
-                transition: 'background .2s',
-              }}
-            >
-              <span style={{
-                position: 'absolute', top: 3, left: paOnly ? 21 : 3,
-                width: 18, height: 18, borderRadius: '50%',
-                background: paOnly ? 'oklch(0.12 0.01 138)' : 'rgba(255,255,255,.4)',
-                transition: 'left .2s', display: 'block',
-              }} />
-            </button>
+            <div style={{ display: 'flex', gap: 4 }}>
+              {(['ambos', 'um', 'nenhum'] as const).map(mode => {
+                const labels: Record<PaMode, string> = {
+                  ambos:  'Dois lados',
+                  um:     'Um lado',
+                  nenhum: 'Qualquer',
+                };
+                const active = paMode === mode;
+                return (
+                  <button key={mode} type="button" onClick={() => onPaMode(mode)} style={{
+                    flex: 1, padding: '7px 0', borderRadius: 7, fontSize: 11, fontWeight: 700,
+                    background: active ? 'rgba(63,255,33,.12)' : 'rgba(255,255,255,.04)',
+                    border: `1px solid ${active ? 'rgba(63,255,33,.32)' : 'rgba(255,255,255,.07)'}`,
+                    color: active ? 'oklch(0.78 0.22 138)' : 'rgba(255,255,255,.35)',
+                    cursor: 'pointer', transition: 'all .15s',
+                  }}>
+                    {labels[mode]}
+                  </button>
+                );
+              })}
+            </div>
+            <div style={{ fontSize: 10, color: 'rgba(255,255,255,.3)', marginTop: 7, lineHeight: 1.5 }}>
+              {paMode === 'ambos'
+                ? 'As três pernas precisam ser de casas PA'
+                : paMode === 'um'
+                ? 'Pelo menos uma perna precisa ser de casa PA'
+                : 'Sem filtro de pagamento antecipado'}
+            </div>
           </div>
 
           {/* PA houses */}
@@ -819,6 +821,7 @@ function HouseFilterDrawer({ disabled, onToggle, onSelectAll, onClear, onClose }
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 type SortOrder = 'melhor' | 'pior' | 'recentes' | 'antigos';
+type PaMode    = 'ambos' | 'um' | 'nenhum';
 
 export function DuploGreenPage() {
   const [signals,        setSignals]        = useState<MLSignal[]>([]);
@@ -826,7 +829,7 @@ export function DuploGreenPage() {
   const [error,          setError]          = useState('');
   const [meta,           setMeta]           = useState({ total: 0, computedAt: '', cacheAgeMin: null as number | null });
   const [disabled,       setDisabled]       = useState<Set<string>>(new Set());
-  const [paOnly,         setPaOnly]         = useState(false);
+  const [paMode,         setPaMode]         = useState<PaMode>('ambos');
   const [sortOrder,      setSortOrder]      = useState<SortOrder>('melhor');
   const [countdown,      setCountdown]      = useState(30);
   const [toast,          setToast]          = useState<MLSignal | null>(null);
@@ -847,7 +850,7 @@ export function DuploGreenPage() {
       const res  = await fetch('/api/supermonitor/duplo-green', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ disabled_houses: Array.from(disabled), pa_only: paOnly }),
+        body: JSON.stringify({ disabled_houses: Array.from(disabled), pa_only: paMode === 'ambos' }),
       });
       const json = await res.json() as {
         ok: boolean; error?: string;
@@ -888,7 +891,7 @@ export function DuploGreenPage() {
       setLoading(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [Array.from(disabled).sort().join(','), paOnly]);
+  }, [Array.from(disabled).sort().join(','), paMode]);
 
   useEffect(() => { fetchSignals(false); }, []); // eslint-disable-line
   useEffect(() => {
@@ -900,7 +903,7 @@ export function DuploGreenPage() {
     return () => clearInterval(id);
   }, []);
 
-  const filterKey = Array.from(disabled).sort().join(',') + String(paOnly);
+  const filterKey = Array.from(disabled).sort().join(',') + paMode;
   useEffect(() => { fetchSignals(false); }, [filterKey]); // eslint-disable-line
 
   // ── Sorted + filtered signals ─────────────────────────────────────────────
@@ -909,13 +912,17 @@ export function DuploGreenPage() {
   const NEW_TTL = 15_000;
 
   const sorted = useMemo(() => {
-    const visible = signals.filter(s => !skipped.has(s._key!));
-    if (sortOrder === 'melhor')  return [...visible].sort((a, b) => a.loss_pct - b.loss_pct);
-    if (sortOrder === 'pior')    return [...visible].sort((a, b) => b.loss_pct - a.loss_pct);
+    let visible = signals.filter(s => !skipped.has(s._key!));
+    // Client-side PA filter (server handles 'ambos' via pa_only=true; 'um' needs client filter)
+    if (paMode === 'um') {
+      visible = visible.filter(s => s.leg1.pa || s.legX.pa || s.leg2.pa);
+    }
+    if (sortOrder === 'melhor')   return [...visible].sort((a, b) => a.loss_pct - b.loss_pct);
+    if (sortOrder === 'pior')     return [...visible].sort((a, b) => b.loss_pct - a.loss_pct);
     if (sortOrder === 'recentes') return [...visible].sort((a, b) => new Date(b.start_utc).getTime() - new Date(a.start_utc).getTime());
     if (sortOrder === 'antigos')  return [...visible].sort((a, b) => new Date(a.start_utc).getTime() - new Date(b.start_utc).getTime());
     return visible;
-  }, [signals, sortOrder, skipped]);
+  }, [signals, sortOrder, skipped, paMode]);
 
   const profitCount = useMemo(() => sorted.filter(s => s.loss_pct <= 0).length, [sorted]);
   const evCount     = useMemo(() => new Set(sorted.map(s => s.event_id)).size, [sorted]);
@@ -1031,8 +1038,8 @@ export function DuploGreenPage() {
               disabled={disabled}
               onToggle={h => setDisabled(prev => { const n = new Set(prev); n.has(h) ? n.delete(h) : n.add(h); return n; })}
               onReset={() => setDisabled(new Set())}
-              paOnly={paOnly}
-              onPaToggle={() => setPaOnly(v => !v)}
+              paMode={paMode}
+              onPaMode={setPaMode}
             />
           </div>
         </div>
