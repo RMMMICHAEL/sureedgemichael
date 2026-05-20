@@ -904,18 +904,25 @@ export function DuploGreenPage() {
     setError('');
     setCountdown(30);
     try {
-      const res  = await fetch('/api/supermonitor/duplo-green', {
+      const res  = await fetch('/api/supermonitor/duplo-signals', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ disabled_houses: Array.from(disabled), pa_only: paMode === 'ambos' }),
+        body: JSON.stringify({
+          disabled_houses: Array.from(disabled),
+          pa_mode: paMode,
+        }),
       });
       const json = await res.json() as {
-        ok: boolean; error?: string;
+        ok: boolean; error?: string; hint?: string;
         ml?: MLSignal[];
         total_events?: number; computed_at?: string;
         cache_age_min?: number | null;
       };
-      if (!json.ok) { setError(json.error ?? 'Erro desconhecido'); return; }
+      if (!json.ok) {
+        const msg = json.hint ?? json.error ?? 'Erro desconhecido';
+        setError(msg);
+        return;
+      }
 
       const nowTs = Date.now();
       const incoming = (json.ml ?? []).map(s => ({ ...s, _key: mlKey(s) }));
