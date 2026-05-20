@@ -1,0 +1,494 @@
+{
+  "name": "SurEdge — Gerador de Vídeos Runway Gen-4",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## ⚙️ CONFIGURAÇÃO — LEIA ANTES DE USAR\n\n**1. Credenciais a configurar no n8n:**\n- `Google Sheets OAuth2` → nos nodes de leitura/atualização\n- `Google Drive OAuth2` → no node de upload\n- `Runway API Key` → substituir `SEU_RUNWAY_API_KEY` nos nodes HTTP\n\n**2. Estrutura da planilha Google Sheets (aba: Vídeos):**\n```\n| id | titulo        | image_url            | prompt                  | status    | task_id | video_url |\n|----|---------------|----------------------|-------------------------|-----------|---------|----------|\n| 1  | Criativo_01   | https://drive.../img | cinematic dark scene... | pendente  |         |          |\n| 2  | Criativo_02   | https://drive.../img | neon lights, fast...    | pendente  |         |          |\n```\n\n**3. Substituir os placeholders:**\n- `SEU_GOOGLE_SHEET_ID` → ID da sua planilha (na URL)\n- `SEU_RUNWAY_API_KEY` → chave em https://app.runwayml.com/settings/api-keys\n- `SUA_PASTA_DRIVE_ID` → ID da pasta de destino no Drive\n\n**4. Tempo médio:** ~4 min por vídeo de 5 segundos\n\n**Como usar:**\n1. Preencha a planilha com `status = pendente`\n2. Clique em ▶ Iniciar\n3. Vídeos aparecem no Drive automaticamente ✅",
+        "height": 500,
+        "width": 560,
+        "color": 4
+      },
+      "id": "note-setup",
+      "name": "📋 Configuração",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-340, 100]
+    },
+    {
+      "parameters": {},
+      "id": "trigger-manual",
+      "name": "▶ Iniciar",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [260, 400]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "SEU_GOOGLE_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Vídeos",
+          "mode": "name"
+        },
+        "options": {
+          "range": "A:I"
+        }
+      },
+      "id": "sheets-read",
+      "name": "📋 Ler Planilha",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [480, 400],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "CREDENTIAL_SHEETS",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "filter-pendente",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "pendente",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "filter-pendente",
+      "name": "🔍 Filtrar Pendentes",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [700, 400]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "loop-items",
+      "name": "🔄 Loop por Vídeo",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [920, 400]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "var-id",
+              "name": "linhaId",
+              "value": "={{ $json.id }}",
+              "type": "string"
+            },
+            {
+              "id": "var-titulo",
+              "name": "titulo",
+              "value": "={{ $json.titulo }}",
+              "type": "string"
+            },
+            {
+              "id": "var-image",
+              "name": "imageUrl",
+              "value": "={{ $json.image_url }}",
+              "type": "string"
+            },
+            {
+              "id": "var-prompt",
+              "name": "videoPrompt",
+              "value": "={{ $json.prompt }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "set-vars",
+      "name": "📌 Extrair Dados",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [1140, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.dev.runwayml.com/v1/image_to_video",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer SEU_RUNWAY_API_KEY"
+            },
+            {
+              "name": "X-Runway-Version",
+              "value": "2024-11-06"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"gen4_turbo\",\n  \"promptImage\": \"{{ $json.imageUrl }}\",\n  \"promptText\": \"{{ $json.videoPrompt }}\",\n  \"ratio\": \"768:1280\",\n  \"duration\": 5\n}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "runway-create",
+      "name": "🎬 Criar Task Runway",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1360, 400]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "SEU_GOOGLE_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Vídeos",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{ $('📌 Extrair Dados').item.json.linhaId }}",
+            "status": "processando",
+            "task_id": "={{ $json.id }}"
+          },
+          "matchingColumns": ["id"],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "sheets-update-task",
+      "name": "💾 Salvar Task ID",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [1580, 400],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "CREDENTIAL_SHEETS",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resume": "timeInterval",
+        "amount": 4,
+        "unit": "minutes"
+      },
+      "id": "wait-4min",
+      "name": "⏳ Aguardar 4 min",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [1800, 400],
+      "webhookId": "wait-webhook-uuid"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.dev.runwayml.com/v1/tasks/{{ $('💾 Salvar Task ID').item.json.task_id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer SEU_RUNWAY_API_KEY"
+            },
+            {
+              "name": "X-Runway-Version",
+              "value": "2024-11-06"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "runway-check",
+      "name": "🔍 Verificar Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [2020, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "check-succeeded",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "SUCCEEDED",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-succeeded",
+      "name": "✅ Vídeo Pronto?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2240, 400]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.output[0] }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "data"
+            }
+          }
+        }
+      },
+      "id": "download-video",
+      "name": "⬇️ Baixar Vídeo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [2460, 280]
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "name": "={{ $('📌 Extrair Dados').item.json.titulo }}.mp4",
+        "folderId": {
+          "__rl": true,
+          "value": "SUA_PASTA_DRIVE_ID",
+          "mode": "id"
+        },
+        "binaryData": true,
+        "binaryPropertyName": "data",
+        "options": {}
+      },
+      "id": "drive-upload",
+      "name": "📁 Salvar no Drive",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [2680, 280],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "CREDENTIAL_DRIVE",
+          "name": "Google Drive"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "SEU_GOOGLE_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Vídeos",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{ $('📌 Extrair Dados').item.json.linhaId }}",
+            "status": "concluido",
+            "video_url": "={{ $json.webViewLink }}"
+          },
+          "matchingColumns": ["id"],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "sheets-done",
+      "name": "✅ Marcar Concluído",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [2900, 280],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "CREDENTIAL_SHEETS",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "SEU_GOOGLE_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Vídeos",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{ $('📌 Extrair Dados').item.json.linhaId }}",
+            "status": "=erro — {{ $('🔍 Verificar Status').item.json.status }}"
+          },
+          "matchingColumns": ["id"],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "sheets-error",
+      "name": "❌ Marcar Erro",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [2460, 540],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "CREDENTIAL_SHEETS",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## 🎬 Fluxo de Sucesso\n1. Baixa o vídeo .mp4 da URL do Runway\n2. Faz upload para sua pasta no Drive\n3. Salva o link na planilha\n4. Status → **concluido** ✅",
+        "height": 200,
+        "width": 340,
+        "color": 3
+      },
+      "id": "note-success",
+      "name": "Sticky Note Success",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [2460, 60]
+    },
+    {
+      "parameters": {
+        "content": "## ❌ Fluxo de Erro\nSe o Runway retornar FAILED,\no status na planilha vira:\n`erro — FAILED`\n\nVocê pode aumentar o tempo de\nespera (Wait) para 6-8 min se\nestiver recebendo muitos erros.",
+        "height": 200,
+        "width": 300,
+        "color": 2
+      },
+      "id": "note-error",
+      "name": "Sticky Note Error",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [2460, 720]
+    }
+  ],
+  "connections": {
+    "▶ Iniciar": {
+      "main": [
+        [{ "node": "📋 Ler Planilha", "type": "main", "index": 0 }]
+      ]
+    },
+    "📋 Ler Planilha": {
+      "main": [
+        [{ "node": "🔍 Filtrar Pendentes", "type": "main", "index": 0 }]
+      ]
+    },
+    "🔍 Filtrar Pendentes": {
+      "main": [
+        [{ "node": "🔄 Loop por Vídeo", "type": "main", "index": 0 }]
+      ]
+    },
+    "🔄 Loop por Vídeo": {
+      "main": [
+        [{ "node": "📌 Extrair Dados", "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "📌 Extrair Dados": {
+      "main": [
+        [{ "node": "🎬 Criar Task Runway", "type": "main", "index": 0 }]
+      ]
+    },
+    "🎬 Criar Task Runway": {
+      "main": [
+        [{ "node": "💾 Salvar Task ID", "type": "main", "index": 0 }]
+      ]
+    },
+    "💾 Salvar Task ID": {
+      "main": [
+        [{ "node": "⏳ Aguardar 4 min", "type": "main", "index": 0 }]
+      ]
+    },
+    "⏳ Aguardar 4 min": {
+      "main": [
+        [{ "node": "🔍 Verificar Status", "type": "main", "index": 0 }]
+      ]
+    },
+    "🔍 Verificar Status": {
+      "main": [
+        [{ "node": "✅ Vídeo Pronto?", "type": "main", "index": 0 }]
+      ]
+    },
+    "✅ Vídeo Pronto?": {
+      "main": [
+        [{ "node": "⬇️ Baixar Vídeo", "type": "main", "index": 0 }],
+        [{ "node": "❌ Marcar Erro", "type": "main", "index": 0 }]
+      ]
+    },
+    "⬇️ Baixar Vídeo": {
+      "main": [
+        [{ "node": "📁 Salvar no Drive", "type": "main", "index": 0 }]
+      ]
+    },
+    "📁 Salvar no Drive": {
+      "main": [
+        [{ "node": "✅ Marcar Concluído", "type": "main", "index": 0 }]
+      ]
+    },
+    "✅ Marcar Concluído": {
+      "main": [
+        [{ "node": "🔄 Loop por Vídeo", "type": "main", "index": 0 }]
+      ]
+    },
+    "❌ Marcar Erro": {
+      "main": [
+        [{ "node": "🔄 Loop por Vídeo", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "suredge-runway-v1"
+}

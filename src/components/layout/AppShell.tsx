@@ -20,7 +20,6 @@ import { AdminPage }         from '@/components/admin/AdminPage';
 import { PerfilPage }      from '@/components/perfil/PerfilPage';
 import { NotasPage }           from '@/components/notas/NotasPage';
 import { FreebetConverterPage } from '@/components/freebet/FreebetConverterPage';
-import { DuploGreenPage }      from '@/components/duplo/DuploGreenPage';
 import { ResumoPage }      from '@/components/resumo/ResumoPage';
 import { MetasPage }       from '@/components/metas/MetasPage';
 import { OperadoresPage }  from '@/components/operadores/OperadoresPage';
@@ -217,7 +216,6 @@ export function AppShell() {
             {view === 'odds'      && <BuscarOddsPage />}
             {view === 'notas'      && <NotasPage />}
             {view === 'freebet'    && <FreebetConverterPage />}
-            {view === 'duplo'      && <DuploGreenPage />}
             {view === 'resumo'     && <ResumoPage />}
             {view === 'metas'      && <MetasPage />}
             {view === 'operadores' && <OperadoresPage />}
