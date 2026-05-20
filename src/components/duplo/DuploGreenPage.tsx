@@ -908,11 +908,17 @@ export function DuploGreenPage() {
 
   // ── Sorted + filtered signals ─────────────────────────────────────────────
 
-  const now = Date.now();
+  const now     = Date.now();
   const NEW_TTL = 15_000;
 
   const sorted = useMemo(() => {
-    let visible = signals.filter(s => !skipped.has(s._key!));
+    const nowMs = Date.now();
+    let visible = signals.filter(s => {
+      if (skipped.has(s._key!)) return false;
+      // Remove jogos encerrados (mais de 90 min desde o início)
+      if (s.start_utc && new Date(s.start_utc).getTime() < nowMs - 90 * 60_000) return false;
+      return true;
+    });
     // Client-side PA filter (server handles 'ambos' via pa_only=true; 'um' needs client filter)
     if (paMode === 'um') {
       visible = visible.filter(s => s.leg1.pa || s.legX.pa || s.leg2.pa);
