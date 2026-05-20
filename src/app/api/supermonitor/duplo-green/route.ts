@@ -289,15 +289,15 @@ export async function POST(req: NextRequest) {
   try {
     const sb   = await getSupabaseAdmin();
     const now  = new Date();
-    const cutoff = new Date(now.getTime() - 20 * 60 * 1000).toISOString(); // 20 min
 
-    // Pega todos os eventos do dia com odds recentes no cache
+    // Pega todos os eventos do dia com odds no cache (sem filtro de tempo —
+    // o usuário vê os dados mais recentes disponíveis e o frontend informa a idade)
     const today = now.toISOString().slice(0, 10);
     const { data: oddsRows, error } = await sb
       .from('sm_odds')
       .select('event_id, event_name, data, updated_at')
-      .gte('updated_at', cutoff)
-      .order('updated_at', { ascending: false });
+      .order('updated_at', { ascending: false })
+      .limit(500);
 
     if (error) {
       return NextResponse.json({ ok: false, error: error.message });
@@ -318,10 +318,15 @@ export async function POST(req: NextRequest) {
     const seen = new Set<string>();
     const mlAll:   MLSignal[]   = [];
     const golsAll: GolsSignal[] = [];
+    let newestUpdatedAt = '';
 
     for (const row of (oddsRows ?? [])) {
       if (seen.has(row.event_id)) continue;
       seen.add(row.event_id);
+
+      if (!newestUpdatedAt || row.updated_at > newestUpdatedAt) {
+        newestUpdatedAt = row.updated_at;
+      }
 
       const payload = row.data as Record<string, unknown>;
       const bms     = parseBookmakers(payload, disabledSet);
@@ -336,12 +341,19 @@ export async function POST(req: NextRequest) {
     mlAll.sort((a, b)   => a.margin   - b.margin);
     golsAll.sort((a, b) => a.loss_pct - b.loss_pct);
 
+    // Calcula idade do cache em minutos
+    const cacheAgeMin = newestUpdatedAt
+      ? Math.round((now.getTime() - new Date(newestUpdatedAt).getTime()) / 60_000)
+      : null;
+
     return NextResponse.json({
-      ok:           true,
-      ml:           mlAll.slice(0, 200),
-      gols:         golsAll.slice(0, 200),
-      total_events: seen.size,
-      computed_at:  now.toISOString(),
+      ok:            true,
+      ml:            mlAll.slice(0, 200),
+      gols:          golsAll.slice(0, 200),
+      total_events:  seen.size,
+      cache_updated: newestUpdatedAt,
+      cache_age_min: cacheAgeMin,
+      computed_at:   now.toISOString(),
     });
 
   } catch (err: unknown) {

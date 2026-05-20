@@ -464,7 +464,7 @@ function HouseFilter({
 
 // ── Estado de carregamento / erro ─────────────────────────────────────────────
 
-function EmptyState({ loading, error, tab }: { loading: boolean; error: string; tab: string }) {
+function EmptyState({ loading, error, tab, totalEvents }: { loading: boolean; error: string; tab: string; totalEvents: number }) {
   if (loading) return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, padding: '60px 0', color: 'var(--t3)' }}>
       <Loader2 size={28} style={{ animation: 'spin 1s linear infinite', color: 'var(--g)' }} />
@@ -480,8 +480,16 @@ function EmptyState({ loading, error, tab }: { loading: boolean; error: string; 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, padding: '60px 0', color: 'var(--t3)' }}>
       <Target size={28} style={{ opacity: .4 }} />
-      <span style={{ fontSize: 13 }}>Nenhum sinal de {tab} encontrado ainda.</span>
-      <span style={{ fontSize: 11, opacity: .6 }}>Certifique-se de que o cache está atualizado (renew-cookie.mjs rodando no PC).</span>
+      {totalEvents === 0
+        ? <>
+            <span style={{ fontSize: 13 }}>Cache vazio — nenhum dado de odds encontrado.</span>
+            <span style={{ fontSize: 11, opacity: .6 }}>Aguarde o renew-cookie.mjs rodar no PC ou abra o Buscar Odds e selecione um evento.</span>
+          </>
+        : <>
+            <span style={{ fontSize: 13 }}>Nenhum sinal de {tab} encontrado nos {totalEvents} eventos.</span>
+            <span style={{ fontSize: 11, opacity: .6 }}>As odds atuais não formam oportunidades de duplo green com as casas selecionadas.</span>
+          </>
+      }
     </div>
   );
 }
@@ -496,6 +504,7 @@ export function DuploGreenPage() {
   const [error,         setError]        = useState('');
   const [computedAt,    setComputedAt]   = useState('');
   const [totalEvents,   setTotalEvents]  = useState(0);
+  const [cacheAgeMin,   setCacheAgeMin]  = useState<number | null>(null);
   const [disabledHouses, setDisabledHouses] = useState<Set<string>>(new Set());
   const [countdown,     setCountdown]   = useState(30);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -517,12 +526,14 @@ export function DuploGreenPage() {
         ok: boolean; error?: string;
         ml?: MLSignal[]; gols?: GolsSignal[];
         total_events?: number; computed_at?: string;
+        cache_age_min?: number | null;
       };
       if (!json.ok) { setError(json.error ?? 'Erro desconhecido'); return; }
       setMlSignals(json.ml   ?? []);
       setGolsSignals(json.gols ?? []);
       setTotalEvents(json.total_events ?? 0);
       setComputedAt(json.computed_at ?? '');
+      setCacheAgeMin(json.cache_age_min ?? null);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Erro de conexão');
     } finally {
@@ -589,12 +600,24 @@ export function DuploGreenPage() {
                 Duplo Green
               </h1>
             </div>
-            {totalEvents > 0 && (
-              <div style={{ fontSize: 11, color: 'var(--t3)', marginTop: 4 }}>
-                {totalEvents} eventos analisados
-                {lastUpdate && <> · atualizado às <span style={{ color: 'var(--t2)' }}>{lastUpdate}</span></>}
-              </div>
-            )}
+            <div style={{ fontSize: 11, color: 'var(--t3)', marginTop: 4, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+              {totalEvents > 0
+                ? <span>{totalEvents} eventos analisados</span>
+                : <span>Aguardando dados…</span>
+              }
+              {lastUpdate && <><span style={{ opacity: .4 }}>·</span><span>às <span style={{ color: 'var(--t2)' }}>{lastUpdate}</span></span></>}
+              {cacheAgeMin !== null && cacheAgeMin > 15 && (
+                <span style={{
+                  fontSize: 10, fontWeight: 700, letterSpacing: '.3px',
+                  padding: '1px 7px', borderRadius: 5,
+                  background: cacheAgeMin > 60 ? 'rgba(239,68,68,.12)' : 'rgba(251,191,36,.1)',
+                  border: `1px solid ${cacheAgeMin > 60 ? 'rgba(239,68,68,.3)' : 'rgba(251,191,36,.25)'}`,
+                  color: cacheAgeMin > 60 ? '#f87171' : '#fbbf24',
+                }}>
+                  cache {cacheAgeMin >= 60 ? `${Math.floor(cacheAgeMin/60)}h` : `${cacheAgeMin}m`} atrás
+                </span>
+              )}
+            </div>
           </div>
 
           {/* Controles direita */}
@@ -696,7 +719,7 @@ export function DuploGreenPage() {
         {tab === 'ml' && (
           <>
             {(loading || error || mlVisible.length === 0) ? (
-              <EmptyState loading={loading} error={error} tab="ML" />
+              <EmptyState loading={loading} error={error} tab="ML" totalEvents={totalEvents} />
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 10 }}>
                 {mlVisible.map((sig, i) => <MLCard key={`${sig.event_id}-${sig.leg1.house}-${sig.leg2.house}`} sig={sig} idx={i} />)}
@@ -708,7 +731,7 @@ export function DuploGreenPage() {
         {tab === 'gols' && (
           <>
             {(loading || error || golsVisible.length === 0) ? (
-              <EmptyState loading={loading} error={error} tab="Gols" />
+              <EmptyState loading={loading} error={error} tab="Gols" totalEvents={totalEvents} />
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 10 }}>
                 {golsVisible.map((sig, i) => <GolsCard key={`${sig.event_id}-${sig.over_house}-${sig.under_house}`} sig={sig} idx={i} />)}
