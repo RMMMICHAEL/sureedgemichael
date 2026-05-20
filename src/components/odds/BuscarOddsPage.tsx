@@ -812,7 +812,7 @@ function parseTeams(name: string): [string, string] {
   return [name, ''];
 }
 
-/** Retorna estilo do badge de tempo baseado em quanto falta */
+/** Retorna estilo do badge de tempo */
 function getTimeBadge(utc: string): { label: string; color: string; bg: string; border: string; live?: boolean } {
   const ms = new Date(utc).getTime() - Date.now();
   if (ms < -60 * 60_000)   return { label: fmtTime(utc), color: 'rgba(255,255,255,.25)', bg: 'rgba(255,255,255,.04)', border: 'rgba(255,255,255,.06)' };
@@ -822,30 +822,72 @@ function getTimeBadge(utc: string): { label: string; color: string; bg: string; 
   return                           { label: fmtTime(utc), color: 'rgba(255,255,255,.4)',  bg: 'rgba(255,255,255,.03)', border: 'rgba(255,255,255,.06)' };
 }
 
-function TodayGamesGrid({
-  events, loading, error, onSelect, onRetry,
-}: {
-  events:   CachedEvent[];
-  loading:  boolean;
-  error:    string;
-  onSelect: (ev: CachedEvent) => void;
-  onRetry:  () => void;
-}) {
-  const now = Date.now();
+/** Metadados estáticos de ligas conhecidas */
+const LEAGUE_META: Record<string, { flag: string; country: string; sport: string }> = {
+  'brasileirao serie a': { flag: '🇧🇷', country: 'Brasil', sport: 'Futebol' },
+  'brasileirao serie b': { flag: '🇧🇷', country: 'Brasil', sport: 'Futebol' },
+  'copa do brasil':      { flag: '🇧🇷', country: 'Brasil', sport: 'Futebol' },
+  'premier league':      { flag: '🏴󠁧󠁢󠁥󠁮󠁧󠁿', country: 'Inglaterra', sport: 'Futebol' },
+  'la liga':             { flag: '🇪🇸', country: 'Espanha', sport: 'Futebol' },
+  'bundesliga':          { flag: '🇩🇪', country: 'Alemanha', sport: 'Futebol' },
+  'serie a':             { flag: '🇮🇹', country: 'Itália', sport: 'Futebol' },
+  'ligue 1':             { flag: '🇫🇷', country: 'França', sport: 'Futebol' },
+  'eredivisie':          { flag: '🇳🇱', country: 'Holanda', sport: 'Futebol' },
+  'primeira liga':       { flag: '🇵🇹', country: 'Portugal', sport: 'Futebol' },
+  'super lig':           { flag: '🇹🇷', country: 'Turquia', sport: 'Futebol' },
+  'mls':                 { flag: '🇺🇸', country: 'Estados Unidos', sport: 'Futebol' },
+  'champions league':    { flag: '🏆', country: 'Europa', sport: 'Futebol' },
+  'europa league':       { flag: '🏆', country: 'Europa', sport: 'Futebol' },
+  'conference league':   { flag: '🏆', country: 'Europa', sport: 'Futebol' },
+  'copa libertadores':   { flag: '🏆', country: 'América do Sul', sport: 'Futebol' },
+  'copa sudamericana':   { flag: '🏆', country: 'América do Sul', sport: 'Futebol' },
+  'nba':                 { flag: '🏀', country: 'Estados Unidos', sport: 'Basquete' },
+  'nfl':                 { flag: '🏈', country: 'Estados Unidos', sport: 'Futebol Americano' },
+  'nhl':                 { flag: '🏒', country: 'Estados Unidos', sport: 'Hóquei' },
+  'mlb':                 { flag: '⚾', country: 'Estados Unidos', sport: 'Beisebol' },
+  'ufc':                 { flag: '🥊', country: 'MMA', sport: 'Artes Marciais' },
+  'tennis':              { flag: '🎾', country: 'Internacional', sport: 'Tênis' },
+};
 
-  // "Em breve" strip — games in next 3h (or live)
-  const soonEvents = useMemo(() =>
-    events
-      .filter(ev => {
-        const ms = new Date(ev.start_utc).getTime() - now;
-        return ms > -60 * 60_000 && ms < 3 * 3600_000;
-      })
-      .slice(0, 10),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+function getLeagueMeta(league: string) {
+  const key = league.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  for (const [k, v] of Object.entries(LEAGUE_META)) {
+    if (key.includes(k) || k.includes(key)) return v;
+  }
+  return { flag: '⚽', country: '', sport: 'Esporte' };
+}
+
+function TodayGamesGrid({
+  events, loading, error, onSelect, onRetry, onLeagueSearch,
+}: {
+  events:          CachedEvent[];
+  loading:         boolean;
+  error:           string;
+  onSelect:        (ev: CachedEvent) => void;
+  onRetry:         () => void;
+  onLeagueSearch?: (league: string) => void;
+}) {
+  const [showAll,       setShowAll]       = useState(false);
+  const [leagueSearch,  setLeagueSearch]  = useState('');
+  const [leagueSort,    setLeagueSort]    = useState<'popular' | 'events'>('popular');
+  const [leagueView,    setLeagueView]    = useState<'list' | 'grid'>('list');
+
+  // Top games by house_count = "melhores jogos do dia"
+  const featuredEvents = useMemo(() =>
+    [...events].sort((a, b) => b.house_count - a.house_count).slice(0, 8),
     [events],
   );
 
-  // Group all events by league, sorted by time
+  // Count live events
+  const liveCount = useMemo(() =>
+    events.filter(ev => {
+      const ms = new Date(ev.start_utc).getTime() - Date.now();
+      return ms < 0 && ms > -60 * 60_000;
+    }).length,
+    [events],
+  );
+
+  // Group events by league
   const grouped = useMemo(() => {
     const map = new Map<string, CachedEvent[]>();
     for (const ev of events) {
@@ -861,22 +903,42 @@ function TodayGamesGrid({
     );
   }, [events]);
 
+  // League stats for the Ligas section
+  const leagueStats = useMemo(() => {
+    const stats = grouped.map(([league, evs]) => ({
+      league,
+      eventCount: evs.length,
+      avgHouseCount: evs.reduce((s, ev) => s + ev.house_count, 0) / evs.length,
+    }));
+    const maxAvg = Math.max(...stats.map(s => s.avgHouseCount), 1);
+    return stats
+      .map(s => ({ ...s, popularity: Math.round((s.avgHouseCount / maxAvg) * 100) }))
+      .filter(s => leagueSearch
+        ? s.league.toLowerCase().includes(leagueSearch.toLowerCase())
+        : true)
+      .sort((a, b) => leagueSort === 'popular'
+        ? b.popularity - a.popularity
+        : b.eventCount - a.eventCount);
+  }, [grouped, leagueSearch, leagueSort]);
+
   // ── Loading skeleton ──────────────────────────────────────────────────────
   if (loading) {
     return (
-      <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid var(--b)' }}>
-        <div className="px-5 py-4 flex items-center gap-3"
-          style={{ background: 'var(--bg2)', borderBottom: '1px solid var(--b)' }}>
-          <Loader2 size={14} className="animate-spin" style={{ color: 'var(--g)' }} />
-          <span className="text-sm font-black" style={{ color: 'var(--t)' }}>Jogos de Hoje</span>
-          <span className="text-[10px] font-bold" style={{ color: 'var(--t3)' }}>Carregando...</span>
-        </div>
-        <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {[140, 180, 120, 160, 110].map((w, i) => (
-            <div key={i} style={{ height: 40, borderRadius: 10, background: 'rgba(255,255,255,.04)',
-              border: '1px solid rgba(255,255,255,.06)',
-              animation: `pulse 1.6s ease-in-out ${i * 0.12}s infinite` }} />
-          ))}
+      <div className="flex flex-col gap-4">
+        <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid var(--b)' }}>
+          <div className="px-5 py-4 flex items-center gap-3"
+            style={{ background: 'var(--bg2)', borderBottom: '1px solid var(--b)' }}>
+            <Loader2 size={14} className="animate-spin" style={{ color: 'var(--g)' }} />
+            <span className="text-sm font-black" style={{ color: 'var(--t)' }}>Jogos de Hoje</span>
+            <span className="text-[10px] font-bold" style={{ color: 'var(--t3)' }}>Carregando...</span>
+          </div>
+          <div style={{ display: 'flex', gap: 12, padding: '16px 20px', overflowX: 'hidden' }}>
+            {[0,1,2,3,4].map(i => (
+              <div key={i} style={{ flexShrink: 0, width: 200, height: 110, borderRadius: 14,
+                background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.06)',
+                animation: `pulse 1.6s ease-in-out ${i * 0.12}s infinite` }} />
+            ))}
+          </div>
         </div>
       </div>
     );
@@ -909,71 +971,84 @@ function TodayGamesGrid({
   const todayStr = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
 
   return (
-    <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid var(--b)' }}>
+    <div className="flex flex-col gap-4">
 
-      {/* ── Header ── */}
-      <div style={{
-        padding: '14px 20px',
-        background: 'var(--bg2)',
-        borderBottom: '1px solid var(--b)',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{
-            width: 32, height: 32, borderRadius: 9,
-            background: 'rgba(63,255,33,.1)', border: '1px solid rgba(63,255,33,.2)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-          }}>
-            <Trophy size={14} style={{ color: 'var(--g)' }} />
-          </div>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 14, fontWeight: 900, color: 'var(--t)' }}>Jogos de Hoje</span>
-              <span style={{
-                fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 6,
-                background: 'rgba(63,255,33,.1)', color: 'var(--g)', border: '1px solid rgba(63,255,33,.18)',
-              }}>
-                {events.length}
-              </span>
-              {soonEvents.length > 0 && (
+      {/* ── JOGOS EM DESTAQUE ─────────────────────────────────────────────── */}
+      <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid var(--b)' }}>
+
+        {/* Header */}
+        <div style={{
+          padding: '14px 20px',
+          background: 'var(--bg2)',
+          borderBottom: '1px solid var(--b)',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{
+              width: 32, height: 32, borderRadius: 9,
+              background: 'rgba(63,255,33,.1)', border: '1px solid rgba(63,255,33,.2)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+            }}>
+              <Trophy size={14} style={{ color: 'var(--g)' }} />
+            </div>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 14, fontWeight: 900, color: 'var(--t)' }}>Jogos de Hoje</span>
+                {liveCount > 0 && (
+                  <span style={{
+                    fontSize: 9, fontWeight: 900, padding: '2px 7px', borderRadius: 6,
+                    letterSpacing: '.06em',
+                    background: 'rgba(255,159,10,.12)', color: '#FF9F0A', border: '1px solid rgba(255,159,10,.25)',
+                    display: 'flex', alignItems: 'center', gap: 4,
+                  }}>
+                    <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#FF9F0A',
+                      animation: 'livePulse 1.5s ease-in-out infinite', display: 'inline-block' }} />
+                    AO VIVO
+                  </span>
+                )}
                 <span style={{
                   fontSize: 9, fontWeight: 900, padding: '2px 7px', borderRadius: 6, letterSpacing: '.06em',
-                  background: 'rgba(255,159,10,.12)', color: '#FF9F0A', border: '1px solid rgba(255,159,10,.25)',
+                  background: 'rgba(63,255,33,.1)', color: 'var(--g)', border: '1px solid rgba(63,255,33,.18)',
                 }}>
-                  {soonEvents.length} EM BREVE
+                  EM BREVE
                 </span>
-              )}
-            </div>
-            <div style={{ fontSize: 10, color: 'var(--t3)', marginTop: 1, textTransform: 'capitalize' }}>
-              {todayStr}
+              </div>
+              <div style={{ fontSize: 10, color: 'var(--t3)', marginTop: 1, textTransform: 'capitalize' }}>
+                {todayStr}
+              </div>
             </div>
           </div>
-        </div>
-        <span style={{ fontSize: 10, color: 'var(--t3)', opacity: 0.7 }}>
-          Clique para ver odds
-        </span>
-      </div>
 
-      {/* ── "Em breve" horizontal strip ── */}
-      {soonEvents.length > 0 && (
-        <div style={{
-          borderBottom: '1px solid rgba(255,255,255,.06)',
-          background: 'rgba(63,255,33,.025)',
-        }}>
-          <div style={{ padding: '10px 16px 4px', display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{
-              width: 6, height: 6, borderRadius: '50%', background: '#3FFF21', flexShrink: 0,
-              boxShadow: '0 0 8px rgba(63,255,33,.8)',
-              animation: 'livePulse 2s ease-in-out infinite',
-            }} />
-            <span style={{ fontSize: 9, fontWeight: 900, letterSpacing: '.12em', color: 'rgba(63,255,33,.7)', textTransform: 'uppercase' }}>
-              Em breve
-            </span>
-          </div>
-          <div style={{ display: 'flex', gap: 10, padding: '8px 16px 12px', overflowX: 'auto' }}>
-            {soonEvents.map(ev => {
+          <button
+            type="button"
+            onClick={() => setShowAll(v => !v)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 5,
+              fontSize: 11, fontWeight: 700, color: 'var(--t3)',
+              padding: '5px 10px', borderRadius: 8,
+              background: 'rgba(255,255,255,.04)', border: '1px solid var(--b)',
+              cursor: 'pointer', flexShrink: 0, transition: 'all .15s',
+            }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--t)'; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--t3)'; }}
+          >
+            {showAll ? 'Ocultar' : 'Ver todos'}
+            <ChevronRight size={12} style={{ transition: 'transform .2s', transform: showAll ? 'rotate(90deg)' : '' }} />
+          </button>
+        </div>
+
+        {/* Featured cards strip */}
+        <div style={{ background: 'var(--bg2)', padding: '12px 16px 14px' }}>
+          <div style={{
+            display: 'flex', gap: 10, overflowX: 'auto',
+            paddingBottom: 4,
+            scrollbarWidth: 'thin',
+            scrollbarColor: 'rgba(255,255,255,.08) transparent',
+          }}>
+            {featuredEvents.map(ev => {
               const [home, away] = parseTeams(ev.name);
               const badge = getTimeBadge(ev.start_utc);
+              const isLive = badge.live;
               return (
                 <button
                   key={ev.id}
@@ -981,60 +1056,106 @@ function TodayGamesGrid({
                   onClick={() => onSelect(ev)}
                   style={{
                     flexShrink: 0,
-                    width: 148,
-                    padding: '10px 12px',
-                    borderRadius: 12,
-                    background: badge.live ? 'rgba(255,159,10,.07)' : 'rgba(255,255,255,.04)',
-                    border: `1px solid ${badge.live ? 'rgba(255,159,10,.25)' : 'rgba(255,255,255,.09)'}`,
+                    width: 200,
+                    padding: '12px 14px',
+                    borderRadius: 14,
+                    background: isLive ? 'rgba(255,159,10,.06)' : 'rgba(255,255,255,.035)',
+                    border: `1px solid ${isLive ? 'rgba(255,159,10,.2)' : 'rgba(255,255,255,.08)'}`,
                     cursor: 'pointer',
                     textAlign: 'left',
                     transition: 'all .15s',
+                    position: 'relative',
+                    overflow: 'hidden',
                   }}
                   onMouseEnter={e => {
                     const el = e.currentTarget as HTMLElement;
-                    el.style.background = 'rgba(63,255,33,.08)';
-                    el.style.borderColor = 'rgba(63,255,33,.3)';
-                    el.style.transform = 'translateY(-1px)';
+                    el.style.background = 'rgba(63,255,33,.07)';
+                    el.style.borderColor = 'rgba(63,255,33,.25)';
+                    el.style.transform = 'translateY(-2px)';
                   }}
                   onMouseLeave={e => {
                     const el = e.currentTarget as HTMLElement;
-                    el.style.background = badge.live ? 'rgba(255,159,10,.07)' : 'rgba(255,255,255,.04)';
-                    el.style.borderColor = badge.live ? 'rgba(255,159,10,.25)' : 'rgba(255,255,255,.09)';
+                    el.style.background = isLive ? 'rgba(255,159,10,.06)' : 'rgba(255,255,255,.035)';
+                    el.style.borderColor = isLive ? 'rgba(255,159,10,.2)' : 'rgba(255,255,255,.08)';
                     el.style.transform = '';
                   }}
                 >
                   {/* Time badge */}
                   <div style={{
-                    display: 'inline-flex', alignItems: 'center',
-                    fontSize: 9, fontWeight: 900,
-                    padding: '2px 6px', borderRadius: 5, marginBottom: 7,
-                    background: badge.bg, color: badge.color, border: `1px solid ${badge.border}`,
-                    fontFamily: badge.live ? 'inherit' : "'JetBrains Mono', monospace",
-                    letterSpacing: badge.live ? '.06em' : '-.01em',
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    marginBottom: 10,
                   }}>
-                    {badge.label}
+                    <span style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 4,
+                      fontSize: 9, fontWeight: 900,
+                      padding: '2px 7px', borderRadius: 5,
+                      background: badge.bg, color: badge.color, border: `1px solid ${badge.border}`,
+                      fontFamily: badge.live ? 'inherit' : "'JetBrains Mono', monospace",
+                      letterSpacing: badge.live ? '.06em' : '-.01em',
+                    }}>
+                      {badge.label}
+                    </span>
+                    {ev.house_count > 0 && (
+                      <span style={{
+                        fontSize: 9, fontWeight: 800,
+                        padding: '2px 6px', borderRadius: 5,
+                        background: 'rgba(129,140,248,.08)',
+                        border: '1px solid rgba(129,140,248,.12)',
+                        color: '#818cf8',
+                        fontFamily: "'JetBrains Mono', monospace",
+                      }}>
+                        {ev.house_count}
+                      </span>
+                    )}
                   </div>
+
                   {/* Teams */}
                   {away ? (
-                    <>
-                      <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--t)', lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {home}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div style={{
+                          width: 26, height: 26, borderRadius: 7, flexShrink: 0,
+                          background: 'rgba(255,255,255,.06)', border: '1px solid rgba(255,255,255,.08)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: 13,
+                        }}>
+                          {getLeagueMeta(ev.league ?? '').flag}
+                        </div>
+                        <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--t)',
+                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {home}
+                        </span>
                       </div>
-                      <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--t3)', margin: '2px 0' }}>vs</div>
-                      <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--t)', lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {away}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div style={{
+                          width: 26, height: 26, borderRadius: 7, flexShrink: 0,
+                          background: 'rgba(255,255,255,.06)', border: '1px solid rgba(255,255,255,.08)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: 13,
+                        }}>
+                          {getLeagueMeta(ev.league ?? '').flag}
+                        </div>
+                        <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--t)',
+                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {away}
+                        </span>
                       </div>
-                    </>
+                    </div>
                   ) : (
-                    <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--t)', lineHeight: 1.4, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--t)',
+                      lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2,
+                      WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                       {home}
                     </div>
                   )}
-                  {/* League */}
+
+                  {/* League footer */}
                   {ev.league && (
-                    <div style={{ fontSize: 9, color: 'var(--t3)', marginTop: 5, opacity: 0.6,
-                      whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {ev.league}
+                    <div style={{
+                      marginTop: 8, fontSize: 9, color: 'var(--t3)', opacity: 0.65,
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    }}>
+                      {'› '}{ev.league}
                     </div>
                   )}
                 </button>
@@ -1042,131 +1163,303 @@ function TodayGamesGrid({
             })}
           </div>
         </div>
-      )}
 
-      {/* ── Full list grouped by league ── */}
-      <div style={{ maxHeight: 520, overflowY: 'auto' }}>
-        {grouped.map(([league, evs]) => (
-          <div key={league}>
-            {/* League sticky header */}
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 8,
-              padding: '8px 20px',
-              background: 'oklch(13.5% 0.006 250)',
-              borderTop: '1px solid rgba(255,255,255,.05)',
-              borderBottom: '1px solid rgba(255,255,255,.05)',
-              position: 'sticky', top: 0, zIndex: 2,
-            }}>
-              <span style={{
-                width: 5, height: 5, borderRadius: '50%', flexShrink: 0,
-                background: 'rgba(63,255,33,.5)',
-              }} />
-              <span style={{
-                fontSize: 10, fontWeight: 900, textTransform: 'uppercase',
-                letterSpacing: '.1em', color: 'var(--t3)',
-                flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-              }}>
-                {league}
-              </span>
-              <span style={{
-                fontSize: 9, fontWeight: 800,
-                padding: '1px 6px', borderRadius: 4,
-                background: 'rgba(255,255,255,.05)', color: 'rgba(255,255,255,.3)',
-                border: '1px solid rgba(255,255,255,.06)',
-                flexShrink: 0,
-              }}>
-                {evs.length}
-              </span>
-            </div>
-
-            {/* Event rows */}
-            {evs.map(ev => {
-              const badge = getTimeBadge(ev.start_utc);
-              const [home, away] = parseTeams(ev.name);
-              return (
-                <button
-                  key={ev.id}
-                  type="button"
-                  onClick={() => onSelect(ev)}
-                  style={{
-                    width: '100%',
-                    display: 'flex', alignItems: 'center', gap: 10,
-                    padding: '9px 20px',
-                    borderBottom: '1px solid rgba(255,255,255,.04)',
-                    background: 'transparent',
-                    cursor: 'pointer',
-                    transition: 'background .12s',
-                    textAlign: 'left',
-                  }}
-                  onMouseEnter={e => {
-                    const el = e.currentTarget as HTMLElement;
-                    el.style.background = 'rgba(63,255,33,.05)';
-                  }}
-                  onMouseLeave={e => {
-                    const el = e.currentTarget as HTMLElement;
-                    el.style.background = 'transparent';
-                  }}
-                >
-                  {/* Time badge */}
-                  <span style={{
-                    flexShrink: 0,
-                    fontSize: badge.live ? 8 : 11,
-                    fontWeight: 900,
-                    fontFamily: badge.live ? 'inherit' : "'JetBrains Mono', monospace",
-                    letterSpacing: badge.live ? '.08em' : '-.01em',
-                    padding: '3px 7px', borderRadius: 6,
-                    background: badge.bg, color: badge.color, border: `1px solid ${badge.border}`,
-                    minWidth: badge.live ? 'auto' : 44,
-                    textAlign: 'center',
-                  }}>
-                    {badge.label}
+        {/* ── Full list (expandable) ── */}
+        {showAll && (
+          <div style={{ borderTop: '1px solid var(--b)', maxHeight: 480, overflowY: 'auto' }}>
+            {grouped.map(([league, evs]) => (
+              <div key={league}>
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  padding: '7px 20px',
+                  background: 'oklch(13.5% 0.006 250)',
+                  borderBottom: '1px solid rgba(255,255,255,.05)',
+                  position: 'sticky', top: 0, zIndex: 2,
+                }}>
+                  <span style={{ fontSize: 12 }}>{getLeagueMeta(league).flag}</span>
+                  <span style={{ fontSize: 10, fontWeight: 900, textTransform: 'uppercase',
+                    letterSpacing: '.1em', color: 'var(--t3)',
+                    flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {league}
                   </span>
-
-                  {/* Teams / event name */}
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    {away ? (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, overflow: 'hidden' }}>
-                        <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--t)',
-                          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '45%' }}>
-                          {home}
-                        </span>
-                        <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--t3)', flexShrink: 0 }}>×</span>
-                        <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--t)',
-                          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '45%' }}>
-                          {away}
-                        </span>
-                      </div>
-                    ) : (
-                      <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--t)',
-                        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}>
-                        {ev.name}
+                  <span style={{ fontSize: 9, fontWeight: 800, padding: '1px 6px', borderRadius: 4,
+                    background: 'rgba(255,255,255,.05)', color: 'rgba(255,255,255,.3)',
+                    border: '1px solid rgba(255,255,255,.06)', flexShrink: 0 }}>
+                    {evs.length}
+                  </span>
+                </div>
+                {evs.map(ev => {
+                  const badge = getTimeBadge(ev.start_utc);
+                  const [home, away] = parseTeams(ev.name);
+                  return (
+                    <button key={ev.id} type="button" onClick={() => onSelect(ev)}
+                      style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+                        padding: '9px 20px', borderBottom: '1px solid rgba(255,255,255,.04)',
+                        background: 'transparent', cursor: 'pointer', transition: 'background .12s', textAlign: 'left' }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(63,255,33,.05)'; }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+                    >
+                      <span style={{ flexShrink: 0, fontSize: badge.live ? 8 : 11, fontWeight: 900,
+                        fontFamily: badge.live ? 'inherit' : "'JetBrains Mono', monospace",
+                        letterSpacing: badge.live ? '.08em' : '-.01em',
+                        padding: '3px 7px', borderRadius: 6, minWidth: badge.live ? 'auto' : 44, textAlign: 'center',
+                        background: badge.bg, color: badge.color, border: `1px solid ${badge.border}` }}>
+                        {badge.label}
                       </span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        {away ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 5, overflow: 'hidden' }}>
+                            <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--t)',
+                              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '45%' }}>{home}</span>
+                            <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--t3)', flexShrink: 0 }}>×</span>
+                            <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--t)',
+                              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '45%' }}>{away}</span>
+                          </div>
+                        ) : (
+                          <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--t)',
+                            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}>
+                            {ev.name}
+                          </span>
+                        )}
+                      </div>
+                      {ev.house_count > 0 && (
+                        <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 4,
+                          padding: '2px 7px', borderRadius: 6,
+                          background: 'rgba(129,140,248,.08)', border: '1px solid rgba(129,140,248,.15)' }}>
+                          <Building2 size={9} style={{ color: '#818cf8' }} />
+                          <span style={{ fontSize: 10, fontWeight: 800, color: '#818cf8',
+                            fontFamily: "'JetBrains Mono', monospace" }}>{ev.house_count}</span>
+                        </div>
+                      )}
+                      <ChevronRight size={12} style={{ color: 'rgba(255,255,255,.15)', flexShrink: 0 }} />
+                    </button>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ── LIGAS E CAMPEONATOS ────────────────────────────────────────────── */}
+      <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid var(--b)' }}>
+
+        {/* Header */}
+        <div style={{
+          padding: '14px 20px',
+          background: 'var(--bg2)',
+          borderBottom: '1px solid var(--b)',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{
+              width: 32, height: 32, borderRadius: 9,
+              background: 'rgba(129,140,248,.08)', border: '1px solid rgba(129,140,248,.18)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+              fontSize: 14,
+            }}>🌐</div>
+            <div>
+              <span style={{ fontSize: 14, fontWeight: 900, color: 'var(--t)' }}>Ligas e Campeonatos</span>
+              <div style={{ fontSize: 10, color: 'var(--t3)', marginTop: 1 }}>
+                Selecione uma liga para ver os eventos
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {/* Search */}
+            <div style={{ position: 'relative' }}>
+              <Search size={11} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)',
+                color: 'var(--t3)', pointerEvents: 'none' }} />
+              <input
+                value={leagueSearch}
+                onChange={e => setLeagueSearch(e.target.value)}
+                placeholder="Buscar liga..."
+                style={{
+                  width: 160, paddingLeft: 26, paddingRight: 10, paddingTop: 6, paddingBottom: 6,
+                  background: 'rgba(255,255,255,.04)', border: '1px solid var(--b)', borderRadius: 8,
+                  fontSize: 11, color: 'var(--t)', outline: 'none',
+                }}
+              />
+            </div>
+            {/* Sort select */}
+            <select
+              value={leagueSort}
+              onChange={e => setLeagueSort(e.target.value as 'popular' | 'events')}
+              style={{
+                padding: '6px 10px', borderRadius: 8, fontSize: 11, fontWeight: 700,
+                background: 'rgba(255,255,255,.04)', border: '1px solid var(--b)',
+                color: 'var(--t3)', outline: 'none', cursor: 'pointer',
+              }}
+            >
+              <option value="popular">Ordenar por popularidade</option>
+              <option value="events">Ordenar por eventos</option>
+            </select>
+            {/* View toggle */}
+            <div style={{ display: 'flex', borderRadius: 8, overflow: 'hidden', border: '1px solid var(--b)' }}>
+              {(['list', 'grid'] as const).map(v => (
+                <button key={v} type="button" onClick={() => setLeagueView(v)}
+                  style={{
+                    padding: '6px 8px',
+                    background: leagueView === v ? 'rgba(63,255,33,.1)' : 'rgba(255,255,255,.04)',
+                    color: leagueView === v ? 'var(--g)' : 'var(--t3)',
+                    border: 'none', cursor: 'pointer', transition: 'all .15s',
+                  }}>
+                  {v === 'list' ? (
+                    <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+                      <rect x="0" y="1" width="13" height="2" rx="1" fill="currentColor"/>
+                      <rect x="0" y="5.5" width="13" height="2" rx="1" fill="currentColor"/>
+                      <rect x="0" y="10" width="13" height="2" rx="1" fill="currentColor"/>
+                    </svg>
+                  ) : (
+                    <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+                      <rect x="0" y="0" width="5.5" height="5.5" rx="1.5" fill="currentColor"/>
+                      <rect x="7.5" y="0" width="5.5" height="5.5" rx="1.5" fill="currentColor"/>
+                      <rect x="0" y="7.5" width="5.5" height="5.5" rx="1.5" fill="currentColor"/>
+                      <rect x="7.5" y="7.5" width="5.5" height="5.5" rx="1.5" fill="currentColor"/>
+                    </svg>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Table header */}
+        {leagueView === 'list' && (
+          <div style={{
+            display: 'grid', gridTemplateColumns: '1fr 80px 160px 24px',
+            padding: '7px 20px', gap: 12,
+            borderBottom: '1px solid rgba(255,255,255,.05)',
+          }}>
+            {['LIGA', 'EVENTOS', 'POPULARIDADE', ''].map(h => (
+              <span key={h} style={{ fontSize: 9, fontWeight: 900, letterSpacing: '.1em',
+                color: 'rgba(255,255,255,.25)', textTransform: 'uppercase' }}>{h}</span>
+            ))}
+          </div>
+        )}
+
+        {/* League rows / grid */}
+        <div style={leagueView === 'grid' ? {
+          display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 8, padding: 12,
+        } : {}}>
+          {leagueStats.map(({ league, eventCount, popularity }) => {
+            const meta = getLeagueMeta(league);
+            return leagueView === 'list' ? (
+              <button
+                key={league}
+                type="button"
+                onClick={() => onLeagueSearch?.(league)}
+                style={{
+                  display: 'grid', gridTemplateColumns: '1fr 80px 160px 24px',
+                  alignItems: 'center', gap: 12,
+                  padding: '11px 20px',
+                  borderBottom: '1px solid rgba(255,255,255,.04)',
+                  background: 'transparent', cursor: 'pointer', transition: 'background .12s',
+                  textAlign: 'left', width: '100%',
+                }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,.028)'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+              >
+                {/* League name */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                  <div style={{
+                    width: 32, height: 32, borderRadius: 8, flexShrink: 0,
+                    background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.07)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16,
+                  }}>
+                    {meta.flag}
+                  </div>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--t)',
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {league}
+                    </div>
+                    {(meta.country || meta.sport) && (
+                      <div style={{ fontSize: 10, color: 'var(--t3)', marginTop: 1 }}>
+                        {[meta.country, meta.sport].filter(Boolean).join(' • ')}
+                      </div>
                     )}
                   </div>
+                </div>
 
-                  {/* House count pill */}
-                  {ev.house_count > 0 && (
+                {/* Event count */}
+                <span style={{
+                  fontSize: 13, fontWeight: 800, color: 'var(--t)',
+                  fontFamily: "'JetBrains Mono', monospace",
+                }}>
+                  {eventCount}
+                </span>
+
+                {/* Popularity bar */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{
+                    flex: 1, height: 4, borderRadius: 4,
+                    background: 'rgba(255,255,255,.06)', overflow: 'hidden',
+                  }}>
                     <div style={{
-                      flexShrink: 0,
-                      display: 'flex', alignItems: 'center', gap: 4,
-                      padding: '2px 7px', borderRadius: 6,
-                      background: 'rgba(129,140,248,.08)',
-                      border: '1px solid rgba(129,140,248,.15)',
-                    }}>
-                      <Building2 size={9} style={{ color: '#818cf8' }} />
-                      <span style={{ fontSize: 10, fontWeight: 800, color: '#818cf8',
-                        fontFamily: "'JetBrains Mono', monospace" }}>
-                        {ev.house_count}
-                      </span>
-                    </div>
-                  )}
+                      height: '100%', borderRadius: 4,
+                      width: `${popularity}%`,
+                      background: popularity >= 80
+                        ? 'var(--g)'
+                        : popularity >= 50
+                          ? 'oklch(75% 0.15 165)'
+                          : 'rgba(255,255,255,.2)',
+                      transition: 'width .4s ease',
+                    }} />
+                  </div>
+                  <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--t3)',
+                    fontFamily: "'JetBrains Mono', monospace", flexShrink: 0, width: 32, textAlign: 'right' }}>
+                    {popularity}%
+                  </span>
+                </div>
 
-                  <ChevronRight size={12} style={{ color: 'rgba(255,255,255,.15)', flexShrink: 0 }} />
-                </button>
-              );
-            })}
-          </div>
-        ))}
+                <ChevronRight size={12} style={{ color: 'rgba(255,255,255,.15)' }} />
+              </button>
+            ) : (
+              /* Grid card */
+              <button
+                key={league}
+                type="button"
+                onClick={() => onLeagueSearch?.(league)}
+                style={{
+                  padding: '12px 14px', borderRadius: 12,
+                  background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.07)',
+                  cursor: 'pointer', textAlign: 'left', transition: 'all .15s',
+                }}
+                onMouseEnter={e => {
+                  const el = e.currentTarget as HTMLElement;
+                  el.style.background = 'rgba(63,255,33,.06)';
+                  el.style.borderColor = 'rgba(63,255,33,.2)';
+                }}
+                onMouseLeave={e => {
+                  const el = e.currentTarget as HTMLElement;
+                  el.style.background = 'rgba(255,255,255,.03)';
+                  el.style.borderColor = 'rgba(255,255,255,.07)';
+                }}
+              >
+                <div style={{ fontSize: 22, marginBottom: 8 }}>{meta.flag}</div>
+                <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--t)',
+                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: 2 }}>
+                  {league}
+                </div>
+                {meta.country && (
+                  <div style={{ fontSize: 10, color: 'var(--t3)', marginBottom: 8 }}>
+                    {meta.country} • {meta.sport}
+                  </div>
+                )}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: 10, color: 'var(--t3)' }}>{eventCount} eventos</span>
+                  <span style={{ fontSize: 10, fontWeight: 800,
+                    color: popularity >= 80 ? 'var(--g)' : 'var(--t3)',
+                    fontFamily: "'JetBrains Mono', monospace" }}>
+                    {popularity}%
+                  </span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
@@ -1784,6 +2077,10 @@ export function BuscarOddsPage() {
           error={evErr}
           onSelect={handleSelect}
           onRetry={loadEvents}
+          onLeagueSearch={league => {
+            setQuery(league);
+            setDropOpen(true);
+          }}
         />
       )}
 
