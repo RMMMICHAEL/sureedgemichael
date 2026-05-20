@@ -1627,8 +1627,7 @@ export function BuscarOddsPage() {
         const MAX_ATTEMPTS = 3;
 
         for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-          const attemptLabel = MAX_ATTEMPTS > 1 ? ` (tentativa ${attempt}/${MAX_ATTEMPTS})` : '';
-          setOddsLoadingMsg(`Pedindo ao PC...${attemptLabel}`);
+          setOddsLoadingMsg('Coletando odds...');
 
           await fetch('/api/supermonitor/queue', {
             method: 'POST',
@@ -1662,21 +1661,20 @@ export function BuscarOddsPage() {
               break;
             }
 
-            const elapsed = Math.round((Date.now() - start) / 1000);
-            setOddsLoadingMsg(`Aguardando PC... ${elapsed}s${attemptLabel}`);
+            setOddsLoadingMsg('Pode demorar alguns segundos...');
           }
 
           if (ready) break;
 
           // Tentativa falhou — re-enfileira se ainda há tentativas
           if (attempt < MAX_ATTEMPTS) {
-            setOddsLoadingMsg(`Sem resposta. Re-enfileirando...`);
+            setOddsLoadingMsg('Pode demorar alguns segundos...');
             await new Promise(r => setTimeout(r, 2000));
           }
         }
 
         // Todas as tentativas falharam
-        throw new Error('Daemon não respondeu após 3 tentativas. Verifique se o PC está ligado e o daemon ativo.');
+        throw new Error('Não foi possível coletar as odds agora. Tente novamente em instantes.');
       }
 
       throw new Error(json.hint ?? json.error ?? 'Erro desconhecido');
@@ -2013,20 +2011,15 @@ export function BuscarOddsPage() {
 
       {oddsLoading && (
         <div className="rounded-2xl p-10 text-center" style={{ background: 'var(--bg2)', border: '1px solid var(--b)' }}>
-          <div className="text-xs mb-2" style={{ color: 'var(--t3)' }}>{oddsLoadingMsg}</div>
-          <div className="text-sm font-black" style={{ color: 'var(--t)' }}>{selectedEvent?.name}</div>
-          <div className="mt-4 flex justify-center gap-1">
+          <div className="text-sm font-black mb-1" style={{ color: 'var(--t)' }}>{selectedEvent?.name}</div>
+          <div className="text-xs mb-4" style={{ color: 'var(--t3)' }}>{oddsLoadingMsg}</div>
+          <div className="flex justify-center gap-1">
             {[0,1,2].map(i => (
               <div key={i} className="rounded-full"
                 style={{ width: 6, height: 6, background: '#3fff21',
                   animation: `pulse 1.2s ease-in-out ${i * 0.2}s infinite` }} />
             ))}
           </div>
-          {oddsLoadingMsg.includes('PC') && (
-            <p className="mt-4 text-[10px]" style={{ color: 'var(--t3)' }}>
-              O PC precisa estar ligado e com o script process-queue.mjs rodando
-            </p>
-          )}
         </div>
       )}
 
