@@ -34,10 +34,7 @@
       "Skill(impeccable)",
       "Skill(impeccable:*)",
       "Bash(node .claude/skills/impeccable/scripts/load-context.mjs)",
-      "Bash(grep -v \"//.*#\")",
-      "mcp__code-review-graph__get_architecture_overview_tool",
-      "WebFetch(domain:docs.cakto.com.br)",
-      "WebFetch(domain:blackcatpay.com.br)"
+      "Bash(grep -v \"//.*#\")"
     ]
   },
   "enableAllProjectMcpServers": true,
