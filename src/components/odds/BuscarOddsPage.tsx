@@ -805,6 +805,23 @@ function HouseFilterPanel({
 
 // ── Today's games grid ────────────────────────────────────────────────────────
 
+/** Tenta separar "Time A x Time B" em [home, away] */
+function parseTeams(name: string): [string, string] {
+  const m = name.match(/^(.+?)\s+[xX×vs\.]+\s+(.+)$/);
+  if (m) return [m[1].trim(), m[2].trim()];
+  return [name, ''];
+}
+
+/** Retorna estilo do badge de tempo baseado em quanto falta */
+function getTimeBadge(utc: string): { label: string; color: string; bg: string; border: string; live?: boolean } {
+  const ms = new Date(utc).getTime() - Date.now();
+  if (ms < -60 * 60_000)   return { label: fmtTime(utc), color: 'rgba(255,255,255,.25)', bg: 'rgba(255,255,255,.04)', border: 'rgba(255,255,255,.06)' };
+  if (ms < 0)               return { label: '● AO VIVO', color: '#FF9F0A', bg: 'rgba(255,159,10,.14)', border: 'rgba(255,159,10,.3)', live: true };
+  if (ms < 60 * 60_000)     return { label: fmtTime(utc), color: '#3FFF21', bg: 'rgba(63,255,33,.14)', border: 'rgba(63,255,33,.3)' };
+  if (ms < 3 * 3600_000)    return { label: fmtTime(utc), color: 'oklch(82% 0.06 250)', bg: 'rgba(255,255,255,.06)', border: 'rgba(255,255,255,.1)' };
+  return                           { label: fmtTime(utc), color: 'rgba(255,255,255,.4)',  bg: 'rgba(255,255,255,.03)', border: 'rgba(255,255,255,.06)' };
+}
+
 function TodayGamesGrid({
   events, loading, error, onSelect, onRetry,
 }: {
@@ -814,7 +831,21 @@ function TodayGamesGrid({
   onSelect: (ev: CachedEvent) => void;
   onRetry:  () => void;
 }) {
-  // Group by league, sort within each by time
+  const now = Date.now();
+
+  // "Em breve" strip — games in next 3h (or live)
+  const soonEvents = useMemo(() =>
+    events
+      .filter(ev => {
+        const ms = new Date(ev.start_utc).getTime() - now;
+        return ms > -60 * 60_000 && ms < 3 * 3600_000;
+      })
+      .slice(0, 10),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [events],
+  );
+
+  // Group all events by league, sorted by time
   const grouped = useMemo(() => {
     const map = new Map<string, CachedEvent[]>();
     for (const ev of events) {
@@ -822,35 +853,52 @@ function TodayGamesGrid({
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(ev);
     }
-    // Sort events within each league by start time
     for (const arr of map.values()) {
       arr.sort((a, b) => new Date(a.start_utc).getTime() - new Date(b.start_utc).getTime());
     }
-    // Sort leagues by earliest event time
     return [...map.entries()].sort(([, a], [, b]) =>
       new Date(a[0].start_utc).getTime() - new Date(b[0].start_utc).getTime()
     );
   }, [events]);
 
+  // ── Loading skeleton ──────────────────────────────────────────────────────
   if (loading) {
     return (
-      <div className="rounded-2xl p-8 flex flex-col items-center gap-3"
-        style={{ background: 'var(--bg2)', border: '1px solid var(--b)' }}>
-        <Loader2 size={22} className="animate-spin" style={{ color: 'var(--g)' }} />
-        <span className="text-xs font-bold" style={{ color: 'var(--t3)' }}>Carregando jogos do dia...</span>
+      <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid var(--b)' }}>
+        <div className="px-5 py-4 flex items-center gap-3"
+          style={{ background: 'var(--bg2)', borderBottom: '1px solid var(--b)' }}>
+          <Loader2 size={14} className="animate-spin" style={{ color: 'var(--g)' }} />
+          <span className="text-sm font-black" style={{ color: 'var(--t)' }}>Jogos de Hoje</span>
+          <span className="text-[10px] font-bold" style={{ color: 'var(--t3)' }}>Carregando...</span>
+        </div>
+        <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {[140, 180, 120, 160, 110].map((w, i) => (
+            <div key={i} style={{ height: 40, borderRadius: 10, background: 'rgba(255,255,255,.04)',
+              border: '1px solid rgba(255,255,255,.06)',
+              animation: `pulse 1.6s ease-in-out ${i * 0.12}s infinite` }} />
+          ))}
+        </div>
       </div>
     );
   }
 
+  // ── Error state ───────────────────────────────────────────────────────────
   if (error) {
     return (
-      <div className="rounded-2xl p-6 flex flex-col items-center gap-3 text-center"
-        style={{ background: 'var(--bg2)', border: '1px solid var(--b)' }}>
-        <span className="text-xs font-bold" style={{ color: 'var(--r)' }}>Não foi possível carregar os jogos</span>
+      <div className="rounded-2xl p-8 flex flex-col items-center gap-4 text-center"
+        style={{ background: 'var(--bg2)', border: '1px solid rgba(255,77,109,.15)' }}>
+        <div style={{ width: 40, height: 40, borderRadius: 12, background: 'rgba(255,77,109,.1)',
+          border: '1px solid rgba(255,77,109,.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <ScanSearch size={18} style={{ color: 'var(--r)' }} />
+        </div>
+        <div>
+          <p className="text-sm font-bold" style={{ color: 'var(--r)' }}>Erro ao carregar jogos</p>
+          <p className="text-xs mt-1" style={{ color: 'var(--t3)' }}>Verifique o daemon e tente novamente</p>
+        </div>
         <button type="button" onClick={onRetry}
-          className="text-xs font-bold px-3 py-1.5 rounded-lg"
-          style={{ background: 'rgba(255,255,255,.06)', color: 'var(--t3)', border: '1px solid var(--b)' }}>
-          Tentar novamente
+          className="flex items-center gap-2 text-xs font-bold px-4 py-2 rounded-xl"
+          style={{ background: 'rgba(255,255,255,.06)', color: 'var(--t2)', border: '1px solid var(--b)', cursor: 'pointer' }}>
+          <RefreshCw size={12} /> Tentar novamente
         </button>
       </div>
     );
@@ -858,77 +906,265 @@ function TodayGamesGrid({
 
   if (!grouped.length) return null;
 
+  const todayStr = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
+
   return (
     <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid var(--b)' }}>
-      {/* Header */}
-      <div className="px-5 py-3.5 flex items-center justify-between"
-        style={{ background: 'var(--bg2)', borderBottom: '1px solid var(--b)' }}>
-        <div>
-          <span className="text-sm font-black" style={{ color: 'var(--t)' }}>Jogos de Hoje</span>
-          <span className="text-[10px] ml-2 font-bold px-2 py-0.5 rounded-md"
-            style={{ background: 'rgba(63,255,33,.08)', color: 'var(--g)', border: '1px solid rgba(63,255,33,.15)' }}>
-            {events.length} evento{events.length !== 1 ? 's' : ''}
-          </span>
+
+      {/* ── Header ── */}
+      <div style={{
+        padding: '14px 20px',
+        background: 'var(--bg2)',
+        borderBottom: '1px solid var(--b)',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{
+            width: 32, height: 32, borderRadius: 9,
+            background: 'rgba(63,255,33,.1)', border: '1px solid rgba(63,255,33,.2)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+          }}>
+            <Trophy size={14} style={{ color: 'var(--g)' }} />
+          </div>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 14, fontWeight: 900, color: 'var(--t)' }}>Jogos de Hoje</span>
+              <span style={{
+                fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 6,
+                background: 'rgba(63,255,33,.1)', color: 'var(--g)', border: '1px solid rgba(63,255,33,.18)',
+              }}>
+                {events.length}
+              </span>
+              {soonEvents.length > 0 && (
+                <span style={{
+                  fontSize: 9, fontWeight: 900, padding: '2px 7px', borderRadius: 6, letterSpacing: '.06em',
+                  background: 'rgba(255,159,10,.12)', color: '#FF9F0A', border: '1px solid rgba(255,159,10,.25)',
+                }}>
+                  {soonEvents.length} EM BREVE
+                </span>
+              )}
+            </div>
+            <div style={{ fontSize: 10, color: 'var(--t3)', marginTop: 1, textTransform: 'capitalize' }}>
+              {todayStr}
+            </div>
+          </div>
         </div>
-        <span className="text-[10px]" style={{ color: 'var(--t3)' }}>
-          Clique em um jogo para ver as odds
+        <span style={{ fontSize: 10, color: 'var(--t3)', opacity: 0.7 }}>
+          Clique para ver odds
         </span>
       </div>
 
-      {/* Leagues + events */}
-      <div style={{ maxHeight: 480, overflowY: 'auto' }}>
+      {/* ── "Em breve" horizontal strip ── */}
+      {soonEvents.length > 0 && (
+        <div style={{
+          borderBottom: '1px solid rgba(255,255,255,.06)',
+          background: 'rgba(63,255,33,.025)',
+        }}>
+          <div style={{ padding: '10px 16px 4px', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{
+              width: 6, height: 6, borderRadius: '50%', background: '#3FFF21', flexShrink: 0,
+              boxShadow: '0 0 8px rgba(63,255,33,.8)',
+              animation: 'livePulse 2s ease-in-out infinite',
+            }} />
+            <span style={{ fontSize: 9, fontWeight: 900, letterSpacing: '.12em', color: 'rgba(63,255,33,.7)', textTransform: 'uppercase' }}>
+              Em breve
+            </span>
+          </div>
+          <div style={{ display: 'flex', gap: 10, padding: '8px 16px 12px', overflowX: 'auto' }}>
+            {soonEvents.map(ev => {
+              const [home, away] = parseTeams(ev.name);
+              const badge = getTimeBadge(ev.start_utc);
+              return (
+                <button
+                  key={ev.id}
+                  type="button"
+                  onClick={() => onSelect(ev)}
+                  style={{
+                    flexShrink: 0,
+                    width: 148,
+                    padding: '10px 12px',
+                    borderRadius: 12,
+                    background: badge.live ? 'rgba(255,159,10,.07)' : 'rgba(255,255,255,.04)',
+                    border: `1px solid ${badge.live ? 'rgba(255,159,10,.25)' : 'rgba(255,255,255,.09)'}`,
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    transition: 'all .15s',
+                  }}
+                  onMouseEnter={e => {
+                    const el = e.currentTarget as HTMLElement;
+                    el.style.background = 'rgba(63,255,33,.08)';
+                    el.style.borderColor = 'rgba(63,255,33,.3)';
+                    el.style.transform = 'translateY(-1px)';
+                  }}
+                  onMouseLeave={e => {
+                    const el = e.currentTarget as HTMLElement;
+                    el.style.background = badge.live ? 'rgba(255,159,10,.07)' : 'rgba(255,255,255,.04)';
+                    el.style.borderColor = badge.live ? 'rgba(255,159,10,.25)' : 'rgba(255,255,255,.09)';
+                    el.style.transform = '';
+                  }}
+                >
+                  {/* Time badge */}
+                  <div style={{
+                    display: 'inline-flex', alignItems: 'center',
+                    fontSize: 9, fontWeight: 900,
+                    padding: '2px 6px', borderRadius: 5, marginBottom: 7,
+                    background: badge.bg, color: badge.color, border: `1px solid ${badge.border}`,
+                    fontFamily: badge.live ? 'inherit' : "'JetBrains Mono', monospace",
+                    letterSpacing: badge.live ? '.06em' : '-.01em',
+                  }}>
+                    {badge.label}
+                  </div>
+                  {/* Teams */}
+                  {away ? (
+                    <>
+                      <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--t)', lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {home}
+                      </div>
+                      <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--t3)', margin: '2px 0' }}>vs</div>
+                      <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--t)', lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {away}
+                      </div>
+                    </>
+                  ) : (
+                    <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--t)', lineHeight: 1.4, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+                      {home}
+                    </div>
+                  )}
+                  {/* League */}
+                  {ev.league && (
+                    <div style={{ fontSize: 9, color: 'var(--t3)', marginTop: 5, opacity: 0.6,
+                      whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {ev.league}
+                    </div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── Full list grouped by league ── */}
+      <div style={{ maxHeight: 520, overflowY: 'auto' }}>
         {grouped.map(([league, evs]) => (
           <div key={league}>
-            {/* League header */}
-            <div className="flex items-center gap-2 px-4 py-2 sticky top-0"
-              style={{ background: 'oklch(14% 0.007 250)', borderBottom: '1px solid rgba(255,255,255,.05)', zIndex: 1 }}>
-              <Trophy size={10} style={{ color: 'var(--t3)', opacity: 0.6 }} />
-              <span className="text-[10px] font-black uppercase tracking-wider" style={{ color: 'var(--t3)' }}>
+            {/* League sticky header */}
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              padding: '8px 20px',
+              background: 'oklch(13.5% 0.006 250)',
+              borderTop: '1px solid rgba(255,255,255,.05)',
+              borderBottom: '1px solid rgba(255,255,255,.05)',
+              position: 'sticky', top: 0, zIndex: 2,
+            }}>
+              <span style={{
+                width: 5, height: 5, borderRadius: '50%', flexShrink: 0,
+                background: 'rgba(63,255,33,.5)',
+              }} />
+              <span style={{
+                fontSize: 10, fontWeight: 900, textTransform: 'uppercase',
+                letterSpacing: '.1em', color: 'var(--t3)',
+                flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              }}>
                 {league}
               </span>
-              <span className="text-[9px] font-bold ml-auto" style={{ color: 'var(--t3)', opacity: 0.5 }}>
-                {evs.length} jogo{evs.length !== 1 ? 's' : ''}
+              <span style={{
+                fontSize: 9, fontWeight: 800,
+                padding: '1px 6px', borderRadius: 4,
+                background: 'rgba(255,255,255,.05)', color: 'rgba(255,255,255,.3)',
+                border: '1px solid rgba(255,255,255,.06)',
+                flexShrink: 0,
+              }}>
+                {evs.length}
               </span>
             </div>
 
             {/* Event rows */}
-            {evs.map((ev, idx) => (
-              <button
-                key={ev.id}
-                type="button"
-                onClick={() => onSelect(ev)}
-                className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-all"
-                style={{
-                  background: idx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,.015)',
-                  borderBottom: '1px solid rgba(255,255,255,.04)',
-                }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(63,255,33,.05)'; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = idx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,.015)'; }}
-              >
-                {/* Time */}
-                <span className="text-[11px] font-black tabular-nums flex-shrink-0 w-10 text-right"
-                  style={{ color: 'var(--g)', fontFamily: "'JetBrains Mono', monospace" }}>
-                  {fmtTime(ev.start_utc)}
-                </span>
+            {evs.map(ev => {
+              const badge = getTimeBadge(ev.start_utc);
+              const [home, away] = parseTeams(ev.name);
+              return (
+                <button
+                  key={ev.id}
+                  type="button"
+                  onClick={() => onSelect(ev)}
+                  style={{
+                    width: '100%',
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    padding: '9px 20px',
+                    borderBottom: '1px solid rgba(255,255,255,.04)',
+                    background: 'transparent',
+                    cursor: 'pointer',
+                    transition: 'background .12s',
+                    textAlign: 'left',
+                  }}
+                  onMouseEnter={e => {
+                    const el = e.currentTarget as HTMLElement;
+                    el.style.background = 'rgba(63,255,33,.05)';
+                  }}
+                  onMouseLeave={e => {
+                    const el = e.currentTarget as HTMLElement;
+                    el.style.background = 'transparent';
+                  }}
+                >
+                  {/* Time badge */}
+                  <span style={{
+                    flexShrink: 0,
+                    fontSize: badge.live ? 8 : 11,
+                    fontWeight: 900,
+                    fontFamily: badge.live ? 'inherit' : "'JetBrains Mono', monospace",
+                    letterSpacing: badge.live ? '.08em' : '-.01em',
+                    padding: '3px 7px', borderRadius: 6,
+                    background: badge.bg, color: badge.color, border: `1px solid ${badge.border}`,
+                    minWidth: badge.live ? 'auto' : 44,
+                    textAlign: 'center',
+                  }}>
+                    {badge.label}
+                  </span>
 
-                {/* Event name */}
-                <span className="flex-1 text-xs font-bold truncate" style={{ color: 'var(--t)' }}>
-                  {ev.name}
-                </span>
-
-                {/* House count */}
-                {ev.house_count > 0 && (
-                  <div className="flex items-center gap-1 flex-shrink-0">
-                    <Building2 size={10} style={{ color: '#818cf8', opacity: 0.7 }} />
-                    <span className="text-[10px] font-bold" style={{ color: '#818cf8', opacity: 0.7 }}>
-                      {ev.house_count}
-                    </span>
+                  {/* Teams / event name */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    {away ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, overflow: 'hidden' }}>
+                        <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--t)',
+                          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '45%' }}>
+                          {home}
+                        </span>
+                        <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--t3)', flexShrink: 0 }}>×</span>
+                        <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--t)',
+                          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '45%' }}>
+                          {away}
+                        </span>
+                      </div>
+                    ) : (
+                      <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--t)',
+                        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}>
+                        {ev.name}
+                      </span>
+                    )}
                   </div>
-                )}
 
-                <ChevronRight size={12} style={{ color: 'var(--t3)', opacity: 0.3, flexShrink: 0 }} />
-              </button>
-            ))}
+                  {/* House count pill */}
+                  {ev.house_count > 0 && (
+                    <div style={{
+                      flexShrink: 0,
+                      display: 'flex', alignItems: 'center', gap: 4,
+                      padding: '2px 7px', borderRadius: 6,
+                      background: 'rgba(129,140,248,.08)',
+                      border: '1px solid rgba(129,140,248,.15)',
+                    }}>
+                      <Building2 size={9} style={{ color: '#818cf8' }} />
+                      <span style={{ fontSize: 10, fontWeight: 800, color: '#818cf8',
+                        fontFamily: "'JetBrains Mono', monospace" }}>
+                        {ev.house_count}
+                      </span>
+                    </div>
+                  )}
+
+                  <ChevronRight size={12} style={{ color: 'rgba(255,255,255,.15)', flexShrink: 0 }} />
+                </button>
+              );
+            })}
           </div>
         ))}
       </div>
