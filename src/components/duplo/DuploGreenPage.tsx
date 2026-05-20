@@ -25,22 +25,31 @@ interface MLSignal {
   _newAt?:    number;
 }
 
-// ── Houses ────────────────────────────────────────────────────────────────────
+// ── Houses (fonte: HAR painel.supermonitor.pro — casas reais do sistema) ───────
 
+/** Casas COM Pagamento Antecipado (casa_pa_ no scanner) */
 const PA_HOUSES = [
-  'Alfabet','Betbra','BetfairSB','Tradeball','Betnacional','Betmgm','Betesporte',
-  'Esportesdasorte','Sporty','KTO','Vaidebet','Betano','Novibet','Betsson',
-  'Bet365','Betsul','Vivasorte','Pixbet','Sportingbet','Superbet','Apostabet',
-  'Br4bet','Esportiva','Sortenabet','Estrelabet','Bet7k','Jogodeouro',
-  'Versusbet','Apostaganha','7games','Betao','MCgames',
+  'Betano','Novibet','Betsul','Betesporte','Betsson','Bet365',
+  'KTO','Vivasorte','Sportingbet','Superbet','Apostabet','Br4bet',
+  'Esportesdasorte','Esportiva','Sortenabet','Betmgm','Estrelabet',
+  'Bet7k','Jogodeouro','Meridianbet','Versusbet','Vaidebet',
 ];
 
+/** Casas SEM Pagamento Antecipado (casa_ sem prefixo pa no scanner) */
+const SEMPA_HOUSES = [
+  '7games','Alfabet','Apostaganha','Betbra','BetfairSB',
+  'Tradeball','Betnacional','Betao','Sporty',
+];
+
+/** Casas SO — Odds Aumentadas */
 const OS_HOUSES = [
-  'BetmgmSO','BetanoSO','EstrelabetSO','StakeSO','NovibetSO',
-  'Br4betSO','EsportivaSO','BetssonSO','VersusbetSO',
+  'BetssonSO','BetmgmSO','BetanoSO','BetsulSO','BetesporteSO',
+  'Br4betSO','EsportesdasorteSO','EsportivaSO','EstrelabetSO',
+  'JogodeouroSO','StakeSO','NovibetSO','KTOso','VaidebetSO',
+  'VivasorteSO','VersusbetSO',
 ];
 
-const ALL_HOUSES = [...PA_HOUSES, ...OS_HOUSES];
+const ALL_HOUSES = [...PA_HOUSES, ...SEMPA_HOUSES, ...OS_HOUSES];
 
 // ── CSS ───────────────────────────────────────────────────────────────────────
 
@@ -601,7 +610,7 @@ function FilterPanel({
           {/* PA houses */}
           <div style={{ marginBottom: 14 }}>
             <span style={{ fontSize: 9.5, fontWeight: 900, color: 'oklch(0.78 0.22 138)', letterSpacing: '.8px', display: 'block', marginBottom: 8 }}>
-              PAGAMENTO ANTECIPADO
+              COM PAGAMENTO ANTECIPADO
             </span>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
               {PA_HOUSES.map(h => {
@@ -612,6 +621,27 @@ function FilterPanel({
                     background: active ? 'rgba(63,255,33,.1)' : 'rgba(255,255,255,.04)',
                     border: `1px solid ${active ? 'rgba(63,255,33,.3)' : 'rgba(255,255,255,.07)'}`,
                     color: active ? 'oklch(0.78 0.22 138)' : 'rgba(255,255,255,.3)',
+                    cursor: 'pointer', transition: 'all .12s',
+                  }}>{h}</button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* SEM PA houses */}
+          <div style={{ marginBottom: 14 }}>
+            <span style={{ fontSize: 9.5, fontWeight: 900, color: 'rgba(255,255,255,.5)', letterSpacing: '.8px', display: 'block', marginBottom: 8 }}>
+              SEM PAGAMENTO ANTECIPADO
+            </span>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+              {SEMPA_HOUSES.map(h => {
+                const active = !disabled.has(normHouse(h));
+                return (
+                  <button key={h} onClick={() => onToggle(normHouse(h))} style={{
+                    padding: '3px 9px', borderRadius: 6, fontSize: 11, fontWeight: 600,
+                    background: active ? 'rgba(148,163,184,.12)' : 'rgba(255,255,255,.04)',
+                    border: `1px solid ${active ? 'rgba(148,163,184,.3)' : 'rgba(255,255,255,.07)'}`,
+                    color: active ? '#94A3B8' : 'rgba(255,255,255,.3)',
                     cursor: 'pointer', transition: 'all .12s',
                   }}>{h}</button>
                 );
@@ -656,18 +686,18 @@ function FilterPanel({
 
 // ── House filter drawer (Casas de Aposta) ─────────────────────────────────────
 
-function HouseCheckboxSection({ title, isOs: isOsGroup, items, disabled, onToggle, onSelectAll, onClear }: {
+function HouseCheckboxSection({ title, variant = 'pa', items, disabled, onToggle, onSelectAll, onClear }: {
   title: string;
-  isOs: boolean;
+  variant?: 'pa' | 'sempa' | 'os';
   items: string[];
   disabled: Set<string>;
   onToggle: (h: string) => void;
   onSelectAll: () => void;
   onClear: () => void;
 }) {
-  const accent = isOsGroup ? '#fbbf24' : 'oklch(0.78 0.22 138)';
-  const accentBg = isOsGroup ? 'rgba(251,191,36,.09)' : 'rgba(63,255,33,.07)';
-  const accentBorder = isOsGroup ? 'rgba(251,191,36,.28)' : 'rgba(63,255,33,.22)';
+  const accent      = variant === 'os' ? '#fbbf24' : variant === 'sempa' ? '#94A3B8' : 'oklch(0.78 0.22 138)';
+  const accentBg    = variant === 'os' ? 'rgba(251,191,36,.09)' : variant === 'sempa' ? 'rgba(148,163,184,.1)' : 'rgba(63,255,33,.07)';
+  const accentBorder = variant === 'os' ? 'rgba(251,191,36,.28)' : variant === 'sempa' ? 'rgba(148,163,184,.28)' : 'rgba(63,255,33,.22)';
 
   return (
     <div style={{ marginBottom: 20 }}>
@@ -703,7 +733,7 @@ function HouseCheckboxSection({ title, isOs: isOsGroup, items, disabled, onToggl
               <input type="checkbox" checked={active} onChange={() => onToggle(h)}
                 style={{ accentColor: accent, width: 13, height: 13, flexShrink: 0 }} />
               <span style={{ fontSize: 11, fontWeight: 600,
-                color: active ? (isOsGroup ? '#fde68a' : '#C4FFAE') : '#64748B', lineHeight: 1.3 }}>
+                color: active ? (variant === 'os' ? '#fde68a' : variant === 'sempa' ? '#CBD5E1' : '#C4FFAE') : '#64748B', lineHeight: 1.3 }}>
                 {h}
               </span>
             </label>
@@ -772,8 +802,8 @@ function HouseFilterDrawer({ disabled, onToggle, onSelectAll, onClear, onClose }
         {/* Scrollable content */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px' }}>
           <HouseCheckboxSection
-            title="Pagamento Antecipado"
-            isOs={false}
+            title="Com Pagamento Antecipado"
+            variant="pa"
             items={PA_HOUSES}
             disabled={disabled}
             onToggle={onToggle}
@@ -781,8 +811,17 @@ function HouseFilterDrawer({ disabled, onToggle, onSelectAll, onClear, onClose }
             onClear={() => onClear(PA_HOUSES)}
           />
           <HouseCheckboxSection
+            title="Sem Pagamento Antecipado"
+            variant="sempa"
+            items={SEMPA_HOUSES}
+            disabled={disabled}
+            onToggle={onToggle}
+            onSelectAll={() => onSelectAll(SEMPA_HOUSES)}
+            onClear={() => onClear(SEMPA_HOUSES)}
+          />
+          <HouseCheckboxSection
             title="Odds Aumentadas (OS)"
-            isOs={true}
+            variant="os"
             items={OS_HOUSES}
             disabled={disabled}
             onToggle={onToggle}
@@ -924,8 +963,10 @@ export function DuploGreenPage() {
       if (startMs < nowMs - 90 * 60_000) return false;
       return true;
     });
-    // Client-side PA filter (server handles 'ambos' via pa_only=true; 'um' needs client filter)
-    if (paMode === 'um') {
+    // Client-side PA filter — enforced here even if API slips through non-PA legs
+    if (paMode === 'ambos') {
+      visible = visible.filter(s => s.leg1.pa && s.legX.pa && s.leg2.pa);
+    } else if (paMode === 'um') {
       visible = visible.filter(s => s.leg1.pa || s.legX.pa || s.leg2.pa);
     }
     if (sortOrder === 'melhor')   return [...visible].sort((a, b) => a.loss_pct - b.loss_pct);
