@@ -25,6 +25,7 @@ import { ResumoPage }      from '@/components/resumo/ResumoPage';
 import { MetasPage }       from '@/components/metas/MetasPage';
 import { OperadoresPage }  from '@/components/operadores/OperadoresPage';
 import { LandingPage }     from '@/components/landing/LandingPage';
+import { PageErrorBoundary } from '@/components/ui/PageErrorBoundary';
 import { syncFromSheet }   from '@/lib/import/sheetsSync';
 import { commitRows }      from '@/lib/import/importEngine';
 import { getMySubscription, isSubscriptionActive } from '@/lib/supabase/subscription';
@@ -204,23 +205,25 @@ export function AppShell() {
         <Topbar onMenuClick={() => setMobileOpen(v => !v)} />
 
         <main className="flex-1 overflow-y-auto p-3 md:p-5 dot-grid">
-          {view === 'dash'    && <DashboardPage />}
-          {view === 'ops'     && <OperationsPage />}
-          {view === 'bm'      && <BookmakersPage />}
-          {view === 'caixa'   && <CaixaPage />}
-          {view === 'gastos'  && <GastosPage />}
-          {view === 'contas'  && <ContasPage />}
-          {view === 'analise'   && <AnalisePage />}
-          {view === 'calc'      && <CalculadoraPage />}
-          {view === 'odds'      && <BuscarOddsPage />}
-          {view === 'notas'      && <NotasPage />}
-          {view === 'freebet'    && <FreebetConverterPage />}
-          {view === 'duplo'      && <DuploGreenPage />}
-          {view === 'resumo'     && <ResumoPage />}
-          {view === 'metas'      && <MetasPage />}
-          {view === 'operadores' && <OperadoresPage />}
-          {view === 'admin'      && <AdminPage />}
-          {view === 'perfil'  && <PerfilPage />}
+          <PageErrorBoundary>
+            {view === 'dash'    && <DashboardPage />}
+            {view === 'ops'     && <OperationsPage />}
+            {view === 'bm'      && <BookmakersPage />}
+            {view === 'caixa'   && <CaixaPage />}
+            {view === 'gastos'  && <GastosPage />}
+            {view === 'contas'  && <ContasPage />}
+            {view === 'analise'   && <AnalisePage />}
+            {view === 'calc'      && <CalculadoraPage />}
+            {view === 'odds'      && <BuscarOddsPage />}
+            {view === 'notas'      && <NotasPage />}
+            {view === 'freebet'    && <FreebetConverterPage />}
+            {view === 'duplo'      && <DuploGreenPage />}
+            {view === 'resumo'     && <ResumoPage />}
+            {view === 'metas'      && <MetasPage />}
+            {view === 'operadores' && <OperadoresPage />}
+            {view === 'admin'      && <AdminPage />}
+            {view === 'perfil'  && <PerfilPage />}
+          </PageErrorBoundary>
         </main>
       </div>
 
