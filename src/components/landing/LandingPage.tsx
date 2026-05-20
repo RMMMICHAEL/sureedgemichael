@@ -1,16 +1,17 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import { PLAN_PRICES, PLAN_LABELS, type PlanId } from '@/lib/supabase/subscription';
 import {
   Zap, TrendingUp, Shield, BarChart2, Calculator,
   Upload, ChevronDown, Check, ArrowRight,
-  Target, Trophy, LogOut, Database, Activity,
-  QrCode, CreditCard,
+  LogOut, QrCode, CreditCard, Gift, Wallet,
+  Users, Star, Filter, Target, Database, Activity,
+  Building2, Sparkles, Trophy,
 } from 'lucide-react';
 
-// ─── Pricing data (mirrors /pricing) ─────────────────────────────────────────
+// ─── Pricing ──────────────────────────────────────────────────────────────────
 
 interface LandingPlan {
   id: PlanId;
@@ -28,27 +29,19 @@ const LANDING_PLANS: LandingPlan[] = [
     id: 'monthly', label: 'Mensal',
     price: PLAN_PRICES.monthly, perMonth: PLAN_PRICES.monthly,
     period: 'por mês',
-    features: ['Dashboard completo', 'Operações ilimitadas', 'Importação de planilha', 'Análise de performance', 'Calculadora de surebet', 'Suporte via e-mail'],
+    features: ['Dashboard completo', 'Operações ilimitadas', 'Calculadora de surebet', 'Importação Google Sheets', 'Suporte por e-mail'],
   },
   {
     id: 'quarterly', label: 'Trimestral',
     price: PLAN_PRICES.quarterly, perMonth: +(PLAN_PRICES.quarterly / 3).toFixed(2),
-    period: 'por trimestre', savings: 'Economize 15%', badge: 'POPULAR',
-    features: ['Tudo do Mensal', '3 meses de acesso', 'Prioridade no suporte', 'Relatórios avançados'],
+    period: 'por trimestre', savings: 'Economize 15%', badge: 'MAIS POPULAR',
+    features: ['Tudo do Mensal', 'Extração de freebet avançada', 'Relatórios detalhados', 'Suporte prioritário', 'Economize 15%'],
   },
   {
     id: 'annual', label: 'Anual',
     price: PLAN_PRICES.annual, perMonth: +(PLAN_PRICES.annual / 12).toFixed(2),
-    period: 'por ano', savings: 'Economize 32%',
-    features: [
-      'Tudo do Trimestral',
-      '12 meses de acesso',
-      'Acesso antecipado a novidades',
-      'Suporte prioritário',
-      'Planilha personalizada (não Green Surebet)',
-      'Curso de operações ao vivo',
-      'Acesso a métodos exclusivos',
-    ],
+    period: 'por ano', savings: 'Economize 32%', badge: 'ECONOMIZE 32%',
+    features: ['Tudo do Trimestral', '12 meses de acesso', 'Acesso antecipado a recursos', 'Planilha personalizada (não Green Surebet)', 'Curso de operações ao vivo'],
   },
 ];
 
@@ -65,504 +58,110 @@ function landingCheckoutUrl(planId: PlanId, email: string): string {
   } catch { return base; }
 }
 
-// ─── Scroll Reveal ─────────────────────────────────────────────────────────────
-
-function useScrollReveal() {
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); }),
-      { threshold: 0.06, rootMargin: '0px 0px -40px 0px' }
-    );
-    document.querySelectorAll('.reveal, .reveal-left, .reveal-right')
-      .forEach(el => observer.observe(el));
-    return () => observer.disconnect();
-  }, []);
-}
-
-// ─── Hero Screenshot ───────────────────────────────────────────────────────────
-
-function HeroScreenshot() {
-  return (
-    <div style={{ position: 'relative' }}>
-
-      {/* Ambient glow behind the image */}
-      <div style={{
-        position: 'absolute', inset: -40,
-        borderRadius: 40,
-        background: 'radial-gradient(ellipse 80% 70% at 50% 55%, rgba(63,255,33,.2) 0%, transparent 70%)',
-        pointerEvents: 'none',
-        animation: 'hero-glow-pulse 3.5s ease-in-out infinite',
-      }} />
-
-      {/* Image — no border, just shadow + float */}
-      <div style={{
-        position: 'relative',
-        animation: 'lp-float 5.5s ease-in-out infinite',
-      }}>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src="/dashboard-preview.png"
-          alt="SureEdge — dashboard de gestão de surebets com laptop e smartphone mostrando lucro e ROI"
-          width={1300}
-          height={870}
-          fetchPriority="high"
-          style={{
-            width: '100%',
-            height: 'auto',
-            display: 'block',
-            borderRadius: 12,
-            boxShadow: '0 40px 100px rgba(0,0,0,.7), 0 0 80px rgba(63,255,33,.12)',
-          }}
-        />
-
-        {/* Scan line sweep */}
-        <div style={{
-          position: 'absolute', inset: 0, pointerEvents: 'none', borderRadius: 12, overflow: 'hidden',
-        }}>
-          <div style={{
-            position: 'absolute', inset: 0,
-            background: 'linear-gradient(180deg, transparent 0%, rgba(63,255,33,.04) 48%, rgba(63,255,33,.08) 50%, rgba(63,255,33,.04) 52%, transparent 100%)',
-            animation: 'hero-scan 6s ease-in-out infinite',
-          }} />
-        </div>
-      </div>
-
-      {/* Floating stat badges */}
-      <div style={{
-        position: 'absolute', bottom: -16, left: -18,
-        background: '#0D1520',
-        border: '1px solid rgba(63,255,33,.28)',
-        borderRadius: 10, padding: '8px 14px',
-        display: 'flex', alignItems: 'center', gap: 9,
-        boxShadow: '0 8px 32px rgba(0,0,0,.5)',
-        animation: 'hero-badge-in .8s cubic-bezier(.16,1,.3,1) both',
-        animationDelay: '900ms',
-        opacity: 0,
-      }}>
-        <TrendingUp size={13} color="#3FFF21" />
-        <div>
-          <div style={{ fontFamily: 'JetBrains Mono', fontSize: 13, fontWeight: 700, color: '#3FFF21', lineHeight: 1 }}>+R$ 9.247</div>
-          <div style={{ fontFamily: 'Figtree', fontSize: 10, color: 'rgba(255,255,255,.35)', marginTop: 2 }}>lucro este mês</div>
-        </div>
-      </div>
-
-      <div style={{
-        position: 'absolute', top: 40, right: -20,
-        background: '#0D1520',
-        border: '1px solid rgba(77,166,255,.28)',
-        borderRadius: 10, padding: '8px 14px',
-        display: 'flex', alignItems: 'center', gap: 9,
-        boxShadow: '0 8px 32px rgba(0,0,0,.5)',
-        animation: 'hero-badge-in .8s cubic-bezier(.16,1,.3,1) both',
-        animationDelay: '1100ms',
-        opacity: 0,
-      }}>
-        <Activity size={13} color="#4DA6FF" />
-        <div>
-          <div style={{ fontFamily: 'JetBrains Mono', fontSize: 13, fontWeight: 700, color: '#4DA6FF', lineHeight: 1 }}>3.84%</div>
-          <div style={{ fontFamily: 'Figtree', fontSize: 10, color: 'rgba(255,255,255,.35)', marginTop: 2 }}>ROI médio</div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Dashboard Mockup ──────────────────────────────────────────────────────────
-
-function DashboardMockup() {
-  return (
-    <div style={{ background: '#0A0F14', borderRadius: 12, border: '1px solid rgba(63,255,33,.28)', overflow: 'hidden' }}>
-      <div style={{ background: '#0D1117', borderBottom: '1px solid rgba(255,255,255,.06)', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 7 }}>
-        <div style={{ width: 9, height: 9, borderRadius: 5, background: '#FF4D6D' }} />
-        <div style={{ width: 9, height: 9, borderRadius: 5, background: '#FFD600' }} />
-        <div style={{ width: 9, height: 9, borderRadius: 5, background: '#3FFF21' }} />
-        <div style={{ flex: 1 }} />
-        <span style={{ fontSize: 9, fontFamily: 'JetBrains Mono', color: 'rgba(63,255,33,.5)' }}>dashboard.sureedge.app</span>
-      </div>
-      <div style={{ padding: 16, display: 'flex', gap: 12 }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-          {[BarChart2, TrendingUp, Calculator, Target, Database].map((Icon, i) => (
-            <div key={i} style={{
-              width: 32, height: 32, borderRadius: 8, flexShrink: 0,
-              background: i === 0 ? 'rgba(63,255,33,.12)' : 'rgba(255,255,255,.04)',
-              border: i === 0 ? '1px solid rgba(63,255,33,.24)' : '1px solid rgba(255,255,255,.05)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              <Icon size={14} color={i === 0 ? '#3FFF21' : '#3A4A5A'} />
-            </div>
-          ))}
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 6, marginBottom: 10 }}>
-            {[
-              { label: 'Lucro Total', value: 'R$ 4.820', color: '#3FFF21' },
-              { label: 'Operações',   value: '247',      color: '#4DA6FF' },
-              { label: 'ROI Médio',   value: '3.8%',     color: '#FFD600' },
-            ].map(k => (
-              <div key={k.label} style={{ background: '#131920', borderRadius: 8, padding: '8px 10px', border: '1px solid rgba(255,255,255,.05)' }}>
-                <div style={{ fontSize: 8, color: '#4A5E6E', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.07em' }}>{k.label}</div>
-                <div style={{ fontSize: 14, fontWeight: 700, color: k.color, fontFamily: 'JetBrains Mono' }}>{k.value}</div>
-              </div>
-            ))}
-          </div>
-          <div style={{ background: '#131920', borderRadius: 8, padding: '10px 12px', border: '1px solid rgba(255,255,255,.05)', marginBottom: 8 }}>
-            <div style={{ fontSize: 8, color: '#3A4A5A', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Evolução do Saldo</div>
-            <svg width="100%" height={44} viewBox="0 0 240 44" preserveAspectRatio="none">
-              <defs>
-                <linearGradient id="dg1" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#3FFF21" stopOpacity="0.18" />
-                  <stop offset="100%" stopColor="#3FFF21" stopOpacity="0" />
-                </linearGradient>
-              </defs>
-              <path d="M0 40 L30 34 L60 26 L90 20 L120 14 L150 9 L180 6 L210 3 L240 1"
-                stroke="#3FFF21" strokeWidth="1.5" fill="none" strokeLinecap="round" />
-              <path d="M0 40 L30 34 L60 26 L90 20 L120 14 L150 9 L180 6 L210 3 L240 1 L240 44 L0 44Z"
-                fill="url(#dg1)" />
-              <circle cx="240" cy="1" r="2.5" fill="#3FFF21" />
-            </svg>
-          </div>
-          <div style={{ background: '#131920', borderRadius: 8, border: '1px solid rgba(255,255,255,.05)', overflow: 'hidden' }}>
-            {[{ casa: 'Bet365', roi: '+4.2%' }, { casa: 'Pinnacle', roi: '+5.1%' }, { casa: 'Betfair', roi: '+2.8%' }].map((r, i) => (
-              <div key={i} style={{ padding: '7px 10px', display: 'flex', justifyContent: 'space-between', borderBottom: i < 2 ? '1px solid rgba(255,255,255,.04)' : undefined }}>
-                <span style={{ fontSize: 9, color: '#6A7E8E' }}>{r.casa}</span>
-                <span style={{ fontSize: 9, color: '#3FFF21', fontFamily: 'JetBrains Mono', fontWeight: 700 }}>{r.roi}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Full Dashboard Mockup ────────────────────────────────────────────────────
-
-const S = {
-  bg:    '#0A0F14',
-  panel: '#0F1620',
-  card:  '#131B24',
-  line:  'rgba(255,255,255,.05)',
-  t1:    '#D0DBE8',
-  t2:    '#7A8FA0',
-  t3:    '#3A4E60',
-  g:     '#3FFF21',
-  y:     '#FFD600',
-  b:     '#4DA6FF',
-  p:     '#A78BFA',
-  r:     '#FF4D6D',
-  mono:  'JetBrains Mono, monospace',
-};
-
-function MCard({ label, value, sub, color }: { label: string; value: string; sub?: string; color: string }) {
-  return (
-    <div style={{ background: S.card, border: `1px solid ${S.line}`, borderRadius: 8, padding: '10px 12px', position: 'relative', overflow: 'hidden' }}>
-      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: color, opacity: 0.7 }} />
-      <div style={{ fontSize: 8, color: S.t3, textTransform: 'uppercase', letterSpacing: '0.09em', marginBottom: 5 }}>{label}</div>
-      <div style={{ fontSize: 15, fontWeight: 700, color, fontFamily: S.mono, letterSpacing: '-0.02em', lineHeight: 1 }}>{value}</div>
-      {sub && <div style={{ fontSize: 8, color: S.t3, marginTop: 4 }}>{sub}</div>}
-    </div>
-  );
-}
-
-function MiniBar({ label, value, pct, color }: { label: string; value: string; pct: number; color: string }) {
-  return (
-    <div style={{ padding: '6px 10px', borderBottom: `1px solid ${S.line}` }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-        <span style={{ fontSize: 9, color: S.t2 }}>{label}</span>
-        <span style={{ fontSize: 9, color, fontFamily: S.mono, fontWeight: 700 }}>{value}</span>
-      </div>
-      <div style={{ height: 2, background: 'rgba(255,255,255,.06)', borderRadius: 1, overflow: 'hidden' }}>
-        <div style={{ height: '100%', width: `${pct}%`, background: color, borderRadius: 1, opacity: 0.85 }} />
-      </div>
-    </div>
-  );
-}
-
-function FullDashboardMockup() {
-  // Evolução saldo SVG path points — realistic upward trend with dips
-  const pts = [[0,68],[18,62],[36,55],[52,50],[68,44],[82,39],[96,33],[110,37],[124,30],[138,24],[152,19],[166,22],[180,15],[194,10],[208,6],[220,9],[232,4],[244,1]];
-  const pathD = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0]} ${p[1]}`).join(' ');
-  const areaD = pathD + ` L${pts[pts.length-1][0]} 72 L0 72Z`;
-
-  const SPORTS = [
-    { name: 'Futebol',    ops: 142, roi: 4.1, pct: 100, col: S.g },
-    { name: 'Tênis',      ops: 67,  roi: 3.8, pct: 78,  col: S.b },
-    { name: 'Basquete',   ops: 31,  roi: 3.2, pct: 55,  col: S.y },
-    { name: 'E-Sports',   ops: 18,  roi: 2.9, pct: 40,  col: S.p },
-  ];
-
-  const CROSS = [
-    { pair: 'Bet365 / Pinnacle',    ops: 88, roi: 5.2, pct: 100 },
-    { pair: 'Betfair / Betano',     ops: 54, roi: 4.7, pct: 90  },
-    { pair: 'Pinnacle / 1xBet',     ops: 43, roi: 4.1, pct: 79  },
-    { pair: 'Sportsbet / Betway',   ops: 29, roi: 3.6, pct: 62  },
-    { pair: 'Bet365 / Sportingbet', ops: 22, roi: 3.1, pct: 50  },
-  ];
-
-  const OPS = [
-    { evento: 'Man City × Arsenal',   casa: 'Bet365/Pinnacle', lucro: '+R$ 210', roi: '4.7%', status: 'LUCRO' },
-    { evento: 'Djokovic × Alcaraz',   casa: 'Betano/Betfair',  lucro: '+R$ 96',  roi: '2.8%', status: 'LUCRO' },
-    { evento: 'Lakers × Warriors',    casa: 'Pinnacle/1xBet',  lucro: '+R$ 158', roi: '5.1%', status: 'LUCRO' },
-    { evento: 'PSG × Bayern Munich',  casa: 'Bet365/Betway',   lucro: '+R$ 127', roi: '3.9%', status: 'LUCRO' },
-  ];
-
-  const NAV_ICONS = ['▣', '↗', '◎', '⊞', '✦'];
-
-  return (
-    <div style={{ background: S.bg, borderRadius: 12, border: '1px solid rgba(63,255,33,.22)', overflow: 'hidden', fontSize: 10, userSelect: 'none' }}>
-
-      {/* ── Titlebar ── */}
-      <div style={{ background: '#080D12', borderBottom: `1px solid ${S.line}`, padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 6 }}>
-        <div style={{ width: 8, height: 8, borderRadius: 4, background: '#FF4D6D' }} />
-        <div style={{ width: 8, height: 8, borderRadius: 4, background: '#FFD600' }} />
-        <div style={{ width: 8, height: 8, borderRadius: 4, background: '#3FFF21' }} />
-        <div style={{ flex: 1, margin: '0 10px', background: '#0D1520', border: `1px solid ${S.line}`, borderRadius: 5, padding: '3px 10px', display: 'flex', alignItems: 'center', gap: 5 }}>
-          <div style={{ width: 5, height: 5, borderRadius: '50%', background: S.g, opacity: 0.6 }} />
-          <span style={{ fontFamily: S.mono, fontSize: 8, color: S.t3 }}>app.sureedge.com.br/dashboard</span>
-        </div>
-        <span style={{ fontFamily: S.mono, fontSize: 8, color: 'rgba(63,255,33,.4)' }}>Mai 2025</span>
-      </div>
-
-      {/* ── App body ── */}
-      <div style={{ display: 'flex', height: 'auto' }}>
-
-        {/* Sidebar */}
-        <div style={{ width: 34, background: '#080D12', borderRight: `1px solid ${S.line}`, display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '10px 0', gap: 8 }}>
-          <div style={{ width: 22, height: 22, borderRadius: 6, background: S.g, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 6 }}>
-            <span style={{ fontSize: 10, fontWeight: 900, color: '#050A06' }}>⚡</span>
-          </div>
-          {NAV_ICONS.map((ic, i) => (
-            <div key={i} style={{
-              width: 26, height: 26, borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center',
-              background: i === 0 ? 'rgba(63,255,33,.14)' : 'rgba(255,255,255,.03)',
-              border: i === 0 ? '1px solid rgba(63,255,33,.22)' : '1px solid transparent',
-              fontSize: 9, color: i === 0 ? S.g : S.t3,
-            }}>{ic}</div>
-          ))}
-        </div>
-
-        {/* Main content */}
-        <div style={{ flex: 1, padding: 10, display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
-
-          {/* Header row */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
-            <div>
-              <div style={{ fontFamily: S.mono, fontSize: 9, fontWeight: 700, color: S.t1, letterSpacing: '-0.01em' }}>Dashboard</div>
-              <div style={{ fontSize: 8, color: S.t3, marginTop: 1 }}>Período: 01 Mai — 31 Mai 2025</div>
-            </div>
-            <div style={{ display: 'flex', gap: 5 }}>
-              {['7d','30d','90d'].map((l, i) => (
-                <div key={l} style={{ padding: '2px 7px', borderRadius: 4, fontFamily: S.mono, fontSize: 8, fontWeight: 700,
-                  background: i === 1 ? 'rgba(63,255,33,.14)' : 'rgba(255,255,255,.04)',
-                  color: i === 1 ? S.g : S.t3,
-                  border: i === 1 ? '1px solid rgba(63,255,33,.22)' : '1px solid transparent',
-                }}>{l}</div>
-              ))}
-            </div>
-          </div>
-
-          {/* KPI row — 4 cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 6 }}>
-            <MCard label="Lucro Total"  value="R$ 9.247"  sub="+R$ 1.280 este mês" color={S.g} />
-            <MCard label="ROI Médio"    value="3.84%"     sub="↑ 0.2pp vs anterior" color={S.y} />
-            <MCard label="Win Rate"     value="94.6%"     sub="258 de 273 ops" color={S.b} />
-            <MCard label="Investido"    value="R$ 62.400" sub="Banca alocada" color={S.p} />
-          </div>
-
-          {/* Saldo chart + Top Esportes */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 130px', gap: 6 }}>
-
-            {/* Chart */}
-            <div style={{ background: S.card, border: `1px solid ${S.line}`, borderRadius: 8, padding: '10px 12px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <span style={{ fontSize: 8, color: S.t3, textTransform: 'uppercase', letterSpacing: '0.09em' }}>Evolução do Saldo</span>
-                <span style={{ fontFamily: S.mono, fontSize: 9, color: S.g, fontWeight: 700 }}>+R$ 9.247</span>
-              </div>
-              <svg width="100%" height={72} viewBox="0 0 244 72" preserveAspectRatio="none">
-                <defs>
-                  <linearGradient id="mg2" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#3FFF21" stopOpacity="0.2" />
-                    <stop offset="100%" stopColor="#3FFF21" stopOpacity="0" />
-                  </linearGradient>
-                </defs>
-                {/* Grid lines */}
-                {[18, 36, 54].map(y => (
-                  <line key={y} x1="0" y1={y} x2="244" y2={y} stroke="rgba(255,255,255,.04)" strokeWidth="1" />
-                ))}
-                <path d={areaD} fill="url(#mg2)" />
-                <path d={pathD} stroke="#3FFF21" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-                <circle cx={pts[pts.length-1][0]} cy={pts[pts.length-1][1]} r="2.5" fill="#3FFF21" />
-                <circle cx={pts[pts.length-1][0]} cy={pts[pts.length-1][1]} r="5" fill="#3FFF21" fillOpacity="0.2" />
-              </svg>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
-                {['01/Mai','08/Mai','15/Mai','22/Mai','31/Mai'].map(d => (
-                  <span key={d} style={{ fontFamily: S.mono, fontSize: 7, color: S.t3 }}>{d}</span>
-                ))}
-              </div>
-            </div>
-
-            {/* Top Esportes */}
-            <div style={{ background: S.card, border: `1px solid ${S.line}`, borderRadius: 8, overflow: 'hidden' }}>
-              <div style={{ padding: '8px 10px', borderBottom: `1px solid ${S.line}` }}>
-                <span style={{ fontSize: 8, color: S.t3, textTransform: 'uppercase', letterSpacing: '0.09em' }}>Top Esportes</span>
-              </div>
-              {SPORTS.map(s => (
-                <div key={s.name} style={{ padding: '5px 10px', borderBottom: `1px solid ${S.line}` }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
-                    <span style={{ fontSize: 9, color: S.t2 }}>{s.name}</span>
-                    <span style={{ fontSize: 9, fontFamily: S.mono, fontWeight: 700, color: s.col }}>+{s.roi}%</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
-                    <span style={{ fontSize: 7, color: S.t3 }}>{s.ops} ops</span>
-                  </div>
-                  <div style={{ height: 2, background: 'rgba(255,255,255,.06)', borderRadius: 1, overflow: 'hidden' }}>
-                    <div style={{ height: '100%', width: `${s.pct}%`, background: s.col, opacity: 0.75, borderRadius: 1 }} />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Top Cruzamentos + Últimas Operações */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-
-            {/* Top Cruzamentos */}
-            <div style={{ background: S.card, border: `1px solid ${S.line}`, borderRadius: 8, overflow: 'hidden' }}>
-              <div style={{ padding: '8px 10px', borderBottom: `1px solid ${S.line}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: 8, color: S.t3, textTransform: 'uppercase', letterSpacing: '0.09em' }}>Top Cruzamentos</span>
-                <span style={{ fontSize: 7, color: S.t3 }}>por ROI</span>
-              </div>
-              {CROSS.map((c, i) => (
-                <MiniBar key={i} label={c.pair} value={`+${c.roi}%`} pct={c.pct} color={S.g} />
-              ))}
-            </div>
-
-            {/* Últimas Operações */}
-            <div style={{ background: S.card, border: `1px solid ${S.line}`, borderRadius: 8, overflow: 'hidden' }}>
-              <div style={{ padding: '8px 10px', borderBottom: `1px solid ${S.line}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: 8, color: S.t3, textTransform: 'uppercase', letterSpacing: '0.09em' }}>Últimas Operações</span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <div style={{ width: 5, height: 5, borderRadius: '50%', background: S.g, opacity: 0.8 }} />
-                  <span style={{ fontSize: 7, color: S.g }}>AO VIVO</span>
-                </div>
-              </div>
-              {OPS.map((op, i) => (
-                <div key={i} style={{ padding: '6px 10px', borderBottom: i < OPS.length - 1 ? `1px solid ${S.line}` : undefined }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
-                    <span style={{ fontSize: 9, color: S.t1, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '70%' }}>{op.evento}</span>
-                    <span style={{ fontFamily: S.mono, fontSize: 9, fontWeight: 700, color: S.g }}>{op.lucro}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ fontSize: 7, color: S.t3 }}>{op.casa}</span>
-                    <span style={{ fontFamily: S.mono, fontSize: 7, color: S.y }}>ROI {op.roi}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ─── Static data ──────────────────────────────────────────────────────────────
 
-const TICKER = [
-  'Bet365 / Betfair · Man City vs Arsenal · +R$ 127,50 · ROI 3.8%',
-  'Pinnacle / 1xBet · NBA Finals · +R$ 96,00 · ROI 5.2%',
-  'Sportingbet · Djokovic vs Alcaraz · +R$ 84,20 · ROI 2.1%',
-  'Betano / Bet365 · PSG vs Bayern Munich · +R$ 210,00 · ROI 4.7%',
-  'Pinnacle · Liga dos Campeões · +R$ 145,00 · ROI 3.9%',
-  'Betfair Exchange · Medvedev vs Alcaraz · +R$ 96,80 · ROI 2.8%',
-  'Bet365 · Real Madrid vs Atlético · +R$ 158,00 · ROI 3.2%',
+const BOOKMAKERS = [
+  'Bet365', 'Pinnacle', 'Betfair', 'Sportingbet', 'Betano', 'Betsson',
+  'KTO', 'Superbet', 'Betway', 'Stake', 'Bwin', '1xBet',
+  'Novibet', 'EstrelaBet', 'PixBet', 'Galera.bet', 'Betfast', 'Vbet',
 ];
 
 const FEATURES = [
   {
-    n: '01', Icon: Upload, color: '#4DA6FF',
-    title: 'Importação Automática',
-    mono: 'Conecte. Esqueça. Funciona.',
-    desc: 'Conecte sua planilha da Green Surebet via Google Sheets uma única vez. O SureEdge sincroniza automaticamente a cada 60 segundos — sem copiar, sem colar, sem trabalho manual.',
-    tags: ['Google Sheets nativo', 'Sync a cada 60s', 'Histórico completo'],
+    icon: Filter,
+    color: '#A78BFA',
+    tag: 'exclusivo',
+    title: 'Extração de Freebet',
+    desc: 'Identifique os jogos com maior taxa de conversão de freebet em mais de 30 casas. Transforme bônus em saldo real com eficiência cirúrgica.',
   },
   {
-    n: '02', Icon: BarChart2, color: '#3FFF21',
+    icon: TrendingUp,
+    color: '#3FFF21',
+    tag: 'tempo real',
     title: 'Analytics Avançado',
-    mono: 'Cada número no lugar certo.',
-    desc: 'ROI por bookmaker, evolução do saldo, win rate por esporte e filtros por período. Dados atualizados em tempo real para identificar onde você ganha mais e onde está deixando dinheiro na mesa.',
-    tags: ['ROI por casa', 'Gráficos interativos', 'Filtros por período'],
+    desc: 'ROI por bookmaker, evolução do saldo e win rate por esporte. Filtros por período para descobrir onde você ganha mais e onde está perdendo.',
   },
   {
-    n: '03', Icon: Calculator, color: '#FFD600',
+    icon: Calculator,
+    color: '#FFD600',
+    tag: 'automático',
     title: 'Calculadora de Surebet',
-    mono: 'Stakes com precisão matemática.',
-    desc: 'Calcule stakes para operações de 2 e 3 outcomes com alocação automática baseada no seu saldo disponível. Lucro garantido, sem margem para erro humano de cálculo.',
-    tags: ['2 e 3 outcomes', 'Alocação automática', 'Lucro garantido'],
+    desc: 'Stakes precisas para operações de 2 e 3 outcomes com alocação automática. Lucro garantido, sem margem para erro humano.',
+  },
+  {
+    icon: Wallet,
+    color: '#4DA6FF',
+    tag: 'gestão',
+    title: 'Gestão de Bancas',
+    desc: 'Cadastre todas as suas casas de apostas, controle saldos, depósitos e saques em uma visão unificada. Chega de aba perdida em planilha.',
+  },
+  {
+    icon: Users,
+    color: '#FF6B6B',
+    tag: 'multi-conta',
+    title: 'Controle de Clientes',
+    desc: 'Organize contas de terceiros com privacidade total. Saiba sempre quem está operando o quê, quanto rendeu e o status de cada conta.',
+  },
+  {
+    icon: Upload,
+    color: '#4DA6FF',
+    tag: '1 clique',
+    title: 'Importação Automática',
+    desc: 'Conecte sua planilha da Green Surebet via Google Sheets. Sincronização contínua a cada 60 segundos — sem copiar, sem colar, sem esforço.',
   },
 ];
 
-// ─── Screenshot showcase data ─────────────────────────────────────────────────
-
-const SHOWCASE_ITEMS = [
+const WORKFLOW = [
   {
-    tag: 'CASAS DE APOSTA',
-    title: 'Controle total de cada bookmaker',
-    desc: 'Cadastre todas as suas casas de aposta, acompanhe o saldo disponível em cada uma e gerencie o status de cada operador de um ponto centralizado. Chega de aba perdida em planilha.',
-    bullets: [
-      'Saldo por casa atualizado em tempo real',
-      '+37 casas pré-cadastradas com logo e cor',
-      'Status ativa, limitada ou inativa por bookmaker',
-    ],
-    src: '/casasdeaposta.png',
-    imgAlt: 'Tela de casas de aposta no SureEdge — grid de bookmakers com saldo e status de cada casa',
-    accentColor: '#3FFF21',
-    glow: 'rgba(63,255,33,.10)',
-    borderColor: 'rgba(63,255,33,.20)',
+    n: '01', icon: Building2,
+    title: 'Conecte suas casas',
+    desc: 'Adicione bancas, saldos iniciais e contas em segundos. Pré-configuramos 37+ casas para você.',
   },
   {
-    tag: 'CAIXA OPERACIONAL',
-    title: 'Banca, lucro e ROI em um painel',
-    desc: 'Veja seu capital total separado por saldo em casas e saldo em banco. Acompanhe a curva acumulada do lucro bruto e líquido ao longo do tempo, com ROI histórico mês a mês.',
-    bullets: [
-      'Lucro bruto e líquido separados por período',
-      'Gráfico de evolução acumulada do saldo',
-      'ROI mensal histórico com comparativo',
-    ],
-    src: '/caixa.png',
-    imgAlt: 'Tela de caixa operacional no SureEdge — capital total, gráfico de lucro acumulado e ROI por mês',
-    accentColor: '#4DA6FF',
-    glow: 'rgba(77,166,255,.10)',
-    borderColor: 'rgba(77,166,255,.20)',
+    n: '02', icon: Sparkles,
+    title: 'Encontre a operação',
+    desc: 'Use extração de freebet ou calculadora de surebet. O sistema entrega a melhor opção filtrada.',
   },
   {
-    tag: 'GESTÃO DE CLIENTES',
-    title: 'Seus clientes organizados e rastreáveis',
-    desc: 'Registre cada cliente, vincule as casas de aposta abertas para ele e acompanhe o status de cada conta individualmente. Ideal para quem opera com contas de terceiros ou gerencia uma equipe.',
-    bullets: [
-      'Casas de aposta vinculadas por cliente',
-      'Status ativo ou inativo por conta',
-      'Controle de investimento por perfil de cliente',
-    ],
-    src: '/clientes.png',
-    imgAlt: 'Tela de gestão de clientes no SureEdge — lista de clientes com casas e status de cada conta',
-    accentColor: '#A78BFA',
-    glow: 'rgba(167,139,250,.10)',
-    borderColor: 'rgba(167,139,250,.20)',
+    n: '03', icon: Activity,
+    title: 'Registre e acompanhe',
+    desc: 'Importe planilhas ou registre manualmente. Acompanhe ROI, lucro e performance por casa em tempo real.',
   },
-] as const;
+  {
+    n: '04', icon: Trophy,
+    title: 'Cresça com dados',
+    desc: 'Relatórios em tempo real mostram onde está o lucro real. Pare de operar no escuro.',
+  },
+];
 
 const FAQ = [
-  { q: 'O que é surebet?', a: 'Surebet é uma técnica onde você aposta em todos os resultados possíveis de um evento em diferentes casas de apostas, garantindo lucro independente do resultado. O SureEdge ajuda você a registrar, monitorar e analisar essas operações com precisão.' },
-  { q: 'O SureEdge encontra surebets automaticamente?', a: 'O SureEdge é uma plataforma de gestão e analytics. Você registra suas operações e a plataforma analisa performance, calcula ROI e organiza seu histórico. A calculadora integrada distribui stakes automaticamente entre os outcomes.' },
-  { q: 'Preciso de conhecimento técnico para usar?', a: 'Não. A interface foi projetada para ser intuitiva. Em menos de 5 minutos você já registra sua primeira operação e visualiza seu dashboard com métricas de performance em tempo real.' },
-  { q: 'Posso importar minha planilha da Green Surebet?', a: 'Sim! O SureEdge importa diretamente da planilha da Green Surebet via Google Sheets. Configure o link uma vez e o sistema sincroniza automaticamente a cada minuto — sem copiar, sem colar, sem esforço da sua parte.' },
-  { q: 'Quantas casas de apostas são suportadas?', a: 'Mais de 37 casas estão pré-configuradas com logos e dados, incluindo Bet365, Betfair, Pinnacle, Sportingbet e Betano. Você também pode adicionar casas personalizadas.' },
-  { q: 'O pagamento é seguro?', a: 'Sim. Utilizamos a plataforma Cakto para processar pagamentos com total segurança. Aceitamos PIX e cartão de crédito. O acesso é liberado imediatamente após a confirmação do pagamento.' },
+  {
+    q: 'O sistema encontra surebets e freebets automaticamente?',
+    a: 'O SureEdge é uma plataforma de gestão e analytics. Você registra suas operações e a plataforma analisa performance, calcula ROI e organiza seu histórico. A calculadora integrada distribui stakes automaticamente e a ferramenta de freebet identifica as melhores conversões em 30+ casas.',
+  },
+  {
+    q: 'Posso importar minha planilha da Green Surebet?',
+    a: 'Pode. Aceitamos importação via Google Sheets — incluindo a planilha da Green Surebet. Configure o link uma vez e o sistema sincroniza automaticamente a cada minuto, sem copiar e colar.',
+  },
+  {
+    q: 'Como funciona a gestão de várias contas e CPFs?',
+    a: 'Você cadastra clientes, vincula às casas de apostas e o sistema separa saldos, lucros e operações de cada um. Ideal para quem opera com terceiros.',
+  },
+  {
+    q: 'Quantas casas de apostas são suportadas?',
+    a: 'Mais de 37 casas pré-configuradas com logos e dados, incluindo Bet365, Betfair, Pinnacle, Betano, Sportingbet, KTO, Superbet e muitas outras. Você também pode adicionar casas personalizadas.',
+  },
+  {
+    q: 'Preciso de conhecimento técnico para usar?',
+    a: 'Não. Em menos de 5 minutos você cadastra sua primeira casa, registra uma operação e já vê seu dashboard com métricas em tempo real.',
+  },
+  {
+    q: 'O pagamento é seguro? Tem garantia?',
+    a: 'Sim. Utilizamos a Cakto para pagamentos com total segurança. Aceitamos PIX e cartão de crédito. Acesso liberado imediatamente após a confirmação do pagamento.',
+  },
 ];
 
-// ─── FAQ JSON-LD (FAQPage schema) ─────────────────────────────────────────────
+// ─── FAQ JSON-LD ──────────────────────────────────────────────────────────────
 
 const FAQ_JSON_LD = {
   '@context': 'https://schema.org',
@@ -570,21 +169,240 @@ const FAQ_JSON_LD = {
   mainEntity: FAQ.map(item => ({
     '@type': 'Question',
     name: item.q,
-    acceptedAnswer: {
-      '@type': 'Answer',
-      text: item.a,
-    },
+    acceptedAnswer: { '@type': 'Answer', text: item.a },
   })),
 };
 
-// ─── Main Component ────────────────────────────────────────────────────────────
+// ─── Particles (canvas, no deps) ─────────────────────────────────────────────
+
+type Particle = { x: number; y: number; vx: number; vy: number; r: number; a: number };
+
+function ParticlesField() {
+  const ref = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    const canvas = ref.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    let raf = 0;
+    let W = 0, H = 0;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const resize = () => {
+      W = canvas.offsetWidth; H = canvas.offsetHeight;
+      canvas.width = W * dpr; canvas.height = H * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    };
+    resize();
+    const N = 60;
+    const parts: Particle[] = Array.from({ length: N }, () => ({
+      x: Math.random() * W, y: Math.random() * H,
+      vx: (Math.random() - 0.5) * 0.28, vy: (Math.random() - 0.5) * 0.28,
+      r: Math.random() * 1.4 + 0.4, a: Math.random() * 0.35 + 0.06,
+    }));
+    const draw = () => {
+      ctx.clearRect(0, 0, W, H);
+      for (const p of parts) {
+        p.x += p.vx; p.y += p.vy;
+        if (p.x < 0) p.x = W; if (p.x > W) p.x = 0;
+        if (p.y < 0) p.y = H; if (p.y > H) p.y = 0;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(63,255,33,${p.a})`;
+        ctx.fill();
+      }
+      for (let i = 0; i < N; i++) {
+        for (let j = i + 1; j < N; j++) {
+          const dx = parts[i].x - parts[j].x, dy = parts[i].y - parts[j].y;
+          const d = Math.sqrt(dx * dx + dy * dy);
+          if (d < 120) {
+            ctx.beginPath();
+            ctx.moveTo(parts[i].x, parts[i].y);
+            ctx.lineTo(parts[j].x, parts[j].y);
+            ctx.strokeStyle = `rgba(63,255,33,${0.06 * (1 - d / 120)})`;
+            ctx.lineWidth = 0.5;
+            ctx.stroke();
+          }
+        }
+      }
+      raf = requestAnimationFrame(draw);
+    };
+    draw();
+    window.addEventListener('resize', resize);
+    return () => { cancelAnimationFrame(raf); window.removeEventListener('resize', resize); };
+  }, []);
+  return <canvas ref={ref} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', opacity: 0.65 }} />;
+}
+
+// ─── Counter hook ─────────────────────────────────────────────────────────────
+
+function useCounter(target: number, duration = 2500, decimals = 0) {
+  const [value, setValue] = useState(0);
+  const spanRef = useRef<HTMLSpanElement>(null);
+  const started = useRef(false);
+  useEffect(() => {
+    const el = spanRef.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting && !started.current) {
+        started.current = true;
+        const t0 = performance.now();
+        const tick = (now: number) => {
+          const t = Math.min((now - t0) / duration, 1);
+          const eased = 1 - Math.pow(1 - t, 3);
+          setValue(+(eased * target).toFixed(decimals));
+          if (t < 1) requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      }
+    }, { threshold: 0.4 });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [target, duration, decimals]);
+  return { ref: spanRef, value };
+}
+
+// ─── Section label pill ───────────────────────────────────────────────────────
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{
+      display: 'inline-flex', alignItems: 'center', gap: 8,
+      borderRadius: 999, border: '1px solid rgba(63,255,33,.22)',
+      background: 'rgba(63,255,33,.08)',
+      padding: '6px 14px',
+      fontFamily: 'JetBrains Mono, monospace', fontSize: 10,
+      fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase',
+      color: '#3FFF21', marginBottom: 20,
+    }}>
+      <span className="lp-pulse-dot" style={{ width: 6, height: 6, borderRadius: '50%', background: '#3FFF21', display: 'block' }} />
+      {children}
+    </div>
+  );
+}
+
+// ─── Hero Mockup ──────────────────────────────────────────────────────────────
+
+function HeroMockup() {
+  return (
+    <div style={{
+      overflow: 'hidden', borderRadius: 16,
+      border: '1px solid rgba(63,255,33,.15)',
+      background: 'oklch(0.16 0.018 240)',
+      boxShadow: '0 0 60px -10px rgba(63,255,33,.3), 0 40px 100px rgba(0,0,0,.6)',
+    }}>
+      {/* Window chrome */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 7,
+        padding: '10px 16px',
+        background: 'oklch(0.18 0.02 240)',
+        borderBottom: '1px solid rgba(255,255,255,.05)',
+      }}>
+        <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#ff5f56', display: 'block' }} />
+        <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#ffbd2e', display: 'block' }} />
+        <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#3FFF21', display: 'block' }} />
+        <div style={{ flex: 1 }} />
+        <span style={{ fontFamily: 'JetBrains Mono', fontSize: 10, color: 'rgba(63,255,33,.6)' }}>sureedge.app/dashboard</span>
+      </div>
+
+      {/* Body */}
+      <div style={{ display: 'flex', gap: 14, padding: 16 }}>
+        {/* Sidebar */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {[BarChart2, TrendingUp, Calculator, Target, Database, Activity].map((Icon, i) => (
+            <div key={i} style={{
+              width: 36, height: 36,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              borderRadius: 10,
+              background: i === 0 ? 'rgba(63,255,33,.14)' : 'rgba(255,255,255,.03)',
+              border: i === 0 ? '1px solid rgba(63,255,33,.28)' : '1px solid rgba(255,255,255,.05)',
+              animation: `lp-mockup-in .45s ease-out both`,
+              animationDelay: `${0.1 + i * 0.05}s`,
+            }}>
+              <Icon size={15} color={i === 0 ? '#3FFF21' : 'rgba(255,255,255,.25)'} />
+            </div>
+          ))}
+        </div>
+
+        {/* Main */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {/* KPI row */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: 10 }}>
+            {[
+              { label: 'Lucro Total', value: 'R$ 4.820', color: '#3FFF21', sub: '↑ +12.4%' },
+              { label: 'Operações',   value: '247',      color: '#4DA6FF', sub: '↑ +8 hoje' },
+              { label: 'ROI Médio',   value: '3.8%',     color: '#FFD600', sub: '↑ +0.3%'  },
+            ].map((k, i) => (
+              <div key={k.label} style={{
+                borderRadius: 12, border: '1px solid rgba(255,255,255,.05)',
+                background: 'rgba(255,255,255,.02)', padding: '10px 12px',
+                animation: `lp-mockup-in .45s ease-out both`,
+                animationDelay: `${0.2 + i * 0.08}s`,
+              }}>
+                <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'oklch(0.55 0.018 240)', marginBottom: 4 }}>{k.label}</div>
+                <div style={{ fontFamily: 'JetBrains Mono', fontSize: 15, fontWeight: 700, color: k.color }}>{k.value}</div>
+                <div style={{ fontSize: 9, color: 'rgba(63,255,33,.65)', marginTop: 2 }}>{k.sub}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Chart */}
+          <div style={{ borderRadius: 12, border: '1px solid rgba(255,255,255,.05)', background: 'rgba(255,255,255,.02)', padding: '10px 12px', marginBottom: 10 }}>
+            <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'oklch(0.55 0.018 240)', marginBottom: 8 }}>Evolução do saldo</div>
+            <svg width="100%" height={54} viewBox="0 0 260 54" preserveAspectRatio="none">
+              <defs>
+                <linearGradient id="hg1" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#3FFF21" stopOpacity="0.28" />
+                  <stop offset="100%" stopColor="#3FFF21" stopOpacity="0" />
+                </linearGradient>
+              </defs>
+              <path d="M0 50 L32 44 L65 36 L97 28 L130 20 L162 14 L195 9 L227 5 L260 2 L260 54 L0 54Z" fill="url(#hg1)" />
+              <path
+                d="M0 50 L32 44 L65 36 L97 28 L130 20 L162 14 L195 9 L227 5 L260 2"
+                stroke="#3FFF21" strokeWidth="2" fill="none" strokeLinecap="round"
+                style={{ strokeDasharray: 600, strokeDashoffset: 600, animation: 'lp-chart-draw 1.6s ease-out 0.4s both' }}
+              />
+              <circle cx="260" cy="2" r="3" fill="#3FFF21" />
+            </svg>
+          </div>
+
+          {/* Recent ops */}
+          <div style={{ borderRadius: 12, border: '1px solid rgba(255,255,255,.05)', background: 'rgba(255,255,255,.02)', overflow: 'hidden' }}>
+            {[
+              { casa: 'Bet365',   evento: 'Man City vs Arsenal',   roi: '+4.2%' },
+              { casa: 'Pinnacle', evento: 'PSG vs Bayern Munich',  roi: '+5.1%' },
+              { casa: 'Betfair',  evento: 'Djokovic vs Alcaraz',   roi: '+2.8%' },
+            ].map((row, i) => (
+              <div key={i} style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                padding: '8px 12px',
+                borderBottom: i < 2 ? '1px solid rgba(255,255,255,.04)' : undefined,
+                animation: `lp-mockup-in .45s ease-out both`,
+                animationDelay: `${0.5 + i * 0.1}s`,
+              }}>
+                <span style={{ width: 52, fontSize: 10, color: 'rgba(255,255,255,.55)', flexShrink: 0 }}>{row.casa}</span>
+                <span style={{ flex: 1, fontSize: 10, color: 'rgba(255,255,255,.35)' }}>{row.evento}</span>
+                <span style={{ fontFamily: 'JetBrains Mono', fontSize: 10, fontWeight: 700, color: '#3FFF21' }}>{row.roi}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main component ───────────────────────────────────────────────────────────
 
 export function LandingPage() {
   const [email,    setEmail]    = useState('');
-  const [openFaq,  setOpenFaq]  = useState<number | null>(null);
+  const [openFaq,  setOpenFaq]  = useState<number | null>(0);
   const [scrolled, setScrolled] = useState(false);
 
-  useScrollReveal();
+  // Counters
+  const ops    = useCounter(2847, 2200);
+  const lucro  = useCounter(1243890, 2500);
+  const casas  = useCounter(37, 1400);
+  const acerto = useCounter(94.2, 2000, 1);
 
   useEffect(() => {
     getSupabaseClient().auth.getUser().then(({ data }) => {
@@ -600,508 +418,583 @@ export function LandingPage() {
     window.location.href = '/login';
   };
 
-  const Label = ({ text }: { text: string }) => (
-    <div style={{
-      fontFamily: 'JetBrains Mono', fontSize: 10, fontWeight: 700,
-      letterSpacing: '0.16em', color: '#3FFF21', textTransform: 'uppercase',
-      marginBottom: 18,
-    }}>{text}</div>
-  );
-
   return (
-    <div style={{ background: '#050A06', color: 'var(--t)', minHeight: '100vh', overflowX: 'hidden' }}>
+    <div className="lp-root" style={{ background: 'oklch(0.16 0.018 240)', color: '#F0F4F8', minHeight: '100vh', overflowX: 'hidden', fontFamily: '"Inter", system-ui, sans-serif' }}>
 
       {/* ══════════ NAV ══════════ */}
       <nav style={{
-        position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100,
-        padding: '0 32px', height: 60,
+        position: 'fixed', inset: '0 0 auto 0', zIndex: 100,
+        height: 64,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        background: scrolled ? 'rgba(5,10,6,.95)' : 'transparent',
+        padding: '0 28px',
+        background: scrolled ? 'oklch(0.16 0.018 240 / 0.85)' : 'transparent',
         backdropFilter: scrolled ? 'blur(20px)' : 'none',
         borderBottom: scrolled ? '1px solid rgba(255,255,255,.06)' : '1px solid transparent',
-        transition: 'background .25s, border-color .25s',
+        transition: 'background .3s, border-color .3s',
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-          <div style={{ width: 34, height: 34, borderRadius: 9, background: '#3FFF21', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Zap size={17} color="#050A06" strokeWidth={2.5} />
+        {/* Logo */}
+        <a href="#" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}>
+          <div style={{
+            width: 36, height: 36, borderRadius: 10,
+            background: 'linear-gradient(135deg, #3FFF21, #22e010)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 0 24px rgba(63,255,33,.4)',
+          }}>
+            <Zap size={17} color="#0a1a05" strokeWidth={2.6} />
           </div>
-          <span style={{ fontFamily: 'Manrope', fontWeight: 900, fontSize: 17, letterSpacing: '-0.02em' }}>SureEdge</span>
-        </div>
+          <span style={{ fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, fontSize: 17, letterSpacing: '-0.02em', color: '#F0F4F8' }}>SureEdge</span>
+        </a>
 
-        <div className="hidden lg:flex items-center gap-8">
-          {[['#recursos','Recursos'],['#como-funciona','Como funciona'],['#precos','Planos']].map(([href, label]) => (
-            <a key={href} href={href} style={{ color: 'var(--t3)', fontSize: 13, fontWeight: 600, textDecoration: 'none', transition: 'color .15s' }}
-              onMouseEnter={e => (e.currentTarget.style.color = 'var(--t)')}
-              onMouseLeave={e => (e.currentTarget.style.color = 'var(--t3)')}>
+        {/* Links */}
+        <div className="hidden lg:flex" style={{ alignItems: 'center', gap: 28 }}>
+          {[['Recursos', '#recursos'], ['Como funciona', '#como-funciona'], ['Planos', '#planos'], ['FAQ', '#faq']].map(([label, href]) => (
+            <a key={href} href={href} style={{ fontFamily: '"Inter", sans-serif', fontSize: 13, fontWeight: 500, color: 'rgba(240,244,248,.55)', textDecoration: 'none', transition: 'color .15s' }}
+              onMouseEnter={e => (e.currentTarget.style.color = '#F0F4F8')}
+              onMouseLeave={e => (e.currentTarget.style.color = 'rgba(240,244,248,.55)')}>
               {label}
             </a>
           ))}
         </div>
 
+        {/* Actions */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           {email ? (
-            <button onClick={handleLogout} style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--t3)', fontSize: 12, fontWeight: 600, background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.08)', borderRadius: 7, padding: '6px 12px', cursor: 'pointer' }}>
+            <button onClick={handleLogout} style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              fontFamily: '"Inter", sans-serif', fontSize: 12, fontWeight: 600,
+              color: 'rgba(240,244,248,.55)', background: 'rgba(255,255,255,.05)',
+              border: '1px solid rgba(255,255,255,.08)', borderRadius: 8,
+              padding: '6px 12px', cursor: 'pointer',
+            }}>
               <LogOut size={12} /> Sair
             </button>
           ) : (
-            <a href="/login" style={{ color: 'var(--t3)', fontSize: 13, fontWeight: 600, textDecoration: 'none', transition: 'color .15s' }}
-              onMouseEnter={e => (e.currentTarget.style.color = 'var(--t)')}
-              onMouseLeave={e => (e.currentTarget.style.color = 'var(--t3)')}>
+            <a href="/login" style={{ fontFamily: '"Inter", sans-serif', fontSize: 13, fontWeight: 500, color: 'rgba(240,244,248,.55)', textDecoration: 'none', transition: 'color .15s' }}
+              onMouseEnter={e => (e.currentTarget.style.color = '#F0F4F8')}
+              onMouseLeave={e => (e.currentTarget.style.color = 'rgba(240,244,248,.55)')}>
               Entrar
             </a>
           )}
-          <a href="#precos" className="btn-cta" style={{
-            background: '#3FFF21', color: '#050A06', borderRadius: 8,
-            padding: '8px 18px', fontSize: 13, fontWeight: 800, textDecoration: 'none',
-          }}>Assinar agora</a>
+          <a href="#planos" className="lp-btn-cta" style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+            background: 'linear-gradient(135deg, #3FFF21, #22e010)',
+            color: '#0a1a05', borderRadius: 999,
+            padding: '9px 20px', fontSize: 13, fontWeight: 700,
+            fontFamily: '"Inter", sans-serif', textDecoration: 'none',
+            transition: 'transform .2s, box-shadow .2s',
+          }}
+            onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.transform = 'scale(1.03)'; el.style.boxShadow = '0 0 28px rgba(63,255,33,.55)'; }}
+            onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.transform = 'scale(1)'; el.style.boxShadow = 'none'; }}
+          >
+            Começar <ArrowRight size={14} />
+          </a>
         </div>
       </nav>
 
       {/* ══════════ HERO ══════════ */}
-      <section style={{ position: 'relative', minHeight: '100vh', display: 'flex', alignItems: 'center', paddingTop: 60, overflow: 'hidden' }}>
-        <div className="line-grid" style={{ position: 'absolute', inset: 0, opacity: 0.6 }} />
-        <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse 80% 55% at 42% -5%, rgba(63,255,33,.08) 0%, transparent 60%)', pointerEvents: 'none' }} />
-        <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse 38% 40% at 95% 100%, rgba(63,255,33,.03) 0%, transparent 55%)', pointerEvents: 'none' }} />
+      <section style={{ position: 'relative', overflow: 'hidden', padding: '128px 24px 96px', textAlign: 'center' }}>
+        {/* Grid bg */}
+        <div className="lp-bg-grid" style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }} />
 
-        <div style={{ position: 'relative', zIndex: 1, maxWidth: 1200, margin: '0 auto', padding: '80px 32px 100px', width: '100%' }}>
-          <div className="grid grid-cols-1 lg:grid-cols-[1fr_560px] gap-12 items-center">
+        {/* Aurora */}
+        <div className="lp-aurora" style={{
+          position: 'absolute', left: '50%', top: 0,
+          width: 1200, height: 600,
+          transform: 'translateX(-50%)',
+          background: 'radial-gradient(ellipse at top, rgba(63,255,33,.18), transparent 60%)',
+          pointerEvents: 'none',
+        }} />
 
-            {/* Copy */}
-            <div>
-              <div className="lp-hero-in lp-hero-d1" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginBottom: 28, fontFamily: 'JetBrains Mono', fontSize: 10, fontWeight: 700, letterSpacing: '0.16em', color: '#3FFF21', textTransform: 'uppercase' }}>
-                <span className="live-dot" style={{ width: 6, height: 6 }} />
-                Plataforma profissional de surebet
-              </div>
+        {/* Particles */}
+        <ParticlesField />
 
-              <h1 className="lp-hero-in lp-hero-d2" style={{
-                fontFamily: 'Manrope', fontWeight: 900,
-                fontSize: 'clamp(36px, 4.8vw, 64px)',
-                lineHeight: 1.0, letterSpacing: '-0.04em',
-                marginBottom: 24, color: '#F0F4F8',
-              }}>
-                Gestão profissional<br />
-                de surebets com<br />
-                <span style={{ color: '#3FFF21' }}>precisão de terminal.</span>
-              </h1>
-
-              <p className="lp-hero-in lp-hero-d3" style={{ fontFamily: 'Figtree', fontSize: 17, lineHeight: 1.65, color: 'var(--t2)', marginBottom: 36, maxWidth: '46ch' }}>
-                O dashboard que traders sérios usam para registrar surebets, calcular stakes e monitorar ROI por casa de aposta em tempo real.
-              </p>
-
-              <div className="lp-hero-in lp-hero-d4" style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 44 }}>
-                <a href="#precos" className="btn-cta" style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 8,
-                  background: '#3FFF21', color: '#050A06', borderRadius: 8,
-                  padding: '14px 28px', fontSize: 15, fontWeight: 800, textDecoration: 'none',
-                }}>
-                  Começar agora <ArrowRight size={16} />
-                </a>
-                <a href="#como-funciona" style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 8,
-                  background: 'transparent', color: 'var(--t2)',
-                  border: '1px solid rgba(255,255,255,.14)', borderRadius: 8,
-                  padding: '14px 24px', fontSize: 15, fontWeight: 600, textDecoration: 'none',
-                  transition: 'border-color .2s, color .2s',
-                }}
-                  onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.borderColor = 'rgba(255,255,255,.32)'; el.style.color = 'var(--t)'; }}
-                  onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.borderColor = 'rgba(255,255,255,.14)'; el.style.color = 'var(--t2)'; }}
-                >
-                  Como funciona
-                </a>
-              </div>
-
-              <div className="lp-hero-in lp-hero-d5" style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                <div style={{ display: 'flex' }}>
-                  {['#2563EB','#7C3AED','#DB2777','#D97706','#059669'].map((c, i) => (
-                    <div key={i} style={{ width: 30, height: 30, borderRadius: '50%', background: c, border: '2px solid #050A06', marginLeft: i > 0 ? -9 : 0 }} />
-                  ))}
-                </div>
-                <div>
-                  <div style={{ fontFamily: 'JetBrains Mono', fontSize: 12, color: '#3FFF21', fontWeight: 700 }}>+500 traders ativos</div>
-                  <div style={{ fontFamily: 'Figtree', fontSize: 12, color: 'var(--t3)' }}>ROI médio de 3.8% por operação</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Screenshot */}
-            <div className="hidden lg:block lp-hero-in lp-hero-d3" style={{ paddingTop: 24, paddingBottom: 32 }}>
-              <HeroScreenshot />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ══════════ TICKER TAPE ══════════ */}
-      <div style={{ background: '#0A0F14', height: 40, overflow: 'hidden', position: 'relative', borderTop: '1px solid rgba(255,255,255,.06)', borderBottom: '1px solid rgba(255,255,255,.06)' }}>
-        <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 80, background: 'linear-gradient(90deg,#0A0F14,transparent)', zIndex: 1 }} />
-        <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 80, background: 'linear-gradient(270deg,#0A0F14,transparent)', zIndex: 1 }} />
-        <div style={{ display: 'flex', alignItems: 'center', height: '100%', animation: 'lp-marquee 44s linear infinite', width: 'max-content' }}>
-          {[...TICKER, ...TICKER].map((item, i) => (
-            <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: 'JetBrains Mono', fontSize: 11, color: 'var(--t3)', paddingRight: 56, whiteSpace: 'nowrap' }}>
-              <span style={{ color: '#3FFF21', fontSize: 8 }}>●</span>
-              {item}
-            </span>
-          ))}
-        </div>
-      </div>
-
-      {/* ══════════ FEATURES — numbered rows ══════════ */}
-      <section id="recursos" style={{ padding: '100px 32px' }}>
-        <div style={{ maxWidth: 1200, margin: '0 auto' }}>
-          <div className="reveal" style={{ marginBottom: 64 }}>
-            <Label text="Funcionalidades" />
-            <h2 style={{ fontFamily: 'Manrope', fontWeight: 900, fontSize: 'clamp(36px, 4.5vw, 58px)', letterSpacing: '-0.04em', lineHeight: 1.05 }}>
-              Tudo que o surebettor<br />
-              <span style={{ color: 'var(--t2)', fontWeight: 700 }}>profissional precisa.</span>
-            </h2>
+        {/* Content */}
+        <div style={{ position: 'relative', zIndex: 1, maxWidth: 800, margin: '0 auto' }}>
+          <div className="lp-fade-in lp-d1">
+            <SectionLabel>Plataforma de Trading Esportivo</SectionLabel>
           </div>
 
-          {FEATURES.map((f, i) => (
-            <div key={f.n} className={`reveal reveal-delay-${i + 1}`} style={{ borderTop: '1px solid rgba(255,255,255,.07)', padding: '52px 0', position: 'relative' }}>
-              <div aria-hidden style={{
-                position: 'absolute', left: -8, top: '50%', transform: 'translateY(-55%)',
-                fontFamily: 'JetBrains Mono', fontWeight: 700,
-                fontSize: 'clamp(80px, 10vw, 130px)',
-                color: 'rgba(63,255,33,.04)', lineHeight: 1, userSelect: 'none', pointerEvents: 'none',
-              }}>{f.n}</div>
+          <h1 className="lp-fade-in lp-d2" style={{
+            fontFamily: '"Space Grotesk", sans-serif',
+            fontWeight: 900, fontSize: 'clamp(38px,5.5vw,72px)',
+            lineHeight: 1.03, letterSpacing: '-0.03em',
+            color: '#F0F4F8', marginBottom: 24,
+          }}>
+            O mercado{' '}
+            <span style={{ color: '#3FFF21' }}>se move rápido.</span>
+            <br />Você ainda mais.
+          </h1>
 
-              <div className="grid grid-cols-1 lg:grid-cols-[80px_1fr_1fr] gap-8 lg:gap-x-16" style={{ position: 'relative', zIndex: 1 }}>
-                <div>
-                  <div style={{ fontFamily: 'JetBrains Mono', fontSize: 11, color: '#3FFF21', fontWeight: 700, letterSpacing: '0.1em', marginBottom: 14 }}>{f.n}</div>
-                  <div style={{ width: 46, height: 46, borderRadius: 11, background: `${f.color}12`, border: `1px solid ${f.color}28`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <f.Icon size={20} color={f.color} />
-                  </div>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                  <h3 style={{ fontFamily: 'Manrope', fontWeight: 900, fontSize: 'clamp(20px, 2.2vw, 26px)', letterSpacing: '-0.03em', marginBottom: 8 }}>{f.title}</h3>
-                  <p style={{ fontFamily: 'JetBrains Mono', fontSize: 11, color: '#3FFF21', letterSpacing: '0.04em' }}>{f.mono}</p>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                  <p style={{ fontFamily: 'Figtree', fontSize: 15, color: 'var(--t2)', lineHeight: 1.7, marginBottom: 18, maxWidth: '52ch' }}>{f.desc}</p>
-                  <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
-                    {f.tags.map(tag => (
-                      <span key={tag} style={{ fontFamily: 'JetBrains Mono', fontSize: 10, color: 'var(--t3)', border: '1px solid rgba(255,255,255,.09)', borderRadius: 4, padding: '4px 10px', letterSpacing: '0.03em' }}>{tag}</span>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))}
+          <p className="lp-fade-in lp-d3" style={{
+            fontFamily: '"Inter", sans-serif', fontSize: 18, lineHeight: 1.7,
+            color: 'rgba(240,244,248,.55)', maxWidth: '58ch', margin: '0 auto 40px',
+          }}>
+            Encontre surebets, extraia freebets e gerencie bancas varrendo{' '}
+            <span style={{ fontWeight: 600, color: 'rgba(240,244,248,.85)' }}>30+ casas em tempo real</span>.
+            Organize operações e contas num único painel feito para quem vive de odds.
+          </p>
 
-          <div style={{ borderTop: '1px solid rgba(255,255,255,.07)' }} />
-
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-10">
-            {[
-              { Icon: Shield,   label: 'Dados criptografados',  color: '#A78BFA' },
-              { Icon: Activity, label: 'Updates em tempo real', color: '#3FFF21' },
-              { Icon: Database, label: '+37 casas de apostas',  color: '#4DA6FF' },
-              { Icon: Trophy,   label: 'ROI médio de 3.8%',     color: '#FFD600' },
-            ].map((item, i) => (
-              <div key={i} className={`reveal reveal-delay-${i + 1}`} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px 18px', border: '1px solid rgba(255,255,255,.07)', borderRadius: 10 }}>
-                <item.Icon size={16} color={item.color} style={{ flexShrink: 0 }} />
-                <span style={{ fontFamily: 'Figtree', fontSize: 13, fontWeight: 600, color: 'var(--t2)' }}>{item.label}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ══════════ SCREENSHOT SHOWCASE ══════════ */}
-      <section id="funcionalidades" style={{ padding: '100px 32px', background: '#070C08' }}>
-        <div style={{ maxWidth: 1200, margin: '0 auto' }}>
-
-          {/* Section header */}
-          <div className="reveal" style={{ marginBottom: 80 }}>
-            <Label text="O produto" />
-            <h2 style={{
-              fontFamily: 'Manrope', fontWeight: 900,
-              fontSize: 'clamp(36px, 4.5vw, 58px)',
-              letterSpacing: '-0.04em', lineHeight: 1.05,
-            }}>
-              Veja o que você<br />
-              <span style={{ color: 'var(--t2)', fontWeight: 700 }}>está contratando.</span>
-            </h2>
-          </div>
-
-          {/* Rows */}
-          {SHOWCASE_ITEMS.map((item, i) => {
-            const imageFirst = i % 2 === 0;
-
-            const imageEl = (
-              <div style={{ position: 'relative' }}>
-                {/* ambient glow */}
-                <div style={{
-                  position: 'absolute', inset: -24,
-                  borderRadius: 32,
-                  background: `radial-gradient(ellipse 72% 64% at 50% 52%, ${item.glow} 0%, transparent 68%)`,
-                  pointerEvents: 'none',
-                }} />
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={item.src}
-                  alt={item.imgAlt}
-                  loading="lazy"
-                  style={{
-                    width: '100%', height: 'auto', display: 'block',
-                    borderRadius: 12, position: 'relative',
-                    border: `1px solid ${item.borderColor}`,
-                    boxShadow: `0 28px 72px rgba(0,0,0,.65), 0 0 56px ${item.glow}`,
-                  }}
-                />
-              </div>
-            );
-
-            const copyEl = (
-              <div style={{ paddingLeft: imageFirst ? 0 : 0 }}>
-                <div style={{
-                  fontFamily: 'JetBrains Mono', fontSize: 10, fontWeight: 700,
-                  letterSpacing: '0.16em', color: item.accentColor,
-                  textTransform: 'uppercase', marginBottom: 16,
-                }}>{item.tag}</div>
-
-                <h3 style={{
-                  fontFamily: 'Manrope', fontWeight: 900,
-                  fontSize: 'clamp(22px, 2.4vw, 32px)',
-                  letterSpacing: '-0.03em', lineHeight: 1.12, marginBottom: 16,
-                }}>{item.title}</h3>
-
-                <p style={{
-                  fontFamily: 'Figtree', fontSize: 15, color: 'var(--t2)',
-                  lineHeight: 1.78, marginBottom: 28, maxWidth: '46ch',
-                }}>{item.desc}</p>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
-                  {item.bullets.map((b) => (
-                    <div key={b} style={{ display: 'flex', alignItems: 'flex-start', gap: 11 }}>
-                      <div style={{
-                        width: 5, height: 5, borderRadius: '50%',
-                        background: item.accentColor, flexShrink: 0, marginTop: 8,
-                      }} />
-                      <span style={{ fontFamily: 'Figtree', fontSize: 14, color: 'var(--t2)', lineHeight: 1.6 }}>{b}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            );
-
-            return (
-              <div
-                key={item.tag}
-                className={`grid grid-cols-1 items-center gap-10 lg:gap-16 ${imageFirst ? 'reveal-left lg:grid-cols-[58fr_42fr]' : 'reveal-right lg:grid-cols-[42fr_58fr]'}`}
-                style={{ marginBottom: i < SHOWCASE_ITEMS.length - 1 ? 96 : 0 }}
-              >
-                {imageFirst ? imageEl : copyEl}
-                {imageFirst ? copyEl : imageEl}
-              </div>
-            );
-          })}
-
-          {/* Closing CTA nudge */}
-          <div className="reveal" style={{ marginTop: 80, display: 'flex', justifyContent: 'center' }}>
-            <a
-              href="#precos"
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: 7,
-                fontFamily: 'Figtree', fontSize: 14, fontWeight: 700,
-                color: '#3FFF21', textDecoration: 'none',
-                padding: '10px 22px', borderRadius: 8,
-                border: '1px solid rgba(63,255,33,.22)',
-                background: 'rgba(63,255,33,.06)',
-                transition: 'background .18s, border-color .18s',
-              }}
-              onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.background = 'rgba(63,255,33,.12)'; el.style.borderColor = 'rgba(63,255,33,.38)'; }}
-              onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.background = 'rgba(63,255,33,.06)'; el.style.borderColor = 'rgba(63,255,33,.22)'; }}
+          <div className="lp-fade-in lp-d4" style={{ display: 'flex', flexWrap: 'wrap', gap: 12, justifyContent: 'center', marginBottom: 36 }}>
+            <a href="#planos" style={{
+              display: 'inline-flex', alignItems: 'center', gap: 8,
+              background: 'linear-gradient(135deg, #3FFF21, #22e010)',
+              color: '#0a1a05', borderRadius: 999, padding: '14px 32px',
+              fontSize: 15, fontWeight: 700, fontFamily: '"Inter", sans-serif',
+              textDecoration: 'none', transition: 'transform .2s, box-shadow .2s',
+              boxShadow: '0 10px 40px -10px rgba(63,255,33,.6)',
+            }}
+              onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.transform = 'scale(1.03)'; el.style.boxShadow = '0 15px 50px -10px rgba(63,255,33,.8)'; }}
+              onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.transform = 'scale(1)'; el.style.boxShadow = '0 10px 40px -10px rgba(63,255,33,.6)'; }}
             >
-              Ver planos e preços <ArrowRight size={14} />
+              Começar agora <ArrowRight size={16} />
+            </a>
+            <a href="#recursos" style={{
+              display: 'inline-flex', alignItems: 'center', gap: 8,
+              border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.03)',
+              color: 'rgba(240,244,248,.8)', borderRadius: 999, padding: '14px 28px',
+              fontSize: 15, fontWeight: 600, fontFamily: '"Inter", sans-serif',
+              textDecoration: 'none', transition: 'background .2s, border-color .2s',
+            }}
+              onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.background = 'rgba(255,255,255,.06)'; el.style.borderColor = 'rgba(255,255,255,.22)'; }}
+              onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.background = 'rgba(255,255,255,.03)'; el.style.borderColor = 'rgba(255,255,255,.12)'; }}
+            >
+              Ver recursos
             </a>
           </div>
+
+          {/* Stars */}
+          <div className="lp-fade-in lp-d5" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 64 }}>
+            <div style={{ display: 'flex' }}>
+              {[0,1,2,3,4].map(i => <Star key={i} size={13} color="#3FFF21" fill="#3FFF21" />)}
+            </div>
+            <span style={{ fontFamily: '"Inter", sans-serif', fontSize: 12, color: 'rgba(240,244,248,.4)' }}>4.9 — usado por traders profissionais em todo o Brasil</span>
+          </div>
+
+          {/* Mockup */}
+          <div className="lp-fade-in lp-d6">
+            <HeroMockup />
+          </div>
         </div>
       </section>
 
-      {/* ══════════ DASHBOARD SHOWCASE ══════════ */}
-      <section style={{ background: '#0A0F14', padding: '100px 32px', borderTop: '1px solid rgba(255,255,255,.05)', borderBottom: '1px solid rgba(255,255,255,.05)' }}>
-        <div style={{ maxWidth: 1200, margin: '0 auto' }}>
-          <div className="grid grid-cols-1 lg:grid-cols-[1fr_640px] gap-10 items-center">
-            <div className="reveal-left">
-              <Label text="Dashboard" />
-              <h2 style={{ fontFamily: 'Manrope', fontWeight: 900, fontSize: 'clamp(32px, 3.5vw, 50px)', letterSpacing: '-0.04em', lineHeight: 1.06, marginBottom: 24 }}>
-                Terminal profissional.<br />
-                <span style={{ color: '#3FFF21' }}>Para surebettors.</span>
-              </h2>
-              <p style={{ fontFamily: 'Figtree', fontSize: 16, color: 'var(--t2)', lineHeight: 1.7, marginBottom: 36, maxWidth: '50ch' }}>
-                Esqueça planilhas espalhadas e anotações perdidas. Saldo, ROI, win rate e performance por bookmaker em um painel consolidado, atualizado em tempo real e feito para quem leva o jogo a sério.
-              </p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                {[
-                  { col: '#3FFF21', text: 'Gráfico de evolução de saldo atualizado ao vivo' },
-                  { col: '#4DA6FF', text: 'ROI detalhado por bookmaker, esporte e período' },
-                  { col: '#FFD600', text: 'Calculadora integrada com distribuição automática de stakes' },
-                  { col: '#A78BFA', text: 'Sincronização automática a cada 60 segundos' },
-                ].map((item, i) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-                    <div style={{ width: 6, height: 6, borderRadius: '50%', background: item.col, flexShrink: 0, marginTop: 8 }} />
-                    <span style={{ fontFamily: 'Figtree', fontSize: 14, color: 'var(--t2)', lineHeight: 1.65 }}>{item.text}</span>
-                  </div>
-                ))}
+      {/* ══════════ STATS STRIP ══════════ */}
+      <section style={{
+        borderTop: '1px solid rgba(255,255,255,.06)',
+        borderBottom: '1px solid rgba(255,255,255,.06)',
+        background: 'rgba(255,255,255,.02)',
+        padding: '48px 24px',
+      }}>
+        <div style={{ maxWidth: 1100, margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 32 }} className="md:grid-cols-4">
+          {[
+            { ref: ops.ref,    value: ops.value.toLocaleString('pt-BR'),                      label: 'Operações registradas'    },
+            { ref: lucro.ref,  value: 'R$ ' + Math.round(lucro.value).toLocaleString('pt-BR'), label: 'Lucro gerado por traders'  },
+            { ref: casas.ref,  value: casas.value + '+',                                       label: 'Casas monitoradas'         },
+            { ref: acerto.ref, value: acerto.value.toFixed(1) + '%',                           label: 'Taxa de acerto média'      },
+          ].map((s, i) => (
+            <div key={i} style={{ textAlign: 'center' }}>
+              <div style={{
+                fontFamily: '"JetBrains Mono", monospace',
+                fontSize: 'clamp(24px,3vw,38px)', fontWeight: 900,
+                letterSpacing: '-0.02em', color: '#3FFF21',
+              }}>
+                <span ref={s.ref}>{s.value}</span>
+              </div>
+              <div style={{ fontFamily: '"Inter", sans-serif', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.18em', color: 'rgba(240,244,248,.35)', marginTop: 8 }}>
+                {s.label}
               </div>
             </div>
-            <div className="reveal-right hidden lg:block">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src="/dashboard-imag.png"
-                alt="Interface completa do SureEdge — dashboard de surebets com análise de ROI, gráfico de saldo e operações por casa de aposta"
-                width={1300}
-                height={870}
-                loading="lazy"
-                style={{
-                  width: '100%',
-                  height: 'auto',
-                  display: 'block',
-                  borderRadius: 12,
-                  boxShadow: '0 40px 100px rgba(0,0,0,.7), 0 0 80px rgba(63,255,33,.1)',
-                }}
-              />
-            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ══════════ BOOKMAKER MARQUEE ══════════ */}
+      <section style={{ overflow: 'hidden', borderBottom: '1px solid rgba(255,255,255,.06)', padding: '40px 0' }}>
+        <div style={{ marginBottom: 20, textAlign: 'center' }}>
+          <p style={{ fontFamily: '"Inter", sans-serif', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.22em', color: 'rgba(240,244,248,.28)' }}>
+            Integrado com as principais casas do mercado
+          </p>
+        </div>
+        <div style={{ position: 'relative', overflow: 'hidden', maskImage: 'linear-gradient(to right, transparent, black 10%, black 90%, transparent)' }}>
+          <div style={{ display: 'flex', animation: 'lp-marquee 36s linear infinite', width: 'max-content' }}>
+            {[...BOOKMAKERS, ...BOOKMAKERS].map((b, i) => (
+              <span key={i} style={{
+                fontFamily: '"Space Grotesk", sans-serif', fontSize: 22, fontWeight: 700,
+                letterSpacing: '-0.01em', color: 'rgba(240,244,248,.28)',
+                paddingRight: 48, whiteSpace: 'nowrap',
+                transition: 'color .2s',
+              }}
+                onMouseEnter={e => (e.currentTarget.style.color = '#F0F4F8')}
+                onMouseLeave={e => (e.currentTarget.style.color = 'rgba(240,244,248,.28)')}
+              >{b}</span>
+            ))}
           </div>
         </div>
       </section>
 
-      {/* ══════════ HOW IT WORKS ══════════ */}
-      <section id="como-funciona" style={{ padding: '100px 32px' }}>
+      {/* ══════════ FEATURES GRID ══════════ */}
+      <section id="recursos" style={{ padding: '100px 24px' }}>
         <div style={{ maxWidth: 1200, margin: '0 auto' }}>
-          <div className="reveal" style={{ textAlign: 'center', marginBottom: 72 }}>
-            <Label text="Como funciona" />
-            <h2 style={{ fontFamily: 'Manrope', fontWeight: 900, fontSize: 'clamp(32px, 4vw, 54px)', letterSpacing: '-0.04em' }}>
-              3 passos para lucrar<br />com inteligência.
+          <div style={{ textAlign: 'center', marginBottom: 64 }}>
+            <SectionLabel>Ferramentas</SectionLabel>
+            <h2 style={{
+              fontFamily: '"Space Grotesk", sans-serif',
+              fontWeight: 900, fontSize: 'clamp(32px,4vw,52px)',
+              letterSpacing: '-0.03em', lineHeight: 1.08, marginBottom: 18,
+            }}>
+              Tudo que um trader sério precisa
+              <br />
+              <span style={{ color: '#3FFF21' }}>numa única plataforma.</span>
             </h2>
+            <p style={{ fontFamily: '"Inter", sans-serif', fontSize: 17, color: 'rgba(240,244,248,.5)', maxWidth: '52ch', margin: '0 auto', lineHeight: 1.7 }}>
+              Surebet, extração de freebet, gestão de bancas e múltiplas contas. Pare de pular entre planilhas, sites e abas do navegador.
+            </p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3">
-            {[
-              { n: '01', Icon: Upload,    title: 'Registre', desc: 'Importe da planilha da Green Surebet via Google Sheets ou cadastre manualmente. Tudo categorizado em segundos.' },
-              { n: '02', Icon: BarChart2, title: 'Analise',  desc: 'Visualize ROI, saldo e performance por bookmaker em dashboards atualizados a cada minuto.' },
-              { n: '03', Icon: Trophy,    title: 'Lucre',    desc: 'Use a calculadora para distribuir stakes com precisão matemática. Decisões baseadas em dados, não em feeling.' },
-            ].map((step, i) => (
-              <div key={step.n} className={`reveal reveal-delay-${i + 1}`} style={{
-                padding: '44px 36px',
-                borderTop: `2px solid ${i === 0 ? '#3FFF21' : i === 1 ? 'rgba(63,255,33,.38)' : 'rgba(63,255,33,.16)'}`,
-                borderRight: i < 2 ? '1px solid rgba(255,255,255,.06)' : undefined,
-              }}>
-                <div style={{ fontFamily: 'JetBrains Mono', fontSize: 10, color: '#3FFF21', letterSpacing: '0.14em', marginBottom: 20 }}>PASSO {step.n}</div>
-                <step.Icon size={26} color="#3FFF21" style={{ marginBottom: 20, display: 'block' }} />
-                <h3 style={{ fontFamily: 'Manrope', fontWeight: 900, fontSize: 26, letterSpacing: '-0.03em', marginBottom: 12 }}>{step.title}</h3>
-                <p style={{ fontFamily: 'Figtree', fontSize: 14, color: 'var(--t2)', lineHeight: 1.7 }}>{step.desc}</p>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 20 }}>
+            {FEATURES.map((f, i) => (
+              <div
+                key={f.title}
+                style={{
+                  position: 'relative', overflow: 'hidden',
+                  borderRadius: 20,
+                  border: '1px solid rgba(255,255,255,.08)',
+                  background: 'linear-gradient(180deg, rgba(255,255,255,.04) 0%, transparent 100%)',
+                  padding: 28,
+                  transition: 'border-color .25s, transform .25s',
+                  cursor: 'default',
+                }}
+                onMouseEnter={e => {
+                  const el = e.currentTarget as HTMLElement;
+                  el.style.borderColor = `${f.color}44`;
+                  el.style.transform = 'translateY(-4px)';
+                }}
+                onMouseLeave={e => {
+                  const el = e.currentTarget as HTMLElement;
+                  el.style.borderColor = 'rgba(255,255,255,.08)';
+                  el.style.transform = 'translateY(0)';
+                }}
+              >
+                {/* Hover glow */}
+                <div style={{
+                  position: 'absolute', right: 0, top: 0,
+                  width: 120, height: 120,
+                  transform: 'translate(50%, -50%)',
+                  borderRadius: '50%',
+                  background: `${f.color}18`,
+                  filter: 'blur(32px)',
+                  pointerEvents: 'none',
+                }} />
+
+                <div style={{ position: 'relative' }}>
+                  <div style={{
+                    width: 48, height: 48, borderRadius: 14,
+                    border: `1px solid ${f.color}28`,
+                    background: `${f.color}12`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    marginBottom: 20,
+                  }}>
+                    <f.icon size={22} color={f.color} />
+                  </div>
+
+                  <div style={{
+                    fontFamily: '"JetBrains Mono", monospace', fontSize: 10,
+                    textTransform: 'uppercase', letterSpacing: '0.2em',
+                    color: `${f.color}bb`, marginBottom: 8,
+                  }}>{f.tag}</div>
+
+                  <h3 style={{
+                    fontFamily: '"Space Grotesk", sans-serif',
+                    fontWeight: 700, fontSize: 20,
+                    letterSpacing: '-0.02em', marginBottom: 12, color: '#F0F4F8',
+                  }}>{f.title}</h3>
+
+                  <p style={{ fontFamily: '"Inter", sans-serif', fontSize: 14, lineHeight: 1.75, color: 'rgba(240,244,248,.5)' }}>{f.desc}</p>
+                </div>
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ══════════ FREEBET SHOWCASE ══════════ */}
+      <section style={{
+        borderTop: '1px solid rgba(255,255,255,.06)',
+        borderBottom: '1px solid rgba(255,255,255,.06)',
+        background: 'linear-gradient(180deg, transparent, rgba(63,255,33,.02) 50%, transparent)',
+        padding: '100px 24px',
+      }}>
+        <div style={{ maxWidth: 1200, margin: '0 auto', display: 'grid', gap: 64 }} className="grid grid-cols-1 lg:grid-cols-2 items-center">
+          {/* Copy */}
+          <div>
+            <SectionLabel>Exclusivo</SectionLabel>
+            <h2 style={{
+              fontFamily: '"Space Grotesk", sans-serif',
+              fontWeight: 900, fontSize: 'clamp(28px,3.5vw,48px)',
+              letterSpacing: '-0.03em', lineHeight: 1.08, marginBottom: 20,
+            }}>
+              Extração de freebet que <span style={{ color: '#3FFF21' }}>paga sozinha</span> a mensalidade.
+            </h2>
+            <p style={{ fontFamily: '"Inter", sans-serif', fontSize: 16, color: 'rgba(240,244,248,.55)', lineHeight: 1.75, marginBottom: 32 }}>
+              Ferramenta proprietária que identifica os jogos com maior taxa de conversão de freebets em tempo real. Mais de 30 casas filtradas simultaneamente — você recebe pronto qual jogo, qual odd, qual stake.
+            </p>
+            <ul style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {[
+                'Identificação automática das melhores conversões',
+                'Filtros por mercado, esporte, casa e valor mínimo',
+                'Cálculo de stake e ROI já feito para você',
+                'Alertas em tempo real quando aparece oportunidade',
+              ].map(t => (
+                <li key={t} style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                  <div style={{
+                    width: 20, height: 20, borderRadius: '50%',
+                    background: 'rgba(63,255,33,.15)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    flexShrink: 0, marginTop: 2,
+                  }}>
+                    <Check size={11} color="#3FFF21" strokeWidth={3} />
+                  </div>
+                  <span style={{ fontFamily: '"Inter", sans-serif', fontSize: 15, color: 'rgba(240,244,248,.8)', lineHeight: 1.6 }}>{t}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Freebet table */}
+          <div style={{ position: 'relative' }}>
+            <div style={{ position: 'absolute', inset: -24, borderRadius: 32, background: 'rgba(63,255,33,.08)', filter: 'blur(40px)', pointerEvents: 'none' }} />
+            <div style={{ position: 'relative', overflow: 'hidden', borderRadius: 20, border: '1px solid rgba(63,255,33,.2)', background: 'oklch(0.18 0.02 240)', boxShadow: '0 30px 80px rgba(0,0,0,.5)' }}>
+              {/* Header */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 20px', borderBottom: '1px solid rgba(255,255,255,.06)', background: 'oklch(0.20 0.02 240)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Gift size={14} color="#3FFF21" />
+                  <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#F0F4F8' }}>Extração de Freebet</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span className="lp-pulse-dot" style={{ width: 6, height: 6, borderRadius: '50%', background: '#3FFF21', display: 'block' }} />
+                  <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 10, color: '#3FFF21' }}>LIVE</span>
+                </div>
+              </div>
+
+              {/* Rows */}
+              {[
+                { match: 'Liverpool vs Chelsea',     market: 'Over 2.5',    conv: 87, odd: '2.10', houses: 4 },
+                { match: 'Real Madrid vs Atlético',  market: 'BTTS',        conv: 82, odd: '1.95', houses: 6 },
+                { match: 'Inter vs Milan',            market: 'Match Result', conv: 78, odd: '2.40', houses: 5 },
+                { match: 'Flamengo vs Palmeiras',    market: 'Over 1.5',    conv: 74, odd: '1.45', houses: 3 },
+                { match: 'Bayern vs Dortmund',       market: 'Over 3.5',    conv: 71, odd: '2.85', houses: 4 },
+              ].map((row, i) => (
+                <div key={i} style={{
+                  display: 'flex', alignItems: 'center', gap: 16,
+                  padding: '14px 20px',
+                  borderBottom: i < 4 ? '1px solid rgba(255,255,255,.05)' : undefined,
+                  transition: 'background .15s',
+                }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,.02)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                >
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontFamily: '"Inter", sans-serif', fontSize: 13, fontWeight: 600, color: '#F0F4F8', marginBottom: 3 }}>{row.match}</div>
+                    <div style={{ fontFamily: '"Inter", sans-serif', fontSize: 11, color: 'rgba(240,244,248,.4)' }}>{row.market} · {row.houses} casas</div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 15, fontWeight: 700, color: '#3FFF21' }}>{row.conv}%</div>
+                    <div style={{ fontSize: 10, color: 'rgba(240,244,248,.35)' }}>conversão</div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 13, fontWeight: 700, color: '#F0F4F8' }}>{row.odd}</div>
+                    <div style={{ fontSize: 10, color: 'rgba(240,244,248,.35)' }}>odd</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ══════════ WORKFLOW ══════════ */}
+      <section id="como-funciona" style={{ padding: '100px 24px' }}>
+        <div style={{ maxWidth: 1200, margin: '0 auto' }}>
+          <div style={{ textAlign: 'center', marginBottom: 80 }}>
+            <SectionLabel>Como funciona</SectionLabel>
+            <h2 style={{
+              fontFamily: '"Space Grotesk", sans-serif',
+              fontWeight: 900, fontSize: 'clamp(28px,3.8vw,52px)',
+              letterSpacing: '-0.03em', lineHeight: 1.08,
+            }}>
+              Em 4 passos você está <span style={{ color: '#3FFF21' }}>operando lucro real.</span>
+            </h2>
+          </div>
+
+          <div style={{ position: 'relative' }}>
+            {/* Connector line */}
+            <div className="hidden lg:block" style={{
+              position: 'absolute', left: 0, right: 0, top: 48,
+              height: 1,
+              background: 'linear-gradient(90deg, transparent, rgba(63,255,33,.3), transparent)',
+              pointerEvents: 'none',
+            }} />
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 24 }}>
+              {WORKFLOW.map((w, i) => (
+                <div key={w.n} style={{ position: 'relative' }}>
+                  <div style={{
+                    position: 'relative', zIndex: 1,
+                    width: 96, height: 96,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    borderRadius: 20, marginBottom: 20,
+                    border: '1px solid rgba(63,255,33,.2)',
+                    background: 'oklch(0.20 0.02 240)',
+                    boxShadow: '0 1px 0 rgba(255,255,255,.05) inset, 0 30px 80px -30px rgba(0,0,0,.6)',
+                  }}>
+                    <w.icon size={28} color="#3FFF21" />
+                    <span style={{
+                      position: 'absolute', top: -8, right: -8,
+                      width: 28, height: 28, borderRadius: '50%',
+                      background: 'linear-gradient(135deg, #3FFF21, #22e010)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontFamily: '"JetBrains Mono", monospace', fontSize: 11, fontWeight: 900,
+                      color: '#0a1a05',
+                    }}>{w.n}</span>
+                  </div>
+                  <h3 style={{
+                    fontFamily: '"Space Grotesk", sans-serif',
+                    fontWeight: 700, fontSize: 18,
+                    letterSpacing: '-0.02em', marginBottom: 10, color: '#F0F4F8',
+                  }}>{w.title}</h3>
+                  <p style={{ fontFamily: '"Inter", sans-serif', fontSize: 14, color: 'rgba(240,244,248,.45)', lineHeight: 1.7 }}>{w.desc}</p>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </section>
 
       {/* ══════════ PRICING ══════════ */}
-      <section id="precos" style={{ background: '#0A0F14', padding: '100px 32px', borderTop: '1px solid rgba(255,255,255,.05)' }}>
-        <div style={{ maxWidth: 980, margin: '0 auto' }}>
-
-          {/* Header */}
-          <div className="reveal" style={{ textAlign: 'center', marginBottom: 56 }}>
-            <Label text="Planos" />
-            <h2 style={{ fontFamily: 'Manrope', fontWeight: 900, fontSize: 'clamp(32px, 4vw, 52px)', letterSpacing: '-0.04em', lineHeight: 1.05, marginBottom: 14 }}>
-              Sem taxas escondidas.<br />Sem surpresas.
+      <section id="planos" style={{
+        background: 'rgba(255,255,255,.015)',
+        borderTop: '1px solid rgba(255,255,255,.06)',
+        padding: '100px 24px',
+      }}>
+        <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+          <div style={{ textAlign: 'center', marginBottom: 64 }}>
+            <SectionLabel>Planos</SectionLabel>
+            <h2 style={{
+              fontFamily: '"Space Grotesk", sans-serif',
+              fontWeight: 900, fontSize: 'clamp(28px,3.8vw,52px)',
+              letterSpacing: '-0.03em', lineHeight: 1.08, marginBottom: 16,
+            }}>
+              Investimento que <span style={{ color: '#3FFF21' }}>se paga na primeira semana.</span>
             </h2>
-            <p style={{ fontFamily: 'Figtree', fontSize: 16, color: 'var(--t2)', lineHeight: 1.65, maxWidth: '44ch', margin: '0 auto' }}>
-              Acesso completo ao SureEdge. Cancele quando quiser, sem burocracia.
+            <p style={{ fontFamily: '"Inter", sans-serif', fontSize: 16, color: 'rgba(240,244,248,.45)', lineHeight: 1.65, maxWidth: '44ch', margin: '0 auto' }}>
+              Comece em poucos minutos. Cancele quando quiser. Garantia de 7 dias.
             </p>
           </div>
 
-          {/* Cards grid */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {LANDING_PLANS.map(plan => {
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 20 }}>
+            {LANDING_PLANS.map((plan, i) => {
               const isFeatured = plan.id === 'quarterly';
               const url = landingCheckoutUrl(plan.id, email);
               return (
-                <div key={plan.id} className="rounded-2xl flex flex-col overflow-hidden lp-card-hover" style={{
-                  background:  isFeatured ? 'rgba(63,255,33,.07)' : 'rgba(255,255,255,.03)',
-                  border:      isFeatured ? '1.5px solid rgba(63,255,33,.35)' : '1px solid rgba(255,255,255,.08)',
-                  boxShadow:   isFeatured ? '0 0 40px rgba(63,255,33,.1)' : 'none',
-                  position:    'relative',
-                }}>
-                  {/* Top accent bar */}
-                  <div style={{
-                    height: 3,
-                    background: isFeatured
-                      ? 'linear-gradient(90deg, #3FFF21 0%, rgba(63,255,33,.5) 60%, transparent 100%)'
-                      : 'transparent',
-                  }} />
-
-                  {/* Badge */}
+                <div key={plan.id} style={{
+                  position: 'relative', borderRadius: 24, padding: 32,
+                  border: isFeatured ? '1.5px solid rgba(63,255,33,.4)' : '1px solid rgba(255,255,255,.08)',
+                  background: isFeatured
+                    ? 'linear-gradient(180deg, rgba(63,255,33,.08) 0%, transparent 100%)'
+                    : 'rgba(255,255,255,.02)',
+                  boxShadow: isFeatured ? '0 30px 80px -30px rgba(63,255,33,.35)' : 'none',
+                  display: 'flex', flexDirection: 'column',
+                  transition: 'transform .25s',
+                }}
+                  onMouseEnter={e => (e.currentTarget.style.transform = 'translateY(-4px)')}
+                  onMouseLeave={e => (e.currentTarget.style.transform = 'translateY(0)')}
+                >
                   {plan.badge && (
-                    <div style={{ position: 'absolute', top: 16, right: 16 }}>
-                      <span style={{ fontFamily: 'JetBrains Mono', fontSize: 9, fontWeight: 900, letterSpacing: '0.1em', textTransform: 'uppercase', background: '#3FFF21', color: '#060A07', borderRadius: 999, padding: '3px 10px' }}>
-                        {plan.badge}
-                      </span>
+                    <div style={{
+                      position: 'absolute', top: -14, left: '50%', transform: 'translateX(-50%)',
+                      background: 'linear-gradient(135deg, #3FFF21, #22e010)',
+                      borderRadius: 999, padding: '4px 14px',
+                      fontFamily: '"JetBrains Mono", monospace', fontSize: 10,
+                      fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em',
+                      color: '#0a1a05', whiteSpace: 'nowrap',
+                    }}>{plan.badge}</div>
+                  )}
+
+                  <h3 style={{
+                    fontFamily: '"Space Grotesk", sans-serif',
+                    fontWeight: 700, fontSize: 22, letterSpacing: '-0.02em',
+                    color: '#F0F4F8', marginBottom: 20,
+                  }}>{plan.label}</h3>
+
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 8 }}>
+                    <span style={{ fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, fontSize: 48, letterSpacing: '-0.03em', color: '#F0F4F8', lineHeight: 1 }}>
+                      R$ {plan.price.toLocaleString('pt-BR')}
+                    </span>
+                    <span style={{ fontFamily: '"Inter", sans-serif', fontSize: 13, color: 'rgba(240,244,248,.35)' }}>/{plan.period.replace('por ', '')}</span>
+                  </div>
+
+                  {plan.id !== 'monthly' && (
+                    <div style={{ fontFamily: '"Inter", sans-serif', fontSize: 13, color: 'rgba(240,244,248,.45)', marginBottom: 6 }}>
+                      R$ {plan.perMonth.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}/mês
                     </div>
                   )}
 
-                  <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20, flex: 1 }}>
-                    {/* Plan name + price */}
-                    <div>
-                      <div style={{ fontFamily: 'JetBrains Mono', fontSize: 11, fontWeight: 900, letterSpacing: '0.1em', textTransform: 'uppercase', color: isFeatured ? '#3FFF21' : 'var(--t3)', marginBottom: 6 }}>
-                        {plan.label}
-                      </div>
-                      <div style={{ fontFamily: 'Manrope', fontWeight: 900, fontSize: 36, letterSpacing: '-0.03em', color: 'var(--t)', lineHeight: 1 }}>
-                        R$ {plan.price.toLocaleString('pt-BR')}
-                      </div>
-                      <div style={{ fontFamily: 'Figtree', fontSize: 12, color: 'var(--t3)', marginTop: 4 }}>
-                        {plan.period}
-                        {plan.id !== 'monthly' && (
-                          <span style={{ color: 'var(--t2)', marginLeft: 6 }}>
-                            · R$ {plan.perMonth.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}/mês
-                          </span>
-                        )}
-                      </div>
-                      {plan.savings && (
-                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, marginTop: 8, padding: '3px 10px', borderRadius: 6, background: 'rgba(63,255,33,.1)', border: '1px solid rgba(63,255,33,.2)', fontFamily: 'Figtree', fontSize: 11, fontWeight: 700, color: '#3FFF21' }}>
-                          <TrendingUp size={9} /> {plan.savings}
-                        </div>
-                      )}
+                  {plan.savings && (
+                    <div style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 5,
+                      marginBottom: 24, padding: '3px 10px', borderRadius: 6,
+                      background: 'rgba(63,255,33,.1)', border: '1px solid rgba(63,255,33,.2)',
+                      fontFamily: '"Inter", sans-serif', fontSize: 12, fontWeight: 700, color: '#3FFF21',
+                    }}>
+                      <TrendingUp size={10} /> {plan.savings}
                     </div>
+                  )}
 
-                    {/* Features */}
-                    <ul style={{ display: 'flex', flexDirection: 'column', gap: 9, flex: 1 }}>
-                      {plan.features.map(f => (
-                        <li key={f} style={{ display: 'flex', alignItems: 'center', gap: 9, fontFamily: 'Figtree', fontSize: 13, color: 'var(--t2)' }}>
-                          <Check size={11} color="#3FFF21" style={{ flexShrink: 0 }} /> {f}
-                        </li>
-                      ))}
-                    </ul>
+                  {!plan.savings && <div style={{ marginBottom: 24 }} />}
 
-                    {/* Payment badges */}
-                    <div style={{ display: 'flex', gap: 7 }}>
-                      {[{ Icon: QrCode, label: 'PIX' }, { Icon: CreditCard, label: 'Cartão' }].map(({ Icon, label }) => (
-                        <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 7, background: 'rgba(255,255,255,.05)', fontFamily: 'JetBrains Mono', fontSize: 10, fontWeight: 700, color: 'var(--t3)' }}>
-                          <Icon size={10} /> {label}
-                        </div>
-                      ))}
-                    </div>
+                  <ul style={{ display: 'flex', flexDirection: 'column', gap: 12, flex: 1, marginBottom: 24 }}>
+                    {plan.features.map(f => (
+                      <li key={f} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                        <Check size={16} color="#3FFF21" style={{ flexShrink: 0, marginTop: 2 }} strokeWidth={2.5} />
+                        <span style={{ fontFamily: '"Inter", sans-serif', fontSize: 14, color: 'rgba(240,244,248,.75)' }}>{f}</span>
+                      </li>
+                    ))}
+                  </ul>
 
-                    {/* CTA */}
-                    <a
-                      href={url}
-                      target={url.startsWith('http') ? '_blank' : undefined}
-                      rel="noopener noreferrer"
-                      className="btn-cta"
-                      style={{
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
-                        padding: '13px 20px', borderRadius: 11, fontFamily: 'Manrope', fontSize: 14, fontWeight: 800,
-                        textDecoration: 'none', transition: 'all .2s',
-                        ...(isFeatured
-                          ? { background: '#3FFF21', color: '#060A07', boxShadow: '0 0 20px rgba(63,255,33,.3)' }
-                          : { background: 'rgba(255,255,255,.07)', color: 'var(--t)', border: '1px solid rgba(255,255,255,.1)' }),
-                      }}
-                      onMouseEnter={e => { if (!isFeatured) { const el = e.currentTarget as HTMLElement; el.style.background = 'rgba(63,255,33,.1)'; el.style.borderColor = 'rgba(63,255,33,.3)'; } }}
-                      onMouseLeave={e => { if (!isFeatured) { const el = e.currentTarget as HTMLElement; el.style.background = 'rgba(255,255,255,.07)'; el.style.borderColor = 'rgba(255,255,255,.1)'; } }}
-                    >
-                      <Zap size={13} /> Assinar {PLAN_LABELS[plan.id]}
-                    </a>
+                  {/* Payment badges */}
+                  <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+                    {[{ Icon: QrCode, label: 'PIX' }, { Icon: CreditCard, label: 'Cartão' }].map(({ Icon, label }) => (
+                      <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 8, background: 'rgba(255,255,255,.05)', fontFamily: '"JetBrains Mono", monospace', fontSize: 10, fontWeight: 700, color: 'rgba(240,244,248,.4)' }}>
+                        <Icon size={10} /> {label}
+                      </div>
+                    ))}
                   </div>
+
+                  <a
+                    href={url}
+                    target={url.startsWith('http') ? '_blank' : undefined}
+                    rel="noopener noreferrer"
+                    style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                      padding: '13px 20px', borderRadius: 999,
+                      fontFamily: '"Inter", sans-serif', fontSize: 14, fontWeight: 700,
+                      textDecoration: 'none', transition: 'transform .2s, box-shadow .2s',
+                      ...(isFeatured
+                        ? { background: 'linear-gradient(135deg, #3FFF21, #22e010)', color: '#0a1a05', boxShadow: '0 10px 30px -10px rgba(63,255,33,.6)' }
+                        : { background: 'rgba(255,255,255,.06)', color: '#F0F4F8', border: '1px solid rgba(255,255,255,.1)' }),
+                    }}
+                    onMouseEnter={e => {
+                      const el = e.currentTarget as HTMLElement;
+                      el.style.transform = 'scale(1.02)';
+                      if (!isFeatured) { el.style.background = 'rgba(63,255,33,.1)'; el.style.borderColor = 'rgba(63,255,33,.3)'; }
+                    }}
+                    onMouseLeave={e => {
+                      const el = e.currentTarget as HTMLElement;
+                      el.style.transform = 'scale(1)';
+                      if (!isFeatured) { el.style.background = 'rgba(255,255,255,.06)'; el.style.borderColor = 'rgba(255,255,255,.1)'; }
+                    }}
+                  >
+                    <Zap size={13} /> Assinar {PLAN_LABELS[plan.id]}
+                  </a>
                 </div>
               );
             })}
@@ -1114,7 +1007,7 @@ export function LandingPage() {
               { icon: <Zap size={13} />, text: 'Acesso imediato após pagamento' },
               { icon: <TrendingUp size={13} />, text: 'Cancele quando quiser' },
             ].map(item => (
-              <div key={item.text} style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'Figtree', fontSize: 12, color: 'var(--t3)' }}>
+              <div key={item.text} style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: '"Inter", sans-serif', fontSize: 12, color: 'rgba(240,244,248,.35)' }}>
                 {item.icon} {item.text}
               </div>
             ))}
@@ -1123,110 +1016,182 @@ export function LandingPage() {
       </section>
 
       {/* ══════════ FAQ ══════════ */}
-      <section id="faq" style={{ padding: '100px 32px' }}>
+      <section id="faq" style={{
+        borderTop: '1px solid rgba(255,255,255,.06)',
+        padding: '100px 24px',
+      }}>
         <div style={{ maxWidth: 760, margin: '0 auto' }}>
-          <div className="reveal" style={{ marginBottom: 56 }}>
-            <Label text="FAQ" />
-            <h2 style={{ fontFamily: 'Manrope', fontWeight: 900, fontSize: 'clamp(28px, 4vw, 44px)', letterSpacing: '-0.04em' }}>
-              Perguntas frequentes
-            </h2>
+          <div style={{ textAlign: 'center', marginBottom: 56 }}>
+            <SectionLabel>Dúvidas</SectionLabel>
+            <h2 style={{
+              fontFamily: '"Space Grotesk", sans-serif',
+              fontWeight: 900, fontSize: 'clamp(28px,3.5vw,48px)',
+              letterSpacing: '-0.03em',
+            }}>Perguntas frequentes</h2>
           </div>
-          {FAQ.map((item, i) => (
-            <div key={i} className="reveal" style={{
-              borderTop: '1px solid rgba(255,255,255,.07)',
-              ...(i === FAQ.length - 1 ? { borderBottom: '1px solid rgba(255,255,255,.07)' } : {}),
-            }}>
-              <button
-                onClick={() => setOpenFaq(openFaq === i ? null : i)}
-                style={{ width: '100%', padding: '22px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'none', border: 'none', color: 'var(--t)', cursor: 'pointer', textAlign: 'left', gap: 24 }}>
-                <span style={{ fontFamily: 'Manrope', fontWeight: 700, fontSize: 15 }}>{item.q}</span>
-                <ChevronDown size={16} color="var(--t3)" style={{ flexShrink: 0, transform: openFaq === i ? 'rotate(180deg)' : 'none', transition: 'transform .2s' }} />
-              </button>
-              {openFaq === i && (
-                <div style={{ paddingBottom: 24, fontFamily: 'Figtree', color: 'var(--t2)', fontSize: 14, lineHeight: 1.75 }}>
-                  {item.a}
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {FAQ.map((item, i) => (
+              <div key={i} style={{
+                overflow: 'hidden', borderRadius: 16,
+                border: openFaq === i ? '1px solid rgba(63,255,33,.3)' : '1px solid rgba(255,255,255,.08)',
+                background: openFaq === i ? 'rgba(63,255,33,.04)' : 'rgba(255,255,255,.02)',
+                transition: 'border-color .2s, background .2s',
+              }}>
+                <button
+                  onClick={() => setOpenFaq(openFaq === i ? null : i)}
+                  style={{
+                    width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    gap: 16, padding: '20px 24px',
+                    background: 'none', border: 'none', color: '#F0F4F8', cursor: 'pointer', textAlign: 'left',
+                  }}
+                >
+                  <span style={{ fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700, fontSize: 16, letterSpacing: '-0.01em' }}>{item.q}</span>
+                  <ChevronDown size={20} color="#3FFF21" style={{ flexShrink: 0, transform: openFaq === i ? 'rotate(180deg)' : 'none', transition: 'transform .3s cubic-bezier(0.22, 1, 0.36, 1)' }} />
+                </button>
+                <div style={{
+                  maxHeight: openFaq === i ? '400px' : 0,
+                  overflow: 'hidden',
+                  transition: 'max-height 0.35s cubic-bezier(0.22, 1, 0.36, 1)',
+                }}>
+                  <p style={{ padding: '0 24px 20px', fontFamily: '"Inter", sans-serif', fontSize: 14, lineHeight: 1.8, color: 'rgba(240,244,248,.5)' }}>{item.a}</p>
                 </div>
-              )}
-            </div>
-          ))}
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
-      {/* ══════════ FINAL CTA ══════════ */}
-      <section style={{ padding: '100px 32px', textAlign: 'center', background: '#0A0F14', borderTop: '1px solid rgba(255,255,255,.05)', position: 'relative', overflow: 'hidden' }}>
-        <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse 55% 70% at 50% 50%, rgba(63,255,33,.04) 0%, transparent 65%)', pointerEvents: 'none' }} />
-        <div className="reveal" style={{ position: 'relative', zIndex: 1, maxWidth: 560, margin: '0 auto' }}>
-          <div style={{ fontFamily: 'JetBrains Mono', fontSize: 10, color: '#3FFF21', letterSpacing: '0.16em', textTransform: 'uppercase', marginBottom: 24 }}>Comece hoje mesmo</div>
-          <h2 style={{ fontFamily: 'Manrope', fontWeight: 900, fontSize: 'clamp(40px, 6vw, 68px)', letterSpacing: '-0.05em', lineHeight: 0.97, marginBottom: 28 }}>
-            Pare de operar<br />no escuro.
-          </h2>
-          <p style={{ fontFamily: 'Figtree', fontSize: 17, color: 'var(--t2)', lineHeight: 1.65, maxWidth: '42ch', margin: '0 auto 44px' }}>
-            Junte-se a +500 traders que monitoram suas operações com dados reais.
-          </p>
-          <a href="/pricing" className="btn-cta" style={{
-            display: 'inline-flex', alignItems: 'center', gap: 10,
-            background: '#3FFF21', color: '#050A06', borderRadius: 8,
-            padding: '16px 40px', fontSize: 16, fontWeight: 900, textDecoration: 'none',
+      {/* ══════════ CTA FINAL ══════════ */}
+      <section style={{ position: 'relative', overflow: 'hidden', padding: '100px 24px', textAlign: 'center' }}>
+        <div className="lp-bg-grid" style={{ position: 'absolute', inset: 0, opacity: 0.5, pointerEvents: 'none' }} />
+        <div style={{
+          position: 'absolute', left: '50%', top: '50%',
+          width: 800, height: 400,
+          transform: 'translate(-50%, -50%)',
+          borderRadius: '50%',
+          background: 'rgba(63,255,33,.12)',
+          filter: 'blur(80px)',
+          pointerEvents: 'none',
+        }} />
+        <div style={{ position: 'relative', zIndex: 1, maxWidth: 680, margin: '0 auto' }}>
+          <h2 style={{
+            fontFamily: '"Space Grotesk", sans-serif',
+            fontWeight: 900, fontSize: 'clamp(36px,5.5vw,68px)',
+            letterSpacing: '-0.04em', lineHeight: 0.99, marginBottom: 24,
+            color: '#F0F4F8',
           }}>
-            Escolher meu plano <ArrowRight size={18} />
-          </a>
-          <div style={{ fontFamily: 'Figtree', marginTop: 20, color: 'var(--t3)', fontSize: 12 }}>
-            Sem fidelidade · Cancele quando quiser · PIX disponível
+            Pare de operar no escuro.<br />
+            <span style={{ color: '#3FFF21' }}>Comece hoje.</span>
+          </h2>
+          <p style={{ fontFamily: '"Inter", sans-serif', fontSize: 17, color: 'rgba(240,244,248,.5)', lineHeight: 1.65, marginBottom: 44 }}>
+            Junte-se aos traders que transformaram apostas em uma operação séria, organizada e lucrativa.
+          </p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, justifyContent: 'center', alignItems: 'center' }}>
+            <a href="/pricing" style={{
+              display: 'inline-flex', alignItems: 'center', gap: 10,
+              background: 'linear-gradient(135deg, #3FFF21, #22e010)',
+              color: '#0a1a05', borderRadius: 999,
+              padding: '16px 44px', fontSize: 16, fontWeight: 800,
+              fontFamily: '"Inter", sans-serif', textDecoration: 'none',
+              boxShadow: '0 10px 40px -10px rgba(63,255,33,.7)',
+              transition: 'transform .2s, box-shadow .2s',
+            }}
+              onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.transform = 'scale(1.03)'; el.style.boxShadow = '0 16px 56px -10px rgba(63,255,33,.9)'; }}
+              onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.transform = 'scale(1)'; el.style.boxShadow = '0 10px 40px -10px rgba(63,255,33,.7)'; }}
+            >
+              Garantir meu acesso <ArrowRight size={18} />
+            </a>
+            <span style={{ fontFamily: '"Inter", sans-serif', fontSize: 13, color: 'rgba(240,244,248,.35)' }}>Garantia incondicional de 7 dias</span>
           </div>
         </div>
       </section>
 
       {/* ══════════ FOOTER ══════════ */}
-      <footer style={{ background: '#050A06', borderTop: '1px solid rgba(255,255,255,.05)', padding: '36px 32px' }}>
+      <footer style={{ borderTop: '1px solid rgba(255,255,255,.06)', padding: '36px 24px' }}>
         <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-            <div style={{ width: 30, height: 30, borderRadius: 8, background: '#3FFF21', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Zap size={14} color="#050A06" strokeWidth={2.5} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 32, height: 32, borderRadius: 9, background: 'linear-gradient(135deg, #3FFF21, #22e010)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Zap size={14} color="#0a1a05" strokeWidth={2.6} />
             </div>
-            <span style={{ fontFamily: 'Manrope', fontWeight: 900, fontSize: 15 }}>SureEdge</span>
+            <span style={{ fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, fontSize: 16, letterSpacing: '-0.02em' }}>SureEdge</span>
           </div>
-          <div style={{ fontFamily: 'Figtree', color: 'var(--t3)', fontSize: 12 }}>© 2025 SureEdge. Plataforma de gestão de surebets profissional.</div>
+          <p style={{ fontFamily: '"Inter", sans-serif', color: 'rgba(240,244,248,.28)', fontSize: 12 }}>
+            © {new Date().getFullYear()} SureEdge. Trading esportivo, organizado.
+          </p>
           <div style={{ display: 'flex', gap: 24 }}>
-            {['Termos', 'Privacidade', 'Suporte'].map(l => (
-              <a key={l} href="#" style={{ fontFamily: 'Figtree', color: 'var(--t3)', fontSize: 12, textDecoration: 'none' }}>{l}</a>
+            {['Termos', 'Privacidade', 'Suporte', 'Login'].map(l => (
+              <a key={l} href={l === 'Login' ? '/login' : '#'} style={{ fontFamily: '"Inter", sans-serif', color: 'rgba(240,244,248,.28)', fontSize: 12, textDecoration: 'none', transition: 'color .15s' }}
+                onMouseEnter={e => (e.currentTarget.style.color = '#F0F4F8')}
+                onMouseLeave={e => (e.currentTarget.style.color = 'rgba(240,244,248,.28)')}>
+                {l}
+              </a>
             ))}
-            <a href="/login" style={{ fontFamily: 'Figtree', color: 'var(--t3)', fontSize: 12, textDecoration: 'none' }}>Login</a>
           </div>
         </div>
       </footer>
 
+      {/* ══════════ STYLES ══════════ */}
       <style>{`
+        .lp-root { --lp-primary: #3FFF21; }
+
+        /* Background grid */
+        .lp-bg-grid {
+          background-image:
+            linear-gradient(to right, rgba(255,255,255,0.04) 1px, transparent 1px),
+            linear-gradient(to bottom, rgba(255,255,255,0.04) 1px, transparent 1px);
+          background-size: 56px 56px;
+          mask-image: radial-gradient(ellipse 70% 60% at 50% 30%, black, transparent 75%);
+        }
+
+        /* Aurora pulse */
+        @keyframes lp-aurora {
+          0%, 100% { transform: translateX(-50%) scale(1); opacity: 0.55; }
+          50%       { transform: translateX(-50%) translateY(2%) scale(1.08); opacity: 0.75; }
+        }
+        .lp-aurora { animation: lp-aurora 14s ease-in-out infinite; }
+
+        /* Pulse dot */
+        @keyframes lp-pulse {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50%       { opacity: 0.5; transform: scale(0.85); }
+        }
+        .lp-pulse-dot { animation: lp-pulse 1.6s ease-in-out infinite; }
+
+        /* Hero fade-in stagger */
+        @keyframes lp-fade-up {
+          from { opacity: 0; transform: translateY(24px); filter: blur(4px); }
+          to   { opacity: 1; transform: none; filter: blur(0); }
+        }
+        .lp-fade-in { animation: lp-fade-up 0.8s cubic-bezier(0.22, 1, 0.36, 1) both; }
+        .lp-d1 { animation-delay: 0ms; }
+        .lp-d2 { animation-delay: 80ms; }
+        .lp-d3 { animation-delay: 160ms; }
+        .lp-d4 { animation-delay: 240ms; }
+        .lp-d5 { animation-delay: 320ms; }
+        .lp-d6 { animation-delay: 500ms; }
+
+        /* Mockup items */
+        @keyframes lp-mockup-in {
+          from { opacity: 0; transform: translateY(8px); }
+          to   { opacity: 1; transform: none; }
+        }
+
+        /* Chart path draw */
+        @keyframes lp-chart-draw {
+          from { stroke-dashoffset: 600; }
+          to   { stroke-dashoffset: 0; }
+        }
+
+        /* Bookmaker marquee */
         @keyframes lp-marquee {
           0%   { transform: translateX(0); }
           100% { transform: translateX(-50%); }
         }
-        @keyframes lp-float {
-          0%, 100% { transform: translateY(0px); }
-          50%       { transform: translateY(-10px); }
-        }
-        @keyframes hero-glow-pulse {
-          0%, 100% { opacity: 1; transform: scale(1); }
-          50%       { opacity: 0.7; transform: scale(1.04); }
-        }
-        @keyframes hero-scan {
-          0%   { transform: translateY(-110%); }
-          100% { transform: translateY(210%); }
-        }
-        @keyframes live-blink {
-          0%, 100% { opacity: 1; }
-          50%       { opacity: 0.3; }
-        }
-        @keyframes hero-badge-in {
-          from { opacity: 0; transform: translateY(10px) scale(0.92); filter: blur(4px); }
-          to   { opacity: 1; transform: none; filter: blur(0); }
-        }
       `}</style>
 
       {/* FAQ structured data */}
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(FAQ_JSON_LD) }}
-      />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(FAQ_JSON_LD) }} />
     </div>
   );
 }
