@@ -60,13 +60,12 @@ export interface GolsSignal {
 
 // ── PA set (exclui sufixo SO = Odds Aumentadas, nunca PA) ─────────────────────
 
+// Fonte: HAR painel.supermonitor.pro — apenas casas com PA real confirmado
 const PA_SET = new Set([
-  'betano','novibet','betvip','betsul','betesporte','brasilbet','betsson','bet365',
-  'bet365arg','bet365pe','lotogreen','kto','vivasorte','sportingbet','superbet',
-  'apostabet','br4bet','esportesdasorte','esportiva','esportivabet','sortenabet',
-  'betmgm','estrelabet','bet7k','jogodeouro','mcgames','meridianbet','meridian',
-  'versusbet','vupi','vupibet','vaidebet','betnacional','pixbet','betfairsb',
-  'betfair','tradeball','sporty','alfabet','betbra',
+  'betano','novibet','betsul','betesporte','betsson','bet365',
+  'kto','vivasorte','sportingbet','superbet','apostabet','br4bet',
+  'esportesdasorte','esportiva','sortenabet','betmgm','estrelabet',
+  'bet7k','jogodeouro','meridianbet','versusbet','vaidebet',
 ]);
 
 function isPa(house: string): boolean {

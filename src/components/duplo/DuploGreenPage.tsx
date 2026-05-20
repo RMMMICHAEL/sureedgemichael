@@ -963,11 +963,12 @@ export function DuploGreenPage() {
       if (startMs < nowMs - 90 * 60_000) return false;
       return true;
     });
-    // Client-side PA filter — enforced here even if API slips through non-PA legs
+    // Client-side PA filter — legX (empate) usa a melhor odd disponível de qualquer casa,
+    // então só verificamos leg1 (casa) e leg2 (fora) para PA
     if (paMode === 'ambos') {
-      visible = visible.filter(s => s.leg1.pa && s.legX.pa && s.leg2.pa);
+      visible = visible.filter(s => s.leg1.pa && s.leg2.pa);
     } else if (paMode === 'um') {
-      visible = visible.filter(s => s.leg1.pa || s.legX.pa || s.leg2.pa);
+      visible = visible.filter(s => s.leg1.pa || s.leg2.pa);
     }
     if (sortOrder === 'melhor')   return [...visible].sort((a, b) => a.loss_pct - b.loss_pct);
     if (sortOrder === 'pior')     return [...visible].sort((a, b) => b.loss_pct - a.loss_pct);
