@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import {
-  ScanSearch, Search, X, Building2, Filter, RefreshCw,
-  ChevronDown, ChevronUp, Star, ExternalLink, Loader2,
+  ScanSearch, Search, X, Building2, RefreshCw,
+  ChevronDown, Star, ExternalLink, Loader2, SlidersHorizontal,
 } from 'lucide-react';
 import { SurebetCalc, ALL_HOUSES } from '@/components/calcalendario/SurebetCalc';
 
@@ -794,6 +795,172 @@ function FillToast({ visible }: { visible: boolean }) {
   );
 }
 
+// ── House filter drawer (Casas de Aposta) ─────────────────────────────────────
+
+function BuscarCheckboxSection({ title, items, disabledHouses, onToggle, onSelectAll, onClear }: {
+  title: string;
+  items: string[];
+  disabledHouses: Set<string>;
+  onToggle: (h: string) => void;
+  onSelectAll: () => void;
+  onClear: () => void;
+}) {
+  return (
+    <div style={{ marginBottom: 20 }}>
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        marginBottom: 10, paddingBottom: 8, borderBottom: '1px solid rgba(255,255,255,.06)',
+      }}>
+        <span style={{ fontSize: 12, fontWeight: 800, color: '#E2E8F0', letterSpacing: '.02em' }}>{title}</span>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button type="button" onClick={onSelectAll}
+            style={{ fontSize: 10, fontWeight: 700, color: '#3DFF8F',
+              background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+            Todas
+          </button>
+          <button type="button" onClick={onClear}
+            style={{ fontSize: 10, fontWeight: 700, color: '#64748B',
+              background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+            Limpar
+          </button>
+        </div>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 6 }}>
+        {items.map(h => {
+          const active = !disabledHouses.has(h);
+          return (
+            <label key={h} style={{
+              display: 'flex', alignItems: 'center', gap: 7, cursor: 'pointer',
+              padding: '5px 8px', borderRadius: 7,
+              background: active ? 'rgba(63,255,33,.06)' : 'rgba(255,255,255,.03)',
+              border: `1px solid ${active ? 'rgba(63,255,33,.2)' : 'rgba(255,255,255,.06)'}`,
+              transition: 'all .15s',
+            }}>
+              <input type="checkbox" checked={active} onChange={() => onToggle(h)}
+                style={{ accentColor: '#3DFF8F', width: 13, height: 13, flexShrink: 0 }} />
+              <span style={{ fontSize: 11, fontWeight: 600,
+                color: active ? '#C4FFAE' : '#94A3B8', lineHeight: 1.3 }}>
+                {h}
+              </span>
+            </label>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function BuscarHouseFilterDrawer({ paHouses, nonPaHouses, disabledHouses, onToggle, onSelectAll, onClear, onClose }: {
+  paHouses: string[];
+  nonPaHouses: string[];
+  disabledHouses: Set<string>;
+  onToggle: (h: string) => void;
+  onSelectAll: (group: string[]) => void;
+  onClear: (group: string[]) => void;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [onClose]);
+
+  const totalHouses = paHouses.length + nonPaHouses.length;
+  const activeCount = totalHouses - disabledHouses.size;
+
+  return createPortal(
+    <div
+      style={{
+        position: 'fixed', inset: 0, zIndex: 9990,
+        background: 'rgba(0,0,0,.6)', backdropFilter: 'blur(4px)',
+        display: 'flex', justifyContent: 'flex-end',
+      }}
+      onClick={e => e.target === e.currentTarget && onClose()}
+    >
+      <div style={{
+        width: '100%', maxWidth: 520, height: '100%',
+        background: '#0D1220', borderLeft: '1px solid rgba(255,255,255,.1)',
+        display: 'flex', flexDirection: 'column',
+        boxShadow: '-24px 0 80px rgba(0,0,0,.6)',
+      }}>
+        {/* Header */}
+        <div style={{
+          padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,.07)',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <SlidersHorizontal size={14} style={{ color: '#3DFF8F' }} />
+            <span style={{ fontSize: 14, fontWeight: 800, color: '#E2E8F0' }}>Casas de Aposta</span>
+            <span style={{
+              fontSize: 10, fontWeight: 800, padding: '1px 7px', borderRadius: 5,
+              background: 'rgba(63,255,33,.1)', color: '#3DFF8F',
+              border: '1px solid rgba(63,255,33,.2)',
+            }}>
+              {activeCount} ativas
+            </span>
+          </div>
+          <button onClick={onClose} style={{
+            background: 'rgba(255,255,255,.07)', border: 'none', borderRadius: 8,
+            width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: '#94A3B8', cursor: 'pointer',
+          }}>
+            <X size={15} />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px' }}>
+          {paHouses.length > 0 && (
+            <BuscarCheckboxSection
+              title="Pagamento Antecipado"
+              items={paHouses}
+              disabledHouses={disabledHouses}
+              onToggle={onToggle}
+              onSelectAll={() => onSelectAll(paHouses)}
+              onClear={() => onClear(paHouses)}
+            />
+          )}
+          {nonPaHouses.length > 0 && (
+            <BuscarCheckboxSection
+              title="Sem Pagamento Antecipado"
+              items={nonPaHouses}
+              disabledHouses={disabledHouses}
+              onToggle={onToggle}
+              onSelectAll={() => onSelectAll(nonPaHouses)}
+              onClear={() => onClear(nonPaHouses)}
+            />
+          )}
+        </div>
+
+        {/* Footer */}
+        <div style={{
+          padding: '12px 20px', borderTop: '1px solid rgba(255,255,255,.07)', flexShrink: 0,
+          display: 'flex', gap: 8,
+        }}>
+          <button type="button"
+            onClick={() => { onSelectAll([...paHouses, ...nonPaHouses]); }}
+            style={{
+              flex: 1, padding: '8px', borderRadius: 8, fontSize: 11, fontWeight: 700,
+              background: 'rgba(63,255,33,.07)', border: '1px solid rgba(63,255,33,.2)',
+              color: '#3DFF8F', cursor: 'pointer',
+            }}>
+            Selecionar Todas
+          </button>
+          <button type="button" onClick={onClose}
+            style={{
+              flex: 1, padding: '8px', borderRadius: 8, fontSize: 11, fontWeight: 700,
+              background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.09)',
+              color: 'rgba(255,255,255,.5)', cursor: 'pointer',
+            }}>
+            Fechar
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
 // ── House filter panel ─────────────────────────────────────────────────────────
 
 function HouseFilterPanel({
@@ -1241,7 +1408,7 @@ export function BuscarOddsPage() {
   const [parsed,          setParsed]          = useState<ParsedSearch | null>(null);
   const [oddsErr,         setOddsErr]         = useState('');
   const [disabledHouses,  setDisabledHouses]  = useState<Set<string>>(new Set());
-  const [showFilter,      setShowFilter]      = useState(false);
+  const [showHousePanel,  setShowHousePanel]  = useState(false);
 
   // ── Calculator fill state ────────────────────────────────────────────────────
   const [surebetFill, setSurebetFill] = useState<{ odds: string[]; houses: string[] } | null>(null);
@@ -1742,38 +1909,42 @@ export function BuscarOddsPage() {
             }}
           />
 
-          {/* Filters toggle */}
+          {/* Casas de Aposta drawer button */}
           {parsed && (
             <button
               type="button"
-              onClick={() => setShowFilter(v => !v)}
+              onClick={() => setShowHousePanel(true)}
               className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold flex-shrink-0"
               style={{
-                background: showFilter ? 'rgba(129,140,248,.15)' : 'rgba(255,255,255,.05)',
-                color: showFilter ? '#818cf8' : 'var(--t3)',
-                border: `1px solid ${showFilter ? 'rgba(129,140,248,.3)' : 'var(--b)'}`,
+                background: disabledHouses.size > 0 ? 'rgba(77,166,255,.1)' : 'rgba(255,255,255,.05)',
+                color: disabledHouses.size > 0 ? '#4DA6FF' : 'var(--t3)',
+                border: `1px solid ${disabledHouses.size > 0 ? 'rgba(77,166,255,.3)' : 'var(--b)'}`,
               }}
             >
-              <Filter size={12} />
-              Filtros
+              <SlidersHorizontal size={12} />
+              Casas de Aposta
               {disabledHouses.size > 0 && (
-                <span className="rounded-full w-4 h-4 text-[9px] font-black flex items-center justify-center flex-shrink-0"
-                  style={{ background: '#818cf8', color: 'white' }}>
-                  {disabledHouses.size}
+                <span style={{
+                  background: 'rgba(77,166,255,.2)', color: '#4DA6FF',
+                  borderRadius: 4, padding: '0 5px', fontSize: 10, fontWeight: 900,
+                }}>
+                  {(parsed.rows.length - disabledHouses.size)}
                 </span>
               )}
-              {showFilter ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
             </button>
           )}
         </div>
 
-        {/* Filter panel */}
-        {showFilter && parsed && (
-          <HouseFilterPanel
-            rows={parsed.rows}
+        {/* House filter drawer */}
+        {showHousePanel && parsed && (
+          <BuscarHouseFilterDrawer
+            paHouses={[...new Set(parsed.rows.filter(r => r.pa).map(r => r.house))].sort()}
+            nonPaHouses={[...new Set(parsed.rows.filter(r => !r.pa).map(r => r.house))].sort()}
             disabledHouses={disabledHouses}
             onToggle={toggleHouse}
-            onReset={() => setDisabledHouses(new Set())}
+            onSelectAll={group => setDisabledHouses(prev => { const n = new Set(prev); group.forEach(h => n.delete(h)); return n; })}
+            onClear={group => setDisabledHouses(prev => { const n = new Set(prev); group.forEach(h => n.add(h)); return n; })}
+            onClose={() => setShowHousePanel(false)}
           />
         )}
       </div>

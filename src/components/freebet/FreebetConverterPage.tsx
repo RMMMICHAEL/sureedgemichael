@@ -122,6 +122,16 @@ function fmtDate(iso?: string) {
   } catch { return iso; }
 }
 
+/** Normaliza outcome do inglês/abreviado para PT-BR. */
+function normalizeOutcome(raw: string): string {
+  const s = raw.toLowerCase().trim();
+  if (s === 'home' || s === '1' || s === 'casa') return 'Casa';
+  if (s === 'draw' || s === 'x' || s === 'empate') return 'Empate';
+  if (s === 'away' || s === '2' || s === 'fora') return 'Fora';
+  return raw;
+}
+const OUTCOME_ORDER = ['Casa', 'Empate', 'Fora'];
+
 /** Normaliza o JSON retornado pelo SuperMonitor em um array de FreebetResult. */
 function parseApiResponse(data: unknown): FreebetResult[] {
   if (!data || typeof data !== 'object') return [];
@@ -162,7 +172,7 @@ function parseApiResponse(data: unknown): FreebetResult[] {
 
       if (fb.house) {
         bets.push({
-          outcome:    String(fb.selection ?? fb.outcome ?? ''),
+          outcome:    normalizeOutcome(String(fb.selection ?? fb.outcome ?? '')),
           house:      fbHouse,
           url:        eventUrls[fbHouse] ?? undefined,
           odd:        Number(fb.odd ?? 0),
@@ -175,7 +185,7 @@ function parseApiResponse(data: unknown): FreebetResult[] {
       hedgeArr.forEach((h, i) => {
         const hedge = h as Record<string, unknown>;
         bets.push({
-          outcome:    String(hedge.selection ?? hedge.outcome ?? ''),
+          outcome:    normalizeOutcome(String(hedge.selection ?? hedge.outcome ?? '')),
           house:      String(hedge.house ?? ''),
           url:        eventUrls[String(hedge.house ?? '')] ?? undefined,
           odd:        Number(hedge.odd ?? 0),
@@ -188,7 +198,7 @@ function parseApiResponse(data: unknown): FreebetResult[] {
       if (bets.length === 0 && Array.isArray(r.bets)) {
         for (const b of r.bets as Record<string, unknown>[]) {
           bets.push({
-            outcome:    String(b.outcome ?? b.label ?? ''),
+            outcome:    normalizeOutcome(String(b.outcome ?? b.label ?? '')),
             house:      String(b.house   ?? b.bookmaker ?? ''),
             url:        typeof b.url === 'string' ? b.url : undefined,
             odd:        Number(b.odd ?? b.odds ?? 0),
@@ -198,6 +208,16 @@ function parseApiResponse(data: unknown): FreebetResult[] {
           });
         }
       }
+
+      // Ordenar apostas: Casa → Empate → Fora
+      bets.sort((a, b) => {
+        const ia = OUTCOME_ORDER.indexOf(a.outcome);
+        const ib = OUTCOME_ORDER.indexOf(b.outcome);
+        if (ia === -1 && ib === -1) return 0;
+        if (ia === -1) return 1;
+        if (ib === -1) return -1;
+        return ia - ib;
+      });
 
       const convRate   = Number(conv.conversion_rate ?? r.conversion_pct ?? 0);
       const avgProfit  = Number(conv.avg_profit      ?? r.profit          ?? 0);

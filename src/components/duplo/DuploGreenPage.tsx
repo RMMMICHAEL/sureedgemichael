@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Zap, RefreshCw, ExternalLink, Filter, X, ChevronDown,
-  Loader2, AlertCircle, Copy, Check, Star, SkipForward,
+  Loader2, AlertCircle, Copy, Check, Star, SkipForward, SlidersHorizontal,
 } from 'lucide-react';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -648,22 +649,190 @@ function FilterPanel({
   );
 }
 
+// ── House filter drawer (Casas de Aposta) ─────────────────────────────────────
+
+function HouseCheckboxSection({ title, isOs: isOsGroup, items, disabled, onToggle, onSelectAll, onClear }: {
+  title: string;
+  isOs: boolean;
+  items: string[];
+  disabled: Set<string>;
+  onToggle: (h: string) => void;
+  onSelectAll: () => void;
+  onClear: () => void;
+}) {
+  const accent = isOsGroup ? '#fbbf24' : 'oklch(0.78 0.22 138)';
+  const accentBg = isOsGroup ? 'rgba(251,191,36,.09)' : 'rgba(63,255,33,.07)';
+  const accentBorder = isOsGroup ? 'rgba(251,191,36,.28)' : 'rgba(63,255,33,.22)';
+
+  return (
+    <div style={{ marginBottom: 20 }}>
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        marginBottom: 10, paddingBottom: 8, borderBottom: '1px solid rgba(255,255,255,.06)',
+      }}>
+        <span style={{ fontSize: 11, fontWeight: 800, color: accent, letterSpacing: '.06em' }}>{title}</span>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button type="button" onClick={onSelectAll}
+            style={{ fontSize: 10, fontWeight: 700, color: 'oklch(0.78 0.22 138)',
+              background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+            Todas
+          </button>
+          <button type="button" onClick={onClear}
+            style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,.38)',
+              background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+            Limpar
+          </button>
+        </div>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 5 }}>
+        {items.map(h => {
+          const active = !disabled.has(normHouse(h));
+          return (
+            <label key={h} style={{
+              display: 'flex', alignItems: 'center', gap: 7, cursor: 'pointer',
+              padding: '5px 8px', borderRadius: 7,
+              background: active ? accentBg : 'rgba(255,255,255,.03)',
+              border: `1px solid ${active ? accentBorder : 'rgba(255,255,255,.06)'}`,
+              transition: 'all .15s',
+            }}>
+              <input type="checkbox" checked={active} onChange={() => onToggle(h)}
+                style={{ accentColor: accent, width: 13, height: 13, flexShrink: 0 }} />
+              <span style={{ fontSize: 11, fontWeight: 600,
+                color: active ? (isOsGroup ? '#fde68a' : '#C4FFAE') : '#64748B', lineHeight: 1.3 }}>
+                {h}
+              </span>
+            </label>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function HouseFilterDrawer({ disabled, onToggle, onSelectAll, onClear, onClose }: {
+  disabled: Set<string>;
+  onToggle: (h: string) => void;
+  onSelectAll: (group: string[]) => void;
+  onClear: (group: string[]) => void;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [onClose]);
+
+  const activeCount = ALL_HOUSES.length - disabled.size;
+
+  return createPortal(
+    <div
+      style={{
+        position: 'fixed', inset: 0, zIndex: 9990,
+        background: 'rgba(0,0,0,.6)', backdropFilter: 'blur(4px)',
+        display: 'flex', justifyContent: 'flex-end',
+      }}
+      onClick={e => e.target === e.currentTarget && onClose()}
+    >
+      <div style={{
+        width: '100%', maxWidth: 520, height: '100%',
+        background: '#0D1220', borderLeft: '1px solid rgba(255,255,255,.1)',
+        display: 'flex', flexDirection: 'column',
+        boxShadow: '-24px 0 80px rgba(0,0,0,.6)',
+      }}>
+        {/* Header */}
+        <div style={{
+          padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,.07)',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <SlidersHorizontal size={14} style={{ color: 'oklch(0.78 0.22 138)' }} />
+            <span style={{ fontSize: 14, fontWeight: 800, color: '#E2E8F0' }}>Casas de Aposta</span>
+            <span style={{
+              fontSize: 10, fontWeight: 800, padding: '1px 7px', borderRadius: 5,
+              background: 'rgba(63,255,33,.1)', color: 'oklch(0.78 0.22 138)',
+              border: '1px solid rgba(63,255,33,.2)',
+            }}>
+              {activeCount} ativas
+            </span>
+          </div>
+          <button onClick={onClose} style={{
+            background: 'rgba(255,255,255,.07)', border: 'none', borderRadius: 8,
+            width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: '#94A3B8', cursor: 'pointer',
+          }}>
+            <X size={15} />
+          </button>
+        </div>
+
+        {/* Scrollable content */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px' }}>
+          <HouseCheckboxSection
+            title="Pagamento Antecipado"
+            isOs={false}
+            items={PA_HOUSES}
+            disabled={disabled}
+            onToggle={onToggle}
+            onSelectAll={() => onSelectAll(PA_HOUSES)}
+            onClear={() => onClear(PA_HOUSES)}
+          />
+          <HouseCheckboxSection
+            title="Odds Aumentadas (OS)"
+            isOs={true}
+            items={OS_HOUSES}
+            disabled={disabled}
+            onToggle={onToggle}
+            onSelectAll={() => onSelectAll(OS_HOUSES)}
+            onClear={() => onClear(OS_HOUSES)}
+          />
+        </div>
+
+        {/* Footer */}
+        <div style={{
+          padding: '12px 20px', borderTop: '1px solid rgba(255,255,255,.07)', flexShrink: 0,
+          display: 'flex', gap: 8,
+        }}>
+          <button type="button"
+            onClick={() => { onSelectAll(ALL_HOUSES); }}
+            style={{
+              flex: 1, padding: '8px', borderRadius: 8, fontSize: 11, fontWeight: 700,
+              background: 'rgba(63,255,33,.07)', border: '1px solid rgba(63,255,33,.2)',
+              color: 'oklch(0.78 0.22 138)', cursor: 'pointer',
+            }}>
+            Selecionar Todas
+          </button>
+          <button type="button"
+            onClick={onClose}
+            style={{
+              flex: 1, padding: '8px', borderRadius: 8, fontSize: 11, fontWeight: 700,
+              background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.09)',
+              color: 'rgba(255,255,255,.5)', cursor: 'pointer',
+            }}>
+            Fechar
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 type SortOrder = 'melhor' | 'pior' | 'recentes' | 'antigos';
 
 export function DuploGreenPage() {
-  const [signals,   setSignals]   = useState<MLSignal[]>([]);
-  const [loading,   setLoading]   = useState(false);
-  const [error,     setError]     = useState('');
-  const [meta,      setMeta]      = useState({ total: 0, computedAt: '', cacheAgeMin: null as number | null });
-  const [disabled,  setDisabled]  = useState<Set<string>>(new Set());
-  const [paOnly,    setPaOnly]    = useState(false);
-  const [sortOrder, setSortOrder] = useState<SortOrder>('melhor');
-  const [countdown, setCountdown] = useState(30);
-  const [toast,     setToast]     = useState<MLSignal | null>(null);
-  const [skipped,   setSkipped]   = useState<Set<string>>(new Set());
-  const [starred,   setStarred]   = useState<Set<string>>(new Set());
+  const [signals,        setSignals]        = useState<MLSignal[]>([]);
+  const [loading,        setLoading]        = useState(false);
+  const [error,          setError]          = useState('');
+  const [meta,           setMeta]           = useState({ total: 0, computedAt: '', cacheAgeMin: null as number | null });
+  const [disabled,       setDisabled]       = useState<Set<string>>(new Set());
+  const [paOnly,         setPaOnly]         = useState(false);
+  const [sortOrder,      setSortOrder]      = useState<SortOrder>('melhor');
+  const [countdown,      setCountdown]      = useState(30);
+  const [toast,          setToast]          = useState<MLSignal | null>(null);
+  const [skipped,        setSkipped]        = useState<Set<string>>(new Set());
+  const [starred,        setStarred]        = useState<Set<string>>(new Set());
+  const [showHousePanel, setShowHousePanel] = useState(false);
 
   const prevMlRef  = useRef<Map<string, number>>(new Map());
   const toastShown = useRef<Set<string>>(new Set());
@@ -759,6 +928,15 @@ export function DuploGreenPage() {
     <>
       <style>{STYLES}</style>
       {toast && <ProfitToast sig={toast} onDismiss={() => setToast(null)} />}
+      {showHousePanel && (
+        <HouseFilterDrawer
+          disabled={disabled}
+          onToggle={h => setDisabled(prev => { const n = new Set(prev); if (n.has(normHouse(h))) n.delete(normHouse(h)); else n.add(normHouse(h)); return n; })}
+          onSelectAll={group => setDisabled(prev => { const n = new Set(prev); group.forEach(h => n.delete(normHouse(h))); return n; })}
+          onClear={group => setDisabled(prev => { const n = new Set(prev); group.forEach(h => n.add(normHouse(h))); return n; })}
+          onClose={() => setShowHousePanel(false)}
+        />
+      )}
 
       <div style={{ maxWidth: 1100, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 14 }}>
 
@@ -790,7 +968,7 @@ export function DuploGreenPage() {
           </div>
 
           {/* Right controls */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
             {/* Countdown */}
             <div style={{
               display: 'flex', alignItems: 'center', gap: 5,
@@ -821,6 +999,33 @@ export function DuploGreenPage() {
               <RefreshCw size={12} style={{ animation: loading ? 'dg-spin 1s linear infinite' : 'none' }} />
               Atualizar
             </button>
+
+            {/* Casas de Aposta drawer button */}
+            {(() => {
+              const houseFilterActive = disabled.size > 0;
+              return (
+                <button type="button" onClick={() => setShowHousePanel(true)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    padding: '7px 13px', borderRadius: 8, fontSize: 12, fontWeight: 700,
+                    background: houseFilterActive ? 'rgba(77,166,255,.1)' : 'rgba(255,255,255,.05)',
+                    border: `1px solid ${houseFilterActive ? 'rgba(77,166,255,.3)' : 'rgba(255,255,255,.09)'}`,
+                    color: houseFilterActive ? '#4DA6FF' : 'oklch(0.72 0.01 250)',
+                    cursor: 'pointer', transition: 'all .15s',
+                  }}>
+                  <SlidersHorizontal size={12} />
+                  Casas de Aposta
+                  {houseFilterActive && (
+                    <span style={{
+                      fontSize: 9.5, fontWeight: 800, padding: '0 5px', borderRadius: 4,
+                      background: 'rgba(77,166,255,.2)', color: '#4DA6FF',
+                    }}>
+                      {ALL_HOUSES.length - disabled.size}
+                    </span>
+                  )}
+                </button>
+              );
+            })()}
 
             <FilterPanel
               disabled={disabled}
