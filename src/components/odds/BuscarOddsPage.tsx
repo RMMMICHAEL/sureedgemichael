@@ -3,8 +3,7 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import {
   ScanSearch, Search, X, Building2, Filter, RefreshCw,
-  ChevronDown, ChevronUp, Star, ExternalLink, Loader2, ChevronRight,
-  Copy, Zap,
+  ChevronDown, ChevronUp, Star, ExternalLink, Loader2,
 } from 'lucide-react';
 import { SurebetCalc, ALL_HOUSES } from '@/components/calcalendario/SurebetCalc';
 
@@ -975,167 +974,55 @@ function getLeagueMeta(league: string) {
   return { flag: '⚽', country: '', sport: 'Esporte' };
 }
 
-// ── Scanner signal types (local, parallel to duplo-green types) ──────────────
+// ── Sport badge helpers ───────────────────────────────────────────────────────
 
-interface ScanMLSignal {
-  event_id:   string;
-  event_name: string;
-  league:     string;
-  start_utc:  string;
-  leg1: { house: string; pa: boolean; odd: number; url?: string };
-  legX: { house: string; pa: boolean; odd: number; url?: string };
-  leg2: { house: string; pa: boolean; odd: number; url?: string };
-  margin:   number;
-  loss_pct: number;
+function getSportStyle(sport: string): { label: string; bg: string; color: string; border: string } {
+  const s = (sport || '').toLowerCase();
+  if (s.includes('futebo') || s.includes('soccer') || s.includes('football'))
+    return { label: 'Futebol',   bg: 'rgba(99,102,241,.12)',  color: '#818cf8', border: 'rgba(99,102,241,.22)' };
+  if (s.includes('basket') || s.includes('nba'))
+    return { label: 'Basquete', bg: 'rgba(249,115,22,.1)',   color: '#fb923c', border: 'rgba(249,115,22,.22)' };
+  if (s.includes('tenis') || s.includes('tennis'))
+    return { label: 'Tênis',    bg: 'rgba(34,197,94,.1)',    color: '#4ade80', border: 'rgba(34,197,94,.22)' };
+  if (s.includes('volei') || s.includes('volley'))
+    return { label: 'Vôlei',   bg: 'rgba(14,165,233,.1)',   color: '#38bdf8', border: 'rgba(14,165,233,.22)' };
+  if (s.includes('americ'))
+    return { label: 'Futebol Am.', bg: 'rgba(168,85,247,.1)', color: '#c084fc', border: 'rgba(168,85,247,.22)' };
+  return { label: sport || 'Esporte', bg: 'rgba(255,255,255,.06)', color: 'rgba(255,255,255,.45)', border: 'rgba(255,255,255,.1)' };
 }
 
-function sigProfitColor(loss: number): { color: string; bg: string; border: string } {
-  if (loss <= 0)   return { color: '#3FFF21',  bg: 'rgba(63,255,33,.12)',   border: 'rgba(63,255,33,.25)'   };
-  if (loss < 1)    return { color: '#AAEE44',  bg: 'rgba(170,238,68,.10)',  border: 'rgba(170,238,68,.22)'  };
-  if (loss < 3)    return { color: '#FFD60A',  bg: 'rgba(255,214,10,.10)',  border: 'rgba(255,214,10,.22)'  };
-  if (loss < 6)    return { color: '#FF9F0A',  bg: 'rgba(255,159,10,.10)',  border: 'rgba(255,159,10,.22)'  };
-  return                  { color: '#FF6B6B',  bg: 'rgba(255,107,107,.10)', border: 'rgba(255,107,107,.22)' };
+function fmtCardDate(utc: string): string {
+  if (!utc) return '';
+  try {
+    const d = new Date(utc);
+    const day   = d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+    const time  = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
+    return `${day} ${time}`;
+  } catch { return ''; }
 }
 
-function fmtLoss(loss: number): string {
-  if (loss <= 0) return `+${Math.abs(loss).toFixed(2)}%`;
-  return `-${loss.toFixed(2)}%`;
-}
-
-function fmtEventDate(utc: string): string {
-  const d = new Date(utc);
-  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) +
-    ' às ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-}
-
-function copyText(text: string) {
-  navigator.clipboard.writeText(text).catch(() => {});
-}
-
-function LegRow({
-  house, odd, label, url, pa,
-}: {
-  house: string; odd: number; label: string; url?: string; pa: boolean;
-}) {
-  const [copied, setCopied] = useState(false);
-  function handleCopy(e: React.MouseEvent) {
-    e.stopPropagation();
-    copyText(`${house} — ${label} @ ${odd.toFixed(2)}`);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
-  }
-  return (
-    <div style={{
-      display: 'flex', alignItems: 'center', gap: 8,
-      padding: '4px 0',
-      borderBottom: '1px solid rgba(255,255,255,.04)',
-    }}>
-      {/* House + PA badge */}
-      <div style={{ flex: '0 0 130px', display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
-        <span style={{
-          fontSize: 11, fontWeight: 700, color: 'var(--t2)',
-          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-        }}>
-          {house}
-        </span>
-        {pa && (
-          <span style={{
-            fontSize: 8, fontWeight: 900, padding: '1px 4px', borderRadius: 3, flexShrink: 0,
-            background: 'rgba(63,255,33,.1)', color: 'var(--g)', border: '1px solid rgba(63,255,33,.2)',
-            letterSpacing: '.04em',
-          }}>PA</span>
-        )}
-      </div>
-      {/* Odd */}
-      <span style={{
-        flex: '0 0 42px', textAlign: 'right',
-        fontSize: 13, fontWeight: 900, color: 'var(--t)',
-        fontFamily: "'JetBrains Mono', monospace", letterSpacing: '-.02em',
-      }}>
-        {odd.toFixed(2)}
-      </span>
-      {/* Outcome link */}
-      {url ? (
-        <a
-          href={url} target="_blank" rel="noopener noreferrer"
-          onClick={e => e.stopPropagation()}
-          style={{
-            flex: 1, display: 'flex', alignItems: 'center', gap: 4,
-            fontSize: 10, fontWeight: 800, color: 'oklch(70% 0.1 250)',
-            textDecoration: 'none', overflow: 'hidden',
-            transition: 'color .12s',
-          }}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--g)'; }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'oklch(70% 0.1 250)'; }}
-        >
-          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {label}
-          </span>
-          <ExternalLink size={9} style={{ flexShrink: 0 }} />
-        </a>
-      ) : (
-        <span style={{
-          flex: 1, fontSize: 10, fontWeight: 800, color: 'var(--t3)',
-          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-        }}>
-          {label}
-        </span>
-      )}
-      {/* Copy */}
-      <button
-        type="button" onClick={handleCopy}
-        title="Copiar"
-        style={{
-          flexShrink: 0, width: 22, height: 22, borderRadius: 6,
-          background: copied ? 'rgba(63,255,33,.14)' : 'rgba(255,255,255,.05)',
-          border: `1px solid ${copied ? 'rgba(63,255,33,.3)' : 'rgba(255,255,255,.08)'}`,
-          cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-          transition: 'all .12s',
-        }}
-      >
-        <Copy size={10} style={{ color: copied ? 'var(--g)' : 'var(--t3)' }} />
-      </button>
-    </div>
-  );
-}
-
-function SignalCard({
-  sig, evMap, onSelect,
-}: {
-  sig: ScanMLSignal;
-  evMap: Map<string, CachedEvent>;
-  onSelect: (ev: CachedEvent) => void;
-}) {
-  const ev = evMap.get(sig.event_id);
-  const pc = sigProfitColor(sig.loss_pct);
-  const badge = getTimeBadge(sig.start_utc);
-  const league = sig.league || ev?.league || '';
-  const meta = getLeagueMeta(league);
-
-  function handleClick() {
-    if (ev) onSelect(ev);
-  }
+function EventCard({ ev, onSelect }: { ev: CachedEvent; onSelect: (ev: CachedEvent) => void }) {
+  const [starred, setStarred] = useState(false);
+  const sport = getSportStyle(ev.sport);
+  const badge = getTimeBadge(ev.start_utc);
+  const meta  = getLeagueMeta(ev.league || '');
 
   return (
-    <div
-      role="button"
-      tabIndex={0}
-      onClick={handleClick}
-      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') handleClick(); }}
+    <button
+      type="button"
+      onClick={() => onSelect(ev)}
       style={{
-        display: 'flex', gap: 0,
-        background: 'var(--bg2)',
-        border: '1px solid rgba(255,255,255,.07)',
-        borderRadius: 14,
-        overflow: 'hidden',
-        cursor: ev ? 'pointer' : 'default',
+        width: '100%', textAlign: 'left',
+        padding: '12px 14px',
+        background: 'var(--bg2)', border: '1px solid rgba(255,255,255,.07)',
+        borderRadius: 12, cursor: 'pointer',
+        display: 'flex', flexDirection: 'column', gap: 8,
         transition: 'border-color .15s, background .15s',
       }}
       onMouseEnter={e => {
-        if (!ev) return;
         const el = e.currentTarget as HTMLElement;
-        el.style.borderColor = 'rgba(63,255,33,.2)';
-        el.style.background = 'rgba(63,255,33,.025)';
+        el.style.borderColor = 'rgba(255,255,255,.18)';
+        el.style.background = 'oklch(0.115 0.007 260)';
       }}
       onMouseLeave={e => {
         const el = e.currentTarget as HTMLElement;
@@ -1143,79 +1030,69 @@ function SignalCard({
         el.style.background = 'var(--bg2)';
       }}
     >
-      {/* Left column — event info */}
-      <div style={{
-        flex: '0 0 200px', minWidth: 0,
-        padding: '14px 16px',
-        borderRight: '1px solid rgba(255,255,255,.06)',
-        display: 'flex', flexDirection: 'column', gap: 6,
-        justifyContent: 'center',
-      }}>
-        {/* Time badge */}
+      {/* Top bar: sport badge + time + star */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         <span style={{
-          display: 'inline-flex', alignItems: 'center', alignSelf: 'flex-start',
-          fontSize: badge.live ? 8 : 10, fontWeight: 900,
-          padding: '2px 7px', borderRadius: 6,
-          background: badge.bg, color: badge.color, border: `1px solid ${badge.border}`,
-          fontFamily: badge.live ? 'inherit' : "'JetBrains Mono', monospace",
-          letterSpacing: badge.live ? '.08em' : '-.01em',
+          fontSize: 10, fontWeight: 800, padding: '2px 7px', borderRadius: 5,
+          background: sport.bg, color: sport.color, border: `1px solid ${sport.border}`,
+          letterSpacing: '.1px', flexShrink: 0,
         }}>
-          {badge.label}
+          {sport.label}
         </span>
-        {/* Event name */}
-        <div style={{
-          fontSize: 13, fontWeight: 900, color: 'var(--t)',
-          lineHeight: 1.3,
-          display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
-          overflow: 'hidden',
+        <span style={{
+          fontSize: 10.5, fontWeight: 700, color: badge.color,
+          fontFamily: badge.live ? 'inherit' : "'JetBrains Mono', monospace",
+          letterSpacing: badge.live ? '.06em' : '-.01em',
+          flex: 1,
         }}>
-          {sig.event_name}
-        </div>
-        {/* League + date */}
-        <div style={{ fontSize: 10, color: 'var(--t3)', lineHeight: 1.4 }}>
-          {meta.flag} {league}
-          {league && <br />}
-          {fmtEventDate(sig.start_utc)}
-        </div>
+          {badge.live ? '● AO VIVO' : fmtCardDate(ev.start_utc)}
+        </span>
+        <button
+          type="button"
+          onClick={e => { e.stopPropagation(); setStarred(v => !v); }}
+          style={{
+            width: 20, height: 20, borderRadius: 5, border: 'none',
+            background: 'transparent', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+          }}
+        >
+          <Star size={12} style={{
+            color: starred ? '#fbbf24' : 'rgba(255,255,255,.25)',
+            fill: starred ? '#fbbf24' : 'none',
+            transition: 'color .15s',
+          }} />
+        </button>
       </div>
 
-      {/* Right column — odds legs + profit */}
+      {/* Event name */}
       <div style={{
-        flex: 1, minWidth: 0,
-        padding: '10px 14px 10px 14px',
-        display: 'flex', flexDirection: 'column',
+        fontSize: 13.5, fontWeight: 800, color: 'oklch(0.93 0.005 250)',
+        lineHeight: 1.3, letterSpacing: '-.2px',
+        display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
+        overflow: 'hidden',
       }}>
-        <LegRow house={sig.leg1.house} odd={sig.leg1.odd} label="CASA (1)"   url={sig.leg1.url} pa={sig.leg1.pa} />
-        <LegRow house={sig.legX.house} odd={sig.legX.odd} label="EMPATE (X)" url={sig.legX.url} pa={sig.legX.pa} />
-        <LegRow house={sig.leg2.house} odd={sig.leg2.odd} label="FORA (2)"   url={sig.leg2.url} pa={sig.leg2.pa} />
-
-        {/* Footer: profit badge */}
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'flex-end',
-          marginTop: 8, paddingTop: 7,
-          borderTop: '1px solid rgba(255,255,255,.05)',
-          gap: 8,
-        }}>
-          {ev && (
-            <span style={{ fontSize: 9, color: 'var(--t3)' }}>
-              Clique para ver todas as odds
-            </span>
-          )}
-          <span style={{
-            fontSize: 12, fontWeight: 900,
-            padding: '3px 10px', borderRadius: 7,
-            background: pc.bg, color: pc.color, border: `1px solid ${pc.border}`,
-            fontFamily: "'JetBrains Mono', monospace", letterSpacing: '-.01em',
-          }}>
-            {fmtLoss(sig.loss_pct)}
-          </span>
-        </div>
+        {ev.name}
       </div>
-    </div>
+
+      {/* League + house count */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <span style={{ fontSize: 10, color: 'rgba(255,255,255,.35)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {meta.flag} {ev.league ? `${meta.country ? meta.country + ' · ' : ''}${ev.league}` : 'Sem liga'}
+        </span>
+        {ev.house_count > 0 && (
+          <span style={{
+            fontSize: 9.5, fontWeight: 800, padding: '1px 5px', borderRadius: 4,
+            background: 'rgba(129,140,248,.08)', color: '#818cf8',
+            border: '1px solid rgba(129,140,248,.14)', flexShrink: 0,
+            fontFamily: "'JetBrains Mono', monospace",
+          }}>
+            {ev.house_count}
+          </span>
+        )}
+      </div>
+    </button>
   );
 }
-
-type ScanSort = 'melhor' | 'pior' | 'recentes' | 'antigos';
 
 function TodayGamesGrid({
   events, loading, error, onSelect, onRetry,
@@ -1226,71 +1103,38 @@ function TodayGamesGrid({
   onSelect: (ev: CachedEvent) => void;
   onRetry:  () => void;
 }) {
-  const [signals,    setSignals]    = useState<ScanMLSignal[]>([]);
-  const [sigLoading, setSigLoading] = useState(false);
-  const [sortOrder,  setSortOrder]  = useState<ScanSort>('melhor');
-  const [showAll,    setShowAll]    = useState(false);
-  const [refreshKey, setRefreshKey] = useState(0);
+  // Sort events by start time
+  const sorted = useMemo(() =>
+    [...events].sort((a, b) => new Date(a.start_utc).getTime() - new Date(b.start_utc).getTime()),
+    [events],
+  );
 
-  const hasEvents = events.length > 0;
-
-  // Build event lookup map
-  const evMap = useMemo(() => {
-    const m = new Map<string, CachedEvent>();
-    for (const ev of events) m.set(ev.id, ev);
-    return m;
-  }, [events]);
-
-  // Fetch signals from duplo-green API whenever events are loaded
-  useEffect(() => {
-    if (!hasEvents) return;
-    setSigLoading(true);
-    fetch('/api/supermonitor/duplo-green', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({}),
-    })
-      .then(r => r.json())
-      .then((data: { ok: boolean; ml?: ScanMLSignal[] }) => {
-        if (data.ok && Array.isArray(data.ml)) {
-          setSignals(data.ml);
-        }
-      })
-      .catch(() => {})
-      .finally(() => setSigLoading(false));
-  }, [hasEvents, refreshKey]);
-
-  // Sort signals
-  const sorted = useMemo(() => {
-    const s = [...signals];
-    if (sortOrder === 'melhor') return s.sort((a, b) => a.loss_pct - b.loss_pct);
-    if (sortOrder === 'pior')   return s.sort((a, b) => b.loss_pct - a.loss_pct);
-    if (sortOrder === 'recentes') return s.sort((a, b) => new Date(b.start_utc).getTime() - new Date(a.start_utc).getTime());
-    if (sortOrder === 'antigos')  return s.sort((a, b) => new Date(a.start_utc).getTime() - new Date(b.start_utc).getTime());
-    return s;
-  }, [signals, sortOrder]);
-
-  const shown    = showAll ? sorted : sorted.slice(0, 30);
-  const evCount  = new Set(signals.map(s => s.event_id)).size;
-  const profitN  = signals.filter(s => s.loss_pct <= 0).length;
+  const liveCount = useMemo(() =>
+    events.filter(ev => {
+      const ms = new Date(ev.start_utc).getTime() - Date.now();
+      return ms < 0 && ms > -90 * 60_000;
+    }).length,
+    [events],
+  );
 
   // ── Loading skeleton ──────────────────────────────────────────────────────
   if (loading) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {/* toolbar skeleton */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div style={{ height: 22, width: 160, borderRadius: 6, background: 'rgba(255,255,255,.05)', animation: 'pulse 1.4s ease-in-out infinite' }} />
         <div style={{
-          height: 44, borderRadius: 12,
-          background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.06)',
-          animation: 'pulse 1.4s ease-in-out infinite',
-        }} />
-        {[0,1,2,3,4].map(i => (
-          <div key={i} style={{
-            height: 110, borderRadius: 14,
-            background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.06)',
-            animation: `pulse 1.6s ease-in-out ${i * 0.1}s infinite`,
-          }} />
-        ))}
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+          gap: 10,
+        }}>
+          {Array.from({ length: 16 }).map((_, i) => (
+            <div key={i} style={{
+              height: 100, borderRadius: 12,
+              background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.06)',
+              animation: `pulse 1.6s ease-in-out ${i * 0.06}s infinite`,
+            }} />
+          ))}
+        </div>
       </div>
     );
   }
@@ -1298,199 +1142,76 @@ function TodayGamesGrid({
   // ── Error state ───────────────────────────────────────────────────────────
   if (error) {
     return (
-      <div className="rounded-2xl p-8 flex flex-col items-center gap-4 text-center"
-        style={{ background: 'var(--bg2)', border: '1px solid rgba(255,77,109,.15)' }}>
-        <div style={{ width: 40, height: 40, borderRadius: 12, background: 'rgba(255,77,109,.1)',
-          border: '1px solid rgba(255,77,109,.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <ScanSearch size={18} style={{ color: 'var(--r)' }} />
+      <div style={{
+        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14,
+        padding: '60px 20px', textAlign: 'center',
+        background: 'var(--bg2)', border: '1px solid rgba(255,77,109,.14)', borderRadius: 14,
+      }}>
+        <div style={{
+          width: 40, height: 40, borderRadius: 11,
+          background: 'rgba(255,77,109,.08)', border: '1px solid rgba(255,77,109,.18)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <ScanSearch size={17} style={{ color: 'var(--r)' }} />
         </div>
         <div>
-          <p className="text-sm font-bold" style={{ color: 'var(--r)' }}>Erro ao carregar jogos</p>
-          <p className="text-xs mt-1" style={{ color: 'var(--t3)' }}>Verifique o daemon e tente novamente</p>
+          <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--r)', margin: '0 0 4px' }}>Erro ao carregar jogos</p>
+          <p style={{ fontSize: 11.5, color: 'var(--t3)', margin: 0 }}>Verifique o daemon e tente novamente</p>
         </div>
-        <button type="button" onClick={onRetry}
-          className="flex items-center gap-2 text-xs font-bold px-4 py-2 rounded-xl"
-          style={{ background: 'rgba(255,255,255,.06)', color: 'var(--t2)', border: '1px solid var(--b)', cursor: 'pointer' }}>
+        <button type="button" onClick={onRetry} style={{
+          display: 'flex', alignItems: 'center', gap: 6,
+          fontSize: 11.5, fontWeight: 700, padding: '7px 16px', borderRadius: 9,
+          background: 'rgba(255,255,255,.06)', color: 'var(--t2)',
+          border: '1px solid var(--b)', cursor: 'pointer',
+        }}>
           <RefreshCw size={12} /> Tentar novamente
         </button>
       </div>
     );
   }
 
-  if (!events.length) return null;
+  if (!sorted.length) return null;
+
+  const todayStr = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
 
-      {/* ── Toolbar ── */}
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 10,
-        padding: '10px 14px',
-        background: 'var(--bg2)', border: '1px solid var(--b)', borderRadius: 12,
-      }}>
-        {/* Scanner icon */}
-        <div style={{
-          width: 28, height: 28, borderRadius: 8, flexShrink: 0,
-          background: 'rgba(63,255,33,.1)', border: '1px solid rgba(63,255,33,.2)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-          <Zap size={12} style={{ color: 'var(--g)' }} />
-        </div>
-
-        {/* Counts */}
-        <div style={{ flex: 1, minWidth: 0 }}>
-          {sigLoading ? (
-            <span style={{ fontSize: 12, color: 'var(--t3)', display: 'flex', alignItems: 'center', gap: 6 }}>
-              <Loader2 size={11} className="animate-spin" style={{ color: 'var(--g)' }} />
-              Escaneando sinais...
-            </span>
-          ) : (
-            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--t)' }}>
-              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 900 }}>
-                {signals.length}
-              </span>
-              <span style={{ color: 'var(--t3)' }}> sinais</span>
-              {evCount > 0 && (
-                <span style={{ color: 'var(--t3)' }}> · {evCount} eventos</span>
-              )}
-              {profitN > 0 && (
-                <span style={{
-                  marginLeft: 8, fontSize: 10, fontWeight: 900,
-                  padding: '1px 6px', borderRadius: 5,
-                  background: 'rgba(63,255,33,.1)', color: 'var(--g)', border: '1px solid rgba(63,255,33,.2)',
-                }}>
-                  {profitN} com lucro
-                </span>
-              )}
-            </span>
-          )}
-        </div>
-
-        {/* Sort */}
-        <select
-          value={sortOrder}
-          onChange={e => setSortOrder(e.target.value as ScanSort)}
-          style={{
-            fontSize: 11, fontWeight: 700, padding: '5px 8px', borderRadius: 8,
-            background: 'rgba(255,255,255,.06)', color: 'var(--t2)',
-            border: '1px solid rgba(255,255,255,.1)', cursor: 'pointer', outline: 'none',
-            appearance: 'none', WebkitAppearance: 'none',
-          }}
-        >
-          <option value="melhor">Melhor primeiro</option>
-          <option value="pior">Pior primeiro</option>
-          <option value="recentes">Mais recentes</option>
-          <option value="antigos">Mais antigos</option>
-        </select>
-
-        {/* Refresh */}
-        <button
-          type="button"
-          onClick={() => setRefreshKey(k => k + 1)}
-          title="Reescanear"
-          style={{
-            flexShrink: 0, width: 30, height: 30, borderRadius: 8,
-            background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.09)',
-            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-            transition: 'all .15s',
-          }}
-          onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.background = 'rgba(63,255,33,.1)'; el.style.borderColor = 'rgba(63,255,33,.25)'; }}
-          onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.background = 'rgba(255,255,255,.05)'; el.style.borderColor = 'rgba(255,255,255,.09)'; }}
-        >
-          <RefreshCw size={12} style={{ color: sigLoading ? 'var(--g)' : 'var(--t3)' }}
-            className={sigLoading ? 'animate-spin' : ''} />
-        </button>
+      {/* Section header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <span style={{ fontSize: 16 }}>🗓</span>
+        <span style={{ fontSize: 14, fontWeight: 900, color: 'oklch(0.92 0.005 250)', letterSpacing: '-.2px' }}>
+          Jogos de Hoje
+          <span style={{ fontSize: 12, fontWeight: 700, color: 'rgba(255,255,255,.4)', marginLeft: 6 }}>
+            ({sorted.length} jogos)
+          </span>
+        </span>
+        {liveCount > 0 && (
+          <span style={{
+            display: 'inline-flex', alignItems: 'center', gap: 4,
+            fontSize: 9.5, fontWeight: 900, padding: '2px 8px', borderRadius: 5,
+            background: 'rgba(255,159,10,.1)', color: '#FF9F0A',
+            border: '1px solid rgba(255,159,10,.25)', letterSpacing: '.06em',
+          }}>
+            <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#FF9F0A', animation: 'livePulse 1.5s ease-in-out infinite', display: 'inline-block' }} />
+            {liveCount} AO VIVO
+          </span>
+        )}
+        <span style={{ fontSize: 10, color: 'rgba(255,255,255,.25)', marginLeft: 'auto', textTransform: 'capitalize' }}>
+          {todayStr}
+        </span>
       </div>
 
-      {/* ── No signals yet: show browse list ── */}
-      {!sigLoading && signals.length === 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 1,
-          background: 'var(--bg2)', border: '1px solid var(--b)', borderRadius: 14, overflow: 'hidden' }}>
-          {/* League-grouped compact rows */}
-          {(() => {
-            const map = new Map<string, CachedEvent[]>();
-            for (const ev of events) {
-              const key = ev.league || 'Outros';
-              if (!map.has(key)) map.set(key, []);
-              map.get(key)!.push(ev);
-            }
-            const grouped = [...map.entries()].sort(([, a], [, b]) =>
-              new Date(a[0].start_utc).getTime() - new Date(b[0].start_utc).getTime()
-            );
-            return grouped.map(([league, evs]) => (
-              <div key={league}>
-                <div style={{
-                  display: 'flex', alignItems: 'center', gap: 8, padding: '6px 16px',
-                  background: 'oklch(13.5% 0.006 250)',
-                  borderBottom: '1px solid rgba(255,255,255,.04)',
-                }}>
-                  <span style={{ fontSize: 11 }}>{getLeagueMeta(league).flag}</span>
-                  <span style={{ fontSize: 10, fontWeight: 900, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--t3)', flex: 1 }}>
-                    {league}
-                  </span>
-                  <span style={{ fontSize: 9, fontWeight: 700, color: 'rgba(255,255,255,.25)' }}>{evs.length}</span>
-                </div>
-                {evs.map(ev => {
-                  const badge = getTimeBadge(ev.start_utc);
-                  return (
-                    <button key={ev.id} type="button" onClick={() => onSelect(ev)} style={{
-                      width: '100%', display: 'flex', alignItems: 'center', gap: 10,
-                      padding: '8px 16px', borderBottom: '1px solid rgba(255,255,255,.04)',
-                      background: 'transparent', cursor: 'pointer', transition: 'background .12s', textAlign: 'left',
-                    }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(63,255,33,.04)'; }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}>
-                      <span style={{
-                        flexShrink: 0, fontSize: badge.live ? 8 : 10, fontWeight: 900,
-                        padding: '2px 6px', borderRadius: 5, minWidth: 38, textAlign: 'center',
-                        background: badge.bg, color: badge.color, border: `1px solid ${badge.border}`,
-                        fontFamily: badge.live ? 'inherit' : "'JetBrains Mono', monospace",
-                      }}>{badge.label}</span>
-                      <span style={{ flex: 1, fontSize: 12, fontWeight: 800, color: 'var(--t)',
-                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {ev.name}
-                      </span>
-                      {ev.house_count > 0 && (
-                        <span style={{ fontSize: 10, fontWeight: 800, color: '#818cf8',
-                          padding: '1px 6px', borderRadius: 5,
-                          background: 'rgba(129,140,248,.08)', border: '1px solid rgba(129,140,248,.12)',
-                          fontFamily: "'JetBrains Mono', monospace" }}>
-                          {ev.house_count}
-                        </span>
-                      )}
-                      <ChevronRight size={11} style={{ color: 'rgba(255,255,255,.15)', flexShrink: 0 }} />
-                    </button>
-                  );
-                })}
-              </div>
-            ));
-          })()}
-        </div>
-      )}
-
-      {/* ── Signal cards ── */}
-      {shown.map((sig, i) => (
-        <SignalCard key={`${sig.event_id}-${sig.leg1.house}-${sig.leg2.house}-${i}`}
-          sig={sig} evMap={evMap} onSelect={onSelect} />
-      ))}
-
-      {/* ── Show more ── */}
-      {!showAll && sorted.length > 30 && (
-        <button
-          type="button"
-          onClick={() => setShowAll(true)}
-          style={{
-            width: '100%', padding: '12px', borderRadius: 12,
-            background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.08)',
-            cursor: 'pointer', fontSize: 12, fontWeight: 700, color: 'var(--t3)',
-            transition: 'all .15s',
-          }}
-          onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.background = 'rgba(63,255,33,.06)'; el.style.color = 'var(--g)'; }}
-          onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.background = 'rgba(255,255,255,.04)'; el.style.color = 'var(--t3)'; }}
-        >
-          Ver mais {sorted.length - 30} sinais
-        </button>
-      )}
+      {/* Event grid */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+        gap: 10,
+      }}>
+        {sorted.map(ev => (
+          <EventCard key={ev.id} ev={ev} onSelect={onSelect} />
+        ))}
+      </div>
     </div>
   );
 }

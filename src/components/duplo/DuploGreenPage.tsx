@@ -3,12 +3,12 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   Zap, RefreshCw, ExternalLink, Filter, X, ChevronDown,
-  Trophy, Loader2, AlertCircle, Copy, Check, ShieldCheck, Clock,
+  Loader2, AlertCircle, Copy, Check, Star, SkipForward,
 } from 'lucide-react';
 
-// ── Tipos ──────────────────────────────────────────────────────────────────────
+// ── Types ─────────────────────────────────────────────────────────────────────
 
-interface MLLeg  { house: string; pa: boolean; odd: number; url?: string; }
+interface MLLeg { house: string; pa: boolean; odd: number; url?: string; }
 
 interface MLSignal {
   event_id:   string;
@@ -24,30 +24,7 @@ interface MLSignal {
   _newAt?:    number;
 }
 
-interface GolsSignal {
-  event_id:     string;
-  event_name:   string;
-  league:       string;
-  start_utc:    string;
-  over_house:   string;
-  over_pa:      boolean;
-  over_line:    number;
-  over_odd:     number;
-  over_url?:    string;
-  under_house:  string;
-  under_pa:     boolean;
-  under_line:   number;
-  under_odd:    number;
-  under_url?:   string;
-  gap:          number;
-  green_goals:  string;
-  both_win_pct: number;
-  loss_pct:     number;
-  _key?:        string;
-  _newAt?:      number;
-}
-
-// ── Casas ─────────────────────────────────────────────────────────────────────
+// ── Houses ────────────────────────────────────────────────────────────────────
 
 const PA_HOUSES = [
   'Alfabet','Betbra','BetfairSB','Tradeball','Betnacional','Betmgm','Betesporte',
@@ -67,77 +44,111 @@ const ALL_HOUSES = [...PA_HOUSES, ...OS_HOUSES];
 // ── CSS ───────────────────────────────────────────────────────────────────────
 
 const STYLES = `
-@keyframes dg-new-pulse {
-  0%   { box-shadow: 0 0 0 0 rgba(63,255,33,.45); }
-  70%  { box-shadow: 0 0 0 10px rgba(63,255,33,0); }
-  100% { box-shadow: 0 0 0 0 rgba(63,255,33,0); }
-}
-@keyframes dg-slide-up {
-  from { opacity:0; transform:translateY(10px); }
-  to   { opacity:1; transform:translateY(0); }
-}
-@keyframes dg-live {
+@keyframes dg-pulse-dot {
   0%,100% { opacity:1; transform:scale(1); }
-  50%      { opacity:.3; transform:scale(.65); }
+  50%      { opacity:.3; transform:scale(.6); }
 }
 @keyframes dg-spin {
   to { transform:rotate(360deg); }
 }
-.dg-card { animation: dg-slide-up .2s ease-out both; }
-.dg-card-new {
-  animation: dg-slide-up .2s ease-out both, dg-new-pulse 1.2s ease-out 0s 2;
+@keyframes dg-slide-in {
+  from { opacity:0; transform:translateY(8px); }
+  to   { opacity:1; transform:translateY(0); }
 }
+@keyframes dg-toast-in {
+  from { opacity:0; transform:translateX(24px); }
+  to   { opacity:1; transform:translateX(0); }
+}
+@keyframes dg-toast-out {
+  from { opacity:1; transform:translateX(0); }
+  to   { opacity:0; transform:translateX(24px); }
+}
+@keyframes dg-new-glow {
+  0%   { box-shadow: 0 0 0 0 rgba(63,255,33,.5); }
+  60%  { box-shadow: 0 0 0 8px rgba(63,255,33,0); }
+  100% { box-shadow: 0 0 0 0 rgba(63,255,33,0); }
+}
+.dg-row { animation: dg-slide-in .18s ease-out both; }
+.dg-row-new { animation: dg-slide-in .18s ease-out both, dg-new-glow 1.4s ease-out .1s 2; }
 `;
 
 // ── Utils ─────────────────────────────────────────────────────────────────────
 
-function mlKey(s: MLSignal)   { return `ml:${s.event_id}:${s.leg1.house}:${s.leg2.house}`; }
-function golsKey(s: GolsSignal){ return `g:${s.event_id}:${s.over_house}:${s.under_house}`; }
-
-function fmtTime(utc: string) {
-  if (!utc) return '--:--';
-  try { return new Date(utc).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' }); }
-  catch { return '--:--'; }
-}
-
-function parseTeams(name: string): [string, string] {
-  for (const sep of [' x ', ' X ', ' vs ', ' VS ']) {
-    if (name.includes(sep)) {
-      const [h='', a=''] = name.split(sep);
-      return [h.trim(), a.trim()];
-    }
-  }
-  return [name, ''];
-}
+function mlKey(s: MLSignal) { return `ml:${s.event_id}:${s.leg1.house}:${s.leg2.house}`; }
 
 function normHouse(h: string) { return h.toLowerCase().replace(/[\s\-_.]/g, ''); }
 
-// Cor baseada em loss_pct
-function lossColor(pct: number): string {
-  if (pct <= 0)  return 'oklch(0.78 0.22 138)';  // lima
-  if (pct < 1)   return 'oklch(0.82 0.18 120)';  // verde-amarelo
-  if (pct < 3)   return 'oklch(0.82 0.2 82)';    // amarelo
-  if (pct < 7)   return 'oklch(0.73 0.2 42)';    // laranja
-  return 'oklch(0.65 0.22 22)';                   // vermelho
+function isOs(house: string): boolean {
+  const n = normHouse(house);
+  return n.endsWith('so') || n.endsWith('os');
 }
 
-function lossLabel(pct: number): string {
-  return pct <= 0 ? 'LUCRO' : 'PERDA';
+function fmtTime(utc: string): string {
+  if (!utc) return '--:--';
+  try {
+    return new Date(utc).toLocaleTimeString('pt-BR', {
+      hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo',
+    });
+  } catch { return '--:--'; }
+}
+
+function fmtDate(utc: string): string {
+  if (!utc) return '';
+  try {
+    return new Date(utc).toLocaleDateString('pt-BR', {
+      day: '2-digit', month: '2-digit', year: '2-digit',
+    }) + ' às ' + fmtTime(utc);
+  } catch { return ''; }
+}
+
+function timeUntil(utc: string): { label: string; color: string; live?: boolean } {
+  const ms = new Date(utc).getTime() - Date.now();
+  if (ms < -90 * 60_000) return { label: 'Encerrado', color: 'rgba(255,255,255,.22)' };
+  if (ms < 0) return { label: '● AO VIVO', color: '#FF9F0A', live: true };
+  const totalSec = Math.floor(ms / 1_000);
+  const hrs = Math.floor(totalSec / 3600);
+  const mins = Math.floor((totalSec % 3600) / 60);
+  const secs = totalSec % 60;
+  if (hrs > 0) {
+    return { label: `${hrs}h ${mins}m`, color: 'rgba(255,255,255,.4)' };
+  }
+  return {
+    label: `${mins}m ${secs}s`,
+    color: mins < 5 ? '#FF9F0A' : mins < 30 ? 'oklch(0.78 0.22 138)' : 'rgba(255,255,255,.5)',
+  };
+}
+
+function lossColor(pct: number): string {
+  if (pct <= 0)  return 'oklch(0.78 0.22 138)';
+  if (pct < 1)   return 'oklch(0.82 0.18 120)';
+  if (pct < 3)   return 'oklch(0.82 0.2 82)';
+  if (pct < 7)   return 'oklch(0.73 0.2 42)';
+  return                 'oklch(0.65 0.22 22)';
 }
 
 function fmtPct(pct: number): string {
   return `${pct <= 0 ? '+' : '-'}${Math.abs(pct).toFixed(2)}%`;
 }
 
-// ── Componentes ───────────────────────────────────────────────────────────────
+function parseTeams(name: string): [string, string] {
+  for (const sep of [' x ', ' X ', ' vs ', ' VS ']) {
+    if (name.includes(sep)) {
+      const [h = '', a = ''] = name.split(sep);
+      return [h.trim(), a.trim()];
+    }
+  }
+  return [name, ''];
+}
+
+// ── Sub-components ────────────────────────────────────────────────────────────
 
 function PaBadge() {
   return (
     <span style={{
-      fontSize: 9, fontWeight: 900, letterSpacing: '.6px',
-      padding: '1px 5px', borderRadius: 3,
-      background: 'rgba(63,255,33,.14)', color: 'oklch(0.78 0.22 138)',
-      border: '1px solid rgba(63,255,33,.28)', lineHeight: 1.6,
+      fontSize: 8.5, fontWeight: 900, letterSpacing: '.5px',
+      padding: '1px 4px', borderRadius: 3,
+      background: 'rgba(63,255,33,.12)', color: 'oklch(0.78 0.22 138)',
+      border: '1px solid rgba(63,255,33,.25)', lineHeight: 1.5, flexShrink: 0,
     }}>PA</span>
   );
 }
@@ -145,313 +156,354 @@ function PaBadge() {
 function OsBadge() {
   return (
     <span style={{
-      fontSize: 9, fontWeight: 900, letterSpacing: '.6px',
-      padding: '1px 5px', borderRadius: 3,
-      background: 'rgba(251,191,36,.1)', color: '#fbbf24',
-      border: '1px solid rgba(251,191,36,.25)', lineHeight: 1.6,
+      fontSize: 8.5, fontWeight: 900, letterSpacing: '.5px',
+      padding: '1px 4px', borderRadius: 3,
+      background: 'rgba(251,191,36,.09)', color: '#fbbf24',
+      border: '1px solid rgba(251,191,36,.22)', lineHeight: 1.5, flexShrink: 0,
     }}>OS</span>
   );
 }
 
-function NewBadge() {
-  return (
-    <span style={{
-      fontSize: 8.5, fontWeight: 900, letterSpacing: '.8px',
-      padding: '1px 6px', borderRadius: 3,
-      background: 'rgba(63,255,33,.25)', color: 'oklch(0.78 0.22 138)',
-      border: '1px solid rgba(63,255,33,.4)', lineHeight: 1.6,
-    }}>NOVO</span>
-  );
-}
+function LegBlock({
+  leg, outcomeLabel, outcomeShort,
+}: {
+  leg: MLLeg;
+  outcomeLabel: string;
+  outcomeShort: string;
+}) {
+  const [copied, setCopied] = useState(false);
 
-function CopyBtn({ url }: { url?: string }) {
-  const [ok, setOk] = useState(false);
-  if (!url) return null;
-  return (
-    <button
-      onClick={async e => { e.stopPropagation(); try { await navigator.clipboard.writeText(url); setOk(true); setTimeout(() => setOk(false), 1500); } catch { /**/ } }}
-      title="Copiar link"
-      style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 3px', color: ok ? 'oklch(0.78 0.22 138)' : 'rgba(255,255,255,.3)', transition: 'color .15s', display: 'flex', alignItems: 'center' }}
-    >
-      {ok ? <Check size={10} /> : <Copy size={10} />}
-    </button>
-  );
-}
-
-// ── Card ML ───────────────────────────────────────────────────────────────────
-
-function MLCard({ sig, idx, isNew }: { sig: MLSignal; idx: number; isNew: boolean }) {
-  const [home, away] = parseTeams(sig.event_name);
-  const color = lossColor(sig.loss_pct);
-  const delay = `${Math.min(idx, 20) * 22}ms`;
-
-  const legs = [
-    { leg: sig.leg1, outcome: 'CASA',   label: '1', accent: 'oklch(0.72 0.17 250)' },
-    { leg: sig.legX, outcome: 'EMPATE', label: 'X', accent: 'oklch(0.72 0.12 285)' },
-    { leg: sig.leg2, outcome: 'FORA',   label: '2', accent: 'oklch(0.72 0.16 170)' },
-  ];
-
-  const isOs = (house: string) => {
-    const n = normHouse(house);
-    return n.endsWith('so') || n.endsWith('os');
-  };
+  function handleCopy(e: React.MouseEvent) {
+    e.stopPropagation();
+    navigator.clipboard.writeText(`${leg.house} — ${outcomeLabel} @ ${leg.odd.toFixed(2)}`).catch(() => {});
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1600);
+  }
 
   return (
-    <div
-      className={isNew ? 'dg-card-new' : 'dg-card'}
-      style={{
-        animationDelay: delay,
-        background: `linear-gradient(135deg, rgba(255,255,255,.03) 0%, rgba(255,255,255,.015) 100%)`,
-        border: `1px solid ${isNew ? 'rgba(63,255,33,.35)' : 'rgba(255,255,255,.08)'}`,
-        borderRadius: 14,
-        overflow: 'hidden',
-      }}
-    >
-      {/* ── Top bar ──────────────────────────────────────────────────── */}
-      <div style={{
-        display: 'flex', alignItems: 'stretch',
-        borderBottom: '1px solid rgba(255,255,255,.06)',
+    <div style={{
+      flex: 1, minWidth: 0,
+      padding: '12px 14px',
+      display: 'flex', flexDirection: 'column', gap: 5,
+      borderRight: '1px solid rgba(255,255,255,.05)',
+    }}>
+      {/* House name + badge */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
+        <span style={{
+          fontSize: 12, fontWeight: 700, color: 'oklch(0.78 0.01 250)',
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        }}>
+          {leg.house}
+        </span>
+        {leg.pa ? <PaBadge /> : isOs(leg.house) ? <OsBadge /> : null}
+      </div>
+
+      {/* Odd — primary data point */}
+      <span style={{
+        fontSize: 22, fontWeight: 900, color: 'oklch(0.96 0.005 250)',
+        fontFamily: "'JetBrains Mono', monospace", letterSpacing: '-1px',
+        lineHeight: 1,
       }}>
-        {/* Loss badge (left vertical) */}
-        <div style={{
-          minWidth: 68, display: 'flex', flexDirection: 'column',
-          alignItems: 'center', justifyContent: 'center',
-          padding: '10px 0',
-          background: `${color}14`,
-          borderRight: `2px solid ${color}30`,
-        }}>
-          <span style={{ fontSize: 15, fontWeight: 900, color, fontFamily: 'var(--font-mono,monospace)', letterSpacing: '-.5px', lineHeight: 1 }}>
-            {fmtPct(sig.loss_pct)}
-          </span>
-          <span style={{ fontSize: 8.5, fontWeight: 800, letterSpacing: '.8px', color: `${color}bb`, marginTop: 2 }}>
-            {lossLabel(sig.loss_pct)}
-          </span>
-        </div>
+        {leg.odd.toFixed(2)}
+      </span>
 
-        {/* Event info */}
-        <div style={{ flex: 1, padding: '10px 13px', minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
-            {isNew && <NewBadge />}
-            <span style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--t1)', lineHeight: 1.25 }}>
-              {home && away
-                ? <>{home} <span style={{ color: 'rgba(255,255,255,.3)', fontWeight: 400, fontSize: 11 }}>×</span> {away}</>
-                : sig.event_name}
-            </span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
-            <Trophy size={9} style={{ color: 'rgba(255,255,255,.3)', flexShrink: 0 }} />
-            <span style={{ fontSize: 10.5, color: 'rgba(255,255,255,.38)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 160 }}>
-              {sig.league || '—'}
-            </span>
-            {sig.start_utc && (
-              <>
-                <span style={{ color: 'rgba(255,255,255,.18)' }}>·</span>
-                <Clock size={9} style={{ color: 'rgba(255,255,255,.3)' }} />
-                <span style={{ fontSize: 10.5, color: 'rgba(255,255,255,.45)', fontFamily: 'var(--font-mono,monospace)' }}>
-                  {fmtTime(sig.start_utc)}
-                </span>
-              </>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* ── Legs ─────────────────────────────────────────────────────── */}
-      <div style={{ padding: '0 0 4px' }}>
-        {legs.map(({ leg, outcome, label, accent }, i) => (
-          <div key={i} style={{
-            display: 'flex', alignItems: 'center', gap: 0,
-            borderBottom: i < 2 ? '1px solid rgba(255,255,255,.04)' : 'none',
+      {/* Outcome badge + copy */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+        {leg.url ? (
+          <a
+            href={leg.url} target="_blank" rel="noopener noreferrer"
+            onClick={e => e.stopPropagation()}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 4,
+              padding: '3px 8px', borderRadius: 5,
+              fontSize: 10.5, fontWeight: 800, letterSpacing: '.2px',
+              background: 'rgba(255,159,10,.1)', color: '#FF9F0A',
+              border: '1px solid rgba(255,159,10,.25)',
+              textDecoration: 'none', whiteSpace: 'nowrap',
+              transition: 'background .12s',
+            }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,159,10,.18)'; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,159,10,.1)'; }}
+          >
+            {outcomeShort} <ExternalLink size={8} />
+          </a>
+        ) : (
+          <span style={{
+            display: 'inline-flex', alignItems: 'center',
+            padding: '3px 8px', borderRadius: 5,
+            fontSize: 10.5, fontWeight: 800, letterSpacing: '.2px',
+            background: 'rgba(255,255,255,.06)', color: 'rgba(255,255,255,.45)',
+            border: '1px solid rgba(255,255,255,.08)', whiteSpace: 'nowrap',
           }}>
-            {/* Outcome label */}
-            <div style={{
-              width: 30, display: 'flex', alignItems: 'center', justifyContent: 'center',
-              padding: '9px 0',
-              background: `${accent}12`,
-            }}>
-              <span style={{ fontSize: 11, fontWeight: 900, color: accent, fontFamily: 'var(--font-mono,monospace)' }}>{label}</span>
-            </div>
-
-            {/* House + PA/OS */}
-            <div style={{ flex: 1, padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-              <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--t1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {leg.house}
-              </span>
-              {leg.pa ? <PaBadge /> : isOs(leg.house) ? <OsBadge /> : null}
-            </div>
-
-            {/* Outcome description */}
-            <span style={{ fontSize: 10, color: 'rgba(255,255,255,.3)', padding: '0 6px', whiteSpace: 'nowrap' }}>
-              {outcome}
-            </span>
-
-            {/* Odd */}
-            <div style={{
-              width: 52, textAlign: 'right', padding: '0 10px 0 0',
-              fontSize: 15, fontWeight: 800, color: 'var(--t1)',
-              fontFamily: 'var(--font-mono,monospace)', letterSpacing: '-.5px',
-            }}>
-              {leg.odd.toFixed(2)}
-            </div>
-
-            {/* Actions */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 2, paddingRight: 8 }}>
-              {leg.url && (
-                <a href={leg.url} target="_blank" rel="noopener noreferrer"
-                  style={{ color: 'rgba(255,255,255,.25)', display: 'flex', alignItems: 'center', padding: '2px 3px', transition: 'color .15s' }}>
-                  <ExternalLink size={10} />
-                </a>
-              )}
-              <CopyBtn url={leg.url} />
-            </div>
-          </div>
-        ))}
+            {outcomeShort}
+          </span>
+        )}
+        <button
+          type="button" onClick={handleCopy}
+          title="Copiar"
+          style={{
+            width: 24, height: 24, borderRadius: 5, border: 'none',
+            background: copied ? 'rgba(63,255,33,.15)' : 'rgba(255,255,255,.05)',
+            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            transition: 'all .12s', flexShrink: 0,
+          }}
+        >
+          {copied
+            ? <Check size={10} style={{ color: 'oklch(0.78 0.22 138)' }} />
+            : <Copy size={10} style={{ color: 'rgba(255,255,255,.3)' }} />}
+        </button>
       </div>
     </div>
   );
 }
 
-// ── Card Gols ─────────────────────────────────────────────────────────────────
+// ── Signal row ────────────────────────────────────────────────────────────────
 
-function GolsCard({ sig, idx, isNew }: { sig: GolsSignal; idx: number; isNew: boolean }) {
+function SignalRow({
+  sig, idx, isNew, onSkip, onStar, starred,
+}: {
+  sig: MLSignal;
+  idx: number;
+  isNew: boolean;
+  onSkip: () => void;
+  onStar: () => void;
+  starred: boolean;
+}) {
   const [home, away] = parseTeams(sig.event_name);
   const color = lossColor(sig.loss_pct);
-  const delay = `${Math.min(idx, 20) * 22}ms`;
-
-  const isOs = (house: string) => {
-    const n = normHouse(house);
-    return n.endsWith('so') || n.endsWith('os');
-  };
-
-  const legs = [
-    {
-      label: `OVER ${sig.over_line}`, house: sig.over_house, pa: sig.over_pa,
-      odd: sig.over_odd, url: sig.over_url,
-      accent: 'oklch(0.72 0.16 170)',
-    },
-    {
-      label: `UNDER ${sig.under_line}`, house: sig.under_house, pa: sig.under_pa,
-      odd: sig.under_odd, url: sig.under_url,
-      accent: 'oklch(0.72 0.2 22)',
-    },
-  ];
+  const tu = timeUntil(sig.start_utc);
+  const delay = `${Math.min(idx, 24) * 18}ms`;
 
   return (
     <div
-      className={isNew ? 'dg-card-new' : 'dg-card'}
+      className={isNew ? 'dg-row-new' : 'dg-row'}
       style={{
         animationDelay: delay,
-        background: `linear-gradient(135deg, rgba(255,255,255,.03) 0%, rgba(255,255,255,.015) 100%)`,
-        border: `1px solid ${isNew ? 'rgba(63,255,33,.35)' : 'rgba(255,255,255,.08)'}`,
-        borderRadius: 14,
+        display: 'flex', alignItems: 'stretch',
+        background: 'oklch(0.115 0.006 260)',
+        border: `1px solid ${isNew ? 'rgba(63,255,33,.28)' : 'rgba(255,255,255,.07)'}`,
+        borderRadius: 12,
         overflow: 'hidden',
+        transition: 'border-color .15s',
       }}
+      onMouseEnter={e => { if (!isNew) (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,.13)'; }}
+      onMouseLeave={e => { if (!isNew) (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,.07)'; }}
     >
-      {/* ── Top bar ──────────────────────────────────────────────────── */}
-      <div style={{ display: 'flex', alignItems: 'stretch', borderBottom: '1px solid rgba(255,255,255,.06)' }}>
-        {/* Loss badge */}
-        <div style={{
-          minWidth: 68, display: 'flex', flexDirection: 'column',
-          alignItems: 'center', justifyContent: 'center', padding: '10px 0',
-          background: `${color}14`,
-          borderRight: `2px solid ${color}30`,
+      {/* ── Zone A: Event info ── */}
+      <div style={{
+        flex: '0 0 200px', minWidth: 0,
+        padding: '14px 16px',
+        borderRight: '1px solid rgba(255,255,255,.06)',
+        display: 'flex', flexDirection: 'column', gap: 6, justifyContent: 'center',
+      }}>
+        {/* Timer */}
+        <span style={{
+          alignSelf: 'flex-start',
+          fontSize: tu.live ? 9 : 10.5, fontWeight: 900,
+          padding: '2px 7px', borderRadius: 5,
+          background: tu.live ? 'rgba(255,159,10,.12)' : 'rgba(255,255,255,.05)',
+          color: tu.color,
+          border: `1px solid ${tu.live ? 'rgba(255,159,10,.28)' : 'rgba(255,255,255,.08)'}`,
+          fontFamily: "'JetBrains Mono', monospace",
+          letterSpacing: tu.live ? '.08em' : '-.01em',
         }}>
-          <span style={{ fontSize: 15, fontWeight: 900, color, fontFamily: 'var(--font-mono,monospace)', letterSpacing: '-.5px', lineHeight: 1 }}>
-            {fmtPct(sig.loss_pct)}
-          </span>
-          <span style={{ fontSize: 8.5, fontWeight: 800, letterSpacing: '.8px', color: `${color}bb`, marginTop: 2 }}>
-            {lossLabel(sig.loss_pct)}
-          </span>
+          {!tu.live && <span style={{ opacity: .5, marginRight: 2 }}>⏱</span>}
+          {tu.label}
+        </span>
+
+        {/* Event name */}
+        <div style={{ fontSize: 14, fontWeight: 900, color: 'oklch(0.96 0.005 250)', lineHeight: 1.25 }}>
+          {home && away ? (
+            <>
+              {home}
+              <span style={{ color: 'rgba(255,255,255,.25)', fontWeight: 400, fontSize: 12, margin: '0 4px' }}>x</span>
+              {away}
+            </>
+          ) : sig.event_name}
         </div>
 
-        {/* Event info */}
-        <div style={{ flex: 1, padding: '10px 13px', minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3, flexWrap: 'wrap' }}>
-            {isNew && <NewBadge />}
-            {/* Green zone pill */}
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 4,
-              padding: '2px 8px', borderRadius: 5,
-              background: 'rgba(63,255,33,.1)', border: '1px solid rgba(63,255,33,.22)',
+        {/* League + date */}
+        <div style={{ fontSize: 10, color: 'rgba(255,255,255,.38)', lineHeight: 1.5 }}>
+          {sig.league && (
+            <span style={{ color: '#FF9F0A', fontWeight: 600 }}>{sig.league}</span>
+          )}
+          {sig.league && sig.start_utc && <span style={{ margin: '0 4px', opacity: .5 }}>·</span>}
+          {sig.start_utc && fmtDate(sig.start_utc)}
+        </div>
+      </div>
+
+      {/* ── Zone B: Three legs ── */}
+      <div style={{ flex: 1, minWidth: 0, display: 'flex' }}>
+        <LegBlock leg={sig.leg1} outcomeLabel="Casa (1)"   outcomeShort="CASA (1)"   />
+        <LegBlock leg={sig.legX} outcomeLabel="Empate (X)" outcomeShort="EMPATE (X)" />
+        <div style={{ flex: 1, minWidth: 0, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 5 }}>
+          {/* Last leg without right border */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
+            <span style={{
+              fontSize: 12, fontWeight: 700, color: 'oklch(0.78 0.01 250)',
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
             }}>
-              <span style={{ fontSize: 11 }}>⚽</span>
-              <span style={{ fontSize: 11, fontWeight: 800, color: 'oklch(0.78 0.22 138)', fontFamily: 'var(--font-mono,monospace)' }}>
-                {sig.green_goals}
-              </span>
-              <span style={{ fontSize: 9.5, color: 'rgba(63,255,33,.7)', fontWeight: 600 }}>gol{parseInt(sig.green_goals) !== 1 ? 's' : ''}</span>
-            </div>
-            <span style={{ fontSize: 11, color: 'rgba(255,255,255,.3)' }}>
-              +{sig.both_win_pct.toFixed(2)}% duplo
+              {sig.leg2.house}
             </span>
+            {sig.leg2.pa ? <PaBadge /> : isOs(sig.leg2.house) ? <OsBadge /> : null}
           </div>
+          <span style={{
+            fontSize: 22, fontWeight: 900, color: 'oklch(0.96 0.005 250)',
+            fontFamily: "'JetBrains Mono', monospace", letterSpacing: '-1px', lineHeight: 1,
+          }}>
+            {sig.leg2.odd.toFixed(2)}
+          </span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-            <span style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--t1)', lineHeight: 1.25, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {home && away
-                ? <>{home} <span style={{ color: 'rgba(255,255,255,.3)', fontWeight: 400, fontSize: 11 }}>×</span> {away}</>
-                : sig.event_name}
-            </span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 2 }}>
-            <Trophy size={9} style={{ color: 'rgba(255,255,255,.3)' }} />
-            <span style={{ fontSize: 10.5, color: 'rgba(255,255,255,.38)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 150 }}>
-              {sig.league || '—'}
-            </span>
-            {sig.start_utc && <>
-              <span style={{ color: 'rgba(255,255,255,.18)' }}>·</span>
-              <Clock size={9} style={{ color: 'rgba(255,255,255,.3)' }} />
-              <span style={{ fontSize: 10.5, color: 'rgba(255,255,255,.45)', fontFamily: 'var(--font-mono,monospace)' }}>{fmtTime(sig.start_utc)}</span>
-            </>}
+            {sig.leg2.url ? (
+              <a
+                href={sig.leg2.url} target="_blank" rel="noopener noreferrer"
+                onClick={e => e.stopPropagation()}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 4,
+                  padding: '3px 8px', borderRadius: 5,
+                  fontSize: 10.5, fontWeight: 800,
+                  background: 'rgba(255,159,10,.1)', color: '#FF9F0A',
+                  border: '1px solid rgba(255,159,10,.25)',
+                  textDecoration: 'none', whiteSpace: 'nowrap',
+                  transition: 'background .12s',
+                }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,159,10,.18)'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,159,10,.1)'; }}
+              >
+                FORA (2) <ExternalLink size={8} />
+              </a>
+            ) : (
+              <span style={{
+                display: 'inline-flex', alignItems: 'center',
+                padding: '3px 8px', borderRadius: 5,
+                fontSize: 10.5, fontWeight: 800,
+                background: 'rgba(255,255,255,.06)', color: 'rgba(255,255,255,.45)',
+                border: '1px solid rgba(255,255,255,.08)', whiteSpace: 'nowrap',
+              }}>
+                FORA (2)
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={e => {
+                e.stopPropagation();
+                navigator.clipboard.writeText(`${sig.leg2.house} — FORA (2) @ ${sig.leg2.odd.toFixed(2)}`).catch(() => {});
+              }}
+              style={{
+                width: 24, height: 24, borderRadius: 5, border: 'none',
+                background: 'rgba(255,255,255,.05)',
+                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}
+            >
+              <Copy size={10} style={{ color: 'rgba(255,255,255,.3)' }} />
+            </button>
           </div>
         </div>
       </div>
 
-      {/* ── Legs ─────────────────────────────────────────────────────── */}
-      <div style={{ padding: '0 0 4px' }}>
-        {legs.map(({ label, house, pa, odd, url, accent }, i) => (
-          <div key={i} style={{
-            display: 'flex', alignItems: 'center',
-            borderBottom: i === 0 ? '1px solid rgba(255,255,255,.04)' : 'none',
+      {/* ── Zone C: Profit + actions ── */}
+      <div style={{
+        flex: '0 0 96px',
+        borderLeft: '1px solid rgba(255,255,255,.06)',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        gap: 8, padding: '12px 0',
+      }}>
+        {/* Profit badge */}
+        <div style={{
+          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1,
+        }}>
+          <span style={{
+            fontSize: 15, fontWeight: 900, color,
+            fontFamily: "'JetBrains Mono', monospace", letterSpacing: '-.5px',
           }}>
-            <div style={{
-              width: 72, display: 'flex', alignItems: 'center', justifyContent: 'center',
-              padding: '9px 6px',
-              background: `${accent}10`,
-            }}>
-              <span style={{ fontSize: 10, fontWeight: 800, color: accent, letterSpacing: '.4px' }}>{label}</span>
-            </div>
+            {fmtPct(sig.loss_pct)}
+          </span>
+          <span style={{ fontSize: 8.5, fontWeight: 700, color: `${color}99`, letterSpacing: '.5px' }}>
+            {sig.loss_pct <= 0 ? 'LUCRO' : 'PERDA'}
+          </span>
+        </div>
 
-            <div style={{ flex: 1, padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-              <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--t1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {house}
-              </span>
-              {pa ? <PaBadge /> : isOs(house) ? <OsBadge /> : null}
-            </div>
-
-            <div style={{
-              width: 52, textAlign: 'right', padding: '0 10px 0 0',
-              fontSize: 15, fontWeight: 800, color: 'var(--t1)',
-              fontFamily: 'var(--font-mono,monospace)', letterSpacing: '-.5px',
-            }}>
-              {odd.toFixed(2)}
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: 2, paddingRight: 8 }}>
-              {url && (
-                <a href={url} target="_blank" rel="noopener noreferrer"
-                  style={{ color: 'rgba(255,255,255,.25)', display: 'flex', alignItems: 'center', padding: '2px 3px' }}>
-                  <ExternalLink size={10} />
-                </a>
-              )}
-              <CopyBtn url={url} />
-            </div>
-          </div>
-        ))}
+        {/* Action icons */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <button
+            type="button" onClick={e => { e.stopPropagation(); onSkip(); }}
+            title="Ignorar"
+            style={{
+              width: 24, height: 24, borderRadius: 6, border: 'none',
+              background: 'rgba(255,255,255,.05)', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              transition: 'all .12s',
+            }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(239,68,68,.1)'; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,.05)'; }}
+          >
+            <SkipForward size={10} style={{ color: 'rgba(255,255,255,.3)' }} />
+          </button>
+          <button
+            type="button" onClick={e => { e.stopPropagation(); onStar(); }}
+            title={starred ? 'Remover favorito' : 'Favoritar'}
+            style={{
+              width: 24, height: 24, borderRadius: 6, border: 'none',
+              background: starred ? 'rgba(251,191,36,.12)' : 'rgba(255,255,255,.05)',
+              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              transition: 'all .12s',
+            }}
+          >
+            <Star size={10} style={{ color: starred ? '#fbbf24' : 'rgba(255,255,255,.3)', fill: starred ? '#fbbf24' : 'none' }} />
+          </button>
+        </div>
       </div>
     </div>
   );
 }
 
-// ── Painel de filtros ─────────────────────────────────────────────────────────
+// ── Toast ─────────────────────────────────────────────────────────────────────
+
+function ProfitToast({ sig, onDismiss }: { sig: MLSignal; onDismiss: () => void }) {
+  const [leaving, setLeaving] = useState(false);
+
+  useEffect(() => {
+    const t1 = setTimeout(() => setLeaving(true), 7200);
+    const t2 = setTimeout(onDismiss, 7800);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, [onDismiss]);
+
+  return (
+    <div style={{
+      position: 'fixed', top: 20, right: 20, zIndex: 9999,
+      width: 280,
+      background: 'oklch(0.14 0.08 138)',
+      border: '1px solid rgba(63,255,33,.4)',
+      borderRadius: 14,
+      padding: '14px 16px',
+      boxShadow: '0 12px 40px rgba(0,0,0,.7), 0 0 0 1px rgba(63,255,33,.1)',
+      animation: `${leaving ? 'dg-toast-out' : 'dg-toast-in'} .25s ease-out both`,
+      cursor: 'pointer',
+    }} onClick={onDismiss}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+        <span style={{
+          width: 7, height: 7, borderRadius: '50%', background: 'oklch(0.78 0.22 138)',
+          animation: 'dg-pulse-dot 1.2s ease-in-out infinite', flexShrink: 0,
+        }} />
+        <span style={{
+          fontSize: 10, fontWeight: 900, letterSpacing: '.8px',
+          color: 'oklch(0.78 0.22 138)',
+        }}>SINAL LUCRATIVO DETECTADO!</span>
+      </div>
+      <div style={{ fontSize: 13, fontWeight: 800, color: 'oklch(0.96 0.005 250)', marginBottom: 3 }}>
+        {sig.event_name}
+      </div>
+      <div style={{
+        fontSize: 18, fontWeight: 900, color: 'oklch(0.78 0.22 138)',
+        fontFamily: "'JetBrains Mono', monospace", letterSpacing: '-1px',
+      }}>
+        {fmtPct(sig.loss_pct)}
+      </div>
+    </div>
+  );
+}
+
+// ── Filter panel ──────────────────────────────────────────────────────────────
 
 function FilterPanel({
   disabled, onToggle, onReset, paOnly, onPaToggle,
@@ -465,7 +517,6 @@ function FilterPanel({
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
-  // Fecha ao clicar fora
   useEffect(() => {
     function handler(e: MouseEvent) {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
@@ -474,40 +525,40 @@ function FilterPanel({
     return () => document.removeEventListener('mousedown', handler);
   }, [open]);
 
-  const activeCount = ALL_HOUSES.length - disabled.size;
-
   return (
     <div ref={ref} style={{ position: 'relative' }}>
       <button
         onClick={() => setOpen(v => !v)}
         style={{
-          display: 'flex', alignItems: 'center', gap: 7,
-          padding: '8px 14px', borderRadius: 9, fontSize: 12, fontWeight: 700,
+          display: 'flex', alignItems: 'center', gap: 6,
+          padding: '7px 13px', borderRadius: 8, fontSize: 12, fontWeight: 700,
           background: open ? 'rgba(63,255,33,.1)' : 'rgba(255,255,255,.05)',
-          border: `1.5px solid ${open ? 'rgba(63,255,33,.4)' : 'rgba(255,255,255,.1)'}`,
-          color: open ? 'oklch(0.78 0.22 138)' : 'var(--t2)',
-          cursor: 'pointer', transition: 'all .15s ease', letterSpacing: '.2px',
+          border: `1px solid ${open ? 'rgba(63,255,33,.35)' : 'rgba(255,255,255,.09)'}`,
+          color: open ? 'oklch(0.78 0.22 138)' : 'oklch(0.72 0.01 250)',
+          cursor: 'pointer', transition: 'all .15s',
         }}
       >
-        <Filter size={13} />
+        <Filter size={12} />
         Filtros
         {disabled.size > 0 && (
           <span style={{
-            fontSize: 10, fontWeight: 800, padding: '0 6px', borderRadius: 10,
+            fontSize: 9.5, fontWeight: 800, padding: '0 5px', borderRadius: 8,
             background: 'rgba(63,255,33,.2)', color: 'oklch(0.78 0.22 138)',
-          }}>{activeCount}</span>
+          }}>
+            {ALL_HOUSES.length - disabled.size}
+          </span>
         )}
-        <ChevronDown size={12} style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }} />
+        <ChevronDown size={11} style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }} />
       </button>
 
       {open && (
         <div style={{
-          position: 'absolute', top: 'calc(100% + 8px)', right: 0, zIndex: 100,
-          width: 380, padding: 18,
-          background: 'oklch(0.13 0.005 260)',
+          position: 'absolute', top: 'calc(100% + 8px)', right: 0, zIndex: 200,
+          width: 390, padding: 18,
+          background: 'oklch(0.12 0.006 260)',
           border: '1px solid rgba(255,255,255,.12)',
           borderRadius: 14,
-          boxShadow: '0 20px 60px rgba(0,0,0,.7), 0 0 0 1px rgba(255,255,255,.04)',
+          boxShadow: '0 24px 64px rgba(0,0,0,.75)',
         }}>
           {/* PA Only toggle */}
           <div style={{
@@ -516,42 +567,45 @@ function FilterPanel({
             borderBottom: '1px solid rgba(255,255,255,.07)',
           }}>
             <div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--t1)' }}>Apenas Pagamento Antecipado</div>
-              <div style={{ fontSize: 10.5, color: 'var(--t3)', marginTop: 2 }}>Filtra casas PA nas pernas 1 e 2</div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: 'oklch(0.92 0.005 250)' }}>
+                Apenas Pagamento Antecipado
+              </div>
+              <div style={{ fontSize: 10.5, color: 'rgba(255,255,255,.38)', marginTop: 2 }}>
+                Filtra pernas 1 e 2 para casas PA
+              </div>
             </div>
             <button
               onClick={onPaToggle}
               style={{
                 width: 42, height: 24, borderRadius: 12, border: 'none',
                 background: paOnly ? 'oklch(0.78 0.22 138)' : 'rgba(255,255,255,.1)',
-                cursor: 'pointer', position: 'relative', transition: 'background .2s',
+                cursor: 'pointer', position: 'relative', flexShrink: 0,
+                transition: 'background .2s',
               }}
             >
               <span style={{
-                position: 'absolute', top: 3, left: paOnly ? 20 : 3,
+                position: 'absolute', top: 3, left: paOnly ? 21 : 3,
                 width: 18, height: 18, borderRadius: '50%',
-                background: paOnly ? '#0a1f0a' : 'rgba(255,255,255,.4)',
+                background: paOnly ? 'oklch(0.12 0.01 138)' : 'rgba(255,255,255,.4)',
                 transition: 'left .2s', display: 'block',
               }} />
             </button>
           </div>
 
-          {/* Casas PA */}
+          {/* PA houses */}
           <div style={{ marginBottom: 14 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <span style={{ fontSize: 10, fontWeight: 800, color: 'oklch(0.78 0.22 138)', letterSpacing: '.7px' }}>
-                PAGAMENTO ANTECIPADO
-              </span>
-            </div>
+            <span style={{ fontSize: 9.5, fontWeight: 900, color: 'oklch(0.78 0.22 138)', letterSpacing: '.8px', display: 'block', marginBottom: 8 }}>
+              PAGAMENTO ANTECIPADO
+            </span>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
               {PA_HOUSES.map(h => {
                 const active = !disabled.has(normHouse(h));
                 return (
                   <button key={h} onClick={() => onToggle(normHouse(h))} style={{
                     padding: '3px 9px', borderRadius: 6, fontSize: 11, fontWeight: 600,
-                    background: active ? 'rgba(63,255,33,.12)' : 'rgba(255,255,255,.04)',
-                    border: `1px solid ${active ? 'rgba(63,255,33,.35)' : 'rgba(255,255,255,.08)'}`,
-                    color: active ? 'oklch(0.78 0.22 138)' : 'rgba(255,255,255,.35)',
+                    background: active ? 'rgba(63,255,33,.1)' : 'rgba(255,255,255,.04)',
+                    border: `1px solid ${active ? 'rgba(63,255,33,.3)' : 'rgba(255,255,255,.07)'}`,
+                    color: active ? 'oklch(0.78 0.22 138)' : 'rgba(255,255,255,.3)',
                     cursor: 'pointer', transition: 'all .12s',
                   }}>{h}</button>
                 );
@@ -559,21 +613,20 @@ function FilterPanel({
             </div>
           </div>
 
-          {/* Casas OS */}
+          {/* OS houses */}
           <div style={{ marginBottom: 14 }}>
-            <div style={{ marginBottom: 8 }}>
-              <span style={{ fontSize: 10, fontWeight: 800, color: '#fbbf24', letterSpacing: '.7px' }}>ODDS AUMENTADAS (OS)</span>
-              <span style={{ fontSize: 10, color: 'rgba(255,255,255,.3)', marginLeft: 6 }}>Sem pagamento antecipado</span>
-            </div>
+            <span style={{ fontSize: 9.5, fontWeight: 900, color: '#fbbf24', letterSpacing: '.8px', display: 'block', marginBottom: 6 }}>
+              ODDS AUMENTADAS (OS)
+            </span>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
               {OS_HOUSES.map(h => {
                 const active = !disabled.has(normHouse(h));
                 return (
                   <button key={h} onClick={() => onToggle(normHouse(h))} style={{
                     padding: '3px 9px', borderRadius: 6, fontSize: 11, fontWeight: 600,
-                    background: active ? 'rgba(251,191,36,.1)' : 'rgba(255,255,255,.04)',
-                    border: `1px solid ${active ? 'rgba(251,191,36,.3)' : 'rgba(255,255,255,.08)'}`,
-                    color: active ? '#fbbf24' : 'rgba(255,255,255,.35)',
+                    background: active ? 'rgba(251,191,36,.09)' : 'rgba(255,255,255,.04)',
+                    border: `1px solid ${active ? 'rgba(251,191,36,.28)' : 'rgba(255,255,255,.07)'}`,
+                    color: active ? '#fbbf24' : 'rgba(255,255,255,.3)',
                     cursor: 'pointer', transition: 'all .12s',
                   }}>{h}</button>
                 );
@@ -581,12 +634,13 @@ function FilterPanel({
             </div>
           </div>
 
-          <button onClick={() => { onReset(); }} style={{
+          <button onClick={onReset} style={{
             width: '100%', padding: '7px', borderRadius: 7, fontSize: 11, fontWeight: 700,
-            background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.1)',
-            color: 'var(--t3)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+            background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.09)',
+            color: 'rgba(255,255,255,.4)', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
           }}>
-            <X size={11} /> Resetar todos
+            <X size={11} /> Resetar filtros
           </button>
         </div>
       )}
@@ -594,25 +648,27 @@ function FilterPanel({
   );
 }
 
-// ── Página principal ───────────────────────────────────────────────────────────
+// ── Main page ─────────────────────────────────────────────────────────────────
+
+type SortOrder = 'melhor' | 'pior' | 'recentes' | 'antigos';
 
 export function DuploGreenPage() {
-  const [tab,      setTab]     = useState<'ml' | 'gols'>('ml');
-  const [mlSigs,   setMlSigs]  = useState<MLSignal[]>([]);
-  const [golsSigs, setGolsSigs]= useState<GolsSignal[]>([]);
-  const [loading,  setLoading] = useState(false);
-  const [error,    setError]   = useState('');
-  const [meta,     setMeta]    = useState({ total: 0, computedAt: '', cacheAgeMin: null as number | null });
-  const [disabled, setDisabled]= useState<Set<string>>(new Set());
-  const [paOnly,   setPaOnly]  = useState(false);
-  const [countdown,setCountdown] = useState(30);
+  const [signals,   setSignals]   = useState<MLSignal[]>([]);
+  const [loading,   setLoading]   = useState(false);
+  const [error,     setError]     = useState('');
+  const [meta,      setMeta]      = useState({ total: 0, computedAt: '', cacheAgeMin: null as number | null });
+  const [disabled,  setDisabled]  = useState<Set<string>>(new Set());
+  const [paOnly,    setPaOnly]    = useState(false);
+  const [sortOrder, setSortOrder] = useState<SortOrder>('melhor');
+  const [countdown, setCountdown] = useState(30);
+  const [toast,     setToast]     = useState<MLSignal | null>(null);
+  const [skipped,   setSkipped]   = useState<Set<string>>(new Set());
+  const [starred,   setStarred]   = useState<Set<string>>(new Set());
 
-  // Rastreia sinais "novos" desta sessão
-  const newKeysRef = useRef<Set<string>>(new Set());
-  const prevMlRef  = useRef<Map<string, number>>(new Map()); // key → loss_pct
-  const prevGolsRef= useRef<Map<string, number>>(new Map());
+  const prevMlRef  = useRef<Map<string, number>>(new Map());
+  const toastShown = useRef<Set<string>>(new Set());
 
-  // ── Fetch ────────────────────────────────────────────────────────────────────
+  // ── Fetch ─────────────────────────────────────────────────────────────────
 
   const fetchSignals = useCallback(async (isRefresh = false) => {
     if (!isRefresh) setLoading(true);
@@ -622,52 +678,41 @@ export function DuploGreenPage() {
       const res  = await fetch('/api/supermonitor/duplo-green', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          disabled_houses: Array.from(disabled),
-          pa_only: paOnly,
-        }),
+        body: JSON.stringify({ disabled_houses: Array.from(disabled), pa_only: paOnly }),
       });
       const json = await res.json() as {
         ok: boolean; error?: string;
-        ml?: MLSignal[]; gols?: GolsSignal[];
+        ml?: MLSignal[];
         total_events?: number; computed_at?: string;
         cache_age_min?: number | null;
       };
       if (!json.ok) { setError(json.error ?? 'Erro desconhecido'); return; }
 
       const nowTs = Date.now();
+      const incoming = (json.ml ?? []).map(s => ({ ...s, _key: mlKey(s) }));
+      const nextMap  = new Map<string, number>();
 
-      // ML: detecta novos ou melhorados
-      const incomingMl = (json.ml ?? []).map(s => ({ ...s, _key: mlKey(s) }));
-      const nextMlMap  = new Map<string, number>();
-      const markedMl   = incomingMl.map(s => {
-        nextMlMap.set(s._key!, s.loss_pct);
+      const marked = incoming.map(s => {
+        nextMap.set(s._key!, s.loss_pct);
         const prev = prevMlRef.current.get(s._key!);
         const isNew = prev === undefined || s.loss_pct < prev - 0.01;
-        if (isNew) newKeysRef.current.add(s._key!);
         return { ...s, _newAt: isNew ? nowTs : 0 };
       });
-      prevMlRef.current = nextMlMap;
+      prevMlRef.current = nextMap;
 
-      // Gols: detecta novos ou melhorados
-      const incomingGols = (json.gols ?? []).map(s => ({ ...s, _key: golsKey(s) }));
-      const nextGolsMap  = new Map<string, number>();
-      const markedGols   = incomingGols.map(s => {
-        nextGolsMap.set(s._key!, s.loss_pct);
-        const prev = prevGolsRef.current.get(s._key!);
-        const isNew = prev === undefined || s.loss_pct < prev - 0.01;
-        if (isNew) newKeysRef.current.add(s._key!);
-        return { ...s, _newAt: isNew ? nowTs : 0 };
-      });
-      prevGolsRef.current = nextGolsMap;
-
-      setMlSigs(markedMl);
-      setGolsSigs(markedGols);
+      setSignals(marked);
       setMeta({
         total: json.total_events ?? 0,
         computedAt: json.computed_at ?? '',
         cacheAgeMin: json.cache_age_min ?? null,
       });
+
+      // Show toast for best profitable signal (once per key)
+      const bestProfit = marked.find(s => s.loss_pct <= 0 && !toastShown.current.has(s._key!));
+      if (bestProfit) {
+        toastShown.current.add(bestProfit._key!);
+        setToast(bestProfit);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Erro de conexão');
     } finally {
@@ -676,117 +721,110 @@ export function DuploGreenPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [Array.from(disabled).sort().join(','), paOnly]);
 
-  // Carregamento inicial
   useEffect(() => { fetchSignals(false); }, []); // eslint-disable-line
-
-  // Auto-refresh a cada 30s (incremental)
   useEffect(() => {
     const id = setInterval(() => fetchSignals(true), 30_000);
     return () => clearInterval(id);
   }, [fetchSignals]);
-
-  // Countdown
   useEffect(() => {
     const id = setInterval(() => setCountdown(v => (v <= 1 ? 30 : v - 1)), 1_000);
     return () => clearInterval(id);
   }, []);
 
-  // Recarrega quando filtros mudam
   const filterKey = Array.from(disabled).sort().join(',') + String(paOnly);
   useEffect(() => { fetchSignals(false); }, [filterKey]); // eslint-disable-line
 
-  // ── Helpers ──────────────────────────────────────────────────────────────────
-
-  function toggleHouse(h: string) {
-    setDisabled(prev => { const n = new Set(prev); n.has(h) ? n.delete(h) : n.add(h); return n; });
-  }
+  // ── Sorted + filtered signals ─────────────────────────────────────────────
 
   const now = Date.now();
-  const NEW_TTL = 15_000; // badge "NOVO" visível por 15s
+  const NEW_TTL = 15_000;
 
-  const mlVisible   = mlSigs;
-  const golsVisible = golsSigs;
+  const sorted = useMemo(() => {
+    const visible = signals.filter(s => !skipped.has(s._key!));
+    if (sortOrder === 'melhor')  return [...visible].sort((a, b) => a.loss_pct - b.loss_pct);
+    if (sortOrder === 'pior')    return [...visible].sort((a, b) => b.loss_pct - a.loss_pct);
+    if (sortOrder === 'recentes') return [...visible].sort((a, b) => new Date(b.start_utc).getTime() - new Date(a.start_utc).getTime());
+    if (sortOrder === 'antigos')  return [...visible].sort((a, b) => new Date(a.start_utc).getTime() - new Date(b.start_utc).getTime());
+    return visible;
+  }, [signals, sortOrder, skipped]);
+
+  const profitCount = useMemo(() => sorted.filter(s => s.loss_pct <= 0).length, [sorted]);
+  const evCount     = useMemo(() => new Set(sorted.map(s => s.event_id)).size, [sorted]);
 
   const lastUpdate = meta.computedAt
     ? new Date(meta.computedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
     : '';
 
-  // Conta sinais com profit (lucro)
-  const mlProfit   = useMemo(() => mlSigs.filter(s => s.loss_pct <= 0).length,   [mlSigs]);
-  const golsProfit = useMemo(() => golsSigs.filter(s => s.loss_pct <= 0).length, [golsSigs]);
-
   return (
     <>
       <style>{STYLES}</style>
+      {toast && <ProfitToast sig={toast} onDismiss={() => setToast(null)} />}
 
-      <div style={{ maxWidth: 1040, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div style={{ maxWidth: 1100, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 14 }}>
 
-        {/* ══ Header ═══════════════════════════════════════════════════════════ */}
-        <div style={{
-          display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
-          gap: 16, flexWrap: 'wrap',
-        }}>
-          {/* Título */}
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{
-                width: 36, height: 36, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                background: 'linear-gradient(135deg, rgba(63,255,33,.2) 0%, rgba(63,255,33,.06) 100%)',
-                border: '1px solid rgba(63,255,33,.25)',
-                boxShadow: '0 0 20px rgba(63,255,33,.1)',
-              }}>
-                <Zap size={17} style={{ color: 'oklch(0.78 0.22 138)' }} />
-              </div>
-              <div>
-                <h1 style={{ fontSize: 20, fontWeight: 900, color: 'var(--t1)', letterSpacing: '-.4px', margin: 0 }}>
-                  Duplo Green
-                </h1>
-                <div style={{ fontSize: 11, color: 'rgba(255,255,255,.35)', letterSpacing: '.2px' }}>
-                  Futebol · análise em tempo real
-                </div>
+        {/* ── Header ── */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{
+              width: 34, height: 34, borderRadius: 9,
+              background: 'rgba(63,255,33,.1)', border: '1px solid rgba(63,255,33,.2)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+            }}>
+              <Zap size={15} style={{ color: 'oklch(0.78 0.22 138)' }} />
+            </div>
+            <div>
+              <h1 style={{ fontSize: 18, fontWeight: 900, color: 'oklch(0.96 0.005 250)', letterSpacing: '-.4px', margin: 0 }}>
+                Duplo Futebol
+              </h1>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 2 }}>
+                <span style={{
+                  width: 6, height: 6, borderRadius: '50%', display: 'inline-block',
+                  background: loading ? '#fbbf24' : 'oklch(0.78 0.22 138)',
+                  animation: 'dg-pulse-dot 1.4s ease-in-out infinite',
+                }} />
+                <span style={{ fontSize: 11, color: 'rgba(255,255,255,.38)' }}>
+                  {loading ? 'Atualizando…' : 'Conectado · Monitoramento em tempo real ativo'}
+                </span>
               </div>
             </div>
           </div>
 
-          {/* Controles direita */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            {/* Live indicator + countdown */}
+          {/* Right controls */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+            {/* Countdown */}
             <div style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              padding: '7px 12px', borderRadius: 8,
+              display: 'flex', alignItems: 'center', gap: 5,
+              padding: '6px 11px', borderRadius: 7,
               background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.07)',
             }}>
               <span style={{
-                width: 6, height: 6, borderRadius: '50%', display: 'inline-block',
+                width: 5, height: 5, borderRadius: '50%',
                 background: loading ? '#fbbf24' : 'oklch(0.78 0.22 138)',
-                animation: 'dg-live 1.4s ease-in-out infinite',
+                animation: 'dg-pulse-dot 1.4s ease-in-out infinite', display: 'inline-block',
               }} />
-              <span style={{ fontSize: 11.5, color: 'var(--t3)', fontFamily: 'var(--font-mono,monospace)' }}>
-                {loading ? 'carregando…' : `${countdown}s`}
+              <span style={{ fontSize: 11, color: 'rgba(255,255,255,.45)', fontFamily: "'JetBrains Mono', monospace" }}>
+                {loading ? '…' : `${countdown}s`}
               </span>
             </div>
 
-            {/* Refresh */}
             <button
               onClick={() => fetchSignals(true)}
               disabled={loading}
               style={{
-                display: 'flex', alignItems: 'center', gap: 7,
-                padding: '8px 14px', borderRadius: 9, fontSize: 12, fontWeight: 700,
-                background: 'rgba(255,255,255,.05)', border: '1.5px solid rgba(255,255,255,.1)',
-                color: 'var(--t2)', cursor: loading ? 'not-allowed' : 'pointer',
-                opacity: loading ? .5 : 1, transition: 'opacity .15s, background .15s',
-                letterSpacing: '.2px',
+                display: 'flex', alignItems: 'center', gap: 6,
+                padding: '7px 13px', borderRadius: 8, fontSize: 12, fontWeight: 700,
+                background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.09)',
+                color: 'oklch(0.72 0.01 250)', cursor: loading ? 'not-allowed' : 'pointer',
+                opacity: loading ? .5 : 1, transition: 'all .15s',
               }}
             >
-              <RefreshCw size={13} style={{ animation: loading ? 'dg-spin 1s linear infinite' : 'none' }} />
+              <RefreshCw size={12} style={{ animation: loading ? 'dg-spin 1s linear infinite' : 'none' }} />
               Atualizar
             </button>
 
-            {/* Filtros */}
             <FilterPanel
               disabled={disabled}
-              onToggle={toggleHouse}
+              onToggle={h => setDisabled(prev => { const n = new Set(prev); n.has(h) ? n.delete(h) : n.add(h); return n; })}
               onReset={() => setDisabled(new Set())}
               paOnly={paOnly}
               onPaToggle={() => setPaOnly(v => !v)}
@@ -794,201 +832,145 @@ export function DuploGreenPage() {
           </div>
         </div>
 
-        {/* ══ Status bar ═══════════════════════════════════════════════════════ */}
-        {(meta.total > 0 || lastUpdate) && (
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
-            padding: '10px 14px', borderRadius: 10,
-            background: 'rgba(255,255,255,.025)', border: '1px solid rgba(255,255,255,.06)',
-          }}>
-            {meta.total > 0 && (
-              <span style={{ fontSize: 11.5, color: 'var(--t3)' }}>
-                <span style={{ color: 'var(--t2)', fontWeight: 700 }}>{meta.total}</span> eventos analisados
+        {/* ── Toolbar: counts + sort ── */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 10,
+          padding: '9px 14px',
+          background: 'oklch(0.115 0.006 260)', border: '1px solid rgba(255,255,255,.07)', borderRadius: 10,
+        }}>
+          {/* Counts */}
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            {loading && signals.length === 0 ? (
+              <span style={{ fontSize: 12, color: 'rgba(255,255,255,.38)', display: 'flex', alignItems: 'center', gap: 5 }}>
+                <Loader2 size={11} style={{ animation: 'dg-spin 1s linear infinite', color: 'oklch(0.78 0.22 138)' }} />
+                Escaneando…
               </span>
-            )}
-            {lastUpdate && (
-              <span style={{ fontSize: 11.5, color: 'var(--t3)' }}>
-                Calculado às <span style={{ color: 'var(--t2)', fontFamily: 'var(--font-mono,monospace)' }}>{lastUpdate}</span>
-              </span>
-            )}
-            {meta.cacheAgeMin !== null && meta.cacheAgeMin > 15 && (
-              <span style={{
-                fontSize: 10.5, fontWeight: 700, letterSpacing: '.3px',
-                padding: '2px 8px', borderRadius: 5,
-                background: meta.cacheAgeMin > 60 ? 'rgba(239,68,68,.1)' : 'rgba(251,191,36,.08)',
-                border: `1px solid ${meta.cacheAgeMin > 60 ? 'rgba(239,68,68,.25)' : 'rgba(251,191,36,.2)'}`,
-                color: meta.cacheAgeMin > 60 ? '#f87171' : '#fbbf24',
-              }}>
-                ⚠ cache {meta.cacheAgeMin >= 60 ? `${Math.floor(meta.cacheAgeMin/60)}h` : `${meta.cacheAgeMin}m`} atrás
-              </span>
-            )}
-            {paOnly && (
-              <span style={{
-                fontSize: 10.5, fontWeight: 700, letterSpacing: '.3px',
-                padding: '2px 8px', borderRadius: 5,
-                background: 'rgba(63,255,33,.1)', border: '1px solid rgba(63,255,33,.25)',
-                color: 'oklch(0.78 0.22 138)',
-                display: 'flex', alignItems: 'center', gap: 4,
-              }}>
-                <ShieldCheck size={10} /> Apenas PA ativo
-              </span>
-            )}
-          </div>
-        )}
-
-        {/* ══ Tabs ══════════════════════════════════════════════════════════════ */}
-        <div style={{ display: 'flex', gap: 0, background: 'rgba(255,255,255,.04)', borderRadius: 11, border: '1px solid rgba(255,255,255,.07)', overflow: 'hidden', width: 'fit-content' }}>
-          {([
-            { key: 'ml'   as const, label: 'ML — Pagamento Antecipado', count: mlSigs.length,   profit: mlProfit },
-            { key: 'gols' as const, label: 'Gols — Over × Under',        count: golsSigs.length, profit: golsProfit },
-          ]).map(({ key, label, count, profit }) => (
-            <button key={key} onClick={() => setTab(key)} style={{
-              display: 'flex', flexDirection: 'column', alignItems: 'flex-start',
-              padding: '11px 22px', cursor: 'pointer',
-              background: tab === key
-                ? 'linear-gradient(135deg, rgba(63,255,33,.1) 0%, rgba(63,255,33,.05) 100%)'
-                : 'transparent',
-              borderRight: key === 'ml' ? '1px solid rgba(255,255,255,.07)' : 'none',
-              border: 'none',
-              transition: 'background .15s',
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                <span style={{ fontSize: 12.5, fontWeight: 800, color: tab === key ? 'oklch(0.78 0.22 138)' : 'var(--t2)', letterSpacing: '.1px', transition: 'color .15s' }}>
-                  {label}
+            ) : (
+              <>
+                <span style={{ fontSize: 13, color: 'oklch(0.88 0.005 250)' }}>
+                  <span style={{ fontWeight: 900, fontFamily: "'JetBrains Mono', monospace" }}>{sorted.length}</span>
+                  <span style={{ color: 'rgba(255,255,255,.4)' }}> sinais encontrados</span>
+                  {evCount > 0 && (
+                    <span style={{ color: 'rgba(255,255,255,.35)' }}> ({evCount} eventos)</span>
+                  )}
                 </span>
-                {count > 0 && (
+                {profitCount > 0 && (
                   <span style={{
-                    fontSize: 10.5, fontWeight: 800, padding: '1px 7px', borderRadius: 10,
-                    background: tab === key ? 'rgba(63,255,33,.2)' : 'rgba(255,255,255,.09)',
-                    color: tab === key ? 'oklch(0.78 0.22 138)' : 'var(--t3)',
-                  }}>{count}</span>
+                    fontSize: 10.5, fontWeight: 900, padding: '2px 8px', borderRadius: 5,
+                    background: 'rgba(63,255,33,.1)', color: 'oklch(0.78 0.22 138)',
+                    border: '1px solid rgba(63,255,33,.22)',
+                  }}>
+                    {profitCount} com lucro
+                  </span>
                 )}
-              </div>
-              {profit > 0 && (
-                <span style={{ fontSize: 10, color: 'oklch(0.78 0.22 138)', marginTop: 2, fontWeight: 700 }}>
-                  {profit} com lucro
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
+                {meta.cacheAgeMin !== null && meta.cacheAgeMin > 15 && (
+                  <span style={{
+                    fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 5,
+                    background: meta.cacheAgeMin > 60 ? 'rgba(239,68,68,.1)' : 'rgba(251,191,36,.07)',
+                    border: `1px solid ${meta.cacheAgeMin > 60 ? 'rgba(239,68,68,.22)' : 'rgba(251,191,36,.2)'}`,
+                    color: meta.cacheAgeMin > 60 ? '#f87171' : '#fbbf24',
+                  }}>
+                    ⚠ cache {meta.cacheAgeMin >= 60 ? `${Math.floor(meta.cacheAgeMin / 60)}h` : `${meta.cacheAgeMin}m`} atrás
+                  </span>
+                )}
+                {lastUpdate && (
+                  <span style={{ fontSize: 10, color: 'rgba(255,255,255,.28)' }}>
+                    atualizado às <span style={{ fontFamily: "'JetBrains Mono', monospace" }}>{lastUpdate}</span>
+                  </span>
+                )}
+              </>
+            )}
+          </div>
 
-        {/* ══ Legend ════════════════════════════════════════════════════════════ */}
-        <div style={{ display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 10.5, color: 'rgba(255,255,255,.3)', fontWeight: 600 }}>Pior cenário:</span>
-          {[
-            { label: 'Lucro',  color: 'oklch(0.78 0.22 138)' },
-            { label: '< 1%',   color: 'oklch(0.82 0.18 120)' },
-            { label: '< 3%',   color: 'oklch(0.82 0.2 82)' },
-            { label: '< 7%',   color: 'oklch(0.73 0.2 42)' },
-            { label: '≥ 7%',   color: 'oklch(0.65 0.22 22)' },
-          ].map(item => (
-            <div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-              <span style={{ width: 8, height: 8, borderRadius: 2, background: item.color, display: 'inline-block', flexShrink: 0 }} />
-              <span style={{ fontSize: 10.5, color: 'rgba(255,255,255,.45)' }}>{item.label}</span>
-            </div>
-          ))}
-          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 5 }}>
-            <div style={{ width: 10, height: 10, borderRadius: 3, background: 'rgba(63,255,33,.25)', border: '1px solid rgba(63,255,33,.5)' }} />
-            <span style={{ fontSize: 10.5, color: 'rgba(255,255,255,.45)' }}>Novo / melhorado</span>
+          {/* Sort */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+            <span style={{ fontSize: 11, color: 'rgba(255,255,255,.3)', fontWeight: 600 }}>Ordenar:</span>
+            <select
+              value={sortOrder}
+              onChange={e => setSortOrder(e.target.value as SortOrder)}
+              style={{
+                fontSize: 11.5, fontWeight: 700, padding: '5px 9px', borderRadius: 7,
+                background: 'rgba(255,255,255,.07)', color: 'oklch(0.82 0.01 250)',
+                border: '1px solid rgba(255,255,255,.11)', cursor: 'pointer', outline: 'none',
+                appearance: 'none', WebkitAppearance: 'none',
+              }}
+            >
+              <option value="melhor">Maior Lucro</option>
+              <option value="pior">Menor Lucro</option>
+              <option value="recentes">Mais Recentes</option>
+              <option value="antigos">Mais Antigos</option>
+            </select>
           </div>
         </div>
 
-        {/* ══ Grid de sinais ═════════════════════════════════════════════════════ */}
-
-        {/* Estado vazio/loading/erro */}
-        {(loading && mlSigs.length === 0 && golsSigs.length === 0) && (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, padding: '80px 0', color: 'var(--t3)' }}>
+        {/* ── Loading ── */}
+        {loading && signals.length === 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, padding: '80px 0' }}>
             <div style={{
-              width: 52, height: 52, borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center',
-              background: 'rgba(63,255,33,.08)', border: '1px solid rgba(63,255,33,.15)',
+              width: 48, height: 48, borderRadius: 13,
+              background: 'rgba(63,255,33,.07)', border: '1px solid rgba(63,255,33,.15)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>
-              <Loader2 size={24} style={{ animation: 'dg-spin 1s linear infinite', color: 'oklch(0.78 0.22 138)' }} />
+              <Loader2 size={22} style={{ animation: 'dg-spin 1s linear infinite', color: 'oklch(0.78 0.22 138)' }} />
             </div>
             <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 14, color: 'var(--t2)', fontWeight: 700 }}>Calculando sinais…</div>
-              <div style={{ fontSize: 11.5, color: 'var(--t3)', marginTop: 4 }}>Varrendo todos os eventos do dia</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: 'oklch(0.82 0.005 250)' }}>Calculando sinais…</div>
+              <div style={{ fontSize: 11.5, color: 'rgba(255,255,255,.38)', marginTop: 4 }}>Varrendo eventos de futebol do dia</div>
             </div>
           </div>
         )}
 
+        {/* ── Error ── */}
         {error && (
           <div style={{
             display: 'flex', alignItems: 'center', gap: 12,
-            padding: '16px 18px', borderRadius: 12,
-            background: 'rgba(239,68,68,.07)', border: '1px solid rgba(239,68,68,.2)',
+            padding: '14px 16px', borderRadius: 10,
+            background: 'rgba(239,68,68,.06)', border: '1px solid rgba(239,68,68,.18)',
           }}>
-            <AlertCircle size={18} style={{ color: '#f87171', flexShrink: 0 }} />
+            <AlertCircle size={16} style={{ color: '#f87171', flexShrink: 0 }} />
             <div>
               <div style={{ fontSize: 13, color: '#f87171', fontWeight: 700 }}>Erro ao carregar</div>
-              <div style={{ fontSize: 11.5, color: 'rgba(239,68,68,.7)', marginTop: 2 }}>{error}</div>
+              <div style={{ fontSize: 11.5, color: 'rgba(239,68,68,.65)', marginTop: 1 }}>{error}</div>
+            </div>
+            <button onClick={() => fetchSignals(true)} style={{
+              marginLeft: 'auto', padding: '5px 12px', borderRadius: 7,
+              background: 'rgba(239,68,68,.1)', border: '1px solid rgba(239,68,68,.25)',
+              color: '#f87171', fontSize: 11, fontWeight: 700, cursor: 'pointer',
+            }}>
+              Tentar novamente
+            </button>
+          </div>
+        )}
+
+        {/* ── Empty ── */}
+        {!loading && !error && sorted.length === 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, padding: '72px 0' }}>
+            <Zap size={30} style={{ color: 'rgba(255,255,255,.12)' }} />
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: 'oklch(0.75 0.005 250)' }}>
+                {meta.total === 0 ? 'Cache vazio' : 'Nenhum sinal encontrado'}
+              </div>
+              <div style={{ fontSize: 11.5, color: 'rgba(255,255,255,.32)', marginTop: 5, maxWidth: 360 }}>
+                {meta.total === 0
+                  ? 'Nenhuma odd em cache. Aguarde o daemon rodar.'
+                  : `${meta.total} eventos analisados não formam arbs 3-vias com as casas selecionadas.`}
+              </div>
             </div>
           </div>
         )}
 
-        {/* ML */}
-        {tab === 'ml' && !loading && !error && mlVisible.length === 0 && (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, padding: '70px 0', color: 'var(--t3)' }}>
-            <Zap size={32} style={{ opacity: .2 }} />
-            {meta.total === 0
-              ? <>
-                  <span style={{ fontSize: 14, color: 'var(--t2)', fontWeight: 700 }}>Cache vazio</span>
-                  <span style={{ fontSize: 11.5, opacity: .6, textAlign: 'center', maxWidth: 360 }}>Nenhum dado de odds encontrado. Aguarde o renew-cookie.mjs rodar no PC.</span>
-                </>
-              : <>
-                  <span style={{ fontSize: 14, color: 'var(--t2)', fontWeight: 700 }}>Nenhum sinal ML encontrado</span>
-                  <span style={{ fontSize: 11.5, opacity: .6, textAlign: 'center', maxWidth: 360 }}>Os {meta.total} eventos analisados não formam arbs 3-vias com as casas selecionadas.</span>
-                </>
-            }
-          </div>
-        )}
-
-        {tab === 'ml' && mlVisible.length > 0 && (
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(310px, 1fr))',
-            gap: 10,
-          }}>
-            {mlVisible.map((sig, i) => (
-              <MLCard
+        {/* ── Signal rows ── */}
+        {sorted.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {sorted.map((sig, i) => (
+              <SignalRow
                 key={sig._key ?? mlKey(sig)}
                 sig={sig}
                 idx={i}
                 isNew={!!(sig._newAt && now - sig._newAt < NEW_TTL)}
-              />
-            ))}
-          </div>
-        )}
-
-        {/* Gols */}
-        {tab === 'gols' && !loading && !error && golsVisible.length === 0 && (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, padding: '70px 0', color: 'var(--t3)' }}>
-            <span style={{ fontSize: 32 }}>⚽</span>
-            {meta.total === 0
-              ? <>
-                  <span style={{ fontSize: 14, color: 'var(--t2)', fontWeight: 700 }}>Cache vazio</span>
-                  <span style={{ fontSize: 11.5, opacity: .6 }}>Aguarde o renew-cookie.mjs rodar no PC.</span>
-                </>
-              : <>
-                  <span style={{ fontSize: 14, color: 'var(--t2)', fontWeight: 700 }}>Nenhum sinal de Gols encontrado</span>
-                  <span style={{ fontSize: 11.5, opacity: .6, textAlign: 'center', maxWidth: 360 }}>Não há pares Over/Under com linhas cruzadas entre casas distintas nos {meta.total} eventos.</span>
-                </>
-            }
-          </div>
-        )}
-
-        {tab === 'gols' && golsVisible.length > 0 && (
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(310px, 1fr))',
-            gap: 10,
-          }}>
-            {golsVisible.map((sig, i) => (
-              <GolsCard
-                key={sig._key ?? golsKey(sig)}
-                sig={sig}
-                idx={i}
-                isNew={!!(sig._newAt && now - sig._newAt < NEW_TTL)}
+                onSkip={() => setSkipped(prev => { const n = new Set(prev); n.add(sig._key!); return n; })}
+                onStar={() => setStarred(prev => { const n = new Set(prev); n.has(sig._key!) ? n.delete(sig._key!) : n.add(sig._key!); return n; })}
+                starred={starred.has(sig._key!)}
               />
             ))}
           </div>
