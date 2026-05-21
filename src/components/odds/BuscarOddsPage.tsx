@@ -97,23 +97,25 @@ type LiveChanges = Map<string, OddChange>; // key = `${house}:${colKey}`
 
 // ── PA bookmakers set ──────────────────────────────────────────────────────────
 
+// Casas que oferecem Pagamento Antecipado (PA).
+// REGRA: adicione APENAS casas explicitamente confirmadas como PA.
+// O loop de prefix-matching foi removido — causava falsos positivos
+// (ex: "apostaganha" virava PA por começar com "aposta").
 const PA_SET = new Set([
   'betano','novibet','betvip','betsul','betesporte','brasilbet','betsson','bet365',
   'bet365arg','bet365pe','lotogreen','kto','vivasorte','sportingbet','superbet',
-  'apostabet','aposta','alfabet','br4bet','esportesdasorte','esportiva','esportivabet',
+  'apostabet','aposta','br4bet','esportesdasorte','esportiva','esportivabet',
   'sortenabet','betmgm','estrelabet','bet7k','jogodeouro','mcgames','meridianbet',
-  'meridian','versusbet','vupi','vupibet','vaidebet','tradeball','sporty','sportybet',
+  'meridian','versusbet','vupi','vupibet','vaidebet','sporty','sportybet',
+  // alfabet e tradeball são SEM PA — não adicionar aqui
 ]);
 
 function isPa(house: string): boolean {
   const n = house.toLowerCase().replace(/[\s\-_.]/g, '');
-  // Suffix "SO" (Sem Odds / sem pagamento antecipado) — never PA, even if base name is PA
+  // Variantes "SO" (Sem Odds) nunca são PA
   if (n.endsWith('so')) return false;
-  if (PA_SET.has(n)) return true;
-  for (const pa of PA_SET) {
-    if (n.length >= 4 && pa.length >= 4 && (n.startsWith(pa) || pa.startsWith(n))) return true;
-  }
-  return false;
+  // Match exato apenas — sem prefix-matching para evitar falsos positivos
+  return PA_SET.has(n);
 }
 
 function normHouseForCalc(raw: string): string {
