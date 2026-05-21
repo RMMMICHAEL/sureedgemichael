@@ -217,9 +217,12 @@ export function CaixaPage() {
   const legs     = useStore(s => s.legs);
   const expenses = useStore(s => s.expenses);
 
-  const totalBMs   = bms.reduce((s, b) => s + b.balance, 0);
-  const totalBanks = banks.reduce((s, b) => s + b.balance, 0);
-  const totalCash  = totalBMs + totalBanks;
+  const totalBMs      = bms.reduce((s, b) => s + b.balance, 0);
+  const totalBanks    = banks.reduce((s, b) => s + b.balance, 0);
+  const pendingStakes = +legs
+    .filter(l => l.re === 'Pendente' && l.source !== 'import')
+    .reduce((s, l) => s + l.st, 0).toFixed(2);
+  const totalCash     = totalBMs + totalBanks + pendingStakes;
 
   const month  = currentMonth();
   const mStart = month + '-01';
@@ -256,10 +259,11 @@ export function CaixaPage() {
         >
           R$ {totalCash.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-4" style={{ borderTop: '1px solid var(--b)' }}>
+        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-4 pt-4" style={{ borderTop: '1px solid var(--b)' }}>
           {[
             { label: 'Em Casas',     value: fmtBRL(totalBMs),        icon: <Building2 size={13} />, color: 'var(--y)' },
             { label: 'Em Bancos',    value: fmtBRL(totalBanks),       icon: <Wallet size={13} />,   color: '#4DA6FF' },
+            { label: 'Em Aberto',    value: fmtBRL(pendingStakes),    icon: <TrendingUp size={13} />, color: 'oklch(72% 0.18 55)' },
             { label: `Lucro ${shortMonth}`, value: fmtBRL(mProfit, true), icon: <TrendingUp size={13} />,
               color: mProfit >= 0 ? 'var(--g)' : 'var(--r)' },
             { label: 'ROI Mês',      value: `${mROI > 0 ? '+' : ''}${mROI}%`, icon: <Percent size={13} />, color: 'var(--t2)' },

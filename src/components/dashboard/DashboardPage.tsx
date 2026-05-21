@@ -928,7 +928,12 @@ export function DashboardPage() {
   const profit7d    = profit7dGross    - expSum(sevenStart, today);
   const profitMonth = profitMonthGross - expSum(mStart,     today);
 
-  const totalCash = [...bms.map(b => b.balance), ...banks.map(b => b.balance)].reduce((s, v) => s + v, 0);
+  const pendingLegs   = legs.filter(l => l.re === 'Pendente' && l.source !== 'import');
+  const pendingStakes = +pendingLegs.reduce((s, l) => s + l.st, 0).toFixed(2);
+  const totalCash = [
+    ...bms.map(b => b.balance),
+    ...banks.map(b => b.balance),
+  ].reduce((s, v) => s + v, 0) + pendingStakes;
   const totalOps  = groupLegsIntoOps(legs).length;
 
   const monthName = new Date().toLocaleString('pt-BR', { month: 'long' });
@@ -1084,7 +1089,9 @@ export function DashboardPage() {
         {
           label:         'Capital Total',
           value:         fmtCapital(totalCash),
-          sub:           `${totalOps} operações`,
+          sub:           pendingStakes > 0
+            ? `${totalOps} operações · R$ ${pendingStakes.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} em aberto`
+            : `${totalOps} operações`,
           positive:      null,
           icon:          <DollarSign size={14} />,
           hidden:        capitalHidden,
