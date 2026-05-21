@@ -175,7 +175,7 @@ const CLONE_GROUPS: CloneGroup[] = [
     clones: [
       { name: 'Bolsadeaposta', url: 'https://www.bolsadeaposta.bet.br', logo: fav('bolsadeaposta.bet.br') },
       { name: 'Fullbet',       url: 'https://www.fulltbet.bet.br',      logo: fav('fulltbet.bet.br') },
-      { name: 'Bet-Bra',       url: 'https://www.betbra.bet.br',        logo: fav('betbra.bet.br') },
+      { name: 'Betbra',         url: 'https://www.betbra.bet.br',        logo: fav('betbra.bet.br') },
     ],
   },
 ];
@@ -304,17 +304,14 @@ const CATALOG: { name: string; color: string; domain: string }[] = [
   { name: 'BetfairEx',    color: '#0369A1', domain: 'betfair.com' },
   { name: 'Bolsadeaposta',color: '#854D0E', domain: 'bolsadeaposta.bet.br' },
   { name: 'Fullbet',      color: '#166534', domain: 'fulltbet.bet.br' },
-  { name: 'Bet-Bra',      color: '#DC2626', domain: 'betbra.bet.br' },
   { name: 'Betbra',       color: '#DC2626', domain: 'betbra.bet.br' },
   /* ── SuperMonitor / Outros ── */
-  { name: 'Aposta',       color: '#0EA5E9', domain: 'aposta.bet.br' },
   { name: 'Alfabet',      color: '#7C3AED', domain: 'alfabet.bet.br' },
   { name: 'Apostabet',    color: '#B91C1C', domain: 'apostabet.bet.br' },
   { name: 'Apostaganha',  color: '#166534', domain: 'apostaganha.bet.br' },
   { name: 'Betesporte',   color: '#1D4ED8', domain: 'betesporte.com' },
   { name: 'Betsul',       color: '#0F172A', domain: 'betsul.com' },
   { name: 'Esportedasorte', color: '#047857', domain: 'esportedasorte.com.br' },
-  { name: 'Esportesdasorte', color: '#047857', domain: 'esportedasorte.com.br' },
   { name: 'Sporty',       color: '#166534', domain: 'sporty.bet.br' },
   { name: 'Tradeball',    color: '#0369A1', domain: 'tradeball.bet.br' },
   { name: 'Vaidebet',     color: '#B45309', domain: 'vaidebet.com' },

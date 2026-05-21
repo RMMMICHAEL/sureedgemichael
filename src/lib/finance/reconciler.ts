@@ -37,9 +37,18 @@ export const HOUSE_MAP: Record<string, string> = {
   pixbet:          'Pixbet',
 
   // Casas importadas/cadastradas com nome de domínio em vez do nome limpo
-  'aposta.bet.br': 'Aposta',
-  'Aposta.bet.br': 'Aposta',
-  aposta:          'Aposta',
+  'aposta.bet.br':   'Apostabet',
+  'Aposta.bet.br':   'Apostabet',
+  aposta:            'Apostabet',
+  Aposta:            'Apostabet',
+
+  // Normaliza variantes de nome/domínio
+  'betbra.bet.br':       'Betbra',
+  'Betbra':              'Betbra',
+  'Bet-Bra':             'Betbra',
+  'bet-bra':             'Betbra',
+  'esportesdasorte':     'Esportedasorte',
+  'Esportesdasorte':     'Esportedasorte',
 };
 
 // Case-insensitive fallback: e.g. "Betano" → "Betano", "BETANO" → "Betano"
