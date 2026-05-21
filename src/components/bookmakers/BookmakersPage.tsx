@@ -15,35 +15,98 @@ import type { Bookmaker, BookmakerCredentials, Bank, BookmakerTransaction, Leg }
 import { houseFavicon } from '@/lib/bookmakers/logos';
 import { normHouse } from '@/lib/finance/reconciler';
 
-// ── Effective balance ─────────────────────────────────────────────────────────
-// Computes the auto-updated balance for a bookmaker:
-//   base (bm.balance)
-//   − pending stakes (money tied up in open bets)
-//   + green gross returns  (stake × odd  → full amount returned to house)
-//   − red stakes           (money lost)
-//   HalfGreen/Cashout: stake + net profit as gross return proxy
-//   Void/Devolvido: no change (stake already returned)
-function calcEffectiveBalance(bm: Bookmaker, legs: Leg[]): number {
-  const bmKey = normHouse(bm.name).toLowerCase();
-  let delta = 0;
+// ── Balance calculation ───────────────────────────────────────────────────────
+//
+// MODEL: bm.balance is the ABSOLUTE balance the user typed at time balance_set_at.
+//        It already reflects all bets placed BEFORE that timestamp.
+//
+// Two groups of legs for a given bookmaker:
+//   PRE-SET  (leg.bd ≤ balance_set_at): stake already reflected in bm.balance.
+//     - Pending   → 0 (stake was in the value the user typed)
+//     - Settled   → apply the settlement delta only if settled AFTER balance_set_at
+//                   (i.e. leg.updated_at > balance_set_at); otherwise already reflected.
+//   POST-SET (leg.bd > balance_set_at): new bet, stake NOT yet in bm.balance.
+//     - Apply the legacy formula: pending→-stake, green→+stake×odds, etc.
+//
+// LEGACY MODE (balance_set_at is null): keep the original formula for all legs
+//   so existing users without a manual update see unchanged behaviour.
+
+function calcEffectiveBalance(bm: Bookmaker, legs: Leg[]): { effective: number; pendingExposure: number; settledDelta: number } {
+  const bmKey    = normHouse(bm.name).toLowerCase();
+  const setAtMs  = bm.balance_set_at ? new Date(bm.balance_set_at).getTime() : null;
+
+  let settledDelta  = 0;  // from legs settled after last manual update
+  let pendingDelta  = 0;  // from new pending bets (post-set)
+  let pendingStakes = 0;  // sum of post-set pending stakes (for display)
+
   for (const leg of legs) {
     if (normHouse(leg.ho).toLowerCase() !== bmKey) continue;
-    if (leg.re === 'Pendente') {
-      delta -= leg.st;
-    } else if (leg.re === 'Green' || leg.re === 'Green Antecipado') {
-      // Full gross return: stake comes back + profit
-      delta += leg.st * leg.od;
-    } else if (leg.re === 'Meio Green' || leg.re === 'Cashout') {
-      // Partial: use stored profit + stake as best approximation of gross return
-      delta += leg.st + leg.pr;
-    } else if (leg.re === 'Red') {
-      delta -= leg.st;
-    } else if (leg.re === 'Meio Red') {
-      delta -= leg.st - leg.pr; // lost portion only
+    if (leg.source === 'import') continue; // imported legs never affect balance
+
+    if (setAtMs === null) {
+      // ── Legacy mode: original formula ────────────────────────────────────
+      if (leg.re === 'Pendente') {
+        pendingDelta  -= leg.st;
+        pendingStakes += leg.st;
+      } else if (leg.re === 'Green' || leg.re === 'Green Antecipado') {
+        settledDelta += leg.st * leg.od;
+      } else if (leg.re === 'Meio Green' || leg.re === 'Cashout') {
+        settledDelta += leg.st + leg.pr;
+      } else if (leg.re === 'Red') {
+        settledDelta -= leg.st;
+      } else if (leg.re === 'Meio Red') {
+        settledDelta -= leg.st - leg.pr;
+      }
+      // Devolvido: delta = 0 (stake returned)
+    } else {
+      const betMs = new Date(leg.bd).getTime();
+      const isPreSet = betMs <= setAtMs; // was the bet placed ≤ last manual balance update?
+
+      if (isPreSet) {
+        // ── Pre-set leg: stake already in bm.balance ─────────────────────
+        if (leg.re === 'Pendente') {
+          // Still open — stake was already deducted by the platform when user typed the balance.
+          // No additional deduction.
+        } else {
+          // Settled — only count if the result was recorded AFTER the manual update
+          // (if before, the settlement is already reflected in bm.balance).
+          const updatedMs = leg.updated_at ? new Date(leg.updated_at).getTime() : 0;
+          if (updatedMs > setAtMs) {
+            // Bet was placed BEFORE the manual update (stake already deducted from balance),
+            // but settled AFTER → only the return/payout matters.
+            if (leg.re === 'Green' || leg.re === 'Green Antecipado') {
+              settledDelta += leg.st * leg.od; // full payout returned to account
+            } else if (leg.re === 'Meio Green' || leg.re === 'Cashout') {
+              settledDelta += leg.st + leg.pr; // partial payout
+            } else if (leg.re === 'Devolvido') {
+              settledDelta += leg.st; // stake fully returned
+            } else if (leg.re === 'Meio Red') {
+              settledDelta += leg.st + leg.pr; // partial stake returned (pr is negative)
+            }
+            // Red: nothing returned, stake was already gone when balance was set
+          }
+        }
+      } else {
+        // ── Post-set leg: new bet after manual update, stake NOT in bm.balance ─
+        if (leg.re === 'Pendente') {
+          pendingDelta  -= leg.st;
+          pendingStakes += leg.st;
+        } else if (leg.re === 'Green' || leg.re === 'Green Antecipado') {
+          settledDelta += leg.st * leg.od;
+        } else if (leg.re === 'Meio Green' || leg.re === 'Cashout') {
+          settledDelta += leg.st + leg.pr;
+        } else if (leg.re === 'Red') {
+          settledDelta -= leg.st;
+        } else if (leg.re === 'Meio Red') {
+          settledDelta -= leg.st - leg.pr;
+        }
+        // Devolvido: delta = 0
+      }
     }
-    // Devolvido: delta = 0 (stake returned, no gain/loss)
   }
-  return bm.balance + delta;
+
+  const effective = bm.balance + settledDelta + pendingDelta;
+  return { effective, pendingExposure: pendingStakes, settledDelta };
 }
 
 // ── Clone groups data ─────────────────────────────────────────────────────────
@@ -934,8 +997,10 @@ export function BookmakersPage() {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
               {bms.map(bm => {
-                const col              = bm.color || bmColor(bm.name);
-                const effectiveBalance = calcEffectiveBalance(bm, legs);
+                const col = bm.color || bmColor(bm.name);
+                const { effective: effectiveBalance, pendingExposure, settledDelta } = calcEffectiveBalance(bm, legs);
+                // Show breakdown only when balance_set_at is known AND there's something to show
+                const hasBreakdown = !!bm.balance_set_at && (settledDelta !== 0 || pendingExposure > 0);
                 return (
                   <div
                     key={bm.id}
@@ -984,13 +1049,47 @@ export function BookmakersPage() {
                     </div>
 
                     {/* Balance breakdown */}
-                    <div className="flex gap-2">
-                      <div className="flex-1 rounded-xl p-3" style={{ background: 'var(--bg3, var(--bg))' }}>
-                        <div className="text-[10px] font-bold uppercase tracking-wide mb-0.5" style={{ color: 'var(--t3)' }}>Saldo Atual</div>
+                    <div className="flex flex-col gap-1.5">
+                      {/* Effective / estimated balance */}
+                      <div className="rounded-xl p-3" style={{ background: 'var(--bg3, var(--bg))' }}>
+                        <div className="text-[10px] font-bold uppercase tracking-wide mb-0.5" style={{ color: 'var(--t3)' }}>
+                          {hasBreakdown ? 'Saldo Estimado' : 'Saldo Atual'}
+                        </div>
                         <div className="text-base font-extrabold font-mono" style={{ color: effectiveBalance >= 0 ? 'var(--g)' : 'var(--r)' }}>
                           R$ {effectiveBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                         </div>
                       </div>
+
+                      {/* Breakdown rows — only when balance_set_at is known */}
+                      {hasBreakdown && (
+                        <div className="rounded-xl px-3 py-2 flex flex-col gap-1" style={{ background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.05)' }}>
+                          {/* Manual snapshot */}
+                          <div className="flex items-center justify-between text-[11px]">
+                            <span style={{ color: 'var(--t3)' }}>Saldo informado</span>
+                            <span className="font-mono font-bold" style={{ color: 'var(--t2)' }}>
+                              R$ {bm.balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            </span>
+                          </div>
+                          {/* Settled P&L since last update */}
+                          {settledDelta !== 0 && (
+                            <div className="flex items-center justify-between text-[11px]">
+                              <span style={{ color: 'var(--t3)' }}>Resultado de operações</span>
+                              <span className="font-mono font-bold" style={{ color: settledDelta >= 0 ? 'var(--g)' : 'var(--r)' }}>
+                                {settledDelta >= 0 ? '+' : ''}R$ {settledDelta.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                              </span>
+                            </div>
+                          )}
+                          {/* Pending exposure */}
+                          {pendingExposure > 0 && (
+                            <div className="flex items-center justify-between text-[11px]">
+                              <span style={{ color: 'var(--t3)' }}>Em apostas pendentes</span>
+                              <span className="font-mono font-bold" style={{ color: 'var(--y)' }}>
+                                −R$ {pendingExposure.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     {/* Action buttons */}

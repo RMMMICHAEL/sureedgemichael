@@ -411,9 +411,10 @@ export const useStore = create<StoreState>()((set, get) => ({
     set(s => {
       const newBM: Bookmaker = {
         ...bm,
-        id:      `bm_${Date.now()}`,
-        balance: bm.initial_balance,
-        ops:     0,
+        id:             `bm_${Date.now()}`,
+        balance:        bm.initial_balance,
+        ops:            0,
+        balance_set_at: new Date().toISOString(),
       };
       const bms = recalcBookmakers([...s.bms, newBM], s.legs);
       const totalCash = [...bms.map(b => b.balance), ...s.banks.map(b => b.balance)].reduce((a, v) => a + v, 0);
@@ -424,8 +425,14 @@ export const useStore = create<StoreState>()((set, get) => ({
 
   updateBookmaker(id, patch) {
     set(s => {
+      // When the user explicitly sets a balance, stamp the time so
+      // calcEffectiveBalance knows which legs are already reflected.
+      const balanceChanged = patch.balance !== undefined || patch.initial_balance !== undefined;
+      const finalPatch = balanceChanged
+        ? { ...patch, balance_set_at: new Date().toISOString() }
+        : patch;
       const bms = recalcBookmakers(
-        s.bms.map(b => b.id === id ? { ...b, ...patch } : b),
+        s.bms.map(b => b.id === id ? { ...b, ...finalPatch } : b),
         s.legs
       );
       const totalCash = [...bms.map(b => b.balance), ...s.banks.map(b => b.balance)].reduce((a, v) => a + v, 0);
@@ -764,14 +771,18 @@ export const useStore = create<StoreState>()((set, get) => ({
   addBookmakerTransaction(bmId, tx) {
     set(s => {
       const newTx: BookmakerTransaction = { ...tx, id: `bmt_${Date.now()}` };
-      // adjust initial_balance: deposito = +amount, saque = -amount, transferencia handled separately
+      const now = new Date().toISOString();
+      // adjust initial_balance + balance: deposito = +amount, saque = -amount
       const bms = s.bms.map(b => {
         if (b.id !== bmId) return b;
         const delta = tx.type === 'deposito' ? tx.amount : tx.type === 'saque' ? -tx.amount : 0;
         return {
           ...b,
           initial_balance: b.initial_balance + delta,
-          transactions: [...(b.transactions ?? []), newTx],
+          // Keep balance in sync so the display reflects the deposit/withdrawal
+          balance:        b.balance + delta,
+          balance_set_at: now,
+          transactions:   [...(b.transactions ?? []), newTx],
         };
       });
       const { totalCash } = recalc({ ...s, bms });

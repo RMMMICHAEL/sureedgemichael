@@ -80,13 +80,20 @@ export interface Bookmaker {
   abbr: string;
   color: string;
   initial_balance: number;  // set manually by user during onboarding
-  balance: number;          // calculated: initial_balance + sum of settled profits
+  balance: number;          // absolute snapshot set manually by the user
   status: 'ativa' | 'inativa' | 'limitada';
   notes: string;
   ops: number;
   credentials?: BookmakerCredentials;
   clientId?: string;        // linked client/parceiro id
   transactions?: BookmakerTransaction[]; // deposit/withdrawal history
+  /**
+   * ISO timestamp of the last manual balance update.
+   * Used by calcEffectiveBalance to avoid double-counting:
+   * legs placed BEFORE this timestamp are already reflected in `balance`.
+   * When null/undefined, falls back to legacy behavior (apply all leg deltas).
+   */
+  balance_set_at?: string;
 }
 
 // ── Bank account ─────────────────────────────────────────
