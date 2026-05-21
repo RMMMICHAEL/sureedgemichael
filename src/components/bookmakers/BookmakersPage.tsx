@@ -323,9 +323,28 @@ const CATALOG: { name: string; color: string; domain: string }[] = [
   { name: 'Betboo',       color: '#7C3AED', domain: 'betboo.bet.br' },
   /* ── Grupo Betfair ── */
   { name: 'Betfair',      color: '#0E7490', domain: 'betfair.bet.br' },
+  { name: 'BetfairSB',    color: '#0E7490', domain: 'betfair.com' },
+  { name: 'BetfairEx',    color: '#0369A1', domain: 'betfair.com' },
   { name: 'Bolsadeaposta',color: '#854D0E', domain: 'bolsadeaposta.bet.br' },
   { name: 'Fullbet',      color: '#166534', domain: 'fulltbet.bet.br' },
   { name: 'Bet-Bra',      color: '#DC2626', domain: 'betbra.bet.br' },
+  /* ── SuperMonitor / Outros ── */
+  { name: 'Aposta',       color: '#0EA5E9', domain: 'aposta.bet.br' },
+  { name: 'Alfabet',      color: '#7C3AED', domain: 'alfabet.bet.br' },
+  { name: 'Apostabet',    color: '#B91C1C', domain: 'apostabet.bet.br' },
+  { name: 'Apostaganha',  color: '#166534', domain: 'apostaganha.bet.br' },
+  { name: 'Betesporte',   color: '#1D4ED8', domain: 'betesporte.com' },
+  { name: 'Betsul',       color: '#0F172A', domain: 'betsul.com' },
+  { name: 'Esportedasorte', color: '#047857', domain: 'esportedasorte.com.br' },
+  { name: 'Esportesdasorte', color: '#047857', domain: 'esportedasorte.com.br' },
+  { name: 'Sporty',       color: '#166534', domain: 'sporty.bet.br' },
+  { name: 'Tradeball',    color: '#0369A1', domain: 'tradeball.bet.br' },
+  { name: 'Vaidebet',     color: '#B45309', domain: 'vaidebet.com' },
+  { name: 'Versusbet',    color: '#6B21A8', domain: 'versusbet.bet.br' },
+  { name: 'Vivasorte',    color: '#DC2626', domain: 'vivasorte.bet.br' },
+  { name: 'Meridianbet',  color: '#374151', domain: 'meridianbet.com' },
+  { name: 'Betway',       color: '#00632B', domain: 'betway.com' },
+  { name: 'Betboom',      color: '#7C2D12', domain: 'betboom.com' },
 ];
 
 function abbr(name: string) { return (name || '?').slice(0, 3).toUpperCase(); }
