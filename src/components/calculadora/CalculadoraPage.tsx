@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { SurebetCalc } from '@/components/calcalendario/SurebetCalc';
-import { Calculator, TrendingUp, Gift, Percent, Search, X, Building2, ScanSearch } from 'lucide-react';
+import { Search, X, Building2, ScanSearch } from 'lucide-react';
 
 // ── Formatters ─────────────────────────────────────────────────────────────────
 
@@ -1118,56 +1118,10 @@ function BuscarOddsTab({ selectedEvent }: { selectedEvent: CachedEvent | null })
   );
 }
 
-// ── Tab definitions ────────────────────────────────────────────────────────────
-
-const TABS = [
-  { id: 'surebet',  label: 'Surebet',    icon: <Calculator  size={13} strokeWidth={2} /> },
-  { id: 'missao',   label: 'Missão',     icon: <Gift        size={13} strokeWidth={2} /> },
-  { id: 'odd',      label: 'Aumentadas', icon: <TrendingUp  size={13} strokeWidth={2} /> },
-  { id: 'cashback', label: 'Cashback',   icon: <Percent     size={13} strokeWidth={2} /> },
-  { id: 'odds',     label: 'Odds',        icon: <ScanSearch  size={13} strokeWidth={2} /> },
-] as const;
-
-type TabId = typeof TABS[number]['id'];
-
 // ── Page ───────────────────────────────────────────────────────────────────────
 
 export function CalculadoraPage() {
-  const [tab,           setTab]           = useState<TabId>('surebet');
   const [selectedEvent, setSelectedEvent] = useState<CachedEvent | null>(null);
-
-  // Surebet toggle states
-  const [togComissoes,  setTogComissoes]  = useState(true);
-  const [togAumento,    setTogAumento]    = useState(false);
-  const [togCashback,   setTogCashback]   = useState(false);
-  const [togArredondar, setTogArredondar] = useState(false);
-
-  function Toggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
-    return (
-      <label className="relative inline-flex items-center cursor-pointer gap-2">
-        <input type="checkbox" className="sr-only" checked={checked} onChange={e => onChange(e.target.checked)} />
-        <div
-          className="relative"
-          style={{
-            width: 36, height: 20, borderRadius: 10,
-            background: checked ? 'var(--g)' : 'rgba(255,255,255,.12)',
-            transition: 'background .2s',
-            flexShrink: 0,
-          }}
-        >
-          <div style={{
-            position: 'absolute', top: 2, left: checked ? 18 : 2,
-            width: 16, height: 16, borderRadius: '50%',
-            background: checked ? 'var(--bg)' : 'rgba(255,255,255,.5)',
-            transition: 'left .2s',
-          }} />
-        </div>
-        <span className="text-xs font-bold uppercase tracking-wide" style={{ color: checked ? 'var(--t)' : 'var(--t3)' }}>
-          {label}
-        </span>
-      </label>
-    );
-  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -1184,50 +1138,8 @@ export function CalculadoraPage() {
       {/* Event search card */}
       <EventSearchCard selectedEvent={selectedEvent} onSelect={setSelectedEvent} />
 
-      {/* Type selector */}
-      <div
-        className="flex gap-1 p-1 rounded-xl flex-wrap"
-        style={{ background: 'var(--bg2)', border: '1px solid var(--b)' }}
-      >
-        {TABS.map(t => (
-          <button
-            key={t.id}
-            type="button"
-            onClick={() => setTab(t.id)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all"
-            style={
-              tab === t.id
-                ? { background: 'rgba(63,255,33,.12)', color: 'var(--g)', border: '1px solid rgba(63,255,33,.2)' }
-                : { color: 'var(--t3)', border: '1px solid transparent' }
-            }
-          >
-            {t.icon}
-            {t.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Toggle options — only shown for Surebet */}
-      {tab === 'surebet' && (
-        <div
-          className="rounded-2xl p-4"
-          style={{ background: 'var(--bg2)', border: '1px solid var(--b)' }}
-        >
-          <div className="flex flex-wrap items-center gap-5 md:gap-8">
-            <Toggle label="Comissões"  checked={togComissoes}  onChange={setTogComissoes}  />
-            <Toggle label="Aumento %"  checked={togAumento}    onChange={setTogAumento}    />
-            <Toggle label="Cashback"   checked={togCashback}   onChange={setTogCashback}   />
-            <Toggle label="Arredondar" checked={togArredondar} onChange={setTogArredondar} />
-          </div>
-        </div>
-      )}
-
-      {/* Tab content */}
-      {tab === 'surebet'  && <SurebetCalc selectedEvent={selectedEvent} />}
-      {tab === 'missao'   && <FreeBetTab />}
-      {tab === 'odd'      && <OddAumentadaTab />}
-      {tab === 'cashback' && <CashbackTab />}
-      {tab === 'odds'     && <BuscarOddsTab selectedEvent={selectedEvent} />}
+      {/* Calculator */}
+      <SurebetCalc selectedEvent={selectedEvent} />
     </div>
   );
 }

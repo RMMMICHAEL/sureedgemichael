@@ -79,9 +79,9 @@ const LABEL: React.CSSProperties = {
   display: 'block', marginBottom: 5,
 };
 
-// Grid template: Desfecho | PM | Odd/Preço | Stake | D | C | Lucro
-const COLS      = '90px 40px 1fr 1fr 36px 36px 100px';
-const COLS_MOB  = '70px 1fr 1fr 28px 28px 72px'; // mobile: no PM column
+// Grid template: Desfecho | PM | Odd/Preço | Stake | D | FB | C | Lucro
+const COLS      = '90px 40px 1fr 1fr 36px 36px 36px 100px';
+const COLS_MOB  = '70px 1fr 1fr 28px 28px 28px 72px'; // mobile: no PM column
 
 // ── Add-to-panel modal ────────────────────────────────────────────────────────
 
@@ -261,6 +261,7 @@ export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 
   const [fixedMode,   setFixedMode]   = useState<'sum' | 0 | 1 | 2>('sum');
   const [anchor,      setAnchor]      = useState('200');
   const [distribute,  setDistribute]  = useState([true, true, true]);
+  const [freebet,     setFreebet]     = useState([false, false, false]);
   const [roundEnabled, setRoundEnabled] = useState(false);
   const [roundToStr,  setRoundToStr]  = useState('5');
   const [showAdd,     setShowAdd]     = useState(false);
@@ -316,6 +317,65 @@ export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 
     const anchorVal = parseFloat(anchor.replace(',', '.')) || 0;
     const dist = distribute.slice(0, numOutcomes);
 
+    // ── Freebet SNR mode ───────────────────────────────────────────────────
+    // When any leg is marked freebet: stake is free (SNR — Stake Not Returned).
+    // Win: profit = stake × (odd − 1). Loss: no cost (stake was free).
+    const hasFB = freebet.slice(0, numOutcomes).some(Boolean);
+    if (hasFB) {
+      const anchorFBIdx = freebet.findIndex(Boolean);
+      const s0 = anchorVal; // value of the freebet
+      const od0 = effectiveOdds[anchorFBIdx] ?? 0;
+      const stakes: number[] = Array(numOutcomes).fill(0);
+
+      for (let i = 0; i < numOutcomes; i++) {
+        if (i === anchorFBIdx) {
+          stakes[i] = s0;
+        } else if (freebet[i]) {
+          // Other freebet legs: equalize with anchor freebet (SNR equal-profit)
+          const odi = effectiveOdds[i] ?? 0;
+          stakes[i] = (od0 > 1 && odi > 1) ? s0 * (od0 - 1) / (odi - 1) : 0;
+        } else {
+          // Normal hedge legs: stake derived from freebet SNR formula
+          const odi = effectiveOdds[i] ?? 0;
+          stakes[i] = (od0 > 1 && odi > 0) ? s0 * (od0 - 1) / odi : 0;
+        }
+      }
+
+      if (roundTo) {
+        for (let i = 0; i < numOutcomes; i++) {
+          if (i !== anchorFBIdx) stakes[i] = Math.round(stakes[i] / roundTo) * roundTo;
+        }
+      }
+
+      const profits: number[] = Array(numOutcomes).fill(0);
+      for (let outcome = 0; outcome < numOutcomes; outcome++) {
+        let p = 0;
+        for (let k = 0; k < numOutcomes; k++) {
+          if (k === outcome) {
+            // Winning leg: SNR for freebet (odd-1), normal (odd-1) — same net formula
+            p += stakes[k] * ((effectiveOdds[k] ?? 0) - 1);
+          } else if (!freebet[k]) {
+            // Losing normal leg: stake is lost
+            p -= stakes[k];
+          }
+          // Losing freebet leg: no loss (stake was free)
+        }
+        profits[outcome] = p;
+      }
+
+      const totalBet = stakes.reduce((s, v) => s + v, 0);
+      // ROI denominator = only real money at risk (non-freebet stakes)
+      const realMoney = stakes.reduce((s, v, i) => !freebet[i] ? s + v : s, 0);
+      const profitSeq = dist
+        .map((d, i) => (d ? profits[i] : undefined))
+        .filter((p): p is number => p !== undefined);
+      const minProfit = profitSeq.length > 0 ? Math.min(...profitSeq) : 0;
+      const base = realMoney > 0.001 ? realMoney : (totalBet > 0.001 ? totalBet : 1);
+      const profitPct = (minProfit / base) * 100;
+
+      return { stakes, profits, totalBet, profitPct, margin: 0, isSurebet: minProfit > 0.01 };
+    }
+
     // Break-even mode: D=false legs get stake = total/odd (0/0 if that outcome wins)
     // Only applies when fixedMode='sum' (total is the anchor)
     const hasBreakEven = fixedMode === 'sum' && dist.some(d => !d);
@@ -356,15 +416,17 @@ export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 
     const margin = profitLegIdxs.reduce((s, i) => s + 1 / (effectiveOdds[i] || 1), 0);
 
     return { stakes, profits, totalBet, profitPct, margin, isSurebet: minProfit > 1e-6 };
-  }, [effectiveOdds, numOutcomes, formulaOpt, anchor, fixedMode, distribute, roundEnabled, roundToStr]);
+  }, [effectiveOdds, numOutcomes, formulaOpt, anchor, fixedMode, distribute, freebet, roundEnabled, roundToStr]);
 
   // Theoretical % — computed from odds alone (anchor=100, no rounding); immune to stake edits
   const theoreticalPct = useMemo(() => {
+    const hasFB = freebet.slice(0, numOutcomes).some(Boolean);
+    if (hasFB) return result.profitPct; // freebet mode: SNR already accounted for
     const dist = distribute.slice(0, numOutcomes);
     const hasBreakEven = dist.some(d => !d);
     if (hasBreakEven) return result.profitPct;
     return calculate(effectiveOdds, formulaOpt.formula, 100, 'sum', dist, null).profitPct;
-  }, [effectiveOdds, numOutcomes, formulaOpt, distribute, result.profitPct]);
+  }, [effectiveOdds, numOutcomes, formulaOpt, distribute, freebet, result.profitPct]);
 
   // Polymarket per-row calculations
   const pmCalcs = useMemo(() => {
@@ -406,6 +468,27 @@ export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 
   function toggleDistribute(i: number) {
     setDistribute(prev => prev.map((d, idx) => idx === i ? !d : d));
   }
+
+  function toggleFreebet(i: number) {
+    setFreebet(prev => {
+      const next = prev.map((f, idx) => idx === i ? !f : f);
+      const turnedOn = !prev[i];
+      if (turnedOn) {
+        // Auto-fix this leg so the user can type the freebet value directly
+        const cur = result.stakes[i] ?? 0;
+        if (cur > 0) setAnchor(cur.toFixed(2));
+        setFixedMode(i as 0 | 1 | 2);
+      } else if (fixedMode === i) {
+        // Return to total-anchor mode
+        const tot = result.totalBet > 0 ? result.totalBet.toFixed(2) : anchor;
+        setAnchor(tot);
+        setFixedMode('sum');
+      }
+      return next;
+    });
+  }
+
+  const anyFB = freebet.slice(0, numOutcomes).some(Boolean);
 
   function toggleFixed(i: number | 'sum') {
     if (fixedMode === i) {
@@ -573,6 +656,7 @@ export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 
           <span>{anyPM ? 'Odd / Preço (¢)' : 'Odd'}</span>
           <span>Stake</span>
           <span style={{ textAlign: 'center' }}>D</span>
+          <span style={{ textAlign: 'center', color: anyFB ? '#A855F7' : undefined }}>FB</span>
           <span style={{ textAlign: 'center' }}>C</span>
           <span style={{ textAlign: 'right' }}>Lucro</span>
         </div>
@@ -580,6 +664,7 @@ export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 
         {/* Rows */}
         {formulaOpt.labels.slice(0, numOutcomes).map((label, i) => {
           const active  = distribute[i] ?? true;
+          const isFB    = freebet[i] ?? false;
           const isFixed = fixedMode === i;
           const isPM    = polymarket[i];
           const stake   = result.stakes[i] ?? 0;
@@ -600,7 +685,7 @@ export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 
                 gap: isMobile ? 4 : 8, padding: isMobile ? '8px 10px' : '10px 14px',
                 borderBottom: isPM && pm ? 'none' : '1px solid rgba(255,255,255,.04)',
                 alignItems: 'center',
-                background: !active ? 'rgba(255,191,0,.02)' : isPM ? 'rgba(77,166,255,.03)' : 'transparent',
+                background: isFB ? 'rgba(168,85,247,.025)' : !active ? 'rgba(255,191,0,.02)' : isPM ? 'rgba(77,166,255,.03)' : 'transparent',
               }}>
                 {/* Label */}
                 <span style={{
@@ -657,12 +742,14 @@ export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 
                 <input
                   style={{
                     ...INPUT,
-                    border: isFixed
-                      ? '1px solid rgba(255,191,0,.4)'
-                      : isPM
-                        ? '1px solid rgba(77,166,255,.25)'
-                        : '1px solid rgba(255,255,255,.1)',
-                    color: isFixed ? '#FFBF00' : '#E2E8F0',
+                    border: isFB
+                      ? '1px solid rgba(168,85,247,.4)'
+                      : isFixed
+                        ? '1px solid rgba(255,191,0,.4)'
+                        : isPM
+                          ? '1px solid rgba(77,166,255,.25)'
+                          : '1px solid rgba(255,255,255,.1)',
+                    color: isFB ? '#A855F7' : isFixed ? '#FFBF00' : '#E2E8F0',
                     cursor: 'text',
                   }}
                   inputMode="decimal"
@@ -685,6 +772,21 @@ export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 
                     fontSize: isMobile ? 10 : 12, fontWeight: 800,
                   }}>
                   {active ? '✓' : '0'}
+                </button>
+
+                {/* FB toggle (freebet SNR) */}
+                <button
+                  onClick={() => toggleFreebet(i)}
+                  title={isFB ? 'Desativar freebet — stake real' : 'Ativar Freebet SNR: stake não devolvida se ganhar, sem perda se perder'}
+                  style={{
+                    width: isMobile ? 24 : 28, height: isMobile ? 24 : 28, borderRadius: 6, cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    background: isFB ? 'rgba(168,85,247,.18)' : 'rgba(255,255,255,.04)',
+                    border: `1px solid ${isFB ? 'rgba(168,85,247,.5)' : 'rgba(255,255,255,.08)'}`,
+                    color: isFB ? '#A855F7' : '#4B5563',
+                    fontSize: 9, fontWeight: 900,
+                  }}>
+                  FB
                 </button>
 
                 {/* C toggle — only clicking C allows editing this stake */}
@@ -809,6 +911,9 @@ export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 
           {/* D — empty */}
           <span />
 
+          {/* FB — empty */}
+          <span />
+
           {/* C for "fix total" */}
           <button
             onClick={() => toggleFixed('sum')}
@@ -898,12 +1003,13 @@ export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 
       {/* ── Legend ───────────────────────────────────────────────────────── */}
       <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
         {[
-          { label: 'PM',  desc: 'ativa cálculo Polymarket (preço em centavos)' },
-          { label: 'D',   desc: 'As apostas onde o lucro será distribuído — desativar deixa a aposta em 0/0 (sem lucro se bater, sem perda)' },
-          { label: 'C',   desc: 'Congelar — clique para editar manualmente o valor desta stake; clique novamente para descongelar' },
-        ].map(({ label, desc }) => (
+          { label: 'PM',  color: '#4DA6FF', desc: 'ativa cálculo Polymarket (preço em centavos)' },
+          { label: 'D',   color: '#3DFF8F', desc: 'As apostas onde o lucro será distribuído — desativar deixa a aposta em 0/0 (sem lucro se bater, sem perda)' },
+          { label: 'FB',  color: '#A855F7', desc: 'Freebet SNR — stake não devolvida se ganhar, sem perda se perder. Digite o valor da freebet e o sistema calcula a proteção.' },
+          { label: 'C',   color: '#4DA6FF', desc: 'Congelar — clique para editar manualmente o valor desta stake; clique novamente para descongelar' },
+        ].map(({ label, color, desc }) => (
           <div key={label} style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-            <span style={{ fontSize: 11, fontWeight: 800, color: '#4DA6FF' }}>{label}</span>
+            <span style={{ fontSize: 11, fontWeight: 800, color }}>{label}</span>
             <span style={{ fontSize: 11, color: '#4B5563' }}>— {desc}</span>
           </div>
         ))}
