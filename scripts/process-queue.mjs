@@ -34,7 +34,7 @@ const BASE          = 'https://painel.supermonitor.pro';
 const UA            = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36';
 const CACHE_TTL_MS  = 15 * 60 * 1000; // 15 minutos
 const MAX_PER_CYCLE = 5;
-const POLL_INTERVAL = 4_000;           // 4 segundos
+const POLL_INTERVAL = 2_000;           // 2 segundos (só consulta Supabase — sem risco anti-ban)
 
 const sbUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL  ?? '').trim();
 const sbKey = (process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '').trim();
@@ -726,7 +726,7 @@ async function fetchSseToken(cookie) {
 
 // ── Daemon loop ───────────────────────────────────────────────────────────────
 console.log('SureEdge Queue Daemon v3 iniciado');
-console.log(`Verificando fila a cada ${POLL_INTERVAL / 1000}s | Ctrl+C para parar\n`);
+console.log(`Verificando fila a cada ${POLL_INTERVAL / 1000}s (anti-ban: 3-6s entre requests SM) | Ctrl+C para parar\n`);
 
 // Startup: busca SSE token imediatamente (antes de processar a fila)
 {
