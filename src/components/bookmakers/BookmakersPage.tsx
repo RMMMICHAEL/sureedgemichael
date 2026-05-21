@@ -17,96 +17,53 @@ import { normHouse } from '@/lib/finance/reconciler';
 
 // ── Balance calculation ───────────────────────────────────────────────────────
 //
-// MODEL: bm.balance is the ABSOLUTE balance the user typed at time balance_set_at.
-//        It already reflects all bets placed BEFORE that timestamp.
+// MODEL (simple and explicit):
+//   bm.balance  = absolute value the user typed at time balance_set_at.
+//                 This is the truth. The app NEVER auto-modifies it for pending bets.
 //
-// Two groups of legs for a given bookmaker:
-//   PRE-SET  (leg.bd ≤ balance_set_at): stake already reflected in bm.balance.
-//     - Pending   → 0 (stake was in the value the user typed)
-//     - Settled   → apply the settlement delta only if settled AFTER balance_set_at
-//                   (i.e. leg.updated_at > balance_set_at); otherwise already reflected.
-//   POST-SET (leg.bd > balance_set_at): new bet, stake NOT yet in bm.balance.
-//     - Apply the legacy formula: pending→-stake, green→+stake×odds, etc.
+//   Pending bets → IGNORED in balance display. The user sees the full balance
+//                  they typed regardless of how many bets are open.
 //
-// LEGACY MODE (balance_set_at is null): keep the original formula for all legs
-//   so existing users without a manual update see unchanged behaviour.
+//   Settled bets → apply net P&L (calcLegProfit) only for results RECORDED
+//                  after balance_set_at (older settlements are already in bm.balance).
+//
+//   pendingStakes  → shown as informational only ("X em apostas abertas"),
+//                    never subtracted from the displayed balance.
 
-function calcEffectiveBalance(bm: Bookmaker, legs: Leg[]): { effective: number; pendingExposure: number; settledDelta: number } {
-  const bmKey    = normHouse(bm.name).toLowerCase();
-  const setAtMs  = bm.balance_set_at ? new Date(bm.balance_set_at).getTime() : null;
+import { calcLegProfit } from '@/lib/finance/calculator';
 
-  let settledDelta  = 0;  // from legs settled after last manual update
-  let pendingDelta  = 0;  // from new pending bets (post-set)
-  let pendingStakes = 0;  // sum of post-set pending stakes (for display)
+function calcEffectiveBalance(bm: Bookmaker, legs: Leg[]): {
+  effective:       number;
+  settledDelta:    number;
+  pendingStakes:   number;  // informational only
+} {
+  const bmKey   = normHouse(bm.name).toLowerCase();
+  const setAtMs = bm.balance_set_at ? new Date(bm.balance_set_at).getTime() : null;
+
+  let settledDelta  = 0;
+  let pendingStakes = 0;
 
   for (const leg of legs) {
     if (normHouse(leg.ho).toLowerCase() !== bmKey) continue;
-    if (leg.source === 'import') continue; // imported legs never affect balance
+    if (leg.source === 'import') continue;
 
-    if (setAtMs === null) {
-      // ── Legacy mode: original formula ────────────────────────────────────
-      if (leg.re === 'Pendente') {
-        pendingDelta  -= leg.st;
-        pendingStakes += leg.st;
-      } else if (leg.re === 'Green' || leg.re === 'Green Antecipado') {
-        settledDelta += leg.st * leg.od;
-      } else if (leg.re === 'Meio Green' || leg.re === 'Cashout') {
-        settledDelta += leg.st + leg.pr;
-      } else if (leg.re === 'Red') {
-        settledDelta -= leg.st;
-      } else if (leg.re === 'Meio Red') {
-        settledDelta -= leg.st - leg.pr;
-      }
-      // Devolvido: delta = 0 (stake returned)
-    } else {
-      const betMs = new Date(leg.bd).getTime();
-      const isPreSet = betMs <= setAtMs; // was the bet placed ≤ last manual balance update?
-
-      if (isPreSet) {
-        // ── Pre-set leg: stake already in bm.balance ─────────────────────
-        if (leg.re === 'Pendente') {
-          // Still open — stake was already deducted by the platform when user typed the balance.
-          // No additional deduction.
-        } else {
-          // Settled — only count if the result was recorded AFTER the manual update
-          // (if before, the settlement is already reflected in bm.balance).
-          const updatedMs = leg.updated_at ? new Date(leg.updated_at).getTime() : 0;
-          if (updatedMs > setAtMs) {
-            // Bet was placed BEFORE the manual update (stake already deducted from balance),
-            // but settled AFTER → only the return/payout matters.
-            if (leg.re === 'Green' || leg.re === 'Green Antecipado') {
-              settledDelta += leg.st * leg.od; // full payout returned to account
-            } else if (leg.re === 'Meio Green' || leg.re === 'Cashout') {
-              settledDelta += leg.st + leg.pr; // partial payout
-            } else if (leg.re === 'Devolvido') {
-              settledDelta += leg.st; // stake fully returned
-            } else if (leg.re === 'Meio Red') {
-              settledDelta += leg.st + leg.pr; // partial stake returned (pr is negative)
-            }
-            // Red: nothing returned, stake was already gone when balance was set
-          }
-        }
-      } else {
-        // ── Post-set leg: new bet after manual update, stake NOT in bm.balance ─
-        if (leg.re === 'Pendente') {
-          pendingDelta  -= leg.st;
-          pendingStakes += leg.st;
-        } else if (leg.re === 'Green' || leg.re === 'Green Antecipado') {
-          settledDelta += leg.st * leg.od;
-        } else if (leg.re === 'Meio Green' || leg.re === 'Cashout') {
-          settledDelta += leg.st + leg.pr;
-        } else if (leg.re === 'Red') {
-          settledDelta -= leg.st;
-        } else if (leg.re === 'Meio Red') {
-          settledDelta -= leg.st - leg.pr;
-        }
-        // Devolvido: delta = 0
-      }
+    if (leg.re === 'Pendente') {
+      // Count stakes for the informational "em apostas" badge — never deduct from balance
+      pendingStakes += leg.st;
+      continue;
     }
+
+    // Settled leg — apply net P&L only if the result was registered AFTER the last
+    // manual balance update (otherwise it's already reflected in bm.balance).
+    if (setAtMs !== null) {
+      const updatedMs = leg.updated_at ? new Date(leg.updated_at).getTime() : 0;
+      if (updatedMs <= setAtMs) continue; // already in bm.balance
+    }
+
+    settledDelta += calcLegProfit(leg); // +profit on win, -stake on loss
   }
 
-  const effective = bm.balance + settledDelta + pendingDelta;
-  return { effective, pendingExposure: pendingStakes, settledDelta };
+  return { effective: bm.balance + settledDelta, settledDelta, pendingStakes };
 }
 
 // ── Clone groups data ─────────────────────────────────────────────────────────
@@ -998,9 +955,9 @@ export function BookmakersPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
               {bms.map(bm => {
                 const col = bm.color || bmColor(bm.name);
-                const { effective: effectiveBalance, pendingExposure, settledDelta } = calcEffectiveBalance(bm, legs);
+                const { effective: effectiveBalance, pendingStakes, settledDelta } = calcEffectiveBalance(bm, legs);
                 // Show breakdown only when balance_set_at is known AND there's something to show
-                const hasBreakdown = !!bm.balance_set_at && (settledDelta !== 0 || pendingExposure > 0);
+                const hasBreakdown = !!bm.balance_set_at && (settledDelta !== 0 || pendingStakes > 0);
                 return (
                   <div
                     key={bm.id}
@@ -1079,12 +1036,12 @@ export function BookmakersPage() {
                               </span>
                             </div>
                           )}
-                          {/* Pending exposure */}
-                          {pendingExposure > 0 && (
+                          {/* Pending stakes — informational only, not deducted from balance */}
+                          {pendingStakes > 0 && (
                             <div className="flex items-center justify-between text-[11px]">
-                              <span style={{ color: 'var(--t3)' }}>Em apostas pendentes</span>
+                              <span style={{ color: 'var(--t3)' }}>Em apostas abertas</span>
                               <span className="font-mono font-bold" style={{ color: 'var(--y)' }}>
-                                −R$ {pendingExposure.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                R$ {pendingStakes.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                               </span>
                             </div>
                           )}
