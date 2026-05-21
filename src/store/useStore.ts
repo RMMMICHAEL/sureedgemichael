@@ -145,15 +145,22 @@ function persist(db: AppDB): void {
 }
 
 // ── Garante save no Supabase ao fechar/recarregar a página ───────────────────
+// Usa dois eventos para máxima cobertura entre browsers:
+//   visibilitychange(hidden): funciona em Chrome/Edge ao mudar de aba ou minimizar
+//   pagehide: funciona em Safari e em fechar aba no Firefox
 if (typeof window !== 'undefined') {
+  async function emergencySave() {
+    const { getLastDb, saveToSupabase: sbSave } = require('@/lib/supabase/sync') as typeof import('@/lib/supabase/sync');
+    const db = getLastDb();
+    if (db) sbSave(db).catch(() => {});
+  }
+
   window.addEventListener('visibilitychange', () => {
-    // Dispara quando a aba entra em background (inclui reload e fechar)
-    if (document.visibilityState === 'hidden') {
-      const { getLastDb } = require('@/lib/supabase/sync') as typeof import('@/lib/supabase/sync');
-      const db = getLastDb();
-      if (db) saveToSupabase(db).catch(() => {});
-    }
+    if (document.visibilityState === 'hidden') emergencySave();
   });
+
+  // pagehide garante coverage no Safari (que ignora visibilitychange no unload)
+  window.addEventListener('pagehide', emergencySave);
 }
 
 // ── Store ────────────────────────────────────────────────────────────────────
@@ -237,20 +244,54 @@ export const useStore = create<StoreState>()((set, get) => ({
           return;
         }
 
-        // Merge seguro: nunca descarta legs que existem só localmente.
-        // Se o local tem legs que o Supabase não tem (adicionadas antes do sync),
-        // elas são preservadas na versão mesclada.
-        const remoteIds  = new Set(remoteDb.legs.map(l => l.id));
-        const localOnly  = localDb.legs.filter(l => !remoteIds.has(l.id));
-        const mergedLegs = localOnly.length > 0
-          ? [...remoteDb.legs, ...localOnly]
-          : remoteDb.legs;
+        // Merge seguro: combina legs locais e remotas usando "mais recente vence".
+        //
+        // Para cada leg que existe em AMBOS: compara updated_at e fica com a mais nova.
+        // Legs só-locais (salvas antes do sync chegar) são sempre preservadas.
+        // Legs só-remotas (criadas em outro dispositivo) também são preservadas.
+        const remoteById = new Map(remoteDb.legs.map(l => [l.id, l]));
+        const localById  = new Map(localDb.legs.map(l => [l.id, l]));
+
+        // Constrói o conjunto mesclado
+        const mergedById = new Map<string, typeof remoteDb.legs[0]>();
+
+        // 1. Começa com todas as remotas
+        for (const [id, remote] of remoteById) mergedById.set(id, remote);
+
+        // 2. Para cada local, decide se substitui a remota
+        for (const [id, local] of localById) {
+          const remote = remoteById.get(id);
+          if (!remote) {
+            // Só existe localmente → preserva (criada antes do sync)
+            mergedById.set(id, local);
+          } else {
+            // Existe em ambos → "mais recente vence" via updated_at
+            const localTs  = local.updated_at  ? new Date(local.updated_at).getTime()  : 0;
+            const remoteTs = remote.updated_at ? new Date(remote.updated_at).getTime() : 0;
+            if (localTs > remoteTs) {
+              // Local é mais nova (ex.: resultado registrado antes do Supabase salvar)
+              mergedById.set(id, local);
+            }
+            // remoteTs >= localTs: remota vence (já estava no map)
+          }
+        }
+
+        const mergedLegs = Array.from(mergedById.values());
+        const localOnly  = localDb.legs.filter(l => !remoteById.has(l.id));
+        // Legs onde local ganhou a disputa (resultado mais recente no localStorage)
+        const localWins  = localDb.legs.filter(l => {
+          const remote = remoteById.get(l.id);
+          if (!remote) return false;
+          const localTs  = l.updated_at  ? new Date(l.updated_at).getTime()  : 0;
+          const remoteTs = remote.updated_at ? new Date(remote.updated_at).getTime() : 0;
+          return localTs > remoteTs;
+        });
 
         const merged = { ...remoteDb, legs: mergedLegs };
 
-        // Se houve merge, salva a versão completa de volta no Supabase
-        if (localOnly.length > 0) {
-          console.log(`[sync] merge: +${localOnly.length} legs locais preservadas`);
+        // Salva de volta no Supabase se houver divergência (novas locais ou locais mais recentes)
+        if (localOnly.length > 0 || localWins.length > 0) {
+          console.log(`[sync] merge: +${localOnly.length} legs novas, ${localWins.length} legs atualizadas localmente → re-sincronizando Supabase`);
           saveToSupabase(merged);
         }
 
@@ -263,7 +304,8 @@ export const useStore = create<StoreState>()((set, get) => ({
   // ── legs ──────────────────────────────────────────────────────────────────
   addLeg(leg) {
     set(s => {
-      const legs = [...s.legs, { ...leg, pr: calcLegProfit(leg) }];
+      const now  = new Date().toISOString();
+      const legs = [...s.legs, { ...leg, pr: calcLegProfit(leg), updated_at: leg.updated_at ?? now }];
       const { bms, totalCash } = recalc({ ...s, legs });
       persist({ ...s, legs, bms });
       return { legs, bms, totalCash };
@@ -273,7 +315,8 @@ export const useStore = create<StoreState>()((set, get) => ({
   // Single state update for bulk inserts (avoids N re-renders)
   bulkAddLegs(newLegs) {
     set(s => {
-      const cooked = newLegs.map(l => ({ ...l, pr: calcLegProfit(l) }));
+      const now    = new Date().toISOString();
+      const cooked = newLegs.map(l => ({ ...l, pr: calcLegProfit(l), updated_at: l.updated_at ?? now }));
       const legs = [...s.legs, ...cooked];
       const { bms, totalCash } = recalc({ ...s, legs });
       persist({ ...s, legs, bms });
@@ -294,9 +337,10 @@ export const useStore = create<StoreState>()((set, get) => ({
 
   updateLeg(id, patch) {
     set(s => {
+      const now  = new Date().toISOString();
       const legs = s.legs.map(l => {
         if (l.id !== id) return l;
-        const updated = { ...l, ...patch };
+        const updated = { ...l, ...patch, updated_at: now };
         updated.pr = calcLegProfit(updated);
         return updated;
       });

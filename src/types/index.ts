@@ -49,6 +49,8 @@ export interface Leg {
    * 'manual' ou undefined = operação registrada manualmente → afeta saldo.
    */
   source?: 'manual' | 'import';
+  /** ISO timestamp da última modificação — usado no merge local↔Supabase ("mais recente vence") */
+  updated_at?: string;
 }
 
 // ── Operation (one or more legs grouped together) ───────
