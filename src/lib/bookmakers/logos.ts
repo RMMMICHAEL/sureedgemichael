@@ -162,6 +162,37 @@ const DOMAINS: Record<string, string> = {
   'betonline':    'betonline.ag',
   'betesporte':   'betesporte.com',
   'brbet':        'brbet.com',
+
+  // ── SuperMonitor houses (nomes exatos retornados pela API) ───────────────────
+  'aposta':           'aposta.bet.br',   // nome correto: "Aposta" (não "aposta.bet.br")
+  'aposta.bet.br':    'aposta.bet.br',   // alias para quem cadastrou com a URL
+  'alfabet':          'alfabet.bet.br',
+  'apostabet':        'apostabet.bet.br',
+  'betfairsb':        'betfair.com',     // SuperMonitor: "BetfairSB"
+  'betfairex':        'betfair.com',     // SuperMonitor: "BetfairEx"
+  'esportesdasorte':  'esportedasorte.com.br', // SM usa "esportesdasorte" (com s)
+  'esportiva':        'esportiva.bet.br',       // alias: SM usa "Esportiva" (sem "bet")
+  'sporty':           'sporty.bet.br',          // alias: SM usa "Sporty" (sem "bet")
+  'tradeball':        'tradeball.bet.br',
+  'versusbet':        'versusbet.bet.br',
+  'vivasorte':        'vivasorte.bet.br',
+
+  // ── Variantes SO (Sem Odds) — mesmo domínio da casa base ────────────────────
+  'betmgmso':         'betmgm.bet.br',
+  'betanoso':         'betano.com',
+  'estrelabetso':     'estrelabet.bet.br',
+  'stakeso':          'stake.bet.br',
+  'novibetso':        'novibet.com',
+  'br4betso':         'br4.bet.br',
+  'esportivaso':      'esportiva.bet.br',
+  'betssonso':        'betsson.com',
+  'versusbetso':      'versusbet.bet.br',
+  'mcgamesso':        'mcgames.bet.br',
+  'jogodeouroSO':     'jogodeouro.bet.br',
+  'jogodeouroso':     'jogodeouro.bet.br',
+  'pixbetso':         'pixbet.com.br',
+  'bet365so':         'bet365.com',
+  'ktoso':            'kto.bet.br',
 };
 
 /**

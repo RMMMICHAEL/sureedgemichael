@@ -12,7 +12,7 @@ import type { Leg } from '@/types';
 // ── Casas disponíveis (step 1) ────────────────────────────────────────────────
 
 const BOOKMAKERS = [
-  '7games','Alfabet','Apostaganha','Bet365','Bet7k','Betano','Betao',
+  '7games','Alfabet','Aposta','Apostaganha','Bet365','Bet7k','Betano','Betao',
   'Betesporte','BetfairSB','Betnacional','Betsson','Br4bet','Esportiva',
   'Estrelabet','Jogodeouro','KTO','MCgames','Novibet','Pixbet','Sortenabet',
   'Sportingbet','Sporty','Superbet','Versusbet','Vivasorte',
@@ -69,10 +69,10 @@ const KNOWN_LEAGUES    = new Set(ALL_LEAGUES_FLAT.filter(l => l !== '__RESTO_MUN
 // ── Dados para filtros de casa ────────────────────────────────────────────────
 
 const HOUSES_DEFAULT = [
-  'Alfabet','Betbra','BetfairSB','Tradeball','Betnacional','Betmgm','Betesporte',
-  'Esportesdasorte','Sporty','KTO','Vaidebet','Betano','Novibet','Betsson',
-  'Bet365','Betsul','Vivasorte','Pixbet','Sportingbet','Superbet','Apostabet',
-  'Br4bet','Esportiva','Sortenabet','Estrelabet','Bet7k','Jogodeouro',
+  'Alfabet','Aposta','Apostabet','Betbra','BetfairSB','Tradeball','Betnacional',
+  'Betmgm','Betesporte','Esportesdasorte','Sporty','KTO','Vaidebet','Betano',
+  'Novibet','Betsson','Bet365','Betsul','Vivasorte','Pixbet','Sportingbet',
+  'Superbet','Br4bet','Esportiva','Sortenabet','Estrelabet','Bet7k','Jogodeouro',
   'Versusbet','Apostaganha','7games','Betao','MCgames',
 ];
 

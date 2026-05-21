@@ -35,6 +35,11 @@ export const HOUSE_MAP: Record<string, string> = {
   BATEUBET:        'Bateubet',
   betnacional:     'Betnacional',
   pixbet:          'Pixbet',
+
+  // Casas importadas/cadastradas com nome de domínio em vez do nome limpo
+  'aposta.bet.br': 'Aposta',
+  'Aposta.bet.br': 'Aposta',
+  aposta:          'Aposta',
 };
 
 // Case-insensitive fallback: e.g. "Betano" → "Betano", "BETANO" → "Betano"

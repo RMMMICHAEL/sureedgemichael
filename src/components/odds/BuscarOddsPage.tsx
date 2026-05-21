@@ -100,9 +100,9 @@ type LiveChanges = Map<string, OddChange>; // key = `${house}:${colKey}`
 const PA_SET = new Set([
   'betano','novibet','betvip','betsul','betesporte','brasilbet','betsson','bet365',
   'bet365arg','bet365pe','lotogreen','kto','vivasorte','sportingbet','superbet',
-  'apostabet','br4bet','esportesdasorte','esportiva','esportivabet','sortenabet',
-  'betmgm','estrelabet','bet7k','jogodeouro','mcgames','meridianbet','meridian',
-  'versusbet','vupi','vupibet','vaidebet',
+  'apostabet','aposta','alfabet','br4bet','esportesdasorte','esportiva','esportivabet',
+  'sortenabet','betmgm','estrelabet','bet7k','jogodeouro','mcgames','meridianbet',
+  'meridian','versusbet','vupi','vupibet','vaidebet','tradeball','sporty','sportybet',
 ]);
 
 function isPa(house: string): boolean {
