@@ -328,6 +328,7 @@ const CATALOG: { name: string; color: string; domain: string }[] = [
   { name: 'Bolsadeaposta',color: '#854D0E', domain: 'bolsadeaposta.bet.br' },
   { name: 'Fullbet',      color: '#166534', domain: 'fulltbet.bet.br' },
   { name: 'Bet-Bra',      color: '#DC2626', domain: 'betbra.bet.br' },
+  { name: 'Betbra',       color: '#DC2626', domain: 'betbra.bet.br' },
   /* ── SuperMonitor / Outros ── */
   { name: 'Aposta',       color: '#0EA5E9', domain: 'aposta.bet.br' },
   { name: 'Alfabet',      color: '#7C3AED', domain: 'alfabet.bet.br' },
