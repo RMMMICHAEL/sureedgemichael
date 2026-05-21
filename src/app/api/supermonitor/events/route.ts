@@ -29,28 +29,55 @@ interface CachedEvent {
 
 export async function POST(req: NextRequest) {
   let date = '';
+  let all  = false;
   try {
-    const body = await req.json() as { date?: string };
+    const body = await req.json() as { date?: string; all?: boolean };
     date = body.date ?? '';
+    all  = body.all  ?? false;
   } catch (_e) { /* vazio */ }
-
-  // Usa data local se não recebeu nada (fallback: UTC — mas frontend deve sempre enviar local)
-  const targetDate = date || (() => {
-    const n = new Date(); const p = (x: number) => String(x).padStart(2, '0');
-    return `${n.getFullYear()}-${p(n.getMonth()+1)}-${p(n.getDate())}`;
-  })();
-
-  // Converte a data local (Brasil UTC-3) para janela UTC:
-  //   meia-noite BRT = 03:00 UTC do mesmo dia
-  //   meia-noite BRT seguinte = 03:00 UTC do dia seguinte
-  // Usa start_utc em vez de event_date para evitar mismatch de fuso
-  const dayStartUtc = `${targetDate}T03:00:00.000Z`;
-  const dayEndDate  = new Date(dayStartUtc);
-  dayEndDate.setUTCDate(dayEndDate.getUTCDate() + 1);
-  const dayEndUtc = dayEndDate.toISOString();
 
   try {
     const sb = await getSupabaseAdmin();
+
+    // ── Modo "all": retorna todos os eventos futuros do cache (sem filtro de data)
+    if (all) {
+      // Começa da meia-noite BRT de hoje (03:00 UTC) para não incluir jogos passados
+      const n = new Date(); const p = (x: number) => String(x).padStart(2, '0');
+      const todayLocal = `${n.getFullYear()}-${p(n.getMonth()+1)}-${p(n.getDate())}`;
+      const fromUtc = `${todayLocal}T03:00:00.000Z`;
+
+      const { data, error } = await sb
+        .from('sm_events')
+        .select('id, name, sport, league, start_utc, house_count')
+        .gte('start_utc', fromUtc)
+        .order('start_utc', { ascending: true });
+
+      if (error) {
+        console.error('[events/all] Supabase error:', error.message);
+        return NextResponse.json({ ok: false, error: 'cache/supabase-error' });
+      }
+
+      const events = (data ?? []) as CachedEvent[];
+      if (!events.length) {
+        return NextResponse.json({ ok: false, error: 'cache/empty' });
+      }
+      return NextResponse.json({ ok: true, events, source: 'supabase-cache-all' });
+    }
+
+    // ── Modo padrão: filtro por dia específico
+    // Usa data local se não recebeu nada (fallback: UTC — mas frontend deve sempre enviar local)
+    const targetDate = date || (() => {
+      const n = new Date(); const p = (x: number) => String(x).padStart(2, '0');
+      return `${n.getFullYear()}-${p(n.getMonth()+1)}-${p(n.getDate())}`;
+    })();
+
+    // Converte a data local (Brasil UTC-3) para janela UTC:
+    //   meia-noite BRT = 03:00 UTC do mesmo dia
+    //   meia-noite BRT seguinte = 03:00 UTC do dia seguinte
+    const dayStartUtc = `${targetDate}T03:00:00.000Z`;
+    const dayEndDate  = new Date(dayStartUtc);
+    dayEndDate.setUTCDate(dayEndDate.getUTCDate() + 1);
+    const dayEndUtc = dayEndDate.toISOString();
 
     // Tenta primeiro por start_utc range (mais confiável)
     let { data, error } = await sb

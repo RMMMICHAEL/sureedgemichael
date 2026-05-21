@@ -1262,13 +1262,15 @@ function EventCard({ ev, onSelect }: { ev: CachedEvent; onSelect: (ev: CachedEve
 }
 
 function TodayGamesGrid({
-  events, loading, error, onSelect, onRetry,
+  events, loading, error, onSelect, onRetry, dateTime, onDateChange,
 }: {
-  events:   CachedEvent[];
-  loading:  boolean;
-  error:    string;
-  onSelect: (ev: CachedEvent) => void;
-  onRetry:  () => void;
+  events:       CachedEvent[];
+  loading:      boolean;
+  error:        string;
+  onSelect:     (ev: CachedEvent) => void;
+  onRetry:      () => void;
+  dateTime:     string;
+  onDateChange: (date: string) => void;
 }) {
   // Sort events by start time
   const sorted = useMemo(() =>
@@ -1337,21 +1339,29 @@ function TodayGamesGrid({
     );
   }
 
-  if (!sorted.length) return null;
+  if (!sorted.length && !loading && !error) return null;
 
-  const todayStr = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
+  // Etiqueta dinâmica baseada na data selecionada
+  const selectedDateObj = dateTime ? new Date(dateTime + (dateTime.length === 10 ? 'T12:00:00' : '')) : new Date();
+  const todayMidnight   = new Date(); todayMidnight.setHours(0, 0, 0, 0);
+  const selMidnight     = new Date(selectedDateObj); selMidnight.setHours(0, 0, 0, 0);
+  const diffDays        = Math.round((selMidnight.getTime() - todayMidnight.getTime()) / 86_400_000);
+  const dayLabel        = diffDays === 0 ? 'Hoje' : diffDays === 1 ? 'Amanhã' : diffDays === -1 ? 'Ontem'
+    : selectedDateObj.toLocaleDateString('pt-BR', { weekday: 'short', day: 'numeric', month: 'short' });
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
 
       {/* Section header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
         <span style={{ fontSize: 16 }}>🗓</span>
         <span style={{ fontSize: 14, fontWeight: 900, color: 'oklch(0.92 0.005 250)', letterSpacing: '-.2px' }}>
-          Jogos de Hoje
-          <span style={{ fontSize: 12, fontWeight: 700, color: 'rgba(255,255,255,.4)', marginLeft: 6 }}>
-            ({sorted.length} jogos)
-          </span>
+          Jogos — {dayLabel}
+          {sorted.length > 0 && (
+            <span style={{ fontSize: 12, fontWeight: 700, color: 'rgba(255,255,255,.4)', marginLeft: 6 }}>
+              ({sorted.length} jogos)
+            </span>
+          )}
         </span>
         {liveCount > 0 && (
           <span style={{
@@ -1364,9 +1374,18 @@ function TodayGamesGrid({
             {liveCount} AO VIVO
           </span>
         )}
-        <span style={{ fontSize: 10, color: 'rgba(255,255,255,.25)', marginLeft: 'auto', textTransform: 'capitalize' }}>
-          {todayStr}
-        </span>
+        {/* Date picker — fica à direita do header */}
+        <input
+          type="date"
+          value={dateTime.slice(0, 10)}
+          onChange={e => onDateChange(e.target.value)}
+          style={{
+            marginLeft: 'auto', height: 32,
+            background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.1)',
+            borderRadius: 8, padding: '0 10px', fontSize: 11.5, color: 'rgba(255,255,255,.6)',
+            outline: 'none', colorScheme: 'dark', flexShrink: 0,
+          }}
+        />
       </div>
 
       {/* Event grid */}
@@ -1392,6 +1411,7 @@ export function BuscarOddsPage() {
   const [evLoading,   setEvLoading]   = useState(false);
   const [evErr,       setEvErr]       = useState('');
   const [fetchedDate, setFetchedDate] = useState('');
+  const [searchEvents,    setSearchEvents]    = useState<CachedEvent[]>([]);
   const [dropOpen,    setDropOpen]    = useState(false);
   const [searchType,  setSearchType]  = useState<'all' | 'event' | 'league'>('all');
   const [dateTime,    setDateTime]    = useState(() => {
@@ -1426,16 +1446,29 @@ export function BuscarOddsPage() {
   // ── Normalize ────────────────────────────────────────────────────────────────
   const normalize = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 
-  // ── Filtered suggestions ─────────────────────────────────────────────────────
+  // ── Filtered suggestions (usa todos os eventos futuros, não só hoje) ─────────
   const suggestions = useMemo(() => {
-    if (!query.trim()) return events.slice(0, 10);
+    const pool = searchEvents.length > 0 ? searchEvents : events;
+    if (!query.trim()) return pool.slice(0, 10);
     const q = normalize(query);
-    return events.filter(ev => {
+    return pool.filter(ev => {
       if (searchType === 'event')  return normalize(ev.name).includes(q);
       if (searchType === 'league') return normalize(ev.league ?? '').includes(q);
       return normalize(ev.name).includes(q) || normalize(ev.league ?? '').includes(q);
     }).slice(0, 12);
-  }, [events, query, searchType]);
+  }, [searchEvents, events, query, searchType]);
+
+  // ── Load ALL future events (sem filtro de data) — usado na busca ────────────
+  const loadSearchEvents = useCallback(async () => {
+    try {
+      const res  = await fetch('/api/supermonitor/events', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ all: true }),
+      });
+      const json = await res.json() as { ok: boolean; events?: CachedEvent[] };
+      if (json.ok) setSearchEvents(json.events ?? []);
+    } catch { /* silent — search fallback to today's events */ }
+  }, []);
 
   // ── Load events ──────────────────────────────────────────────────────────────
   const loadEvents = useCallback(async (date?: string) => {
@@ -1463,7 +1496,7 @@ export function BuscarOddsPage() {
     }
   }, []);
 
-  useEffect(() => { loadEvents(); }, [loadEvents]);
+  useEffect(() => { loadEvents(); loadSearchEvents(); }, [loadEvents, loadSearchEvents]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -1726,11 +1759,6 @@ export function BuscarOddsPage() {
   }
 
   // ── Derived data ─────────────────────────────────────────────────────────────
-  const today = (() => {
-    const n = new Date(); const p = (x: number) => String(x).padStart(2, '0');
-    return `${n.getFullYear()}-${p(n.getMonth()+1)}-${p(n.getDate())}`;
-  })();
-  const isOlderData = fetchedDate && fetchedDate !== today;
   const bests       = useMemo(() => parsed ? getBests(parsed.rows.filter(r => !disabledHouses.has(r.house))) : {} as Record<ColKey, number | undefined>, [parsed, disabledHouses]);
   const bestsPa     = useMemo(() => parsed ? getBests(parsed.rows.filter(r =>  r.pa && !disabledHouses.has(r.house))) : {} as Record<ColKey, number | undefined>, [parsed, disabledHouses]);
   const bestsNonPa  = useMemo(() => parsed ? getBests(parsed.rows.filter(r => !r.pa && !disabledHouses.has(r.house))) : {} as Record<ColKey, number | undefined>, [parsed, disabledHouses]);
@@ -1786,14 +1814,10 @@ export function BuscarOddsPage() {
           </p>
           <div className="flex items-center gap-2">
             {evLoading && <span className="text-[10px]" style={{ color: 'var(--t3)' }}>Carregando...</span>}
-            {!evLoading && !evErr && events.length > 0 && (
+            {!evLoading && !evErr && (searchEvents.length > 0 || events.length > 0) && (
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-md"
-                style={{
-                  background: isOlderData ? 'rgba(255,159,10,.12)' : 'rgba(63,255,33,.1)',
-                  color: isOlderData ? '#FF9F0A' : '#3fff21',
-                  border: `1px solid ${isOlderData ? 'rgba(255,159,10,.25)' : 'rgba(63,255,33,.2)'}`,
-                }}>
-                {events.length} eventos{isOlderData ? ` · ${fetchedDate}` : ' · hoje'}
+                style={{ background: 'rgba(63,255,33,.1)', color: '#3fff21', border: '1px solid rgba(63,255,33,.2)' }}>
+                {(searchEvents.length > 0 ? searchEvents.length : events.length)} eventos disponíveis
               </span>
             )}
             {!evLoading && evErr && (
@@ -1896,24 +1920,6 @@ export function BuscarOddsPage() {
             <option value="league">Campeonato</option>
           </select>
 
-          {/* Date picker */}
-          <input
-            type="datetime-local"
-            value={dateTime}
-            onChange={e => {
-              setDateTime(e.target.value);
-              const datePart = e.target.value.slice(0, 10);
-              if (datePart && datePart !== fetchedDate) loadEvents(datePart);
-            }}
-            style={{
-              height: 40, background: 'rgba(255,255,255,.04)',
-              border: '1px solid var(--b)', borderRadius: 10,
-              padding: '0 12px', fontSize: 12, color: 'var(--t)',
-              outline: 'none', colorScheme: 'dark', flexShrink: 0,
-              minWidth: 190,
-            }}
-          />
-
           {/* Casas de Aposta drawer button */}
           {parsed && (
             <button
@@ -2006,6 +2012,11 @@ export function BuscarOddsPage() {
           error={evErr}
           onSelect={handleSelect}
           onRetry={loadEvents}
+          dateTime={dateTime}
+          onDateChange={(date) => {
+            setDateTime(date);
+            if (date && date !== fetchedDate) loadEvents(date);
+          }}
         />
       )}
 
