@@ -14,6 +14,7 @@ const DOMAINS: Record<string, string> = {
   'pinnacle.com': 'pinnacle.com',
   'betfair ex':   'betfair.com',
   'betfair sb':   'betfair.com',
+  'betfair':      'betfair.com',      // alias: CATALOG usa "Betfair"
   'superbet':     'superbet.com',
   'betsson':      'betsson.com',
   'rivalo':       'rivalo.bet.br',
@@ -30,6 +31,7 @@ const DOMAINS: Record<string, string> = {
   'bolsadeaposta':'bolsadeaposta.bet.br',
   'betbra':       'betbra.bet.br',
   'fulltbet':     'fulltbet.bet.br',
+  'fullbet':      'fulltbet.bet.br',  // alias: CATALOG usa "Fullbet"
 
   // Estrelabet group
   'estrelabet':   'estrelabet.bet.br',
@@ -38,6 +40,7 @@ const DOMAINS: Record<string, string> = {
   'mcgames':      'mcgames.bet.br',
   'mc.games':     'mcgames.bet.br',
   'multibet':     'multi.bet.br',
+  'multbet':      'multi.bet.br',     // alias: CATALOG usa "Multbet"
   'aposta1':      'aposta1.bet.br',
   'bateubet':     'bateu.bet.br',
   'esportivabet': 'esportiva.bet.br',
@@ -101,6 +104,7 @@ const DOMAINS: Record<string, string> = {
   'luckbet':      'luck.bet.br',
   '1praum':       '1pra1.bet.br',
   'startbet':     'start.bet.br',
+  'starbet':      'start.bet.br',     // alias: CATALOG usa "Starbet"
   'realsbet':     'reals.bet.br',
   'bigbet':       'big.bet.br',
   'apostar':      'apostar.bet.br',
@@ -140,6 +144,7 @@ const DOMAINS: Record<string, string> = {
   'mystake':      'mystake.com',
   'wjcasino':     'wjcasino.com',
   'meridian':     'meridianbet.com',
+  'meridianbet':  'meridianbet.com',  // alias: CATALOG usa "Meridianbet"
   'netbet':       'netbet.com.br',
   'outrabet':     'outrabet.com',
   'playbet':      'playbet.com.br',
