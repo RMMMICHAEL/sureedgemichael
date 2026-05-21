@@ -7,16 +7,22 @@ import { parseSheetUrl, syncFromSheet } from '@/lib/import/sheetsSync';
 import { commitRows } from '@/lib/import/importEngine';
 
 const VIEW_META: Record<string, { label: string; desc: string }> = {
-  dash:    { label: 'Dashboard',       desc: 'Visão geral do portfólio' },
-  ops:     { label: 'Operações',       desc: 'Gestão de apostas' },
-  bm:      { label: 'Casas de Aposta', desc: 'Saldos e status' },
-  caixa:   { label: 'Caixa',          desc: 'Contas bancárias' },
-  gastos:  { label: 'Gastos',         desc: 'Despesas e custos' },
-  contas:  { label: 'Contas',         desc: 'Contas parceiras' },
-  analise: { label: 'Análise',        desc: 'Estatísticas avançadas' },
-  notas:   { label: 'Notas',          desc: 'Anotações e registros' },
-  admin:   { label: 'Admin',          desc: 'Configurações do sistema' },
-  perfil:  { label: 'Perfil',         desc: 'Sua conta' },
+  dash:       { label: 'Dashboard',          desc: 'Visão geral do portfólio' },
+  ops:        { label: 'Operações',          desc: 'Gestão de apostas' },
+  bm:         { label: 'Casas de Aposta',    desc: 'Saldos e status' },
+  caixa:      { label: 'Caixa',             desc: 'Contas bancárias' },
+  gastos:     { label: 'Gastos',            desc: 'Despesas e custos' },
+  contas:     { label: 'Contas',            desc: 'Contas parceiras' },
+  analise:    { label: 'Análise',           desc: 'Estatísticas avançadas' },
+  notas:      { label: 'Notas',             desc: 'Anotações e lembretes' },
+  odds:       { label: 'Buscar Odds',        desc: 'Oportunidades em tempo real' },
+  freebet:    { label: 'Converter Free Bet', desc: 'Converta créditos em lucro real' },
+  operadores: { label: 'Operadores',         desc: 'Equipe e gestão de bancas' },
+  calc:       { label: 'Calculadora',        desc: 'Cálculo de surebet' },
+  resumo:     { label: 'Resumo',            desc: 'Relatório consolidado' },
+  metas:      { label: 'Metas',             desc: 'Objetivos e progresso' },
+  admin:      { label: 'Admin',             desc: 'Configurações do sistema' },
+  perfil:     { label: 'Perfil',            desc: 'Sua conta' },
 };
 
 interface TopbarProps {

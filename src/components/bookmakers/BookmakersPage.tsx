@@ -17,53 +17,30 @@ import { normHouse } from '@/lib/finance/reconciler';
 
 // ── Balance calculation ───────────────────────────────────────────────────────
 //
-// MODEL (simple and explicit):
-//   bm.balance  = absolute value the user typed at time balance_set_at.
-//                 This is the truth. The app NEVER auto-modifies it for pending bets.
+// MODEL (auto-deduction):
+//   bm.balance  = the true available balance. The store auto-deducts the stake
+//                 when a pending manual bet is registered, and auto-applies the
+//                 P&L (stake + profit) when the result is settled. So bm.balance
+//                 is always up-to-date and needs no further adjustment here.
 //
-//   Pending bets → IGNORED in balance display. The user sees the full balance
-//                  they typed regardless of how many bets are open.
+//   pendingStakes → stakes currently in-play (already deducted from bm.balance),
+//                   shown as informational only so the user knows what is locked.
 //
-//   Settled bets → apply net P&L (calcLegProfit) only for results RECORDED
-//                  after balance_set_at (older settlements are already in bm.balance).
-//
-//   pendingStakes  → shown as informational only ("X em apostas abertas"),
-//                    never subtracted from the displayed balance.
-
-import { calcLegProfit } from '@/lib/finance/calculator';
+//   Balance lock  → the balance input in the edit form is disabled while the
+//                   bookmaker has unresolved pending manual bets.
 
 function calcEffectiveBalance(bm: Bookmaker, legs: Leg[]): {
-  effective:       number;
-  settledDelta:    number;
-  pendingStakes:   number;  // informational only
+  effective:     number;
+  pendingStakes: number;  // informational — already deducted from bm.balance
 } {
-  const bmKey   = normHouse(bm.name).toLowerCase();
-  const setAtMs = bm.balance_set_at ? new Date(bm.balance_set_at).getTime() : null;
-
-  let settledDelta  = 0;
+  const bmKey = normHouse(bm.name).toLowerCase();
   let pendingStakes = 0;
-
   for (const leg of legs) {
     if (normHouse(leg.ho).toLowerCase() !== bmKey) continue;
     if (leg.source === 'import') continue;
-
-    if (leg.re === 'Pendente') {
-      // Count stakes for the informational "em apostas" badge — never deduct from balance
-      pendingStakes += leg.st;
-      continue;
-    }
-
-    // Settled leg — apply net P&L only if the result was registered AFTER the last
-    // manual balance update (otherwise it's already reflected in bm.balance).
-    if (setAtMs !== null) {
-      const updatedMs = leg.updated_at ? new Date(leg.updated_at).getTime() : 0;
-      if (updatedMs <= setAtMs) continue; // already in bm.balance
-    }
-
-    settledDelta += calcLegProfit(leg); // +profit on win, -stake on loss
+    if (leg.re === 'Pendente') pendingStakes += leg.st;
   }
-
-  return { effective: bm.balance + settledDelta, settledDelta, pendingStakes };
+  return { effective: bm.balance, pendingStakes };
 }
 
 // ── Clone groups data ─────────────────────────────────────────────────────────
@@ -453,6 +430,15 @@ function BMForm({ existing, presetName, presetColor, onClose }: BMFormProps) {
   const addBookmaker    = useStore(s => s.addBookmaker);
   const updateBookmaker = useStore(s => s.updateBookmaker);
   const toastFn         = useStore(s => s.toast);
+  const allLegs         = useStore(s => s.legs);
+
+  // Balance lock: while this bookmaker has pending manual bets, the balance
+  // field is read-only. The user must settle all bets first.
+  const balanceLocked = !!existing && allLegs.some(
+    l => l.re === 'Pendente' &&
+         l.source !== 'import' &&
+         normHouse(l.ho).toLowerCase() === normHouse(existing.name).toLowerCase()
+  );
 
   const [name,    setName]    = useState(existing?.name    ?? presetName  ?? '');
   const [color,   setColor]   = useState(existing?.color   ?? presetColor ?? '#374151');
@@ -471,8 +457,9 @@ function BMForm({ existing, presetName, presetColor, onClose }: BMFormProps) {
     const credentials: BookmakerCredentials | undefined =
       username.trim() ? { username: username.trim(), password, notes: credNotes } : undefined;
     if (existing) {
-      // balance is stored directly — no auto-calculation from legs
-      updateBookmaker(existing.id, { name: name.trim(), color, balance: newBalance, initial_balance: newBalance, notes, status, credentials });
+      // When locked, preserve the current balance — don't allow changes via form submission
+      const safeBalance = balanceLocked ? existing.balance : newBalance;
+      updateBookmaker(existing.id, { name: name.trim(), color, balance: safeBalance, initial_balance: safeBalance, notes, status, credentials });
       toastFn('Casa atualizada', 'ok');
     } else {
       addBookmaker({ name: name.trim(), abbr: abbr(name), color, initial_balance: newBalance, status, notes, credentials });
@@ -503,11 +490,23 @@ function BMForm({ existing, presetName, presetColor, onClose }: BMFormProps) {
 
         <label className="flex flex-col gap-1.5">
           <span className="text-xs font-bold" style={labelStyle}>SALDO ATUAL (R$)</span>
-          <input value={balance} onChange={e => setBalance(e.target.value)} placeholder="0,00"
-            className="px-3 py-2.5 rounded-lg text-sm font-mono" style={inputStyle} />
+          <input
+            value={balance}
+            onChange={e => !balanceLocked && setBalance(e.target.value)}
+            placeholder="0,00"
+            readOnly={balanceLocked}
+            className="px-3 py-2.5 rounded-lg text-sm font-mono"
+            style={{ ...inputStyle, ...(balanceLocked ? { opacity: 0.5, cursor: 'not-allowed' } : {}) }}
+          />
+          {balanceLocked ? (
+            <span className="text-xs font-medium" style={{ color: 'var(--y)' }}>
+              ⚠ Há apostas pendentes nesta casa. Registre o resultado antes de alterar o saldo.
+            </span>
+          ) : (
           <span className="text-xs" style={labelStyle}>
-            Saldo real que você tem na casa agora. Atualize manualmente quando necessário — não é alterado automaticamente por apostas.
+            Saldo disponível na casa. Apostas pendentes são descontadas automaticamente.
           </span>
+          )}
         </label>
 
         <label className="flex flex-col gap-1.5">
@@ -975,9 +974,9 @@ export function BookmakersPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
               {bms.map(bm => {
                 const col = bm.color || bmColor(bm.name);
-                const { effective: effectiveBalance, pendingStakes, settledDelta } = calcEffectiveBalance(bm, legs);
-                // Show breakdown only when balance_set_at is known AND there's something to show
-                const hasBreakdown = !!bm.balance_set_at && (settledDelta !== 0 || pendingStakes > 0);
+                const { effective: effectiveBalance, pendingStakes } = calcEffectiveBalance(bm, legs);
+                // Show breakdown when there are pending stakes in-play
+                const hasBreakdown = pendingStakes > 0;
                 return (
                   <div
                     key={bm.id}
@@ -1025,46 +1024,25 @@ export function BookmakersPage() {
                       </div>
                     </div>
 
-                    {/* Balance breakdown */}
+                    {/* Balance display */}
                     <div className="flex flex-col gap-1.5">
-                      {/* Effective / estimated balance */}
                       <div className="rounded-xl p-3" style={{ background: 'var(--bg3, var(--bg))' }}>
                         <div className="text-[10px] font-bold uppercase tracking-wide mb-0.5" style={{ color: 'var(--t3)' }}>
-                          {hasBreakdown ? 'Saldo Estimado' : 'Saldo Atual'}
+                          Saldo Disponível
                         </div>
                         <div className="text-base font-extrabold font-mono" style={{ color: effectiveBalance >= 0 ? 'var(--g)' : 'var(--r)' }}>
                           R$ {effectiveBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                         </div>
                       </div>
 
-                      {/* Breakdown rows — only when balance_set_at is known */}
+                      {/* Pending stakes badge — shown when bets are in-play */}
                       {hasBreakdown && (
-                        <div className="rounded-xl px-3 py-2 flex flex-col gap-1" style={{ background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.05)' }}>
-                          {/* Manual snapshot */}
-                          <div className="flex items-center justify-between text-[11px]">
-                            <span style={{ color: 'var(--t3)' }}>Saldo informado</span>
-                            <span className="font-mono font-bold" style={{ color: 'var(--t2)' }}>
-                              R$ {bm.balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                            </span>
-                          </div>
-                          {/* Settled P&L since last update */}
-                          {settledDelta !== 0 && (
-                            <div className="flex items-center justify-between text-[11px]">
-                              <span style={{ color: 'var(--t3)' }}>Resultado de operações</span>
-                              <span className="font-mono font-bold" style={{ color: settledDelta >= 0 ? 'var(--g)' : 'var(--r)' }}>
-                                {settledDelta >= 0 ? '+' : ''}R$ {settledDelta.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                              </span>
-                            </div>
-                          )}
-                          {/* Pending stakes — informational only, not deducted from balance */}
-                          {pendingStakes > 0 && (
-                            <div className="flex items-center justify-between text-[11px]">
-                              <span style={{ color: 'var(--t3)' }}>Em apostas abertas</span>
-                              <span className="font-mono font-bold" style={{ color: 'var(--y)' }}>
-                                R$ {pendingStakes.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                              </span>
-                            </div>
-                          )}
+                        <div className="rounded-xl px-3 py-2 flex items-center justify-between"
+                          style={{ background: 'rgba(255,193,7,.06)', border: '1px solid rgba(255,193,7,.18)' }}>
+                          <span className="text-[11px]" style={{ color: 'var(--t3)' }}>Em apostas abertas</span>
+                          <span className="text-[11px] font-mono font-bold" style={{ color: 'var(--y)' }}>
+                            R$ {pendingStakes.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          </span>
                         </div>
                       )}
                     </div>

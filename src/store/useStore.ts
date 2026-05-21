@@ -302,13 +302,30 @@ export const useStore = create<StoreState>()((set, get) => ({
   },
 
   // ── legs ──────────────────────────────────────────────────────────────────
+
+  /** Auto-deduct helper: deduct/refund a stake from the matching bookmaker's balance. */
+  // (internal inline helper used by mutations below)
+
   addLeg(leg) {
     set(s => {
-      const now  = new Date().toISOString();
-      const legs = [...s.legs, { ...leg, pr: calcLegProfit(leg), updated_at: leg.updated_at ?? now }];
-      const { bms, totalCash } = recalc({ ...s, legs });
-      persist({ ...s, legs, bms });
-      return { legs, bms, totalCash };
+      const now    = new Date().toISOString();
+      const newLeg = { ...leg, pr: calcLegProfit(leg), updated_at: leg.updated_at ?? now };
+      const legs   = [...s.legs, newLeg];
+
+      // Auto-deduct stake when registering a manual pending bet
+      let bms = [...s.bms];
+      if (leg.re === 'Pendente' && leg.source !== 'import') {
+        const bmKey = normHouse(leg.ho).toLowerCase();
+        bms = bms.map(b =>
+          normHouse(b.name).toLowerCase() === bmKey
+            ? { ...b, balance: +(b.balance - leg.st).toFixed(2) }
+            : b
+        );
+      }
+
+      const { bms: recalcedBms, totalCash } = recalc({ ...s, legs, bms });
+      persist({ ...s, legs, bms: recalcedBms });
+      return { legs, bms: recalcedBms, totalCash };
     });
   },
 
@@ -328,34 +345,84 @@ export const useStore = create<StoreState>()((set, get) => ({
   bulkDeleteLegs(ids) {
     const idSet = new Set(ids);
     set(s => {
+      // Refund stakes for any pending manual bets being deleted
+      const deletedPending = s.legs.filter(
+        l => idSet.has(l.id) && l.re === 'Pendente' && l.source !== 'import'
+      );
+      let bms = [...s.bms];
+      deletedPending.forEach(leg => {
+        const bmKey = normHouse(leg.ho).toLowerCase();
+        bms = bms.map(b =>
+          normHouse(b.name).toLowerCase() === bmKey
+            ? { ...b, balance: +(b.balance + leg.st).toFixed(2) }
+            : b
+        );
+      });
+
       const legs = s.legs.filter(l => !idSet.has(l.id));
-      const { bms, totalCash } = recalc({ ...s, legs });
-      persist({ ...s, legs, bms });
-      return { legs, bms, totalCash };
+      const { bms: recalcedBms, totalCash } = recalc({ ...s, legs, bms });
+      persist({ ...s, legs, bms: recalcedBms });
+      return { legs, bms: recalcedBms, totalCash };
     });
   },
 
   updateLeg(id, patch) {
     set(s => {
-      const now  = new Date().toISOString();
+      const now    = new Date().toISOString();
+      const oldLeg = s.legs.find(l => l.id === id);
+
       const legs = s.legs.map(l => {
         if (l.id !== id) return l;
         const updated = { ...l, ...patch, updated_at: now };
         updated.pr = calcLegProfit(updated);
         return updated;
       });
-      const { bms, totalCash } = recalc({ ...s, legs });
-      persist({ ...s, legs, bms });
-      return { legs, bms, totalCash };
+
+      // If a pending manual bet just got settled, apply stake + profit to balance
+      let bms = [...s.bms];
+      if (
+        oldLeg &&
+        oldLeg.re === 'Pendente' &&
+        oldLeg.source !== 'import' &&
+        patch.re &&
+        patch.re !== 'Pendente'
+      ) {
+        const settledLeg = legs.find(l => l.id === id)!;
+        const bmKey      = normHouse(oldLeg.ho).toLowerCase();
+        // stake was already deducted on registration; add back stake + net P&L
+        const delta = +(oldLeg.st + calcLegProfit(settledLeg)).toFixed(2);
+        bms = bms.map(b =>
+          normHouse(b.name).toLowerCase() === bmKey
+            ? { ...b, balance: +(b.balance + delta).toFixed(2) }
+            : b
+        );
+      }
+
+      const { bms: recalcedBms, totalCash } = recalc({ ...s, legs, bms });
+      persist({ ...s, legs, bms: recalcedBms });
+      return { legs, bms: recalcedBms, totalCash };
     });
   },
 
   deleteLeg(id) {
     set(s => {
+      const leg = s.legs.find(l => l.id === id);
+
+      // Refund stake if deleting a pending manual bet
+      let bms = [...s.bms];
+      if (leg && leg.re === 'Pendente' && leg.source !== 'import') {
+        const bmKey = normHouse(leg.ho).toLowerCase();
+        bms = bms.map(b =>
+          normHouse(b.name).toLowerCase() === bmKey
+            ? { ...b, balance: +(b.balance + leg.st).toFixed(2) }
+            : b
+        );
+      }
+
       const legs = s.legs.filter(l => l.id !== id);
-      const { bms, totalCash } = recalc({ ...s, legs });
-      persist({ ...s, legs, bms });
-      return { legs, bms, totalCash };
+      const { bms: recalcedBms, totalCash } = recalc({ ...s, legs, bms });
+      persist({ ...s, legs, bms: recalcedBms });
+      return { legs, bms: recalcedBms, totalCash };
     });
   },
 
