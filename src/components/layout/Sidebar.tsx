@@ -8,6 +8,7 @@ import {
   BarChart3, ShieldCheck, Receipt, Users, X,
   UserCircle, LogOut, NotebookPen,
   CalendarDays, Target, UserCog, ChevronDown, ScanSearch, Gift,
+  PanelLeftClose,
 } from 'lucide-react';
 import { getMySubscription } from '@/lib/supabase/subscription';
 import type { Subscription } from '@/lib/supabase/subscription';
@@ -306,7 +307,7 @@ function ProfileFooter({ onClose }: { onClose?: () => void }) {
   );
 }
 
-function SidebarContent({ onClose }: { onClose?: () => void }) {
+function SidebarContent({ onClose, onCollapse }: { onClose?: () => void; onCollapse?: () => void }) {
   const [openGroups, setOpenGroups] = useState<Set<string>>(
     new Set(['principal', 'operacional', 'financas', 'gestao'])
   );
@@ -370,6 +371,28 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
             <X size={14} />
           </button>
         )}
+
+        {/* Collapse button — desktop only */}
+        {!onClose && onCollapse && (
+          <button
+            type="button"
+            onClick={onCollapse}
+            aria-label="Recolher sidebar"
+            title="Recolher menu"
+            className="ml-auto w-8 h-8 rounded-lg flex items-center justify-center transition-all"
+            style={{ color: 'var(--t3)', background: 'rgba(255,255,255,.03)' }}
+            onMouseEnter={e => {
+              (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,.08)';
+              (e.currentTarget as HTMLElement).style.color = 'var(--t)';
+            }}
+            onMouseLeave={e => {
+              (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,.03)';
+              (e.currentTarget as HTMLElement).style.color = 'var(--t3)';
+            }}
+          >
+            <PanelLeftClose size={14} />
+          </button>
+        )}
       </div>
 
       {/* Nav */}
@@ -393,7 +416,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
 
 // ── Desktop sidebar ──────────────────────────────────────────────────────────
 
-export function Sidebar() {
+export function Sidebar({ onCollapse }: { onCollapse?: () => void }) {
   return (
     <aside
       className="flex-col flex-shrink-0 sticky top-0 h-screen overflow-hidden z-30 hidden md:flex animate-slide-left"
@@ -412,7 +435,7 @@ export function Sidebar() {
         }}
       />
       <div className="relative flex flex-col h-full overflow-y-auto">
-        <SidebarContent />
+        <SidebarContent onCollapse={onCollapse} />
       </div>
     </aside>
   );

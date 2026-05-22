@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { PanelLeftOpen } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import { Sidebar, MobileDrawer } from './Sidebar';
 import { Topbar }          from './Topbar';
@@ -42,11 +43,22 @@ export function AppShell() {
   const setSyncing          = useStore(s => s.setSyncing);
   const toastFn             = useStore(s => s.toast);
 
-  const [mobileOpen,    setMobileOpen]    = useState(false);
-  const [subChecked,    setSubChecked]    = useState(false);
-  const [subActive,     setSubActive]     = useState(false);
+  const [mobileOpen,       setMobileOpen]       = useState(false);
+  const [subChecked,       setSubChecked]       = useState(false);
+  const [subActive,        setSubActive]        = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try { return localStorage.getItem('sb-collapsed') === '1'; } catch { return false; }
+  });
   // null = checking, false = not logged in, true = logged in
   const [hasSession,    setHasSession]    = useState<boolean | null>(null);
+
+  const toggleSidebar = useCallback(() => {
+    setSidebarCollapsed(v => {
+      const next = !v;
+      try { localStorage.setItem('sb-collapsed', next ? '1' : '0'); } catch {}
+      return next;
+    });
+  }, []);
 
   // ── Subscription gate ─────────────────────────────────────────────────────
   // Flow: no session → LandingPage (public sales)
@@ -194,8 +206,40 @@ export function AppShell() {
 
   return (
     <div className="flex min-h-screen" style={{ background: 'var(--bg)' }}>
-      {/* Desktop sidebar */}
-      <Sidebar />
+      {/* Desktop sidebar — hidden when collapsed */}
+      {!sidebarCollapsed && <Sidebar onCollapse={toggleSidebar} />}
+
+      {/* Reopen tab — shown when sidebar is collapsed, desktop only */}
+      {sidebarCollapsed && (
+        <button
+          type="button"
+          onClick={toggleSidebar}
+          aria-label="Expandir menu"
+          title="Expandir menu"
+          className="hidden md:flex fixed left-0 top-1/2 -translate-y-1/2 z-30 flex-col items-center justify-center gap-1"
+          style={{
+            width: 18,
+            height: 56,
+            background: 'var(--bg2)',
+            border: '1px solid var(--b)',
+            borderLeft: 'none',
+            borderRadius: '0 8px 8px 0',
+            color: 'var(--t3)',
+            cursor: 'pointer',
+            transition: 'color 150ms, background 150ms',
+          }}
+          onMouseEnter={e => {
+            (e.currentTarget as HTMLElement).style.color = 'var(--g)';
+            (e.currentTarget as HTMLElement).style.background = 'rgba(63,255,33,.06)';
+          }}
+          onMouseLeave={e => {
+            (e.currentTarget as HTMLElement).style.color = 'var(--t3)';
+            (e.currentTarget as HTMLElement).style.background = 'var(--bg2)';
+          }}
+        >
+          <PanelLeftOpen size={11} />
+        </button>
+      )}
 
       {/* Mobile drawer */}
       <MobileDrawer open={mobileOpen} onClose={() => setMobileOpen(false)} />
