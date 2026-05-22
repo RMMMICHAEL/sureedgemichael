@@ -458,31 +458,87 @@ export function loadSeedData() {
   saveSeedIds();
 }
 
+/** Returns IDs of store entities that match seed fingerprints (multi-field).
+ *  Used when seedIds are unavailable (data loaded before the Supabase-sync fix).
+ *  Multi-field match reduces risk of accidentally deleting real user data.
+ */
+function scanSeedIds(state: ReturnType<typeof useStore.getState>) {
+  const bmFingerprints = makeBMs().map(b => ({
+    name: b.name, abbr: b.abbr, color: b.color, initial_balance: b.initial_balance,
+  }));
+  const expDescs    = new Set(makeExpenses().map(e => e.description));
+  const bankNames   = new Set(['Nubank', 'Bradesco', 'Inter']);
+  const paOwners    = new Set(['João Silva', 'Maria Santos', 'Pedro Alves']);
+  const clientNames = new Set(['Carlos Pereira', 'Ana Costa', 'Rafael Lima', 'Fernanda Oliveira']);
+
+  return {
+    legs: state.legs
+      .filter(l => l.id.startsWith('seed_'))
+      .map(l => l.id),
+    bms: state.bms
+      .filter(b => bmFingerprints.some(
+        fp => fp.name === b.name && fp.abbr === b.abbr
+           && fp.color === b.color && fp.initial_balance === b.initial_balance,
+      ))
+      .map(b => b.id),
+    banks: state.banks
+      .filter(b => bankNames.has(b.name))
+      .map(b => b.id),
+    exps: state.expenses
+      .filter(e => expDescs.has(e.description))
+      .map(e => e.id),
+    pas: state.partnerAccounts
+      .filter(pa => paOwners.has(pa.owner))
+      .map(pa => pa.id),
+    clis: state.clients
+      .filter(c => clientNames.has(c.name))
+      .map(c => c.id),
+  };
+}
+
 export function clearSeedData() {
   const store = useStore.getState();
 
-  // Priority 1: AppDB.seedIds (synced via Supabase — works from any device)
-  const dbIds = store.seedIds;
-  if (dbIds) {
-    store.bulkDeleteLegs(dbIds.legs);
-    dbIds.bms.forEach(id => store.deleteBookmaker(id));
-    dbIds.banks.forEach(id => store.deleteBank(id));
-    dbIds.exps.forEach(id => store.deleteExpense(id));
-    dbIds.pas.forEach(id => store.deletePartnerAccount(id));
-    dbIds.clis.forEach(id => store.deleteClient(id));
+  let ids: { legs: string[]; bms: string[]; banks: string[]; exps: string[]; pas: string[]; clis: string[] };
+
+  // Priority 1: AppDB.seedIds — stored in Supabase, works from any device
+  if (store.seedIds) {
+    ids = store.seedIds;
   } else {
-    // Priority 2: in-memory arrays (same session, no reload) or localStorage
-    // (same device after a page reload)
+    // Priority 2: localStorage (same device, page reloaded after old-code load)
     if (SEED_LEG_IDS.length === 0 && SEED_BM_IDS.length === 0) {
       loadSeedIds();
     }
-    store.bulkDeleteLegs(SEED_LEG_IDS);
-    SEED_BM_IDS.forEach(id => store.deleteBookmaker(id));
-    SEED_BANK_IDS.forEach(id => store.deleteBank(id));
-    SEED_EXP_IDS.forEach(id => store.deleteExpense(id));
-    SEED_PA_IDS.forEach(id => store.deletePartnerAccount(id));
-    SEED_CLI_IDS.forEach(id => store.deleteClient(id));
+    if (SEED_LEG_IDS.length > 0 || SEED_BM_IDS.length > 0) {
+      ids = {
+        legs:  [...SEED_LEG_IDS],
+        bms:   [...SEED_BM_IDS],
+        banks: [...SEED_BANK_IDS],
+        exps:  [...SEED_EXP_IDS],
+        pas:   [...SEED_PA_IDS],
+        clis:  [...SEED_CLI_IDS],
+      };
+    } else {
+      // Priority 3: scan the store by seed fingerprints — catches pre-fix loads
+      // on any device (multi-field match avoids false positives on real data)
+      ids = scanSeedIds(store);
+    }
   }
+
+  // Always add any seed_ prefix legs not already in the list (extra safety net)
+  const legSet = new Set(ids.legs);
+  store.legs
+    .filter(l => l.id.startsWith('seed_') && !legSet.has(l.id))
+    .forEach(l => legSet.add(l.id));
+  ids = { ...ids, legs: [...legSet] };
+
+  // Delete everything
+  store.bulkDeleteLegs(ids.legs);
+  ids.bms.forEach(id => store.deleteBookmaker(id));
+  ids.banks.forEach(id => store.deleteBank(id));
+  ids.exps.forEach(id => store.deleteExpense(id));
+  ids.pas.forEach(id => store.deletePartnerAccount(id));
+  ids.clis.forEach(id => store.deleteClient(id));
 
   // Clear in-memory arrays
   SEED_LEG_IDS.length = 0;
@@ -492,9 +548,7 @@ export function clearSeedData() {
   SEED_PA_IDS.length = 0;
   SEED_CLI_IDS.length = 0;
 
-  // Remove from AppDB (so it doesn't linger after a clear)
+  // Remove from AppDB and localStorage
   store.setSeedIds(undefined);
-
-  // Remove from localStorage
   clearSeedIds();
 }
