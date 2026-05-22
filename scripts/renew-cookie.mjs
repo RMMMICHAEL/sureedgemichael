@@ -348,7 +348,7 @@ async function createSession(cookie) {
   const sharedBits = await subtle.deriveBits({ name: 'ECDH', public: serverPub }, keyPair.privateKey, 256);
   const hkdfKey    = await subtle.importKey('raw', sharedBits, 'HKDF', false, ['deriveKey']);
   const aesKey     = await subtle.deriveKey(
-    { name: 'HKDF', hash: 'SHA-256', salt: new Uint8Array(0), info: new TextEncoder().encode('buscador-aes256-v1') },
+    { name: 'HKDF', hash: 'SHA-256', salt: new Uint8Array(32), info: new TextEncoder().encode('buscador-aes256-v1') },
     hkdfKey, { name: 'AES-CBC', length: 256 }, false, ['decrypt']
   );
   return { aesKey, hdrs };

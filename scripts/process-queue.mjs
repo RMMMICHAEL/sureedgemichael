@@ -274,7 +274,7 @@ async function createSession(cookie) {
   const sharedBits = await subtle.deriveBits({ name: 'ECDH', public: serverPub }, keyPair.privateKey, 256);
   const hkdfKey    = await subtle.importKey('raw', sharedBits, 'HKDF', false, ['deriveKey']);
   const aesKey     = await subtle.deriveKey(
-    { name: 'HKDF', hash: 'SHA-256', salt: new Uint8Array(0), info: new TextEncoder().encode('buscador-aes256-v1') },
+    { name: 'HKDF', hash: 'SHA-256', salt: new Uint8Array(32), info: new TextEncoder().encode('buscador-aes256-v1') },
     hkdfKey, { name: 'AES-CBC', length: 256 }, false, ['decrypt']
   );
   // Captura session_token do handshake — necessário em todas as chamadas ao proxy
@@ -333,7 +333,7 @@ async function fetchDecrypted(session, qs) {
 let _session = null;
 let _sessionCookieHash = '';
 let _sessionExpiresAt = 0;
-const SESSION_TTL = 25 * 60 * 1000; // 25 min (servidor = 30 min)
+const SESSION_TTL = 1_740_000; // 29 min — igual ao JS do servidor (_ttl=1740000)
 
 async function getSession(cookie) {
   // Reutiliza se o cookie não mudou E a sessão ainda não expirou
