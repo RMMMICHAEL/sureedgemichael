@@ -41,10 +41,12 @@ export async function POST(req: NextRequest) {
 
     // ── Modo "all": retorna todos os eventos futuros do cache (sem filtro de data)
     if (all) {
-      // Começa da meia-noite BRT de hoje (03:00 UTC) para não incluir jogos passados
-      const n = new Date(); const p = (x: number) => String(x).padStart(2, '0');
-      const todayLocal = `${n.getFullYear()}-${p(n.getMonth()+1)}-${p(n.getDate())}`;
-      const fromUtc = `${todayLocal}T03:00:00.000Z`;
+      // Começa da meia-noite BRT de hoje (03:00 UTC) para não incluir jogos passados.
+      // Vercel roda em UTC — subtrai 3 h para obter a data local BRT correta.
+      const brt = new Date(Date.now() - 3 * 60 * 60 * 1000);
+      const p   = (x: number) => String(x).padStart(2, '0');
+      const todayBrt = `${brt.getUTCFullYear()}-${p(brt.getUTCMonth()+1)}-${p(brt.getUTCDate())}`;
+      const fromUtc  = `${todayBrt}T03:00:00.000Z`;
 
       const { data, error } = await sb
         .from('sm_events')

@@ -383,7 +383,14 @@ function normaliseEvent(raw) {
   const id    = raw.id ? String(raw.id) : `${home}-${away}-${raw.date ?? ''}`.replace(/\s+/g, '-');
   const league = typeof raw.league === 'string' ? raw.league : (raw.league?.name ?? raw.sport ?? 'Sport');
   const sport  = String(raw.sport ?? league);
-  const start_utc = String(raw.date ?? '');
+  // raw.date vem do SuperMonitor em horário BRT ("2025-05-21 23:00:00").
+  // Converter para UTC real antes de armazenar.
+  const start_utc = (() => {
+    const s = String(raw.date ?? '');
+    if (!s) return '';
+    const d = new Date(s.replace(' ', 'T') + '-03:00');
+    return isNaN(d.getTime()) ? s : d.toISOString();
+  })();
   let house_count = 0;
   if (typeof raw.bookmakers === 'number')      house_count = raw.bookmakers;
   else if (Array.isArray(raw.bookmakers))      house_count = raw.bookmakers.length;
@@ -407,8 +414,10 @@ async function fetchAndCache(cookie) {
     return;
   }
 
-  // Busca eventos do dia
-  const today = new Date().toISOString().slice(0, 10);
+  // Busca eventos do dia em horário BRT (UTC-3) — evita pedir o dia errado após 21:00 BRT
+  const brtNow = new Date(Date.now() - 3 * 60 * 60 * 1000);
+  const _p     = x => String(x).padStart(2, '0');
+  const today  = `${brtNow.getUTCFullYear()}-${_p(brtNow.getUTCMonth() + 1)}-${_p(brtNow.getUTCDate())}`;
   let events;
   try {
     const parsed    = await fetchDecrypted(session, `action=events_lite&date=${today}`);
