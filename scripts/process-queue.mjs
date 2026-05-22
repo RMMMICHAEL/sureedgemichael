@@ -229,10 +229,25 @@ async function createSession(cookie) {
   return { aesKey, hdrs };
 }
 
+async function fetchNonceBuscador(hdrs) {
+  // Tenta endpoint específico do buscador; cai no genérico se falhar
+  for (const endpoint of [
+    `${BASE}/api/proxy_nonce_buscador.php`,
+    `${BASE}/api/proxy_nonce.php`,
+  ]) {
+    try {
+      const r = await fetch(endpoint, { headers: hdrs });
+      if (r.ok) {
+        const body = await r.json();
+        if (body.nonce) return body.nonce;
+      }
+    } catch { /* tenta próximo */ }
+  }
+  throw new Error('Nenhum endpoint de nonce disponível');
+}
+
 async function fetchDecrypted(session, qs) {
-  const nonceRes = await fetch(`${BASE}/api/proxy_nonce.php`, { headers: session.hdrs });
-  if (!nonceRes.ok) throw new Error(`proxy_nonce falhou (${nonceRes.status})`);
-  const { nonce } = await nonceRes.json();
+  const nonce = await fetchNonceBuscador(session.hdrs);
 
   const res = await fetch(`${BASE}/api/buscador_proxy.php?${qs}`, {
     headers: { ...session.hdrs, 'Accept': 'application/json', 'X-Proxy-Nonce': nonce },
@@ -411,36 +426,59 @@ async function processOneCycle() {
   // 6. Busca sequencial
   for (let i = 0; i < batch.length; i++) {
     const ev = batch[i];
-    try {
-      const data    = await fetchDecrypted(session, `action=search&q=${encodeURIComponent(ev.name)}&type=all`);
-      const results = Array.isArray(data) ? data : (data?.results ?? data?.data ?? []);
+    let attempts = 0;
+    const MAX_ATTEMPTS = 2;
 
-      if (!results.length) {
-        await markQueueDone(ev.id);
-        console.log(`   Sem odds: ${ev.name}`);
-      } else {
-        const r = await sbFetch('sm_odds', 'POST',
-          { event_id: ev.id, event_name: ev.name, data, updated_at: new Date().toISOString() },
-          { 'Prefer': 'resolution=merge-duplicates' }
-        );
-        if (r.ok) {
+    while (attempts < MAX_ATTEMPTS) {
+      attempts++;
+      try {
+        const data    = await fetchDecrypted(session, `action=search&q=${encodeURIComponent(ev.name)}&type=all`);
+        const results = Array.isArray(data) ? data : (data?.results ?? data?.data ?? []);
+
+        if (!results.length) {
           await markQueueDone(ev.id);
-          console.log(`   OK: ${ev.name} (${results.length} resultados)`);
+          console.log(`   Sem odds: ${ev.name}`);
         } else {
-          await markQueueError(ev.id);
+          const r = await sbFetch('sm_odds', 'POST',
+            { event_id: ev.id, event_name: ev.name, data, updated_at: new Date().toISOString() },
+            { 'Prefer': 'resolution=merge-duplicates' }
+          );
+          if (r.ok) {
+            await markQueueDone(ev.id);
+            console.log(`   OK: ${ev.name} (${results.length} resultados)`);
+          } else {
+            await markQueueError(ev.id);
+          }
         }
+        break; // sucesso — sai do loop de tentativas
+
+      } catch (err) {
+        const is401 = err.message.includes('401');
+        const isSessionErr = is401 || err.message.includes('nonce') || err.message.includes('proxy');
+
+        if (isSessionErr) invalidateSession();
+
+        // 401 na primeira tentativa: recria sessão e retenta uma vez
+        if (is401 && attempts < MAX_ATTEMPTS) {
+          console.log(`   401 em ${ev.name} — recriando sessão e retentando...`);
+          try {
+            session = await getSession(cookie);
+          } catch (sessErr) {
+            console.error(`   Sessão falhou na recriação: ${sessErr.message}`);
+            await markQueueError(ev.id);
+            break;
+          }
+          continue; // retenta
+        }
+
+        await markQueueError(ev.id);
+        console.error(`   Erro: ${ev.name}: ${err.message}`);
+        break;
       }
-    } catch (err) {
-      // Sessão pode ter expirado no meio do lote
-      if (err.message.includes('nonce') || err.message.includes('proxy')) {
-        invalidateSession();
-      }
-      await markQueueError(ev.id);
-      console.error(`   Erro: ${ev.name}: ${err.message}`);
     }
 
     if (i < batch.length - 1) {
-      const delay = 3000 + Math.random() * 3000;
+      const delay = 1500 + Math.random() * 1500;
       await sleep(delay);
     }
   }
@@ -667,7 +705,7 @@ async function processFreebetCycle() {
       }
     }
 
-    await sleep(1000 + Math.random() * 1000);
+    await sleep(500 + Math.random() * 500);
   }
 }
 
