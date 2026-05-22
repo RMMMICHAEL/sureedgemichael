@@ -7,21 +7,59 @@ import type { Leg, ResultType, OpType } from '@/types';
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const ALL_HOUSES = [
-  '7Games','Aposta1','Apostaganha','Apostatudo','Apostefacil','B1bet','B2xbet','Bateubet',
+  // números / símbolos
+  '1praum','6zbet','7Games','9dbet','9fbet',
+  // A
+  'Afunbet','Alfabet','Aposta1','Apostabet','Apostaganha','ApostaMax','Apostar','Apostefacil','ApostaTudo','Aviaobet',
+  // B
+  'B1Bet','B2x','Bateubet',
   'Bet365','Bet365Arg','Bet365Pe','Bet4','Bet7k','Betagora','Betaki','Betano','Betao',
-  'Betbet','Betboo','Betboom','Betdasorte','Betesporte','Betfair Ex','Betfair SB','Betfast',
-  'Betfusion','Betgorillas','Betmgm','Betnacional','Betonline','Betou','Betpark','Betpix365',
-  'Betsson','Betsul','Betvip','BetWarrior','Bigbet','Blaze','Bolsadeaposta','Br4bet',
-  'Brasildasorte','Bravobet','Brbet','Brx','Bullsbet','Casadeapostas','Cassinopix','Cgc',
-  'Donaldbet','Donosdabola','Esporte365','Esportenetbet','Esportenetsp','Esportesdasorte',
-  'Esportivabet','Estrelabet','F12bet','Faz1bet','Fortunejack','Fulltbet','Ganheibet',
-  'Goldebet','H2bet','Jogodeouro','Jonbet','Kingpanda','KTO','Lancedesorte','Liderbet',
-  'Lotogreen','Lottoland','Lottu','Luckbet','Luvabet','Marjosports','Maximabet','Mcgames',
-  'Meridian','Milhao','Mma','Multibet','Mystake','Netbet','NoviBet','Oleybet','Onabet',
-  'Outrabet','Pagol','Pinnacle','Pinnacle.com','Pixbet','Playbet','R7bet','RealsBet',
-  'Reidopitaco','RicoBet','Rivalo','SeguroBet','Seubet','Sortenabet','Sorteonline','Spin',
-  'SportingBet','SportyBet','Stake','Startbet','Superbet','Supremabet','Tivobet','Ultrabet',
-  'Uxbet','Vaidebet','Vbet','Verabet','Vupibet','Wjcasino','Xpbet','Polymarket',
+  'Betbet','Betboo','Betboom','Betbra','BetDaSorte','Betesporte',
+  'Betfair','BetfairEx','BetfairSB','Betfast','Betfusion','Betbufalos','Betfalcons','Betgorillas',
+  'BetMGM','Betnacional','Betonline','Betou','Betpark','Betpix365','Betpontobet','Betsson','Betsul',
+  'BetVip','Betwarrior','Betway','Bigbet','Blaze','Bolsadeaposta',
+  'BR4Bet','BrasildaSorte','Bravobet','Brbet','BRXBet','Bullsbet',
+  // C
+  'Casadeapostas','Cassinopix','Cgc',
+  // D
+  'Donaldbet','Donosdabola',
+  // E
+  'Esporte365','Esportedasorte','Esportenetbet','Esportenetsp','Esportivabet','Estrelabet',
+  // F
+  'F12bet','Faz1bet','Fortunejack','Fullbet',
+  // G
+  'Ganheibet','Geralbet','Goldebet',
+  // H
+  'H2Bet',
+  // I
+  'Icebet','Ijogo',
+  // J
+  'JogoDeOuro','Jogaobet','Jonbet',
+  // K
+  'Kingpanda','KTO',
+  // L
+  'Lancedesorte','Liderbet','Lotogreen','Lottoland','Lottu','Luckbet','Luvabet',
+  // M
+  'Marjosports','Maximabet','MCGames','Meridianbet','Milhao','MMABET','Multbet','Mystake',
+  // N
+  'Netbet','NoviBet','Nossabet',
+  // O
+  'Oleybet','Onabet','Outrabet',
+  // P
+  'Pagol','Pinnacle','Pinnacle.com','Pixbet','Playbet','Polymarket',
+  // R
+  'R7bet','Realsbet','Reidopitaco','Ricobet','Rivalo',
+  // S
+  'Segurobet','Seubet','Sortenabet','SorteOnline','Spin',
+  'Sportingbet','SportyBet','Sporty','Stake','Starbet','Superbet','Supremabet',
+  // T
+  'Tivobet','Tradeball',
+  // U
+  'Ultrabet','UPbet','Uxbet',
+  // V
+  'Vaidebet','Vbet','Verabet','Versusbet','Vivasorte','Vupi',
+  // W–X
+  'Wjcasino','Xpbet',
 ];
 
 const SPORTS = [

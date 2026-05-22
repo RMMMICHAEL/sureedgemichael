@@ -12,10 +12,12 @@ import type { Leg } from '@/types';
 // ── Casas disponíveis (step 1) ────────────────────────────────────────────────
 
 const BOOKMAKERS = [
-  '7games','Alfabet','Aposta','Apostaganha','Bet365','Bet7k','Betano','Betao',
-  'Betesporte','BetfairSB','Betnacional','Betsson','Br4bet','Esportiva',
-  'Estrelabet','Jogodeouro','KTO','MCgames','Novibet','Pixbet','Sortenabet',
-  'Sportingbet','Sporty','Superbet','Versusbet','Vivasorte',
+  '7Games','Alfabet','Apostabet','Apostaganha','Bet365','Bet365Arg','Bet365Pe',
+  'Bet7k','Betano','Betao','Betbra','Betesporte','BetfairSB','BetMGM',
+  'Betnacional','Betsson','Betsul','BR4Bet','Esportivabet','Esportedasorte',
+  'Estrelabet','JogoDeOuro','KTO','MCGames','Meridianbet','MMABET',
+  'NoviBet','Novibet','Pixbet','Sortenabet','Sportingbet','Sporty',
+  'Superbet','Tradeball','Vaidebet','Versusbet','Vivasorte',
 ];
 
 const PA_OPTIONS = [
@@ -69,16 +71,16 @@ const KNOWN_LEAGUES    = new Set(ALL_LEAGUES_FLAT.filter(l => l !== '__RESTO_MUN
 // ── Dados para filtros de casa ────────────────────────────────────────────────
 
 const HOUSES_DEFAULT = [
-  'Alfabet','Aposta','Apostabet','Betbra','BetfairSB','Tradeball','Betnacional',
-  'Betmgm','Betesporte','Esportesdasorte','Sporty','KTO','Vaidebet','Betano',
-  'Novibet','Betsson','Bet365','Betsul','Vivasorte','Pixbet','Sportingbet',
-  'Superbet','Br4bet','Esportiva','Sortenabet','Estrelabet','Bet7k','Jogodeouro',
-  'Versusbet','Apostaganha','7games','Betao','MCgames',
+  '7Games','Alfabet','Apostabet','Apostaganha','Betao','Betbra','BetfairSB',
+  'BetMGM','Betnacional','Betesporte','Betsson','Bet365','Bet7k','Betano',
+  'BR4Bet','Esportivabet','Esportedasorte','Estrelabet','JogoDeOuro','KTO',
+  'MCGames','Meridianbet','MMABET','NoviBet','Pixbet','Sortenabet',
+  'Sportingbet','Sporty','Superbet','Tradeball','Vaidebet','Versusbet','Vivasorte',
 ];
 
 const HOUSES_SO = [
-  'BetmgmSO','BetanoSO','EstrelabetSO','StakeSO','NovibetSO',
-  'Br4betSO','EsportivaSO','BetssonSO','VersusbetSO','MCgames',
+  'BetMGMSO','BetanoSO','EstrelabetSO','StakeSO','NovibetSO',
+  'BR4BetSO','EsportivaSO','BetssonSO','VersusbetSO','MCGamesSO',
 ];
 
 const ALL_HOUSES_FLAT = [...new Set([...HOUSES_DEFAULT, ...HOUSES_SO])];
