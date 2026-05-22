@@ -1112,7 +1112,7 @@ export function FreebetConverterPage() {
       const deadline  = Date.now() + 3 * 60 * 1000;
 
       while (Date.now() < deadline) {
-        await new Promise(r => setTimeout(r, 1200));
+        await new Promise(r => setTimeout(r, 400));
         const pollRes  = await fetch(`/api/supermonitor/freebet?request_id=${requestId}`);
         const pollJson = await pollRes.json() as {
           ok: boolean; status?: string; data?: unknown; error_msg?: string; error?: string;

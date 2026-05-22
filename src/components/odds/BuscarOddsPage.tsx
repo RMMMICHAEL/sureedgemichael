@@ -1675,7 +1675,7 @@ export function BuscarOddsPage() {
           let ready = false;
 
           while (Date.now() - start < 90_000) {
-            await new Promise(r => setTimeout(r, 800));
+            await new Promise(r => setTimeout(r, 300));
 
             const pollRes  = await fetch(`/api/supermonitor/queue?event_id=${encodeURIComponent(event.id)}`);
             const pollJson = await pollRes.json() as { ok: boolean; ready?: boolean; cached_at?: string };
@@ -1704,7 +1704,7 @@ export function BuscarOddsPage() {
           // Tentativa falhou — re-enfileira se ainda há tentativas
           if (attempt < MAX_ATTEMPTS) {
             setOddsLoadingMsg('Pode demorar alguns segundos...');
-            await new Promise(r => setTimeout(r, 2000));
+            await new Promise(r => setTimeout(r, 500));
           }
         }
 
