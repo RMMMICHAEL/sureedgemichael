@@ -283,22 +283,6 @@ async function createSession(cookie) {
   return { aesKey, hdrs: hdrsAfterNonce, sessionToken };
 }
 
-async function fetchNonceBuscador(hdrs) {
-  // Tenta endpoint específico do buscador; cai no genérico se falhar
-  for (const endpoint of [
-    `${BASE}/api/proxy_nonce_buscador.php`,
-    `${BASE}/api/proxy_nonce.php`,
-  ]) {
-    try {
-      const r = await fetch(endpoint, { headers: hdrs });
-      if (r.ok) {
-        const body = await r.json();
-        if (body.nonce) return body.nonce;
-      }
-    } catch { /* tenta próximo */ }
-  }
-  throw new Error('Nenhum endpoint de nonce disponível');
-}
 
 async function fetchDecrypted(session, qs) {
   // Usa proxy_nonce.php — igual ao browser (sem endpoint buscador específico no proxy request)
@@ -321,6 +305,13 @@ async function fetchDecrypted(session, qs) {
   }
 
   const enc = await res.json();
+
+  // Servidor pode sinalizar needs_handshake no body mesmo com HTTP 200
+  // (espelha a lógica do buscador-sse.js: fetchEncrypted verifica res.needs_handshake)
+  if (enc.needs_handshake) {
+    throw new Error('401 needs_handshake — sessao ECDH expirou');
+  }
+
   if (enc.encrypted && enc.data) {
     const encBytes = base64ToBytes(enc.data);
     const plain    = await subtle.decrypt({ name: 'AES-CBC', iv: encBytes.slice(0, 16) }, session.aesKey, encBytes.slice(16));
