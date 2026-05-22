@@ -60,6 +60,7 @@ export function loadDB(): AppDB {
     excludedImportKeys:  load('excludedImportKeys',  [] as string[]),
     profile:             load('profile',             undefined),
     transfers:           load('transfers',           []),
+    seedIds:             load('seedIds',             undefined),
   };
 }
 
@@ -80,6 +81,7 @@ export function persistDB(db: AppDB): void {
   if (db.excludedImportKeys) save('excludedImportKeys', db.excludedImportKeys);
   if (db.profile    !== undefined) save('profile',    db.profile);
   if (db.transfers  !== undefined) save('transfers',  db.transfers);
+  if (db.seedIds    !== undefined) save('seedIds',    db.seedIds);
 }
 
 // ── User ID (guards against cross-account localStorage leaks) ───────────────

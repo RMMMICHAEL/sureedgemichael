@@ -86,6 +86,9 @@ interface StoreState extends AppDB {
   // Actions — Sheet sync
   setSheetSync:  (cfg: SheetSync) => void;
   setSyncing:    (v: boolean) => void;
+
+  // Actions — Seed data
+  setSeedIds: (ids: AppDB['seedIds']) => void;
   addExcludedImportKeys: (keys: string[]) => void;
 
   // Actions — Notes
@@ -736,6 +739,14 @@ export const useStore = create<StoreState>()((set, get) => ({
 
   setSyncing(v) {
     set({ isSyncing: v });
+  },
+
+  setSeedIds(ids) {
+    set(s => {
+      const next = { ...s, seedIds: ids };
+      persist(next);
+      return { seedIds: ids };
+    });
   },
 
   addExcludedImportKeys(keys) {

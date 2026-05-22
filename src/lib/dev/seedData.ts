@@ -32,8 +32,10 @@ function pc3(od1: number, od2: number, od3: number) {
 }
 
 // ── IDs compartilhados para limpeza ───────────────────────────────────────────
-// These module-level arrays reset on every page load, so we also persist them
-// to localStorage so clearSeedData() works after a reload.
+// IDs are stored in both:
+//   1. AppDB (persisted to Supabase) — authoritative, works cross-device
+//   2. localStorage (legacy fallback) — works after a same-device page reload
+//      in case the Supabase sync hasn't happened yet
 
 export const SEED_LEG_IDS: string[] = [];
 export const SEED_BM_IDS:  string[] = [];
@@ -441,23 +443,48 @@ export function loadSeedData() {
   state.clients.filter(c => ['Carlos Pereira','Ana Costa','Rafael Lima','Fernanda Oliveira'].includes(c.name))
     .forEach(c => SEED_CLI_IDS.push(c.id));
 
-  // Persist IDs to localStorage so clearSeedData() works after a page reload
+  // Persist IDs to:
+  //   1. AppDB (syncs to Supabase) — so clearSeedData() works from any device
+  //   2. localStorage — same-device fallback for immediate page reloads
+  const seedSnapshot = {
+    legs:  [...SEED_LEG_IDS],
+    bms:   [...SEED_BM_IDS],
+    banks: [...SEED_BANK_IDS],
+    exps:  [...SEED_EXP_IDS],
+    pas:   [...SEED_PA_IDS],
+    clis:  [...SEED_CLI_IDS],
+  };
+  useStore.getState().setSeedIds(seedSnapshot);
   saveSeedIds();
 }
 
 export function clearSeedData() {
-  // Restore IDs from localStorage in case the module was re-initialized by a page reload
-  loadSeedIds();
-
   const store = useStore.getState();
 
-  store.bulkDeleteLegs(SEED_LEG_IDS);
-  SEED_BM_IDS.forEach(id => store.deleteBookmaker(id));
-  SEED_BANK_IDS.forEach(id => store.deleteBank(id));
-  SEED_EXP_IDS.forEach(id => store.deleteExpense(id));
-  SEED_PA_IDS.forEach(id => store.deletePartnerAccount(id));
-  SEED_CLI_IDS.forEach(id => store.deleteClient(id));
+  // Priority 1: AppDB.seedIds (synced via Supabase — works from any device)
+  const dbIds = store.seedIds;
+  if (dbIds) {
+    store.bulkDeleteLegs(dbIds.legs);
+    dbIds.bms.forEach(id => store.deleteBookmaker(id));
+    dbIds.banks.forEach(id => store.deleteBank(id));
+    dbIds.exps.forEach(id => store.deleteExpense(id));
+    dbIds.pas.forEach(id => store.deletePartnerAccount(id));
+    dbIds.clis.forEach(id => store.deleteClient(id));
+  } else {
+    // Priority 2: in-memory arrays (same session, no reload) or localStorage
+    // (same device after a page reload)
+    if (SEED_LEG_IDS.length === 0 && SEED_BM_IDS.length === 0) {
+      loadSeedIds();
+    }
+    store.bulkDeleteLegs(SEED_LEG_IDS);
+    SEED_BM_IDS.forEach(id => store.deleteBookmaker(id));
+    SEED_BANK_IDS.forEach(id => store.deleteBank(id));
+    SEED_EXP_IDS.forEach(id => store.deleteExpense(id));
+    SEED_PA_IDS.forEach(id => store.deletePartnerAccount(id));
+    SEED_CLI_IDS.forEach(id => store.deleteClient(id));
+  }
 
+  // Clear in-memory arrays
   SEED_LEG_IDS.length = 0;
   SEED_BM_IDS.length = 0;
   SEED_BANK_IDS.length = 0;
@@ -465,6 +492,9 @@ export function clearSeedData() {
   SEED_PA_IDS.length = 0;
   SEED_CLI_IDS.length = 0;
 
-  // Remove persisted IDs from localStorage
+  // Remove from AppDB (so it doesn't linger after a clear)
+  store.setSeedIds(undefined);
+
+  // Remove from localStorage
   clearSeedIds();
 }

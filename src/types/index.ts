@@ -241,6 +241,18 @@ export interface AppDB {
    * edited/overridden. commitRows() skips these on re-import.
    */
   excludedImportKeys?: string[];
+  /**
+   * IDs of entities created by loadSeedData(). Stored here so
+   * clearSeedData() works from any device (syncs via Supabase).
+   */
+  seedIds?: {
+    legs:  string[];
+    bms:   string[];
+    banks: string[];
+    exps:  string[];
+    pas:   string[];
+    clis:  string[];
+  };
 }
 
 // ── User profile ─────────────────────────────────────────
