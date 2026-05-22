@@ -200,6 +200,15 @@ export const useStore = create<StoreState>()((set, get) => ({
         ...l,
         source: l.source ?? (l.oid?.startsWith('imp_') ? 'import' : 'manual'),
       }));
+      // ── Migração de nomes: normaliza nomes no formato domínio → nome canônico
+      //    ex: "aposta.bet.br" → "Apostabet", "betbra.bet.br" → "Betbra"
+      let bmsMigrated = false;
+      const bmsNorm = (db.bms ?? []).map(bm => {
+        const canonical = normHouse(bm.name);
+        if (canonical === bm.name) return bm;
+        bmsMigrated = true;
+        return { ...bm, name: canonical };
+      });
       const expenses           = db.expenses           ?? [];
       const partnerAccounts    = db.partnerAccounts    ?? [];
       const clients            = db.clients            ?? [];
@@ -210,9 +219,11 @@ export const useStore = create<StoreState>()((set, get) => ({
       const transfers          = db.transfers          ?? [];
       const operators          = db.operators          ?? [];
       const goalConfig         = db.goalConfig;
-      const migrated = { ...db, legs, expenses, partnerAccounts, clients, targetHouses, sheetSync, excludedImportKeys, notes, transfers, operators, goalConfig };
+      const migrated = { ...db, bms: bmsNorm, legs, expenses, partnerAccounts, clients, targetHouses, sheetSync, excludedImportKeys, notes, transfers, operators, goalConfig };
       const { bms, totalCash } = recalc(migrated);
       set({ ...migrated, bms, totalCash, initialized: true });
+      // Se algum nome foi corrigido, persiste imediatamente para sincronizar com Supabase
+      if (bmsMigrated) persist(migrated);
     }
 
     // ── Step 1: check session BEFORE touching localStorage ───────────────
