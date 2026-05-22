@@ -215,21 +215,23 @@ function base64ToBytes(b64) {
 
 async function createSession(cookie) {
   const cookieWithCf = await mergeCfClearance(cookie);
+  // Headers espelhando exatamente o que o browser envia para buscador_proxy.php
   const hdrs = {
     'User-Agent':        UA,
-    'Accept':            '*/*',
-    'Accept-Language':   'pt-BR,pt;q=0.9',
+    'Accept':            'application/json',
+    'Accept-Language':   'pt-BR,pt;q=0.6',
+    'Accept-Encoding':   'gzip, deflate, br',
     'Cache-Control':     'no-cache',
-    'Origin':            BASE,
+    'Pragma':            'no-cache',
     'Referer':           `${BASE}/index.php?page=buscador`,
     'Cookie':            cookieWithCf,
     'Sec-Fetch-Dest':    'empty',
     'Sec-Fetch-Mode':    'cors',
     'Sec-Fetch-Site':    'same-origin',
-    'Sec-Ch-Ua':         '"Chromium";v="148", "Google Chrome";v="148", "Not-A.Brand";v="99"',
+    'Sec-Ch-Ua':         '"Chromium";v="148", "Brave";v="148", "Not/A)Brand";v="99"',
     'Sec-Ch-Ua-Mobile':  '?0',
     'Sec-Ch-Ua-Platform':'"Windows"',
-    'X-Requested-With':  'XMLHttpRequest',
+    'Sec-Gpc':           '1',
   };
 
   const nonceRes = await fetch(`${BASE}/api/proxy_nonce_handshake.php`, { headers: hdrs });
@@ -299,25 +301,18 @@ async function fetchNonceBuscador(hdrs) {
 }
 
 async function fetchDecrypted(session, qs) {
-  const tokenHdrs = session.sessionToken
-    ? { ...session.hdrs, 'X-Session-Token': session.sessionToken }
+  // Usa proxy_nonce.php — igual ao browser (sem endpoint buscador específico no proxy request)
+  const nonceRes = await fetch(`${BASE}/api/proxy_nonce.php`, { headers: session.hdrs });
+  if (!nonceRes.ok) throw new Error(`proxy_nonce falhou (${nonceRes.status})`);
+  const { nonce } = await nonceRes.json();
+
+  const nonceCookies = extractSetCookies(nonceRes.headers);
+  const proxyHdrs = nonceCookies.length
+    ? { ...session.hdrs, 'Cookie': mergeCookies(session.hdrs['Cookie'], nonceCookies) }
     : session.hdrs;
 
-  const nonceRes2 = await fetch(`${BASE}/api/proxy_nonce_buscador.php`, { headers: tokenHdrs })
-    .catch(() => null);
-  const nonceRes3 = (nonceRes2?.ok) ? nonceRes2
-    : await fetch(`${BASE}/api/proxy_nonce.php`, { headers: tokenHdrs });
-
-  if (!nonceRes3.ok) throw new Error(`proxy_nonce falhou (${nonceRes3.status})`);
-  const { nonce } = await nonceRes3.json();
-
-  const nonceCookies2 = extractSetCookies(nonceRes3.headers);
-  const proxyHdrs = nonceCookies2.length
-    ? { ...tokenHdrs, 'Cookie': mergeCookies(tokenHdrs['Cookie'], nonceCookies2) }
-    : tokenHdrs;
-
   const res = await fetch(`${BASE}/api/buscador_proxy.php?${qs}`, {
-    headers: { ...proxyHdrs, 'Accept': 'application/json', 'X-Proxy-Nonce': nonce },
+    headers: { ...proxyHdrs, 'X-Proxy-Nonce': nonce },
   });
   if (!res.ok) {
     const body = await res.text().catch(() => '');
@@ -509,7 +504,7 @@ async function processOneCycle() {
     while (attempts < MAX_ATTEMPTS) {
       attempts++;
       try {
-        const data    = await fetchDecrypted(session, `action=search&q=${encodeURIComponent(ev.name)}&type=all`);
+        const data    = await fetchDecrypted(session, `action=search&q=${encodeURIComponent(ev.name)}&type=event`);
         const results = Array.isArray(data) ? data : (data?.results ?? data?.data ?? []);
 
         if (!results.length) {
