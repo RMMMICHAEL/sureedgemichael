@@ -275,7 +275,10 @@ async function createSession(cookie) {
     { name: 'HKDF', hash: 'SHA-256', salt: new Uint8Array(0), info: new TextEncoder().encode('buscador-aes256-v1') },
     hkdfKey, { name: 'AES-CBC', length: 256 }, false, ['decrypt']
   );
-  return { aesKey, hdrs: hdrsAfterNonce };
+  // Captura session_token do handshake — necessário em todas as chamadas ao proxy
+  const sessionToken = hs.session_token ?? null;
+
+  return { aesKey, hdrs: hdrsAfterNonce, sessionToken };
 }
 
 async function fetchNonceBuscador(hdrs) {
@@ -296,12 +299,31 @@ async function fetchNonceBuscador(hdrs) {
 }
 
 async function fetchDecrypted(session, qs) {
-  const nonce = await fetchNonceBuscador(session.hdrs);
+  const tokenHdrs = session.sessionToken
+    ? { ...session.hdrs, 'X-Session-Token': session.sessionToken }
+    : session.hdrs;
+
+  const nonceRes2 = await fetch(`${BASE}/api/proxy_nonce_buscador.php`, { headers: tokenHdrs })
+    .catch(() => null);
+  const nonceRes3 = (nonceRes2?.ok) ? nonceRes2
+    : await fetch(`${BASE}/api/proxy_nonce.php`, { headers: tokenHdrs });
+
+  if (!nonceRes3.ok) throw new Error(`proxy_nonce falhou (${nonceRes3.status})`);
+  const { nonce } = await nonceRes3.json();
+
+  const nonceCookies2 = extractSetCookies(nonceRes3.headers);
+  const proxyHdrs = nonceCookies2.length
+    ? { ...tokenHdrs, 'Cookie': mergeCookies(tokenHdrs['Cookie'], nonceCookies2) }
+    : tokenHdrs;
 
   const res = await fetch(`${BASE}/api/buscador_proxy.php?${qs}`, {
-    headers: { ...session.hdrs, 'Accept': 'application/json', 'X-Proxy-Nonce': nonce },
+    headers: { ...proxyHdrs, 'Accept': 'application/json', 'X-Proxy-Nonce': nonce },
   });
-  if (!res.ok) throw new Error(`proxy falhou (${res.status})`);
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    console.error(`   [debug] ${res.status} body: ${body.slice(0, 300)}`);
+    throw new Error(`proxy falhou (${res.status})`);
+  }
 
   const enc = await res.json();
   if (enc.encrypted && enc.data) {
@@ -315,12 +337,17 @@ async function fetchDecrypted(session, qs) {
 // ── Sessão ECDH cacheada em memória ──────────────────────────────────────────
 let _session = null;
 let _sessionCookieHash = '';
+let _sessionExpiresAt = 0;
+const SESSION_TTL = 25 * 60 * 1000; // 25 min (servidor = 30 min)
 
 async function getSession(cookie) {
-  // Reutiliza se o cookie não mudou
-  if (_session && _sessionCookieHash === cookie.slice(0, 32)) return _session;
+  // Reutiliza se o cookie não mudou E a sessão ainda não expirou
+  if (_session && _sessionCookieHash === cookie.slice(0, 32) && Date.now() < _sessionExpiresAt) {
+    return _session;
+  }
   _session = await createSession(cookie);
   _sessionCookieHash = cookie.slice(0, 32);
+  _sessionExpiresAt = Date.now() + SESSION_TTL;
   console.log('   Sessao ECDH criada');
   return _session;
 }
@@ -328,6 +355,7 @@ async function getSession(cookie) {
 function invalidateSession() {
   _session = null;
   _sessionCookieHash = '';
+  _sessionExpiresAt = 0;
 }
 
 // ── Cookie com auto-renovação ─────────────────────────────────────────────────
