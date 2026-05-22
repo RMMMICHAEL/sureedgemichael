@@ -188,11 +188,22 @@ function base64ToBytes(b64) {
 }
 
 async function createSession(cookie) {
+  const cookieWithCf = await mergeCfClearance(cookie);
   const hdrs = {
-    'User-Agent': UA, 'Accept': '*/*', 'Cache-Control': 'no-cache',
-    'Accept-Language': 'pt-BR,pt;q=0.9',
-    'Referer': `${BASE}/index.php?page=buscador`,
-    'Cookie': cookie,
+    'User-Agent':        UA,
+    'Accept':            '*/*',
+    'Accept-Language':   'pt-BR,pt;q=0.9',
+    'Cache-Control':     'no-cache',
+    'Origin':            BASE,
+    'Referer':           `${BASE}/index.php?page=buscador`,
+    'Cookie':            cookieWithCf,
+    'Sec-Fetch-Dest':    'empty',
+    'Sec-Fetch-Mode':    'cors',
+    'Sec-Fetch-Site':    'same-origin',
+    'Sec-Ch-Ua':         '"Chromium";v="148", "Google Chrome";v="148", "Not-A.Brand";v="99"',
+    'Sec-Ch-Ua-Mobile':  '?0',
+    'Sec-Ch-Ua-Platform':'"Windows"',
+    'X-Requested-With':  'XMLHttpRequest',
   };
 
   const nonceRes = await fetch(`${BASE}/api/proxy_nonce_handshake.php`, { headers: hdrs });
