@@ -171,6 +171,32 @@ async function autoRenewCookie() {
   return null;
 }
 
+// ── Cookie jar helper ─────────────────────────────────────────────────────────
+// Node fetch() não mantém cookies entre chamadas. Precisamos capturar os
+// Set-Cookie das respostas do handshake e reencaminhar nas requisições seguintes.
+
+function extractSetCookies(headers) {
+  const cookies = [];
+  // Headers.entries() retorna pares [name, value]; Set-Cookie pode aparecer
+  // múltiplas vezes mas a API Headers do Node agrupa em uma string com \n
+  const raw = headers.get('set-cookie') ?? '';
+  // Node.js 18+ agrupa múltiplos Set-Cookie separados por ", " — divide com cuidado
+  // (cookies com "expires=..." também têm vírgulas, então split por "\n" é mais seguro)
+  for (const line of raw.split('\n')) {
+    const part = line.split(';')[0].trim();
+    if (part) cookies.push(part);
+  }
+  return cookies;
+}
+
+function mergeCookies(base, extra) {
+  if (!extra.length) return base;
+  const newNames = new Set(extra.map(c => c.split('=')[0].trim().toLowerCase()));
+  const existing = base.split(';').map(p => p.trim())
+    .filter(p => p && !newNames.has(p.split('=')[0].trim().toLowerCase()));
+  return [...existing, ...extra].join('; ');
+}
+
 // ── ECDH / Crypto helpers ─────────────────────────────────────────────────────
 const subtle = globalThis.crypto.subtle;
 
@@ -211,6 +237,12 @@ async function createSession(cookie) {
   const { nonce: handshakeNonce } = await nonceRes.json();
   if (!handshakeNonce) throw new Error('nonce invalido');
 
+  // Captura cookies de sessão retornados pelo servidor (ex: PHPSESSID renovado)
+  const nonceCookies = extractSetCookies(nonceRes.headers);
+  const hdrsAfterNonce = nonceCookies.length
+    ? { ...hdrs, 'Cookie': mergeCookies(hdrs['Cookie'], nonceCookies) }
+    : hdrs;
+
   const keyPair     = await subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits']);
   const pubRaw      = new Uint8Array(await subtle.exportKey('raw', keyPair.publicKey));
   const client_pub_x = bytesToHex(pubRaw.slice(1, 33));
@@ -218,12 +250,18 @@ async function createSession(cookie) {
 
   const hsRes = await fetch(`${BASE}/api/buscador_handshake.php`, {
     method: 'POST',
-    headers: { ...hdrs, 'Content-Type': 'application/json', 'X-Handshake-Nonce': handshakeNonce },
+    headers: { ...hdrsAfterNonce, 'Content-Type': 'application/json', 'X-Handshake-Nonce': handshakeNonce },
     body: JSON.stringify({ client_pub_x, client_pub_y }),
   });
   if (!hsRes.ok) throw new Error(`handshake falhou (${hsRes.status})`);
   const hs = await hsRes.json();
   if (!hs.success) throw new Error('cookie invalido (handshake negado)');
+
+  // Captura cookies de sessão retornados pelo handshake (token de sessão ECDH)
+  const hsCookies = extractSetCookies(hsRes.headers);
+  if (hsCookies.length) {
+    hdrsAfterNonce['Cookie'] = mergeCookies(hdrsAfterNonce['Cookie'], hsCookies);
+  }
 
   const srvRaw = new Uint8Array(65);
   srvRaw[0] = 0x04;
@@ -237,7 +275,7 @@ async function createSession(cookie) {
     { name: 'HKDF', hash: 'SHA-256', salt: new Uint8Array(0), info: new TextEncoder().encode('buscador-aes256-v1') },
     hkdfKey, { name: 'AES-CBC', length: 256 }, false, ['decrypt']
   );
-  return { aesKey, hdrs };
+  return { aesKey, hdrs: hdrsAfterNonce };
 }
 
 async function fetchNonceBuscador(hdrs) {
