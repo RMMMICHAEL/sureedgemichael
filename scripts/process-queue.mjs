@@ -606,11 +606,8 @@ async function createFreebetSession(cookie) {
   }
   const hs = await hsRes.json();
   if (!hs.success) throw new Error(`freebet: app_handshake negado: ${JSON.stringify(hs).slice(0, 100)}`);
-  // Loga campos retornados para diagnóstico (remover depois de confirmado)
-  console.log(`   [freebet] handshake campos: ${Object.keys(hs).join(', ')}`);
+  // session_token é necessário — freebet_proxy-v2.php exige X-Session-Token
   const sessionToken = hs.session_token ?? null;
-  if (sessionToken) console.log(`   [freebet] session_token: ${sessionToken.slice(0, 24)}…`);
-  else              console.log('   [freebet] session_token: ausente na resposta');
   console.log('   Sessão ECDH freebet criada');
 
   // 4. Deriva chave AES — info string: 'app-aes256-v1'
@@ -658,27 +655,11 @@ async function fetchFreebetFromSuperMonitor(freebetSession, { bookmaker, value, 
     'Accept': 'application/json',
   };
 
-  // Nonce para a requisição freebet
-  let nonce = null;
-  for (const endpoint of [
-    `${BASE}/api/proxy_nonce_freebet.php`,
-    `${BASE}/api/proxy_nonce.php`,
-  ]) {
-    try {
-      const r = await fetch(endpoint, { headers: freebetHdrs });
-      if (r.ok) {
-        const body = await r.json();
-        if (body.nonce) {
-          nonce = body.nonce;
-          console.log(`   [freebet] nonce de: ${endpoint.split('/').pop()}`);
-          break;
-        }
-      } else {
-        console.log(`   [freebet] ${endpoint.split('/').pop()} → ${r.status}`);
-      }
-    } catch { /* tenta próximo */ }
-  }
-  if (!nonce) throw new Error('freebet: não foi possível obter nonce');
+  // Nonce para a requisição freebet — proxy_nonce_freebet.php retorna 404, usa o genérico
+  const nonceR = await fetch(`${BASE}/api/proxy_nonce.php`, { headers: freebetHdrs });
+  if (!nonceR.ok) throw new Error(`freebet: proxy_nonce falhou (${nonceR.status})`);
+  const { nonce } = await nonceR.json();
+  if (!nonce) throw new Error('freebet: nonce vazio');
 
   const qs = new URLSearchParams({
     endpoint:  'api/v2/freebet/convert',
