@@ -146,7 +146,7 @@ async function solveTurnstile(siteKey, pageUrl) {
   if (created.errorId !== 0) throw new Error(`2captcha createTask: ${created.errorCode}`);
   const taskId = created.taskId;
   console.log(`⏳  Task ${taskId} criada. Aguardando token…`);
-  for (let i = 0; i < 24; i++) {
+  for (let i = 0; i < 48; i++) {
     await new Promise(r => setTimeout(r, 5_000));
     const res    = await fetch('https://api.2captcha.com/getTaskResult', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },

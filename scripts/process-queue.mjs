@@ -121,8 +121,10 @@ async function validateCookie(cookie) {
 }
 
 // ── Keepalive de sessão ───────────────────────────────────────────────────────
-// Pinga o servidor a cada 18 min para evitar expiração da sessão PHP (TTL padrão = 24 min).
-const KEEPALIVE_INTERVAL = 18 * 60 * 1000;
+// Pinga o servidor a cada 8 min — igual ao session_monitor.js do SuperMonitor
+// que usa 5 min. 8 min é conservador o suficiente para evitar expiração da
+// sessão PHP sem gerar tráfego desnecessário.
+const KEEPALIVE_INTERVAL = 8 * 60 * 1000;
 // Inicializa no momento atual para evitar ping imediato no startup
 // (acabamos de validar o cookie ao subir — não precisa pingar de novo)
 let _lastKeepalive = Date.now();
@@ -131,8 +133,12 @@ async function keepalive() {
   if (!_cookie) return;
   if (Date.now() - _lastKeepalive < KEEPALIVE_INTERVAL) return;
   try {
-    const res = await request('GET', `${BASE}/ajax.php?action=events_lite`, {
-      'User-Agent': UA, 'Cookie': _cookie, 'Accept': 'application/json', 'Referer': `${BASE}/`,
+    // Usa check_session.php — mesmo endpoint do session_monitor.js do SuperMonitor
+    const res = await request('GET', `${BASE}/check_session.php`, {
+      'User-Agent': UA, 'Cookie': _cookie,
+      'Accept': 'application/json, text/javascript, */*; q=0.01',
+      'X-Requested-With': 'XMLHttpRequest',
+      'Referer': `${BASE}/index.php?page=buscador`,
     });
     const ok = res.status === 200
       && !res.body.includes('name="senha"')
@@ -158,7 +164,7 @@ async function autoRenewCookie() {
   _freebetSessionCookieHash = '';
   try {
     await execFileAsync(process.execPath, [resolve(__dir, 'renew-cookie.mjs')], {
-      cwd: __dir, timeout: 150_000, // 2.5 min (inclui 2captcha)
+      cwd: __dir, timeout: 300_000, // 5 min (2captcha pode demorar até 4 min)
     });
     const cookie = await readCookieFromSupabase();
     if (cookie) {
