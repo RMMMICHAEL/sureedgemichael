@@ -369,11 +369,13 @@ function VideoPlayer({ src, label }: { src: string; label: string }) {
         <video
           ref={vRef}
           src={src}
-          style={{ width: '100%', display: 'block', objectFit: 'cover' }}
+          style={{ width: '100%', display: 'block' }}
           onTimeUpdate={onTimeUpdate}
           onEnded={() => { setPlaying(false); setProg(0); }}
           muted={muted}
           playsInline
+          preload="auto"
+          loop
         />
         {/* Play overlay — only when paused */}
         {!playing && (
@@ -784,44 +786,25 @@ export function LandingPage() {
         background: 'linear-gradient(180deg, transparent, rgba(63,255,33,.02) 50%, transparent)',
         padding: '100px 24px',
       }}>
-        <div style={{ maxWidth: 1200, margin: '0 auto', display: 'grid', gap: 64 }} className="grid grid-cols-1 lg:grid-cols-2 items-center">
-          {/* Copy */}
-          <div>
+        <div style={{ maxWidth: 1200, margin: '0 auto' }}>
+
+          {/* Heading — centered */}
+          <div style={{ textAlign: 'center', marginBottom: 56 }}>
             <SectionLabel>Exclusivo</SectionLabel>
             <h2 style={{
               fontFamily: '"Space Grotesk", sans-serif',
               fontWeight: 900, fontSize: 'clamp(28px,3.5vw,48px)',
-              letterSpacing: '-0.03em', lineHeight: 1.08, marginBottom: 20,
+              letterSpacing: '-0.03em', lineHeight: 1.08, marginBottom: 16,
             }}>
               Extração de freebet que <span style={{ color: '#3FFF21' }}>paga sozinha</span> a mensalidade.
             </h2>
-            <p style={{ fontFamily: '"Inter", sans-serif', fontSize: 16, color: 'rgba(240,244,248,.55)', lineHeight: 1.75, marginBottom: 32 }}>
-              Ferramenta proprietária que identifica os jogos com maior taxa de conversão de freebets em tempo real. Mais de 30 casas filtradas simultaneamente — você recebe pronto qual jogo, qual odd, qual stake.
+            <p style={{ fontFamily: '"Inter", sans-serif', fontSize: 16, color: 'rgba(240,244,248,.5)', lineHeight: 1.75, maxWidth: '60ch', margin: '0 auto' }}>
+              Ferramenta proprietária que identifica os jogos com maior taxa de conversão de freebets em tempo real.
             </p>
-            <ul style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              {[
-                'Identificação automática das melhores conversões',
-                'Filtros por mercado, esporte, casa e valor mínimo',
-                'Cálculo de stake e ROI já feito para você',
-                'Alertas em tempo real quando aparece oportunidade',
-              ].map(t => (
-                <li key={t} style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-                  <div style={{
-                    width: 20, height: 20, borderRadius: '50%',
-                    background: 'rgba(63,255,33,.15)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    flexShrink: 0, marginTop: 2,
-                  }}>
-                    <Check size={11} color="#3FFF21" strokeWidth={3} />
-                  </div>
-                  <span style={{ fontFamily: '"Inter", sans-serif', fontSize: 15, color: 'rgba(240,244,248,.8)', lineHeight: 1.6 }}>{t}</span>
-                </li>
-              ))}
-            </ul>
           </div>
 
-          {/* Freebet screenshot */}
-          <div style={{ position: 'relative' }}>
+          {/* Freebet screenshot — full width */}
+          <div style={{ position: 'relative', marginBottom: 48 }}>
             <div style={{ position: 'absolute', inset: -24, borderRadius: 32, background: 'rgba(63,255,33,.08)', filter: 'blur(40px)', pointerEvents: 'none' }} />
             <div style={{ position: 'relative', overflow: 'hidden', borderRadius: 20, border: '1px solid rgba(63,255,33,.2)', boxShadow: '0 30px 80px rgba(0,0,0,.5)' }}>
               <NextImage
@@ -834,6 +817,29 @@ export function LandingPage() {
               />
             </div>
           </div>
+
+          {/* Bullet points — centered below */}
+          <ul style={{ display: 'grid', gap: 14, maxWidth: 800, margin: '0 auto' }} className="grid grid-cols-1 sm:grid-cols-2">
+            {[
+              'Identificação automática das melhores conversões',
+              'Filtros por mercado, esporte, casa e valor mínimo',
+              'Cálculo de stake e ROI já feito para você',
+              'Alertas em tempo real quando aparece oportunidade',
+            ].map(t => (
+              <li key={t} style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                <div style={{
+                  width: 20, height: 20, borderRadius: '50%',
+                  background: 'rgba(63,255,33,.15)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  flexShrink: 0, marginTop: 2,
+                }}>
+                  <Check size={11} color="#3FFF21" strokeWidth={3} />
+                </div>
+                <span style={{ fontFamily: '"Inter", sans-serif', fontSize: 15, color: 'rgba(240,244,248,.8)', lineHeight: 1.6 }}>{t}</span>
+              </li>
+            ))}
+          </ul>
+
         </div>
       </section>
 
@@ -844,78 +850,83 @@ export function LandingPage() {
         background: 'linear-gradient(180deg, transparent, rgba(63,255,33,.02) 50%, transparent)',
         padding: '100px 24px',
       }}>
-        <div style={{ maxWidth: 1200, margin: '0 auto', display: 'grid', gap: 64 }} className="grid grid-cols-1 lg:grid-cols-2 items-center">
+        <div style={{ maxWidth: 1200, margin: '0 auto' }}>
 
-          {/* Media: odds screenshot + vídeo de reentrada */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {/* duplogreen.png */}
-            <div style={{ position: 'relative' }}>
-              <div style={{ position: 'absolute', inset: -20, borderRadius: 28, background: 'rgba(63,255,33,.07)', filter: 'blur(36px)', pointerEvents: 'none' }} />
-              <div style={{ position: 'relative', overflow: 'hidden', borderRadius: 16, border: '1px solid rgba(63,255,33,.2)', boxShadow: '0 20px 60px rgba(0,0,0,.4)' }}>
-                {/* Label bar */}
-                <div style={{
-                  display: 'flex', alignItems: 'center',
-                  padding: '10px 16px',
-                  background: 'oklch(0.20 0.02 240)',
-                  borderBottom: '1px solid rgba(255,255,255,.06)',
-                }}>
-                  <TrendingUp size={13} color="#3FFF21" />
-                  <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#F0F4F8', marginLeft: 8 }}>Odds em tempo real</span>
-                  <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span className="lp-pulse-dot" style={{ width: 6, height: 6, borderRadius: '50%', background: '#3FFF21', display: 'block' }} />
-                    <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 10, color: '#3FFF21' }}>LIVE</span>
-                  </div>
-                </div>
-                <NextImage
-                  src="/duplogreen.png"
-                  alt="Odds extraídas em tempo real para duplo green"
-                  width={1918}
-                  height={935}
-                  quality={100}
-                  style={{ width: '100%', height: 'auto', display: 'block' }}
-                />
-              </div>
-            </div>
-
-            {/* reentrada.mp4 */}
-            <VideoPlayer src="/reentrada.mp4" label="Reentrada" />
-          </div>
-
-          {/* Copy */}
-          <div>
+          {/* Heading — centered */}
+          <div style={{ textAlign: 'center', marginBottom: 56 }}>
             <SectionLabel>Tempo Real</SectionLabel>
             <h2 style={{
               fontFamily: '"Space Grotesk", sans-serif',
               fontWeight: 900, fontSize: 'clamp(28px,3.5vw,48px)',
-              letterSpacing: '-0.03em', lineHeight: 1.08, marginBottom: 20,
+              letterSpacing: '-0.03em', lineHeight: 1.08, marginBottom: 16,
             }}>
               Duplo green e reentrada:{' '}
               <span style={{ color: '#3FFF21' }}>você decide quando sair.</span>
             </h2>
-            <p style={{ fontFamily: '"Inter", sans-serif', fontSize: 16, color: 'rgba(240,244,248,.55)', lineHeight: 1.75, marginBottom: 32 }}>
-              Veja as odds coletadas em tempo real e identifique as operações com maior potencial de retorno. Não quer esperar o jogo acabar? A opção de reentrada permite fechar a posição antecipadamente e partir para a próxima oportunidade.
+            <p style={{ fontFamily: '"Inter", sans-serif', fontSize: 16, color: 'rgba(240,244,248,.5)', lineHeight: 1.75, maxWidth: '60ch', margin: '0 auto' }}>
+              Veja as odds coletadas em tempo real e identifique as operações com maior potencial de retorno.
             </p>
-            <ul style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              {[
-                'Odds atualizadas de 30+ casas em tempo real',
-                'Identifique operações com alto potencial de retorno',
-                'Reentrada: encerre a posição antes do término',
-                'Sem precisar esperar o jogo acabar para lucrar',
-              ].map(t => (
-                <li key={t} style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-                  <div style={{
-                    width: 20, height: 20, borderRadius: '50%',
-                    background: 'rgba(63,255,33,.15)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    flexShrink: 0, marginTop: 2,
-                  }}>
-                    <Check size={11} color="#3FFF21" strokeWidth={3} />
-                  </div>
-                  <span style={{ fontFamily: '"Inter", sans-serif', fontSize: 15, color: 'rgba(240,244,248,.8)', lineHeight: 1.6 }}>{t}</span>
-                </li>
-              ))}
-            </ul>
           </div>
+
+          {/* duplogreen.png — full width */}
+          <div style={{ position: 'relative', marginBottom: 40 }}>
+            <div style={{ position: 'absolute', inset: -24, borderRadius: 32, background: 'rgba(63,255,33,.08)', filter: 'blur(40px)', pointerEvents: 'none' }} />
+            <div style={{ position: 'relative', overflow: 'hidden', borderRadius: 16, border: '1px solid rgba(63,255,33,.2)', boxShadow: '0 30px 80px rgba(0,0,0,.5)' }}>
+              <div style={{
+                display: 'flex', alignItems: 'center',
+                padding: '10px 16px',
+                background: 'oklch(0.20 0.02 240)',
+                borderBottom: '1px solid rgba(255,255,255,.06)',
+              }}>
+                <TrendingUp size={13} color="#3FFF21" />
+                <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#F0F4F8', marginLeft: 8 }}>Odds em tempo real</span>
+                <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span className="lp-pulse-dot" style={{ width: 6, height: 6, borderRadius: '50%', background: '#3FFF21', display: 'block' }} />
+                  <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 10, color: '#3FFF21' }}>LIVE</span>
+                </div>
+              </div>
+              <NextImage
+                src="/duplogreen.png"
+                alt="Odds extraídas em tempo real para duplo green"
+                width={1918}
+                height={935}
+                quality={100}
+                style={{ width: '100%', height: 'auto', display: 'block' }}
+              />
+            </div>
+          </div>
+
+          {/* Video + bullet points — 2 col */}
+          <div style={{ display: 'grid', gap: 48 }} className="grid grid-cols-1 lg:grid-cols-2 items-center">
+            <VideoPlayer src="/reentrada.mp4" label="Reentrada" />
+
+            <div>
+              <p style={{ fontFamily: '"Inter", sans-serif', fontSize: 16, color: 'rgba(240,244,248,.55)', lineHeight: 1.75, marginBottom: 28 }}>
+                Não quer esperar o jogo acabar? A opção de reentrada permite fechar a posição antecipadamente e partir para a próxima oportunidade.
+              </p>
+              <ul style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                {[
+                  'Odds atualizadas de 30+ casas em tempo real',
+                  'Identifique operações com alto potencial de retorno',
+                  'Reentrada: encerre a posição antes do término',
+                  'Sem precisar esperar o jogo acabar para lucrar',
+                ].map(t => (
+                  <li key={t} style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                    <div style={{
+                      width: 20, height: 20, borderRadius: '50%',
+                      background: 'rgba(63,255,33,.15)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      flexShrink: 0, marginTop: 2,
+                    }}>
+                      <Check size={11} color="#3FFF21" strokeWidth={3} />
+                    </div>
+                    <span style={{ fontFamily: '"Inter", sans-serif', fontSize: 15, color: 'rgba(240,244,248,.8)', lineHeight: 1.6 }}>{t}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+
         </div>
       </section>
 
