@@ -9,6 +9,7 @@ import {
   LogOut, QrCode, CreditCard, Gift, Wallet,
   Users, Star, Filter, Target, Database, Activity,
   Building2, Sparkles, Trophy,
+  Play, Pause, Volume2, VolumeX,
 } from 'lucide-react';
 
 // ─── Pricing ──────────────────────────────────────────────────────────────────
@@ -280,22 +281,22 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
-// ─── Hero Mockup ──────────────────────────────────────────────────────────────
+// ─── Hero Dashboard Image ─────────────────────────────────────────────────────
 
-function HeroMockup() {
+function HeroDashImage() {
   return (
     <div style={{
       overflow: 'hidden', borderRadius: 16,
       border: '1px solid rgba(63,255,33,.15)',
-      background: 'oklch(0.16 0.018 240)',
-      boxShadow: '0 0 60px -10px rgba(63,255,33,.3), 0 40px 100px rgba(0,0,0,.6)',
+      background: 'oklch(0.13 0.015 240)',
+      boxShadow: '0 0 80px -12px rgba(63,255,33,.35), 0 48px 120px rgba(0,0,0,.7)',
     }}>
       {/* Window chrome */}
       <div style={{
         display: 'flex', alignItems: 'center', gap: 7,
         padding: '10px 16px',
         background: 'oklch(0.18 0.02 240)',
-        borderBottom: '1px solid rgba(255,255,255,.05)',
+        borderBottom: '1px solid rgba(255,255,255,.06)',
       }}>
         <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#ff5f56', display: 'block' }} />
         <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#ffbd2e', display: 'block' }} />
@@ -303,88 +304,142 @@ function HeroMockup() {
         <div style={{ flex: 1 }} />
         <span style={{ fontFamily: 'JetBrains Mono', fontSize: 10, color: 'rgba(63,255,33,.6)' }}>sureedge.app/dashboard</span>
       </div>
+      {/* Real dashboard screenshot */}
+      <img
+        src="/dash.png"
+        alt="Dashboard SureEdge — visão geral de operações e analytics"
+        style={{ width: '100%', display: 'block' }}
+      />
+    </div>
+  );
+}
 
-      {/* Body */}
-      <div style={{ display: 'flex', gap: 14, padding: 16 }}>
-        {/* Sidebar */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {[BarChart2, TrendingUp, Calculator, Target, Database, Activity].map((Icon, i) => (
-            <div key={i} style={{
-              width: 36, height: 36,
+// ─── Video Player ─────────────────────────────────────────────────────────────
+
+function VideoPlayer({ src, label }: { src: string; label: string }) {
+  const vRef                  = useRef<HTMLVideoElement>(null);
+  const [playing, setPlaying] = useState(false);
+  const [muted,   setMuted]   = useState(true);
+  const [prog,    setProg]    = useState(0);
+
+  const toggle = () => {
+    const v = vRef.current;
+    if (!v) return;
+    if (v.paused) { v.play().then(() => setPlaying(true)).catch(() => {}); }
+    else          { v.pause(); setPlaying(false); }
+  };
+
+  const onTimeUpdate = () => {
+    const v = vRef.current;
+    if (!v || !v.duration) return;
+    setProg((v.currentTime / v.duration) * 100);
+  };
+
+  const toggleMute = () => {
+    const v = vRef.current;
+    if (!v) return;
+    v.muted = !v.muted;
+    setMuted(v.muted);
+  };
+
+  const seek = (e: React.MouseEvent<HTMLDivElement>) => {
+    const v = vRef.current;
+    if (!v || !v.duration) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    v.currentTime = ((e.clientX - rect.left) / rect.width) * v.duration;
+  };
+
+  return (
+    <div style={{
+      borderRadius: 14, overflow: 'hidden',
+      border: '1px solid rgba(63,255,33,.15)',
+      background: 'oklch(0.14 0.015 240)',
+      boxShadow: '0 8px 40px rgba(0,0,0,.45)',
+    }}>
+      {/* Video */}
+      <div
+        style={{ position: 'relative', cursor: 'pointer' }}
+        onClick={toggle}
+      >
+        <video
+          ref={vRef}
+          src={src}
+          style={{ width: '100%', display: 'block', objectFit: 'cover' }}
+          onTimeUpdate={onTimeUpdate}
+          onEnded={() => { setPlaying(false); setProg(0); }}
+          muted={muted}
+          playsInline
+        />
+        {/* Play overlay — only when paused */}
+        {!playing && (
+          <div style={{
+            position: 'absolute', inset: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: 'rgba(3,5,7,.5)',
+            transition: 'background .2s',
+          }}>
+            <div style={{
+              width: 52, height: 52, borderRadius: '50%',
+              background: '#3FFF21',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              borderRadius: 10,
-              background: i === 0 ? 'rgba(63,255,33,.14)' : 'rgba(255,255,255,.03)',
-              border: i === 0 ? '1px solid rgba(63,255,33,.28)' : '1px solid rgba(255,255,255,.05)',
-              animation: `lp-mockup-in .45s ease-out both`,
-              animationDelay: `${0.1 + i * 0.05}s`,
+              boxShadow: '0 0 36px rgba(63,255,33,.6)',
             }}>
-              <Icon size={15} color={i === 0 ? '#3FFF21' : 'rgba(255,255,255,.25)'} />
+              <Play size={20} color="#0a1a05" fill="#0a1a05" />
             </div>
-          ))}
+          </div>
+        )}
+      </div>
+
+      {/* Controls */}
+      <div style={{ padding: '10px 14px 13px', background: 'oklch(0.17 0.018 240)', borderTop: '1px solid rgba(255,255,255,.05)' }}>
+        {/* Progress bar */}
+        <div
+          onClick={seek}
+          style={{
+            height: 3, background: 'rgba(255,255,255,.1)', borderRadius: 2,
+            marginBottom: 11, cursor: 'pointer', position: 'relative',
+          }}
+        >
+          <div style={{
+            position: 'absolute', left: 0, top: 0,
+            height: '100%', width: `${prog}%`,
+            background: '#3FFF21', borderRadius: 2,
+            transition: 'width .1s linear',
+          }} />
         </div>
 
-        {/* Main */}
-        <div style={{ flex: 1, minWidth: 0 }}>
-          {/* KPI row */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: 10 }}>
-            {[
-              { label: 'Lucro Total', value: 'R$ 4.820', color: '#3FFF21', sub: '↑ +12.4%' },
-              { label: 'Operações',   value: '247',      color: '#4DA6FF', sub: '↑ +8 hoje' },
-              { label: 'ROI Médio',   value: '3.8%',     color: '#FFD600', sub: '↑ +0.3%'  },
-            ].map((k, i) => (
-              <div key={k.label} style={{
-                borderRadius: 12, border: '1px solid rgba(255,255,255,.05)',
-                background: 'rgba(255,255,255,.02)', padding: '10px 12px',
-                animation: `lp-mockup-in .45s ease-out both`,
-                animationDelay: `${0.2 + i * 0.08}s`,
-              }}>
-                <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'oklch(0.55 0.018 240)', marginBottom: 4 }}>{k.label}</div>
-                <div style={{ fontFamily: 'JetBrains Mono', fontSize: 15, fontWeight: 700, color: k.color }}>{k.value}</div>
-                <div style={{ fontSize: 9, color: 'rgba(63,255,33,.65)', marginTop: 2 }}>{k.sub}</div>
-              </div>
-            ))}
-          </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <button
+            onClick={toggle}
+            aria-label={playing ? 'Pausar' : 'Reproduzir'}
+            style={{
+              width: 30, height: 30, borderRadius: '50%',
+              background: '#3FFF21', border: 'none', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+            }}
+          >
+            {playing
+              ? <Pause size={12} color="#0a1a05" fill="#0a1a05" />
+              : <Play  size={12} color="#0a1a05" fill="#0a1a05" />}
+          </button>
 
-          {/* Chart */}
-          <div style={{ borderRadius: 12, border: '1px solid rgba(255,255,255,.05)', background: 'rgba(255,255,255,.02)', padding: '10px 12px', marginBottom: 10 }}>
-            <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'oklch(0.55 0.018 240)', marginBottom: 8 }}>Evolução do saldo</div>
-            <svg width="100%" height={54} viewBox="0 0 260 54" preserveAspectRatio="none">
-              <defs>
-                <linearGradient id="hg1" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#3FFF21" stopOpacity="0.28" />
-                  <stop offset="100%" stopColor="#3FFF21" stopOpacity="0" />
-                </linearGradient>
-              </defs>
-              <path d="M0 50 L32 44 L65 36 L97 28 L130 20 L162 14 L195 9 L227 5 L260 2 L260 54 L0 54Z" fill="url(#hg1)" />
-              <path
-                d="M0 50 L32 44 L65 36 L97 28 L130 20 L162 14 L195 9 L227 5 L260 2"
-                stroke="#3FFF21" strokeWidth="2" fill="none" strokeLinecap="round"
-                style={{ strokeDasharray: 600, strokeDashoffset: 600, animation: 'lp-chart-draw 1.6s ease-out 0.4s both' }}
-              />
-              <circle cx="260" cy="2" r="3" fill="#3FFF21" />
-            </svg>
-          </div>
+          <button
+            onClick={toggleMute}
+            aria-label={muted ? 'Ativar som' : 'Silenciar'}
+            style={{
+              background: 'none', border: 'none', cursor: 'pointer', padding: 2,
+              color: 'rgba(240,244,248,.4)', display: 'flex', alignItems: 'center',
+            }}
+          >
+            {muted ? <VolumeX size={14} /> : <Volume2 size={14} />}
+          </button>
 
-          {/* Recent ops */}
-          <div style={{ borderRadius: 12, border: '1px solid rgba(255,255,255,.05)', background: 'rgba(255,255,255,.02)', overflow: 'hidden' }}>
-            {[
-              { casa: 'Bet365',   evento: 'Man City vs Arsenal',   roi: '+4.2%' },
-              { casa: 'Pinnacle', evento: 'PSG vs Bayern Munich',  roi: '+5.1%' },
-              { casa: 'Betfair',  evento: 'Djokovic vs Alcaraz',   roi: '+2.8%' },
-            ].map((row, i) => (
-              <div key={i} style={{
-                display: 'flex', alignItems: 'center', gap: 10,
-                padding: '8px 12px',
-                borderBottom: i < 2 ? '1px solid rgba(255,255,255,.04)' : undefined,
-                animation: `lp-mockup-in .45s ease-out both`,
-                animationDelay: `${0.5 + i * 0.1}s`,
-              }}>
-                <span style={{ width: 52, fontSize: 10, color: 'rgba(255,255,255,.55)', flexShrink: 0 }}>{row.casa}</span>
-                <span style={{ flex: 1, fontSize: 10, color: 'rgba(255,255,255,.35)' }}>{row.evento}</span>
-                <span style={{ fontFamily: 'JetBrains Mono', fontSize: 10, fontWeight: 700, color: '#3FFF21' }}>{row.roi}</span>
-              </div>
-            ))}
-          </div>
+          <span style={{
+            marginLeft: 'auto',
+            fontFamily: '"JetBrains Mono", monospace', fontSize: 9,
+            fontWeight: 700, letterSpacing: '0.18em',
+            textTransform: 'uppercase', color: 'rgba(63,255,33,.65)',
+          }}>{label}</span>
         </div>
       </div>
     </div>
@@ -570,9 +625,9 @@ export function LandingPage() {
             <span style={{ fontFamily: '"Inter", sans-serif', fontSize: 12, color: 'rgba(240,244,248,.4)' }}>4.9 — usado por traders profissionais em todo o Brasil</span>
           </div>
 
-          {/* Mockup */}
+          {/* Dashboard screenshot */}
           <div className="lp-fade-in lp-d6">
-            <HeroMockup />
+            <HeroDashImage />
           </div>
         </div>
       </section>
@@ -759,54 +814,97 @@ export function LandingPage() {
             </ul>
           </div>
 
-          {/* Freebet table */}
+          {/* Freebet screenshot */}
           <div style={{ position: 'relative' }}>
             <div style={{ position: 'absolute', inset: -24, borderRadius: 32, background: 'rgba(63,255,33,.08)', filter: 'blur(40px)', pointerEvents: 'none' }} />
-            <div style={{ position: 'relative', overflow: 'hidden', borderRadius: 20, border: '1px solid rgba(63,255,33,.2)', background: 'oklch(0.18 0.02 240)', boxShadow: '0 30px 80px rgba(0,0,0,.5)' }}>
-              {/* Header */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 20px', borderBottom: '1px solid rgba(255,255,255,.06)', background: 'oklch(0.20 0.02 240)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Gift size={14} color="#3FFF21" />
-                  <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#F0F4F8' }}>Extração de Freebet</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span className="lp-pulse-dot" style={{ width: 6, height: 6, borderRadius: '50%', background: '#3FFF21', display: 'block' }} />
-                  <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 10, color: '#3FFF21' }}>LIVE</span>
-                </div>
-              </div>
-
-              {/* Rows */}
-              {[
-                { match: 'Liverpool vs Chelsea',     market: 'Over 2.5',    conv: 87, odd: '2.10', houses: 4 },
-                { match: 'Real Madrid vs Atlético',  market: 'BTTS',        conv: 82, odd: '1.95', houses: 6 },
-                { match: 'Inter vs Milan',            market: 'Match Result', conv: 78, odd: '2.40', houses: 5 },
-                { match: 'Flamengo vs Palmeiras',    market: 'Over 1.5',    conv: 74, odd: '1.45', houses: 3 },
-                { match: 'Bayern vs Dortmund',       market: 'Over 3.5',    conv: 71, odd: '2.85', houses: 4 },
-              ].map((row, i) => (
-                <div key={i} style={{
-                  display: 'flex', alignItems: 'center', gap: 16,
-                  padding: '14px 20px',
-                  borderBottom: i < 4 ? '1px solid rgba(255,255,255,.05)' : undefined,
-                  transition: 'background .15s',
-                }}
-                  onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,.02)')}
-                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                >
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontFamily: '"Inter", sans-serif', fontSize: 13, fontWeight: 600, color: '#F0F4F8', marginBottom: 3 }}>{row.match}</div>
-                    <div style={{ fontFamily: '"Inter", sans-serif', fontSize: 11, color: 'rgba(240,244,248,.4)' }}>{row.market} · {row.houses} casas</div>
-                  </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 15, fontWeight: 700, color: '#3FFF21' }}>{row.conv}%</div>
-                    <div style={{ fontSize: 10, color: 'rgba(240,244,248,.35)' }}>conversão</div>
-                  </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 13, fontWeight: 700, color: '#F0F4F8' }}>{row.odd}</div>
-                    <div style={{ fontSize: 10, color: 'rgba(240,244,248,.35)' }}>odd</div>
-                  </div>
-                </div>
-              ))}
+            <div style={{ position: 'relative', overflow: 'hidden', borderRadius: 20, border: '1px solid rgba(63,255,33,.2)', boxShadow: '0 30px 80px rgba(0,0,0,.5)' }}>
+              <img
+                src="/freebet.png"
+                alt="Ferramenta de extração de freebet — lista de conversões em tempo real"
+                loading="lazy"
+                style={{ width: '100%', display: 'block' }}
+              />
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ══════════ DUPLO GREEN ══════════ */}
+      <section style={{
+        borderTop: '1px solid rgba(255,255,255,.06)',
+        borderBottom: '1px solid rgba(255,255,255,.06)',
+        background: 'linear-gradient(180deg, transparent, rgba(63,255,33,.02) 50%, transparent)',
+        padding: '100px 24px',
+      }}>
+        <div style={{ maxWidth: 1200, margin: '0 auto', display: 'grid', gap: 64 }} className="grid grid-cols-1 lg:grid-cols-2 items-center">
+
+          {/* Media: odds screenshot + vídeo de reentrada */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {/* duplogreen.png */}
+            <div style={{ position: 'relative' }}>
+              <div style={{ position: 'absolute', inset: -20, borderRadius: 28, background: 'rgba(63,255,33,.07)', filter: 'blur(36px)', pointerEvents: 'none' }} />
+              <div style={{ position: 'relative', overflow: 'hidden', borderRadius: 16, border: '1px solid rgba(63,255,33,.2)', boxShadow: '0 20px 60px rgba(0,0,0,.4)' }}>
+                {/* Label bar */}
+                <div style={{
+                  display: 'flex', alignItems: 'center',
+                  padding: '10px 16px',
+                  background: 'oklch(0.20 0.02 240)',
+                  borderBottom: '1px solid rgba(255,255,255,.06)',
+                }}>
+                  <TrendingUp size={13} color="#3FFF21" />
+                  <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#F0F4F8', marginLeft: 8 }}>Odds em tempo real</span>
+                  <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span className="lp-pulse-dot" style={{ width: 6, height: 6, borderRadius: '50%', background: '#3FFF21', display: 'block' }} />
+                    <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 10, color: '#3FFF21' }}>LIVE</span>
+                  </div>
+                </div>
+                <img
+                  src="/duplogreen.png"
+                  alt="Odds extraídas em tempo real para duplo green"
+                  loading="lazy"
+                  style={{ width: '100%', display: 'block' }}
+                />
+              </div>
+            </div>
+
+            {/* reentrada.mp4 */}
+            <VideoPlayer src="/reentrada.mp4" label="Reentrada" />
+          </div>
+
+          {/* Copy */}
+          <div>
+            <SectionLabel>Tempo Real</SectionLabel>
+            <h2 style={{
+              fontFamily: '"Space Grotesk", sans-serif',
+              fontWeight: 900, fontSize: 'clamp(28px,3.5vw,48px)',
+              letterSpacing: '-0.03em', lineHeight: 1.08, marginBottom: 20,
+            }}>
+              Duplo green e reentrada:{' '}
+              <span style={{ color: '#3FFF21' }}>você decide quando sair.</span>
+            </h2>
+            <p style={{ fontFamily: '"Inter", sans-serif', fontSize: 16, color: 'rgba(240,244,248,.55)', lineHeight: 1.75, marginBottom: 32 }}>
+              Veja as odds coletadas em tempo real e identifique as operações com maior potencial de retorno. Não quer esperar o jogo acabar? A opção de reentrada permite fechar a posição antecipadamente e partir para a próxima oportunidade.
+            </p>
+            <ul style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {[
+                'Odds atualizadas de 30+ casas em tempo real',
+                'Identifique operações com alto potencial de retorno',
+                'Reentrada: encerre a posição antes do término',
+                'Sem precisar esperar o jogo acabar para lucrar',
+              ].map(t => (
+                <li key={t} style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                  <div style={{
+                    width: 20, height: 20, borderRadius: '50%',
+                    background: 'rgba(63,255,33,.15)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    flexShrink: 0, marginTop: 2,
+                  }}>
+                    <Check size={11} color="#3FFF21" strokeWidth={3} />
+                  </div>
+                  <span style={{ fontFamily: '"Inter", sans-serif', fontSize: 15, color: 'rgba(240,244,248,.8)', lineHeight: 1.6 }}>{t}</span>
+                </li>
+              ))}
+            </ul>
           </div>
         </div>
       </section>
