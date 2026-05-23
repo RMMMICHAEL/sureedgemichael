@@ -606,6 +606,11 @@ async function createFreebetSession(cookie) {
   }
   const hs = await hsRes.json();
   if (!hs.success) throw new Error(`freebet: app_handshake negado: ${JSON.stringify(hs).slice(0, 100)}`);
+  // Loga campos retornados para diagnóstico (remover depois de confirmado)
+  console.log(`   [freebet] handshake campos: ${Object.keys(hs).join(', ')}`);
+  const sessionToken = hs.session_token ?? null;
+  if (sessionToken) console.log(`   [freebet] session_token: ${sessionToken.slice(0, 24)}…`);
+  else              console.log('   [freebet] session_token: ausente na resposta');
   console.log('   Sessão ECDH freebet criada');
 
   // 4. Deriva chave AES — info string: 'app-aes256-v1'
@@ -624,7 +629,7 @@ async function createFreebetSession(cookie) {
     hkdfKey, { name: 'AES-CBC', length: 256 }, false, ['decrypt'],
   );
 
-  return { aesKey, hdrs };
+  return { aesKey, hdrs, sessionToken };
 }
 
 async function getFreebetSession(cookie) {
@@ -663,7 +668,13 @@ async function fetchFreebetFromSuperMonitor(freebetSession, { bookmaker, value, 
       const r = await fetch(endpoint, { headers: freebetHdrs });
       if (r.ok) {
         const body = await r.json();
-        if (body.nonce) { nonce = body.nonce; break; }
+        if (body.nonce) {
+          nonce = body.nonce;
+          console.log(`   [freebet] nonce de: ${endpoint.split('/').pop()}`);
+          break;
+        }
+      } else {
+        console.log(`   [freebet] ${endpoint.split('/').pop()} → ${r.status}`);
       }
     } catch { /* tenta próximo */ }
   }
@@ -678,8 +689,13 @@ async function fetchFreebetFromSuperMonitor(freebetSession, { bookmaker, value, 
     pa_filter: String(pa_filter),
   }).toString();
 
+  // Envia session_token se o handshake retornou — freebet_proxy-v2.php pode exigi-lo
+  const sessionHdr = freebetSession.sessionToken
+    ? { 'X-Session-Token': freebetSession.sessionToken }
+    : {};
+
   const res = await fetch(`${BASE}/api/freebet_proxy-v2.php?${qs}`, {
-    headers: { ...freebetHdrs, 'X-Proxy-Nonce': nonce },
+    headers: { ...freebetHdrs, 'X-Proxy-Nonce': nonce, ...sessionHdr },
   });
 
   if (!res.ok) {
