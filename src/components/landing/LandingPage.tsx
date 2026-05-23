@@ -630,10 +630,11 @@ export function LandingPage() {
             <span style={{ fontFamily: '"Inter", sans-serif', fontSize: 12, color: 'rgba(240,244,248,.4)' }}>4.9 — usado por traders profissionais em todo o Brasil</span>
           </div>
 
-          {/* Dashboard screenshot */}
-          <div className="lp-fade-in lp-d6">
-            <HeroDashImage />
-          </div>
+        </div>
+
+        {/* Dashboard screenshot — wider than the text container */}
+        <div className="lp-fade-in lp-d6" style={{ position: 'relative', zIndex: 1, maxWidth: 1200, margin: '0 auto', padding: '0 16px' }}>
+          <HeroDashImage />
         </div>
       </section>
 
