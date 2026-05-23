@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import NextImage from 'next/image';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import { PLAN_PRICES, PLAN_LABELS, type PlanId } from '@/lib/supabase/subscription';
 import {
@@ -305,10 +306,14 @@ function HeroDashImage() {
         <span style={{ fontFamily: 'JetBrains Mono', fontSize: 10, color: 'rgba(63,255,33,.6)' }}>sureedge.app/dashboard</span>
       </div>
       {/* Real dashboard screenshot */}
-      <img
+      <NextImage
         src="/dash.png"
         alt="Dashboard SureEdge — visão geral de operações e analytics"
-        style={{ width: '100%', display: 'block' }}
+        width={1912}
+        height={947}
+        quality={100}
+        priority
+        style={{ width: '100%', height: 'auto', display: 'block' }}
       />
     </div>
   );
@@ -818,11 +823,13 @@ export function LandingPage() {
           <div style={{ position: 'relative' }}>
             <div style={{ position: 'absolute', inset: -24, borderRadius: 32, background: 'rgba(63,255,33,.08)', filter: 'blur(40px)', pointerEvents: 'none' }} />
             <div style={{ position: 'relative', overflow: 'hidden', borderRadius: 20, border: '1px solid rgba(63,255,33,.2)', boxShadow: '0 30px 80px rgba(0,0,0,.5)' }}>
-              <img
+              <NextImage
                 src="/freebet.png"
                 alt="Ferramenta de extração de freebet — lista de conversões em tempo real"
-                loading="lazy"
-                style={{ width: '100%', display: 'block' }}
+                width={1910}
+                height={943}
+                quality={100}
+                style={{ width: '100%', height: 'auto', display: 'block' }}
               />
             </div>
           </div>
@@ -858,11 +865,13 @@ export function LandingPage() {
                     <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 10, color: '#3FFF21' }}>LIVE</span>
                   </div>
                 </div>
-                <img
+                <NextImage
                   src="/duplogreen.png"
                   alt="Odds extraídas em tempo real para duplo green"
-                  loading="lazy"
-                  style={{ width: '100%', display: 'block' }}
+                  width={1918}
+                  height={935}
+                  quality={100}
+                  style={{ width: '100%', height: 'auto', display: 'block' }}
                 />
               </div>
             </div>
