@@ -146,7 +146,7 @@ function AddToPanelModal({ numOutcomes, formulaOpt, rawOdds, commissions, stakes
     return nowBRT();
   });
   const [sp,   setSp]   = useState('Futebol');
-  const [opT,  setOpT]  = useState<OpType>('surebet');
+  const [opT,  setOpT]  = useState<OpType>('duplo_green');
   const [houses, setHouses] = useState<string[]>(() =>
     Array.from({ length: numOutcomes }, (_, i) => initialHouses?.[i] ?? '')
   );
