@@ -132,6 +132,22 @@ interface AddToPanelProps {
 function AddToPanelModal({ numOutcomes, formulaOpt, rawOdds, commissions, stakes, onClose, selectedEvent, initialHouses }: AddToPanelProps) {
   const addLeg  = useStore(s => s.addLeg);
   const toastFn = useStore(s => s.toast);
+  const allLegs = useStore(s => s.legs);
+
+  // Casas mais usadas pelo usuário — top 8 ordenadas por frequência
+  const topHouses = useMemo(() => {
+    const freq: Record<string, number> = {};
+    allLegs.forEach(l => { if (l.ho) freq[l.ho] = (freq[l.ho] ?? 0) + 1; });
+    return Object.entries(freq)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8)
+      .map(([ho]) => ho);
+  }, [allLegs]);
+
+  const restHouses = useMemo(
+    () => ALL_HOUSES.filter(h => !topHouses.includes(h)),
+    [topHouses]
+  );
 
   const [ev,   setEv]   = useState(selectedEvent?.name ?? '');
   const [bd,   setBd]   = useState(() => {
@@ -253,7 +269,14 @@ function AddToPanelModal({ numOutcomes, formulaOpt, rawOdds, commissions, stakes
                 </span>
                 <select style={SELECT} value={houses[i]} onChange={e => setHouse(i, e.target.value)}>
                   <option value="">Selecionar casa...</option>
-                  {ALL_HOUSES.map(h => <option key={h} value={h}>{h}</option>)}
+                  {topHouses.length > 0 && (
+                    <optgroup label="⭐ Mais usadas">
+                      {topHouses.map(h => <option key={h} value={h}>{h}</option>)}
+                    </optgroup>
+                  )}
+                  <optgroup label="Todas as casas">
+                    {restHouses.map(h => <option key={h} value={h}>{h}</option>)}
+                  </optgroup>
                 </select>
               </div>
             ))}
