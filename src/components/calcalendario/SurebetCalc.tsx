@@ -21,10 +21,6 @@ function fmtBRL(v: number, sign = true): string {
   return `${s} R$ ${abs}`;
 }
 
-function fmtUSD(v: number): string {
-  return `$${Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
-
 function nowBRT(): string {
   return new Date()
     .toLocaleString('sv-SE', { timeZone: 'America/Sao_Paulo' })
@@ -116,23 +112,24 @@ const LABEL: React.CSSProperties = {
   display: 'block', marginBottom: 5,
 };
 
-// Grid template: Desfecho | PM | Odd/Preço | Stake | D | FB | C | Lucro
-const COLS      = '90px 40px 1fr 1fr 36px 36px 36px 100px';
-const COLS_MOB  = '70px 1fr 1fr 28px 28px 28px 72px'; // mobile: no PM column
+// Grid template: Desfecho | COM% | Odd | Stake | D | Freebet | C | Lucro
+const COLS     = '90px 96px 1fr 1fr 36px 70px 36px 100px';
+const COLS_MOB = '70px 60px 1fr 1fr 28px 52px 28px 72px';
 
 // ── Add-to-panel modal ────────────────────────────────────────────────────────
 
 interface AddToPanelProps {
   numOutcomes: number;
   formulaOpt: FormulaOption;
-  effectiveOdds: number[];
+  rawOdds: number[];
+  commissions: number[];
   stakes: number[];
   onClose: () => void;
   selectedEvent?: { name: string; start_utc: string } | null;
   initialHouses?: string[];
 }
 
-function AddToPanelModal({ numOutcomes, formulaOpt, effectiveOdds, stakes, onClose, selectedEvent, initialHouses }: AddToPanelProps) {
+function AddToPanelModal({ numOutcomes, formulaOpt, rawOdds, commissions, stakes, onClose, selectedEvent, initialHouses }: AddToPanelProps) {
   const addLeg  = useStore(s => s.addLeg);
   const toastFn = useStore(s => s.toast);
 
@@ -174,7 +171,8 @@ function AddToPanelModal({ numOutcomes, formulaOpt, effectiveOdds, stakes, onClo
         ev:    ev.trim(),
         ho:    houses[i] || '',
         mk:    label,
-        od:    effectiveOdds[i] ?? 0,
+        od:    rawOdds[i] ?? 0,
+        cm:    commissions[i] ?? 0,
         st:    +stake.toFixed(2),
         re:    'Pendente',
         pc:    0,
@@ -304,11 +302,8 @@ export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 
   const [showAdd,     setShowAdd]     = useState(false);
   const [injectedHouses, setInjectedHouses] = useState<string[]>([]);
 
-  // Polymarket state
-  const [polymarket,  setPolymarket]  = useState([false, false, false]);
-  const [quotePrices, setQuotePrices] = useState(['22', '22', '22']);
-  const [exchangeRate, setExchangeRate] = useState('5.50');
-  const [fetchingRate, setFetchingRate] = useState(false);
+  // Commission per leg (% on winning profit — ex: BetBra = 2.8)
+  const [commission, setCommission] = useState(['0', '0', '0']);
 
   // External fill from BuscarOddsPage (odd-click or ranking fill)
   useEffect(() => {
@@ -337,17 +332,15 @@ export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 
 
   const formulaOpt = formulaOptions.find(o => o.value === safeFormulaVal) ?? formulaOptions[0];
 
-  // Effective odds — Polymarket rows use 100/quotePrices[i], others use odds[i]
+  // Effective odds — apply per-leg commission: eff = 1 + (raw − 1) × (1 − comm/100)
   const effectiveOdds = useMemo(() => {
     return Array.from({ length: numOutcomes }, (_, i) => {
-      if (polymarket[i]) {
-        const price = parseFloat(quotePrices[i].replace(',', '.')) || 22;
-        if (price <= 0 || price >= 100) return 0;
-        return 100 / price;
-      }
-      return parseFloat(odds[i].replace(',', '.')) || 0;
+      const raw  = parseFloat(odds[i].replace(',', '.')) || 0;
+      const comm = parseFloat(commission[i]?.replace(',', '.') || '0') || 0;
+      if (comm > 0 && raw > 1) return 1 + (raw - 1) * (1 - comm / 100);
+      return raw;
     });
-  }, [odds, polymarket, quotePrices, numOutcomes]);
+  }, [odds, commission, numOutcomes]);
 
   const result = useMemo(() => {
     const roundTo = roundEnabled ? (parseFloat(roundToStr) || null) : null;
@@ -465,41 +458,8 @@ export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 
     return calculate(effectiveOdds, formulaOpt.formula, 100, 'sum', dist, null).profitPct;
   }, [effectiveOdds, numOutcomes, formulaOpt, distribute, freebet, result.profitPct]);
 
-  // Polymarket per-row calculations
-  const pmCalcs = useMemo(() => {
-    const cambio = parseFloat(exchangeRate.replace(',', '.')) || 5.5;
-    return Array.from({ length: numOutcomes }, (_, i) => {
-      if (!polymarket[i]) return null;
-      const pricePerCota = parseFloat(quotePrices[i].replace(',', '.')) || 22;
-      if (pricePerCota <= 0 || pricePerCota >= 100) return null;
-      const oddEquiv = 100 / pricePerCota;
-      const stakeInBRL = result.stakes[i] ?? 0;
-      const retornoAlvoBRL = stakeInBRL * oddEquiv;
-      const retornoAlvoUSD = retornoAlvoBRL / cambio;
-      // +3% slippage buffer
-      const cotas = Math.ceil(retornoAlvoUSD * 1.03);
-      const custoUSD = cotas * (pricePerCota / 100);
-      const custoBRL = custoUSD * cambio;
-      // Each cota pays $1.00 USD on win
-      const retornoUSD = cotas;
-      const retornoBRL = cotas * cambio;
-      return { oddEquiv, cotas, custoUSD, custoBRL, retornoUSD, retornoBRL };
-    });
-  }, [polymarket, quotePrices, result.stakes, exchangeRate, numOutcomes]);
-
-  const anyPM = polymarket.slice(0, numOutcomes).some(Boolean);
-
-  async function fetchRate() {
-    setFetchingRate(true);
-    try {
-      const resp = await fetch('https://economia.awesomeapi.com.br/json/last/USD-BRL');
-      const json = await resp.json();
-      const bid = json['USDBRL']?.bid;
-      if (bid) setExchangeRate(Number(bid).toFixed(2));
-    } catch {
-      // silently ignore fetch errors
-    }
-    setFetchingRate(false);
+  function setComm(i: number, val: string) {
+    setCommission(prev => prev.map((c, idx) => idx === i ? val : c));
   }
 
   function toggleDistribute(i: number) {
@@ -543,16 +503,8 @@ export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 
     }
   }
 
-  function togglePM(i: number) {
-    setPolymarket(prev => prev.map((p, idx) => idx === i ? !p : p));
-  }
-
   function setOdd(i: number, val: string) {
     setOdds(prev => prev.map((o, idx) => idx === i ? val : o));
-  }
-
-  function setQuotePrice(i: number, val: string) {
-    setQuotePrices(prev => prev.map((p, idx) => idx === i ? val : p));
   }
 
   // Stake cells only update anchor when C is already active for that cell
@@ -626,35 +578,6 @@ export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 
           </select>
         </div>
 
-        {/* Exchange rate — shown when any PM row is active */}
-        {anyPM && (
-          <div>
-            <span style={LABEL}>Câmbio USD/BRL</span>
-            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-              <input
-                style={{ ...INPUT, width: 90 }}
-                inputMode="decimal"
-                value={exchangeRate}
-                onChange={e => setExchangeRate(e.target.value)}
-                placeholder="5.50"
-              />
-              <button
-                onClick={fetchRate}
-                disabled={fetchingRate}
-                title="Buscar câmbio atual (AwesomeAPI)"
-                style={{
-                  height: 34, padding: '0 10px', borderRadius: 7, cursor: fetchingRate ? 'default' : 'pointer',
-                  background: 'rgba(77,166,255,.12)', border: '1px solid rgba(77,166,255,.3)',
-                  color: fetchingRate ? '#4B5563' : '#4DA6FF',
-                  fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap',
-                  opacity: fetchingRate ? 0.6 : 1,
-                }}>
-                {fetchingRate ? '...' : '↻ Atualizar'}
-              </button>
-            </div>
-          </div>
-        )}
-
         {/* Profit % badge */}
         <div style={{
           padding: '6px 16px', borderRadius: 8,
@@ -681,7 +604,7 @@ export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 
 
         {/* Header */}
         <div style={{
-          display: 'grid', gridTemplateColumns: isMobile && !anyPM ? COLS_MOB : COLS,
+          display: 'grid', gridTemplateColumns: isMobile ? COLS_MOB : COLS,
           gap: isMobile ? 4 : 8, padding: isMobile ? '8px 10px' : '10px 14px',
           background: 'rgba(255,255,255,.03)',
           borderBottom: '1px solid rgba(255,255,255,.07)',
@@ -689,11 +612,11 @@ export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 
           letterSpacing: '0.07em', color: 'rgba(148,163,184,.6)',
         }}>
           <span>Desfecho</span>
-          {(!isMobile || anyPM) && <span style={{ textAlign: 'center', color: anyPM ? '#4DA6FF' : undefined }}>PM</span>}
-          <span>{anyPM ? 'Odd / Preço (¢)' : 'Odd'}</span>
+          <span style={{ textAlign: 'center' }}>COM%</span>
+          <span>Odd</span>
           <span>Stake</span>
           <span style={{ textAlign: 'center' }}>D</span>
-          <span style={{ textAlign: 'center', color: anyFB ? '#A855F7' : undefined }}>FB</span>
+          <span style={{ textAlign: 'center', color: anyFB ? '#A855F7' : undefined }}>Freebet</span>
           <span style={{ textAlign: 'center' }}>C</span>
           <span style={{ textAlign: 'right' }}>Lucro</span>
         </div>
@@ -703,11 +626,10 @@ export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 
           const active  = distribute[i] ?? true;
           const isFB    = freebet[i] ?? false;
           const isFixed = fixedMode === i;
-          const isPM    = polymarket[i];
           const stake   = result.stakes[i] ?? 0;
           const profit  = result.profits[i] ?? 0;
           const profC   = profit >= 0 ? '#3DFF8F' : '#FF4545';
-          const pm      = pmCalcs[i];
+          const commVal = parseFloat(commission[i] || '0') || 0;
 
           // Display value for editable stake cell
           const stakeDisplayVal = isFixed
@@ -718,11 +640,11 @@ export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 
             <div key={i}>
               {/* Main row */}
               <div style={{
-                display: 'grid', gridTemplateColumns: isMobile && !anyPM ? COLS_MOB : COLS,
+                display: 'grid', gridTemplateColumns: isMobile ? COLS_MOB : COLS,
                 gap: isMobile ? 4 : 8, padding: isMobile ? '8px 10px' : '10px 14px',
-                borderBottom: isPM && pm ? 'none' : '1px solid rgba(255,255,255,.04)',
+                borderBottom: '1px solid rgba(255,255,255,.04)',
                 alignItems: 'center',
-                background: isFB ? 'rgba(168,85,247,.025)' : !active ? 'rgba(255,191,0,.02)' : isPM ? 'rgba(77,166,255,.03)' : 'transparent',
+                background: isFB ? 'rgba(168,85,247,.025)' : !active ? 'rgba(255,191,0,.02)' : commVal > 0 ? 'rgba(61,255,143,.015)' : 'transparent',
               }}>
                 {/* Label */}
                 <span style={{
@@ -735,45 +657,49 @@ export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 
                   {label}
                 </span>
 
-                {/* PM toggle — hidden on mobile unless anyPM */}
-                {(!isMobile || anyPM) && (
-                  <button
-                    onClick={() => togglePM(i)}
-                    title={isPM ? 'Desativar Polymarket' : 'Ativar Polymarket para este desfecho'}
-                    style={{
-                      width: 32, height: 28, borderRadius: 6, cursor: 'pointer',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      background: isPM ? 'rgba(77,166,255,.2)' : 'rgba(255,255,255,.04)',
-                      border: `1px solid ${isPM ? 'rgba(77,166,255,.5)' : 'rgba(255,255,255,.08)'}`,
-                      color: isPM ? '#4DA6FF' : '#4B5563',
-                      fontSize: 9, fontWeight: 900, letterSpacing: '0.02em',
-                    }}>
-                    PM
-                  </button>
+                {/* COM% — commission input + BetBra preset */}
+                {isMobile ? (
+                  <input
+                    style={{ ...INPUT, height: 28, fontSize: 11, padding: '0 6px', textAlign: 'center' }}
+                    inputMode="decimal"
+                    value={commission[i] ?? '0'}
+                    onChange={e => setComm(i, e.target.value)}
+                    placeholder="0"
+                    title="Comissão % sobre apostas vencedoras"
+                  />
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                    <input
+                      style={{ ...INPUT, height: 22, fontSize: 11, padding: '0 6px', textAlign: 'center' }}
+                      inputMode="decimal"
+                      value={commission[i] ?? '0'}
+                      onChange={e => setComm(i, e.target.value)}
+                      placeholder="0"
+                      title="Comissão % sobre apostas vencedoras"
+                    />
+                    <button
+                      onClick={() => setComm(i, commission[i] === '2.8' ? '0' : '2.8')}
+                      title="BetBra — aplica 2.8% de comissão sobre ganhos"
+                      style={{
+                        height: 18, borderRadius: 4, cursor: 'pointer',
+                        background: commission[i] === '2.8' ? 'rgba(61,255,143,.18)' : 'rgba(255,255,255,.04)',
+                        border: `1px solid ${commission[i] === '2.8' ? 'rgba(61,255,143,.35)' : 'rgba(255,255,255,.08)'}`,
+                        color: commission[i] === '2.8' ? '#3DFF8F' : '#4B5563',
+                        fontSize: 8, fontWeight: 900, letterSpacing: '0.04em',
+                      }}>
+                      BetBra
+                    </button>
+                  </div>
                 )}
 
-                {/* Odd input OR Quote Price input */}
-                {isPM ? (
-                  <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                    <input
-                      style={{ ...INPUT, border: '1px solid rgba(77,166,255,.35)', color: '#4DA6FF' }}
-                      inputMode="decimal"
-                      value={quotePrices[i] ?? ''}
-                      onChange={e => setQuotePrice(i, e.target.value)}
-                      placeholder="22"
-                      title="Preço da cota em centavos (1–99)"
-                    />
-                    <span style={{ fontSize: 10, color: 'rgba(148,163,184,.5)', whiteSpace: 'nowrap' }}>¢</span>
-                  </div>
-                ) : (
-                  <input
-                    style={INPUT}
-                    inputMode="decimal"
-                    value={odds[i] ?? ''}
-                    onChange={e => setOdd(i, e.target.value)}
-                    placeholder="2.00"
-                  />
-                )}
+                {/* Odd input */}
+                <input
+                  style={INPUT}
+                  inputMode="decimal"
+                  value={odds[i] ?? ''}
+                  onChange={e => setOdd(i, e.target.value)}
+                  placeholder="2.00"
+                />
 
                 {/* Stake — sempre editável */}
                 <input
@@ -783,9 +709,7 @@ export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 
                       ? '1px solid rgba(168,85,247,.4)'
                       : isFixed
                         ? '1px solid rgba(255,191,0,.4)'
-                        : isPM
-                          ? '1px solid rgba(77,166,255,.25)'
-                          : '1px solid rgba(255,255,255,.1)',
+                        : '1px solid rgba(255,255,255,.1)',
                     color: isFB ? '#A855F7' : isFixed ? '#FFBF00' : '#E2E8F0',
                     cursor: 'text',
                   }}
@@ -811,19 +735,20 @@ export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 
                   {active ? '✓' : '0'}
                 </button>
 
-                {/* FB toggle (freebet SNR) */}
+                {/* Freebet toggle (SNR) */}
                 <button
                   onClick={() => toggleFreebet(i)}
                   title={isFB ? 'Desativar freebet — stake real' : 'Ativar Freebet SNR: stake não devolvida se ganhar, sem perda se perder'}
                   style={{
-                    width: isMobile ? 24 : 28, height: isMobile ? 24 : 28, borderRadius: 6, cursor: 'pointer',
+                    width: '100%', height: isMobile ? 24 : 28, borderRadius: 6, cursor: 'pointer',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     background: isFB ? 'rgba(168,85,247,.18)' : 'rgba(255,255,255,.04)',
                     border: `1px solid ${isFB ? 'rgba(168,85,247,.5)' : 'rgba(255,255,255,.08)'}`,
                     color: isFB ? '#A855F7' : '#4B5563',
-                    fontSize: 9, fontWeight: 900,
+                    fontSize: isMobile ? 8 : 9, fontWeight: 900, letterSpacing: '0.03em',
+                    whiteSpace: 'nowrap',
                   }}>
-                  FB
+                  {isMobile ? 'FB' : 'Freebet'}
                 </button>
 
                 {/* C toggle — only clicking C allows editing this stake */}
@@ -853,64 +778,13 @@ export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 
                 </span>
               </div>
 
-              {/* Polymarket expansion row */}
-              {isPM && pm && (
-                <div style={{
-                  padding: '10px 14px 12px',
-                  background: 'rgba(77,166,255,.04)',
-                  borderBottom: '1px solid rgba(255,255,255,.04)',
-                  borderTop: '1px solid rgba(77,166,255,.1)',
-                }}>
-                  {/* PM header */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-                    <span style={{
-                      fontSize: 9, fontWeight: 900, textTransform: 'uppercase',
-                      letterSpacing: '0.1em', color: '#4DA6FF',
-                      background: 'rgba(77,166,255,.12)', padding: '2px 7px',
-                      borderRadius: 4, border: '1px solid rgba(77,166,255,.25)',
-                    }}>
-                      Polymarket
-                    </span>
-                    <span style={{ fontSize: 10, color: 'rgba(148,163,184,.5)' }}>
-                      {quotePrices[i]}¢ → Odd {pm.oddEquiv.toFixed(2)} · +3% slippage
-                    </span>
-                  </div>
-
-                  {/* PM stats */}
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 24px' }}>
-                    {[
-                      { label: 'Cotas',        value: pm.cotas.toString(),              color: '#E2E8F0' },
-                      { label: 'Custo USD',    value: fmtUSD(pm.custoUSD),             color: '#FFBF00' },
-                      { label: 'Custo BRL',    value: fmtBRL(pm.custoBRL, false),      color: '#FFBF00' },
-                      { label: 'Retorno USD',  value: fmtUSD(pm.retornoUSD),           color: '#3DFF8F' },
-                      { label: 'Retorno BRL',  value: fmtBRL(pm.retornoBRL, false),    color: '#3DFF8F' },
-                    ].map(({ label, value, color }) => (
-                      <div key={label} style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 1 }}>
-                        <span style={{
-                          fontSize: 9, fontWeight: 700, textTransform: 'uppercase',
-                          letterSpacing: '0.06em', color: 'rgba(148,163,184,.5)',
-                        }}>
-                          {label}
-                        </span>
-                        <span style={{
-                          fontSize: 13, fontWeight: 700,
-                          fontFamily: "'JetBrains Mono', monospace",
-                          color,
-                        }}>
-                          {value}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
           );
         })}
 
         {/* Total row */}
         <div style={{
-          display: 'grid', gridTemplateColumns: isMobile && !anyPM ? COLS_MOB : COLS,
+          display: 'grid', gridTemplateColumns: isMobile ? COLS_MOB : COLS,
           gap: isMobile ? 4 : 8, padding: isMobile ? '8px 10px' : '10px 14px',
           background: 'rgba(255,255,255,.02)',
           alignItems: 'center',
@@ -922,8 +796,8 @@ export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 
             Total
           </span>
 
-          {/* PM col — hidden on mobile unless anyPM */}
-          {(!isMobile || anyPM) && <span />}
+          {/* COM% col placeholder */}
+          <span />
 
           {/* Empty (Odd col) */}
           <span />
@@ -1038,16 +912,20 @@ export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 
       </div>
 
       {/* ── Legend ───────────────────────────────────────────────────────── */}
-      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+      <div style={{
+        padding: '12px 16px',
+        background: 'rgba(255,255,255,.025)', border: '1px solid rgba(255,255,255,.07)', borderRadius: 10,
+        display: 'flex', flexDirection: 'column', gap: 8,
+      }}>
         {[
-          { label: 'PM',  color: '#4DA6FF', desc: 'ativa cálculo Polymarket (preço em centavos)' },
-          { label: 'D',   color: '#3DFF8F', desc: 'As apostas onde o lucro será distribuído — desativar deixa a aposta em 0/0 (sem lucro se bater, sem perda)' },
-          { label: 'FB',  color: '#A855F7', desc: 'Freebet SNR — stake não devolvida se ganhar, sem perda se perder. Digite o valor da freebet e o sistema calcula a proteção.' },
-          { label: 'C',   color: '#4DA6FF', desc: 'Congelar — clique para editar manualmente o valor desta stake; clique novamente para descongelar' },
+          { label: 'COM%',    color: '#FFBF00', desc: 'Comissão sobre apostas vencedoras. Digite o percentual ou clique em "BetBra" para aplicar os 2,8% automaticamente.' },
+          { label: 'D',       color: '#3DFF8F', desc: 'Distribui o lucro neste desfecho. Desativar deixa em 0/0 — você cobre o risco sem lucrar se bater.' },
+          { label: 'Freebet', color: '#A855F7', desc: 'Freebet SNR: a stake não é devolvida se ganhar e não há perda se perder. Digite o valor da freebet.' },
+          { label: 'C',       color: '#4DA6FF', desc: 'Congelar: clique para editar este valor manualmente; clique novamente para liberar o cálculo automático.' },
         ].map(({ label, color, desc }) => (
-          <div key={label} style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-            <span style={{ fontSize: 11, fontWeight: 800, color }}>{label}</span>
-            <span style={{ fontSize: 11, color: '#4B5563' }}>— {desc}</span>
+          <div key={label} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+            <span style={{ fontSize: 11, fontWeight: 800, color, minWidth: 56, flexShrink: 0, paddingTop: 1 }}>{label}</span>
+            <span style={{ fontSize: 12, color: 'rgba(148,163,184,.8)', lineHeight: 1.55 }}>{desc}</span>
           </div>
         ))}
       </div>
@@ -1056,7 +934,8 @@ export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 
         <AddToPanelModal
           numOutcomes={numOutcomes}
           formulaOpt={formulaOpt}
-          effectiveOdds={effectiveOdds}
+          rawOdds={odds.map(o => parseFloat(o.replace(',', '.')) || 0)}
+          commissions={commission.map(c => parseFloat(c.replace(',', '.')) || 0)}
           stakes={result.stakes}
           onClose={() => setShowAdd(false)}
           selectedEvent={selectedEvent}

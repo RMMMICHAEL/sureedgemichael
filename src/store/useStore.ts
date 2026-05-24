@@ -322,8 +322,12 @@ export const useStore = create<StoreState>()((set, get) => ({
 
   addLeg(leg) {
     set(s => {
-      const now    = new Date().toISOString();
-      const newLeg = { ...leg, pr: calcLegProfit(leg), updated_at: leg.updated_at ?? now };
+      const now = new Date().toISOString();
+      // Auto-apply BetBra 2.8% commission if not already set on the leg
+      const legWithComm = (leg.ho === 'Betbra' && (leg.cm === undefined || leg.cm === 0))
+        ? { ...leg, cm: 2.8 }
+        : leg;
+      const newLeg = { ...legWithComm, pr: calcLegProfit(legWithComm), updated_at: legWithComm.updated_at ?? now };
       const legs   = [...s.legs, newLeg];
 
       // Auto-deduct stake when registering a manual pending bet

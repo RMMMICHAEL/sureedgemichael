@@ -7,18 +7,20 @@ import type { Leg, Operation, ResultType, SignalType } from '@/types';
 
 // ── Leg profit ───────────────────────────────────────────────────────────────
 
-export function calcLegProfit(leg: Pick<Leg, 'st' | 'od' | 're' | 'manualProfit' | 'cashoutValue'>): number {
+export function calcLegProfit(leg: Pick<Leg, 'st' | 'od' | 're' | 'manualProfit' | 'cashoutValue' | 'cm'>): number {
   if (leg.manualProfit !== undefined) return +leg.manualProfit.toFixed(2);
   const st = +(leg.st) || 0;
   const od = +(leg.od) || 0;
+  // Commission reduces profit on winning results (ex: BetBra = 2.8%)
+  const cm = +(leg.cm || 0) / 100;
   switch (leg.re as ResultType) {
-    case 'Green':      return +(st * (od - 1)).toFixed(2);
-    case 'Meio Green': return +(st * (od - 1) * 0.5).toFixed(2);
+    case 'Green':      return +(st * (od - 1) * (1 - cm)).toFixed(2);
+    case 'Meio Green': return +(st * (od - 1) * 0.5 * (1 - cm)).toFixed(2);
     case 'Red':        return -st;
     case 'Meio Red':   return +(-st * 0.5).toFixed(2);
     case 'Devolvido':  return 0;
     // Green Antecipado: same calculation as Green (paid early, full profit)
-    case 'Green Antecipado': return +(st * (od - 1)).toFixed(2);
+    case 'Green Antecipado': return +(st * (od - 1) * (1 - cm)).toFixed(2);
     // Cashout: profit = cashoutValue received − stake invested
     case 'Cashout':    return leg.cashoutValue !== undefined
                          ? +(leg.cashoutValue - st).toFixed(2)

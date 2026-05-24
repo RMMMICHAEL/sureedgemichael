@@ -39,6 +39,7 @@ export interface Leg {
   pc: number;            // percentage as imported from sheet (e.g. 4.79 = 4.79%)
   re: ResultType;
   pr: number;            // profit (calculated, not from sheet)
+  cm?: number;           // commission % on winning profit (ex: 2.8 for BetBra)
   fl: AnomalyFlag[];
   signal?: SignalType;
   opType?: OpType;          // operation type (default: 'surebet')
