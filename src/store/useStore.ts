@@ -212,6 +212,16 @@ export const useStore = create<StoreState>()((set, get) => ({
         bmsMigrated = true;
         return { ...bm, name: canonical };
       });
+      // ── Migração Betbra: aplica cm=2.8 em legs Betbra sem comissão definida
+      let betbraMigrated = false;
+      const legsWithComm = legs.map(l => {
+        if (normHouse(l.ho) === 'Betbra' && (l.cm === undefined || l.cm === 0)) {
+          betbraMigrated = true;
+          const updated = { ...l, cm: 2.8, updated_at: new Date().toISOString() };
+          return { ...updated, pr: calcLegProfit(updated) };
+        }
+        return l;
+      });
       const expenses           = db.expenses           ?? [];
       const partnerAccounts    = db.partnerAccounts    ?? [];
       const clients            = db.clients            ?? [];
@@ -222,11 +232,14 @@ export const useStore = create<StoreState>()((set, get) => ({
       const transfers          = db.transfers          ?? [];
       const operators          = db.operators          ?? [];
       const goalConfig         = db.goalConfig;
-      const migrated = { ...db, bms: bmsNorm, legs, expenses, partnerAccounts, clients, targetHouses, sheetSync, excludedImportKeys, notes, transfers, operators, goalConfig };
+      const migrated = { ...db, bms: bmsNorm, legs: legsWithComm, expenses, partnerAccounts, clients, targetHouses, sheetSync, excludedImportKeys, notes, transfers, operators, goalConfig };
       const { bms, totalCash } = recalc(migrated);
       set({ ...migrated, bms, totalCash, initialized: true });
-      // Se algum nome foi corrigido, persiste imediatamente para sincronizar com Supabase
-      if (bmsMigrated) persist(migrated);
+      // Persiste se alguma migração foi aplicada
+      if (bmsMigrated || betbraMigrated) {
+        if (betbraMigrated) console.log('[migration] Betbra: cm=2.8 aplicado em legs existentes');
+        persist(migrated);
+      }
     }
 
     // ── Step 1: check session BEFORE touching localStorage ───────────────
