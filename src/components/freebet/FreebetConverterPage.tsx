@@ -524,7 +524,7 @@ function FreebetCalcModal({ result, freebetHouse, freebetValue, onClose }: {
         ed: evDate || new Date().toISOString().slice(0, 16).replace('T', 'T'),
         sp: 'Futebol', ev: evName.trim(), ho: b.house, mk: b.outcome,
         od: b.odd, st: +b.stake.toFixed(2), re: 'Pendente',
-        pc: 0, pr: 0, fl: [], source: 'manual', signal: 'pre', opType: 'outros',
+        pc: 0, pr: 0, fl: [], source: 'manual', signal: 'pre', opType: 'freebet',
       };
       addLeg(leg);
     });

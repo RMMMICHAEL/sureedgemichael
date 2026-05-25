@@ -133,6 +133,7 @@ const STATUS_CFG: Record<string, { color: string; bg: string; border: string; ic
 
 const OP_TYPE_LABELS: Record<OpType, string> = {
   surebet: 'Surebet', delay: 'Delay', duplo_green: 'Duplo Green', outros: 'Outros',
+  freebet: 'Conversão de Freebet',
 };
 
 const OP_TYPE_CFG: Record<OpType, { bg: string; color: string; border: string }> = {
@@ -140,6 +141,7 @@ const OP_TYPE_CFG: Record<OpType, { bg: string; color: string; border: string }>
   delay:       { bg: 'rgba(77,166,255,.12)',  color: '#4DA6FF', border: 'rgba(77,166,255,.25)' },
   duplo_green: { bg: 'rgba(255,203,47,.12)',  color: '#FFCB2F', border: 'rgba(255,203,47,.25)' },
   outros:      { bg: 'rgba(122,144,176,.08)', color: '#6B7280', border: 'transparent' },
+  freebet:     { bg: 'rgba(168,85,247,.12)',  color: '#A855F7', border: 'rgba(168,85,247,.25)' },
 };
 
 // ── Inline style constants ────────────────────────────────────────────────────
@@ -1109,7 +1111,8 @@ function OpCard({
   const [altProfitEdit, setAltProfitEdit] = useState('');
 
   const opType     = (op.legs[0]?.opType ?? 'surebet') as OpType;
-  const isAlt      = opType !== 'surebet';
+  // freebet has full leg data (odd/stake/house) → edit like surebet, not simplified profit entry
+  const isAlt      = opType !== 'surebet' && opType !== 'freebet';
   const { profit } = op;
   const sig        = op.signal ?? detectSignal(op.bet_date, op.legs[0]?.ed ?? '');
 
@@ -1230,7 +1233,7 @@ function OpCard({
           }
         }
       });
-    } else if (opType !== 'surebet') {
+    } else if (opType !== 'surebet' && opType !== 'freebet') {
       // Alt ops (Delay / Outros): save only the profit
       const profitVal = parseFloat(altProfitEdit.replace(',', '.').replace('−', '-'));
       if (isNaN(profitVal)) { toastFn('Informe o valor do lucro', 'wrn'); return; }

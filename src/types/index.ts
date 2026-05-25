@@ -14,7 +14,7 @@ export type ResultType =
 
 export type SignalType = 'live' | 'pre';
 
-export type OpType = 'surebet' | 'delay' | 'duplo_green' | 'outros';
+export type OpType = 'surebet' | 'delay' | 'duplo_green' | 'outros' | 'freebet';
 
 export type AnomalyLevel = 'light' | 'medium' | 'critical';
 

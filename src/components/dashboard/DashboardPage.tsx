@@ -710,10 +710,11 @@ function TopHousesCard({ legs }: { legs: Leg[] }) {
 /* ── Recent operations ─────────────────────────────────────────────────────── */
 
 const OP_CFG_ALL: Record<OpType, { label: string; color: string; bg: string; border: string }> = {
-  surebet:     { label: 'Surebet',     color: '#FFD600', bg: 'rgba(255,214,0,.07)',  border: 'rgba(255,214,0,.15)' },
-  delay:       { label: 'Delay',       color: '#4DA6FF', bg: 'rgba(77,166,255,.07)', border: 'rgba(77,166,255,.15)' },
-  duplo_green: { label: 'Duplo Green', color: '#3FFF21', bg: 'rgba(63,255,33,.07)',  border: 'rgba(63,255,33,.15)' },
-  outros:      { label: 'Outros',      color: '#FF8F3D', bg: 'rgba(255,143,61,.07)', border: 'rgba(255,143,61,.15)' },
+  surebet:     { label: 'Surebet',              color: '#FFD600', bg: 'rgba(255,214,0,.07)',   border: 'rgba(255,214,0,.15)'  },
+  delay:       { label: 'Delay',                color: '#4DA6FF', bg: 'rgba(77,166,255,.07)',  border: 'rgba(77,166,255,.15)' },
+  duplo_green: { label: 'Duplo Green',          color: '#3FFF21', bg: 'rgba(63,255,33,.07)',   border: 'rgba(63,255,33,.15)'  },
+  outros:      { label: 'Outros',               color: '#FF8F3D', bg: 'rgba(255,143,61,.07)',  border: 'rgba(255,143,61,.15)' },
+  freebet:     { label: 'Conversão de Freebet', color: '#A855F7', bg: 'rgba(168,85,247,.07)',  border: 'rgba(168,85,247,.15)' },
 };
 
 function RecentOpsCard({ legs }: { legs: Leg[] }) {

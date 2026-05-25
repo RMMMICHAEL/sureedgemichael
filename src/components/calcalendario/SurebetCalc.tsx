@@ -251,6 +251,7 @@ function AddToPanelModal({ numOutcomes, formulaOpt, rawOdds, commissions, stakes
               <option value="duplo_green">Duplo Green</option>
               <option value="surebet">Surebet</option>
               <option value="outros">Outros</option>
+              <option value="freebet">Conversão de Freebet</option>
             </select>
           </label>
         </div>
