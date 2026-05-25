@@ -1046,10 +1046,16 @@ export function FreebetConverterPage() {
     // PA filter
     if (fPA !== 'all') {
       arr = arr.filter(r => {
-        const n = r.bets.filter(b => b.is_pa).length;
+        const paBets    = r.bets.filter(b => b.is_pa);
+        const n         = paBets.length;
         if (fPA === 'none') return n === 0;
         if (fPA === 'one')  return n === 1;
-        if (fPA === 'two')  return n >= 2;
+        if (fPA === 'two') {
+          // PA em 2 lados = Casa + Fora com PA (não Casa + Empate)
+          if (n < 2) return false;
+          const paOutcomes = new Set(paBets.map(b => b.outcome));
+          return paOutcomes.has('Casa') && paOutcomes.has('Fora');
+        }
         return true;
       });
     }
