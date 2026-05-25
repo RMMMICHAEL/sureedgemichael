@@ -484,6 +484,11 @@ function Step3({ minOdd, maxOdd, paFilter, onChangeMin, onChangeMax, onChangePa,
 }
 
 // ── Freebet Calc Modal ────────────────────────────────────────────────────────
+// Fórmula ótima de equilíbrio de lucro:
+//   - Freebet (stake = F, odd = o_fb): stake fixo = F
+//   - Cada aposta de cobertura k (odd = o_k): stake_k = F * (o_fb - 1) / o_k
+//   - Lucro garantido P = F * (o_fb - 1) * (1 - Σ 1/o_k)
+// Isso garante lucro igual em qualquer resultado (Casa, Empate, Fora).
 
 function FreebetCalcModal({ result, freebetHouse, freebetValue, onClose }: {
   result: FreebetResult; freebetHouse: string; freebetValue: number; onClose: () => void;
@@ -502,21 +507,41 @@ function FreebetCalcModal({ result, freebetHouse, freebetValue, onClose }: {
     } catch { return ''; }
   });
 
-  const scale = useMemo(() => {
-    const orig = result.bets.find(b => b.is_freebet);
-    if (!orig || !orig.stake || orig.stake <= 0) return 1;
-    return freebetValue / orig.stake;
-  }, [result, freebetValue]);
+  // Editable odds — initialized from the result (scaled to freebetValue)
+  const [editOdds, setEditOdds] = useState<string[]>(() =>
+    result.bets.map(b => b.odd.toFixed(2))
+  );
 
-  const scaledBets      = useMemo(() => result.bets.map(b => ({ ...b, stake: b.stake * scale })), [result.bets, scale]);
-  const totalInvestment = scaledBets.filter(b => !b.is_freebet).reduce((s, b) => s + b.stake, 0);
-  const profit          = result.profit * scale;
-  const convPct         = result.conversion_pct;
+  function setOdd(idx: number, val: string) {
+    setEditOdds(prev => prev.map((o, i) => (i === idx ? val : o)));
+  }
+
+  // Recalculate stakes live using the optimal equalization formula
+  const calcBets = useMemo(() => {
+    const fbIdx = result.bets.findIndex(b => b.is_freebet);
+    const fbOdd = fbIdx >= 0 ? (parseFloat(editOdds[fbIdx]) || 1) : 1;
+    const fbNet = freebetValue * (fbOdd - 1); // net freebet win if freebet hits
+
+    return result.bets.map((b, i) => {
+      const odd = parseFloat(editOdds[i]) || b.odd;
+      const stake = b.is_freebet
+        ? freebetValue                           // freebet stake is always fixed
+        : (odd > 1 ? fbNet / odd : 0);          // S_k = F*(o_fb-1)/o_k
+      return { ...b, odd, stake };
+    });
+  }, [result.bets, editOdds, freebetValue]);
+
+  const fbOdd           = parseFloat(editOdds[result.bets.findIndex(b => b.is_freebet)] ?? '1') || 1;
+  const fbNet           = freebetValue * (fbOdd - 1);
+  const coverSum        = calcBets.filter(b => !b.is_freebet).reduce((s, b) => s + b.stake, 0);
+  const totalInvestment = coverSum;
+  const profit          = fbNet - coverSum;
+  const convPct         = freebetValue > 0 ? (profit / freebetValue) * 100 : 0;
 
   function sendToPanel() {
     if (!evName.trim()) { toastFn('Informe o nome do evento', 'wrn'); return; }
     const oid = `op_fb_${Date.now()}`;
-    scaledBets.forEach((b, i) => {
+    calcBets.forEach((b, i) => {
       if (b.stake <= 0) return;
       const leg: Leg = {
         id: `l_fb_${Date.now()}_${i}`, oid,
@@ -532,6 +557,13 @@ function FreebetCalcModal({ result, freebetHouse, freebetValue, onClose }: {
     onClose();
   }
 
+  const INPUT_STYLE = {
+    background: 'rgba(255,255,255,.06)', border: '1px solid rgba(255,255,255,.12)',
+    borderRadius: 7, padding: '5px 8px', fontSize: 13, fontWeight: 800,
+    color: '#E2E8F0', outline: 'none', width: 72, textAlign: 'right' as const,
+    fontFamily: "'JetBrains Mono', monospace",
+  };
+
   const modal = (
     <div
       style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.75)',
@@ -544,13 +576,15 @@ function FreebetCalcModal({ result, freebetHouse, freebetValue, onClose }: {
         maxHeight: '90vh', overflowY: 'auto',
         display: 'flex', flexDirection: 'column',
         boxShadow: '0 24px 80px rgba(0,0,0,.7)' }}>
+
+        {/* Header */}
         <div style={{ padding: '18px 20px 14px', borderBottom: '1px solid rgba(255,255,255,.07)',
           display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
               <Gift size={14} style={{ color: '#3DFF8F', flexShrink: 0 }} />
               <span style={{ fontSize: 11, fontWeight: 800, color: '#3DFF8F',
-                textTransform: 'uppercase', letterSpacing: '0.08em' }}>Conversão de Freebet</span>
+                textTransform: 'uppercase', letterSpacing: '0.08em' }}>Calculadora de Freebet</span>
             </div>
             <div style={{ fontSize: 15, fontWeight: 900, color: '#E2E8F0', lineHeight: 1.3 }}>
               {result.event_name}
@@ -567,61 +601,99 @@ function FreebetCalcModal({ result, freebetHouse, freebetValue, onClose }: {
             <X size={14} />
           </button>
         </div>
-        <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {scaledBets.map((b, i) => (
-            <div key={i} style={{ borderRadius: 10, padding: '10px 14px',
+
+        {/* Hint */}
+        <div style={{ margin: '12px 20px 0', padding: '8px 12px', borderRadius: 8,
+          background: 'rgba(168,85,247,.06)', border: '1px solid rgba(168,85,247,.2)',
+          fontSize: 11, color: '#C084FC', lineHeight: 1.5 }}>
+          Ajuste as odds se necessário — as stakes são recalculadas automaticamente.
+        </div>
+
+        {/* Bet rows com odd editável */}
+        <div style={{ padding: '14px 20px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {/* Column labels */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 76px 90px',
+            gap: 8, paddingBottom: 4, borderBottom: '1px solid rgba(255,255,255,.05)' }}>
+            <span style={{ fontSize: 9, fontWeight: 700, color: '#475569',
+              textTransform: 'uppercase', letterSpacing: '0.08em' }}>Casa / Resultado</span>
+            <span style={{ fontSize: 9, fontWeight: 700, color: '#475569',
+              textTransform: 'uppercase', letterSpacing: '0.08em', textAlign: 'center' }}>Odd</span>
+            <span style={{ fontSize: 9, fontWeight: 700, color: '#475569',
+              textTransform: 'uppercase', letterSpacing: '0.08em', textAlign: 'right' }}>Apostar</span>
+          </div>
+
+          {calcBets.map((b, i) => (
+            <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 76px 90px',
+              gap: 8, alignItems: 'center', borderRadius: 10, padding: '10px 12px',
               background: b.is_freebet ? 'rgba(63,255,33,.06)' : 'rgba(255,255,255,.03)',
-              border: `1px solid ${b.is_freebet ? 'rgba(63,255,33,.2)' : 'rgba(255,255,255,.07)'}`,
-              display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, alignItems: 'center' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              border: `1px solid ${b.is_freebet ? 'rgba(63,255,33,.2)' : 'rgba(255,255,255,.07)'}` }}>
+
+              {/* Casa + Resultado */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
                   {b.is_freebet && (
-                    <span style={{ fontSize: 10, fontWeight: 900, color: '#3DFF8F',
+                    <span style={{ fontSize: 9, fontWeight: 900, color: '#3DFF8F',
                       background: 'rgba(63,255,33,.12)', border: '1px solid rgba(63,255,33,.25)',
-                      borderRadius: 4, padding: '1px 6px' }}>🎁 FREEBET</span>
+                      borderRadius: 4, padding: '1px 5px', flexShrink: 0 }}>🎁 FB</span>
                   )}
-                  <span style={{ fontSize: 11, fontWeight: 700, color: '#94A3B8',
-                    textTransform: 'uppercase', letterSpacing: '0.06em' }}>{b.outcome}</span>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: '#94A3B8',
+                    textTransform: 'uppercase', letterSpacing: '0.05em' }}>{b.outcome}</span>
                   {b.is_pa && (
-                    <span style={{ fontSize: 9, fontWeight: 900, color: '#FF9F0A',
-                      background: 'rgba(255,159,10,.1)', border: '1px solid rgba(255,159,10,.2)',
-                      borderRadius: 4, padding: '1px 5px' }}>PA</span>
+                    <span style={{ fontSize: 8, fontWeight: 900, color: '#FF9F0A',
+                      background: 'rgba(255,159,10,.08)', border: '1px solid rgba(255,159,10,.15)',
+                      borderRadius: 3, padding: '1px 4px', flexShrink: 0 }}>PA</span>
                   )}
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  {b.url ? (
-                    <a href={b.url} target="_blank" rel="noopener noreferrer"
-                      style={{ fontSize: 13, fontWeight: 800, color: '#818CF8',
-                        textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}>
-                      {b.house} <ExternalLink size={10} />
-                    </a>
-                  ) : (
-                    <span style={{ fontSize: 13, fontWeight: 800, color: '#E2E8F0' }}>{b.house}</span>
-                  )}
-                  <span style={{ fontSize: 13, fontWeight: 700, color: '#64748B' }}>·</span>
-                  <span style={{ fontSize: 13, fontWeight: 800,
-                    color: b.is_freebet ? '#3DFF8F' : '#E2E8F0',
-                    fontFamily: "'JetBrains Mono', monospace" }}>{b.odd.toFixed(2)}</span>
-                </div>
+                {b.url ? (
+                  <a href={b.url} target="_blank" rel="noopener noreferrer"
+                    style={{ fontSize: 12, fontWeight: 800, color: '#818CF8',
+                      textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 3 }}>
+                    {b.house} <ExternalLink size={9} />
+                  </a>
+                ) : (
+                  <span style={{ fontSize: 12, fontWeight: 800, color: '#E2E8F0' }}>{b.house}</span>
+                )}
               </div>
+
+              {/* Odd editável */}
+              <div style={{ display: 'flex', justifyContent: 'center' }}>
+                <input
+                  type="number" min="1.01" step="0.01"
+                  value={editOdds[i]}
+                  onChange={e => setOdd(i, e.target.value)}
+                  onFocus={e => e.target.select()}
+                  style={{
+                    ...INPUT_STYLE,
+                    color: b.is_freebet ? '#3DFF8F' : '#E2E8F0',
+                    border: `1px solid ${b.is_freebet ? 'rgba(63,255,33,.3)' : 'rgba(255,255,255,.12)'}`,
+                  }}
+                />
+              </div>
+
+              {/* Stake recalculada */}
               <div style={{ textAlign: 'right' }}>
                 <div style={{ fontSize: 13, fontWeight: 900,
                   color: b.is_freebet ? '#3DFF8F' : '#E2E8F0',
                   fontFamily: "'JetBrains Mono', monospace" }}>
-                  R$ {fmtBRL(b.stake)}
+                  R$&nbsp;{fmtBRL(b.stake)}
                 </div>
-                {b.is_freebet && <div style={{ fontSize: 10, color: '#3DFF8F', opacity: 0.7 }}>grátis</div>}
+                {b.is_freebet && (
+                  <div style={{ fontSize: 9, color: '#3DFF8F', opacity: 0.7 }}>grátis</div>
+                )}
               </div>
             </div>
           ))}
         </div>
+
+        {/* Stats */}
         <div style={{ margin: '0 20px 16px', borderRadius: 12, padding: '14px 16px',
-          background: 'rgba(63,255,33,.05)', border: '1px solid rgba(63,255,33,.15)',
+          background: profit >= 0 ? 'rgba(63,255,33,.05)' : 'rgba(255,80,80,.05)',
+          border: `1px solid ${profit >= 0 ? 'rgba(63,255,33,.15)' : 'rgba(255,80,80,.15)'}`,
           display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
           {[
-            { label: 'Investimento', val: `R$ ${fmtBRL(totalInvestment)}`, color: '#E2E8F0' },
-            { label: 'Conversão',    val: `${convPct.toFixed(2)}%`,        color: '#3DFF8F' },
-            { label: 'Lucro',        val: `R$ ${fmtBRL(profit)}`,          color: '#3DFF8F' },
+            { label: 'Investimento', val: `R$ ${fmtBRL(totalInvestment)}`,   color: '#E2E8F0' },
+            { label: 'Conversão',    val: `${convPct.toFixed(2)}%`,           color: convPct >= 0 ? '#3DFF8F' : '#FF5050' },
+            { label: 'Lucro',        val: `R$ ${fmtBRL(profit)}`,            color: profit  >= 0 ? '#3DFF8F' : '#FF5050' },
           ].map((m, mi) => (
             <div key={mi} style={{ textAlign: 'center',
               borderLeft: mi > 0 ? '1px solid rgba(255,255,255,.07)' : 'none' }}>
@@ -632,6 +704,8 @@ function FreebetCalcModal({ result, freebetHouse, freebetValue, onClose }: {
             </div>
           ))}
         </div>
+
+        {/* Panel form or action buttons */}
         {showPanel ? (
           <div style={{ padding: '0 20px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div style={{ fontSize: 12, fontWeight: 800, color: '#94A3B8',

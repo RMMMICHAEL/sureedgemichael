@@ -250,8 +250,8 @@ function AddToPanelModal({ numOutcomes, formulaOpt, rawOdds, commissions, stakes
             <select style={SELECT} value={opT} onChange={e => setOpT(e.target.value as OpType)}>
               <option value="duplo_green">Duplo Green</option>
               <option value="surebet">Surebet</option>
-              <option value="outros">Outros</option>
               <option value="freebet">Conversão de Freebet</option>
+              <option value="outros">Outros</option>
             </select>
           </label>
         </div>
