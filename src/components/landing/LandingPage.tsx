@@ -1,16 +1,16 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import NextImage from 'next/image';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import { PLAN_PRICES, PLAN_LABELS, type PlanId } from '@/lib/supabase/subscription';
 import {
-  Zap, TrendingUp, Shield, BarChart2, Calculator,
+  Zap, TrendingUp, Shield, Calculator,
   Upload, ChevronDown, Check, ArrowRight,
-  LogOut, QrCode, CreditCard, Gift, Wallet,
-  Users, Star, Filter, Target, Database, Activity,
-  Building2, Sparkles, Trophy,
-  Play, Pause, Volume2, VolumeX,
+  LogOut, QrCode, CreditCard, Wallet,
+  Users, Star, Filter, Activity,
+  Building2, Sparkles, Trophy, X, ZoomIn,
 } from 'lucide-react';
 
 // ─── Pricing ──────────────────────────────────────────────────────────────────
@@ -284,170 +284,157 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 // ─── Hero Dashboard Image ─────────────────────────────────────────────────────
 
-function HeroDashImage() {
+function HeroDashImage({ onClick }: { onClick: () => void }) {
   return (
-    <div style={{
-      overflow: 'hidden', borderRadius: 16,
-      border: '1px solid rgba(63,255,33,.15)',
-      background: 'oklch(0.13 0.015 240)',
-      boxShadow: '0 0 80px -12px rgba(63,255,33,.35), 0 48px 120px rgba(0,0,0,.7)',
-    }}>
-      {/* Window chrome */}
+    <ClickableImage onClick={onClick}>
       <div style={{
-        display: 'flex', alignItems: 'center', gap: 7,
-        padding: '10px 16px',
-        background: 'oklch(0.18 0.02 240)',
-        borderBottom: '1px solid rgba(255,255,255,.06)',
+        overflow: 'hidden', borderRadius: 16,
+        border: '1px solid rgba(63,255,33,.15)',
+        background: 'oklch(0.13 0.015 240)',
+        boxShadow: '0 0 80px -12px rgba(63,255,33,.35), 0 48px 120px rgba(0,0,0,.7)',
       }}>
-        <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#ff5f56', display: 'block' }} />
-        <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#ffbd2e', display: 'block' }} />
-        <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#3FFF21', display: 'block' }} />
-        <div style={{ flex: 1 }} />
-        <span style={{ fontFamily: 'JetBrains Mono', fontSize: 10, color: 'rgba(63,255,33,.6)' }}>sureedge.app/dashboard</span>
+        {/* Window chrome */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 7,
+          padding: '10px 16px',
+          background: 'oklch(0.18 0.02 240)',
+          borderBottom: '1px solid rgba(255,255,255,.06)',
+        }}>
+          <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#ff5f56', display: 'block' }} />
+          <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#ffbd2e', display: 'block' }} />
+          <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#3FFF21', display: 'block' }} />
+          <div style={{ flex: 1 }} />
+          <span style={{ fontFamily: 'JetBrains Mono', fontSize: 10, color: 'rgba(63,255,33,.6)' }}>sureedge.app/dashboard</span>
+        </div>
+        {/* Real dashboard screenshot */}
+        <NextImage
+          src="/dash.png"
+          alt="Dashboard SureEdge — visão geral de operações e analytics"
+          width={1912}
+          height={947}
+          quality={100}
+          priority
+          style={{ width: '100%', height: 'auto', display: 'block' }}
+        />
       </div>
-      {/* Real dashboard screenshot */}
-      <NextImage
-        src="/dash.png"
-        alt="Dashboard SureEdge — visão geral de operações e analytics"
-        width={1912}
-        height={947}
-        quality={100}
-        priority
-        style={{ width: '100%', height: 'auto', display: 'block' }}
-      />
-    </div>
+    </ClickableImage>
   );
 }
 
-// ─── Video Player ─────────────────────────────────────────────────────────────
+// ─── Lightbox modal ───────────────────────────────────────────────────────────
 
-function VideoPlayer({ src, label }: { src: string; label: string }) {
-  const vRef                  = useRef<HTMLVideoElement>(null);
-  const [playing, setPlaying] = useState(false);
-  const [muted,   setMuted]   = useState(true);
-  const [prog,    setProg]    = useState(0);
+function LightboxModal({ src, alt, onClose }: { src: string; alt: string; onClose: () => void }) {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', handler);
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', handler);
+      document.body.style.overflow = '';
+    };
+  }, [onClose]);
 
-  const toggle = () => {
-    const v = vRef.current;
-    if (!v) return;
-    if (v.paused) { v.play().then(() => setPlaying(true)).catch(() => {}); }
-    else          { v.pause(); setPlaying(false); }
-  };
-
-  const onTimeUpdate = () => {
-    const v = vRef.current;
-    if (!v || !v.duration) return;
-    setProg((v.currentTime / v.duration) * 100);
-  };
-
-  const toggleMute = () => {
-    const v = vRef.current;
-    if (!v) return;
-    v.muted = !v.muted;
-    setMuted(v.muted);
-  };
-
-  const seek = (e: React.MouseEvent<HTMLDivElement>) => {
-    const v = vRef.current;
-    if (!v || !v.duration) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    v.currentTime = ((e.clientX - rect.left) / rect.width) * v.duration;
-  };
-
-  return (
-    <div style={{
-      borderRadius: 14, overflow: 'hidden',
-      border: '1px solid rgba(63,255,33,.15)',
-      background: 'oklch(0.14 0.015 240)',
-      boxShadow: '0 8px 40px rgba(0,0,0,.45)',
-    }}>
-      {/* Video */}
-      <div
-        style={{ position: 'relative', cursor: 'pointer' }}
-        onClick={toggle}
+  return createPortal(
+    <div
+      onClick={e => e.target === e.currentTarget && onClose()}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 9999,
+        background: 'rgba(0,0,0,.88)', backdropFilter: 'blur(14px)',
+        display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center',
+        padding: '24px 20px', gap: 20,
+      }}
+    >
+      {/* Close */}
+      <button
+        onClick={onClose}
+        aria-label="Fechar"
+        style={{
+          position: 'absolute', top: 20, right: 20,
+          width: 40, height: 40, borderRadius: '50%',
+          background: 'rgba(255,255,255,.08)',
+          border: '1px solid rgba(255,255,255,.12)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          color: 'rgba(240,244,248,.7)', cursor: 'pointer',
+          transition: 'background .15s, color .15s',
+        }}
+        onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.background = 'rgba(255,255,255,.15)'; el.style.color = '#F0F4F8'; }}
+        onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.background = 'rgba(255,255,255,.08)'; el.style.color = 'rgba(240,244,248,.7)'; }}
       >
-        <video
-          ref={vRef}
+        <X size={18} />
+      </button>
+
+      {/* Image */}
+      <div style={{
+        maxWidth: 'min(1100px, 92vw)',
+        borderRadius: 14, overflow: 'hidden',
+        border: '1px solid rgba(63,255,33,.2)',
+        boxShadow: '0 32px 96px rgba(0,0,0,.7)',
+        flexShrink: 0,
+      }}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
           src={src}
-          style={{ width: '100%', display: 'block' }}
-          onTimeUpdate={onTimeUpdate}
-          onEnded={() => { setPlaying(false); setProg(0); }}
-          muted={muted}
-          playsInline
-          preload="auto"
-          loop
+          alt={alt}
+          style={{ width: '100%', height: 'auto', display: 'block', maxHeight: '72vh', objectFit: 'contain' }}
         />
-        {/* Play overlay — only when paused */}
-        {!playing && (
-          <div style={{
-            position: 'absolute', inset: 0,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            background: 'rgba(3,5,7,.5)',
-            transition: 'background .2s',
-          }}>
-            <div style={{
-              width: 52, height: 52, borderRadius: '50%',
-              background: '#3FFF21',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: '0 0 36px rgba(63,255,33,.6)',
-            }}>
-              <Play size={20} color="#0a1a05" fill="#0a1a05" />
-            </div>
-          </div>
-        )}
       </div>
 
-      {/* Controls */}
-      <div style={{ padding: '10px 14px 13px', background: 'oklch(0.17 0.018 240)', borderTop: '1px solid rgba(255,255,255,.05)' }}>
-        {/* Progress bar */}
-        <div
-          onClick={seek}
-          style={{
-            height: 3, background: 'rgba(255,255,255,.1)', borderRadius: 2,
-            marginBottom: 11, cursor: 'pointer', position: 'relative',
-          }}
-        >
+      {/* CTA */}
+      <a
+        href="#planos"
+        onClick={onClose}
+        style={{
+          display: 'inline-flex', alignItems: 'center', gap: 9,
+          background: 'linear-gradient(135deg, #3FFF21, #22e010)',
+          color: '#0a1a05', borderRadius: 999,
+          padding: '13px 36px', fontSize: 15, fontWeight: 800,
+          fontFamily: '"Inter", sans-serif', textDecoration: 'none',
+          boxShadow: '0 10px 40px -10px rgba(63,255,33,.65)',
+          transition: 'transform .2s, box-shadow .2s',
+          flexShrink: 0,
+        }}
+        onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.transform = 'scale(1.04)'; el.style.boxShadow = '0 16px 52px -10px rgba(63,255,33,.85)'; }}
+        onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.transform = 'scale(1)'; el.style.boxShadow = '0 10px 40px -10px rgba(63,255,33,.65)'; }}
+      >
+        <Zap size={15} strokeWidth={2.5} /> Assine agora
+      </a>
+    </div>,
+    document.body,
+  );
+}
+
+// ─── Clickable image wrapper ──────────────────────────────────────────────────
+
+function ClickableImage({ children, onClick }: { children: React.ReactNode; onClick: () => void }) {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <div
+      onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{ position: 'relative', cursor: 'zoom-in' }}
+    >
+      {children}
+      {/* Zoom overlay */}
+      <div style={{
+        position: 'absolute', inset: 0, borderRadius: 'inherit',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: hovered ? 'rgba(0,0,0,.32)' : 'transparent',
+        transition: 'background .2s',
+        pointerEvents: 'none',
+      }}>
+        {hovered && (
           <div style={{
-            position: 'absolute', left: 0, top: 0,
-            height: '100%', width: `${prog}%`,
-            background: '#3FFF21', borderRadius: 2,
-            transition: 'width .1s linear',
-          }} />
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <button
-            onClick={toggle}
-            aria-label={playing ? 'Pausar' : 'Reproduzir'}
-            style={{
-              width: 30, height: 30, borderRadius: '50%',
-              background: '#3FFF21', border: 'none', cursor: 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-            }}
-          >
-            {playing
-              ? <Pause size={12} color="#0a1a05" fill="#0a1a05" />
-              : <Play  size={12} color="#0a1a05" fill="#0a1a05" />}
-          </button>
-
-          <button
-            onClick={toggleMute}
-            aria-label={muted ? 'Ativar som' : 'Silenciar'}
-            style={{
-              background: 'none', border: 'none', cursor: 'pointer', padding: 2,
-              color: 'rgba(240,244,248,.4)', display: 'flex', alignItems: 'center',
-            }}
-          >
-            {muted ? <VolumeX size={14} /> : <Volume2 size={14} />}
-          </button>
-
-          <span style={{
-            marginLeft: 'auto',
-            fontFamily: '"JetBrains Mono", monospace', fontSize: 9,
-            fontWeight: 700, letterSpacing: '0.18em',
-            textTransform: 'uppercase', color: 'rgba(63,255,33,.65)',
-          }}>{label}</span>
-        </div>
+            display: 'flex', alignItems: 'center', gap: 7,
+            background: 'rgba(15,22,35,.75)', backdropFilter: 'blur(8px)',
+            border: '1px solid rgba(63,255,33,.3)',
+            borderRadius: 999, padding: '7px 16px',
+          }}>
+            <ZoomIn size={14} color="#3FFF21" />
+            <span style={{ fontFamily: '"Inter", sans-serif', fontSize: 12, fontWeight: 700, color: '#3FFF21' }}>Ampliar</span>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -456,9 +443,10 @@ function VideoPlayer({ src, label }: { src: string; label: string }) {
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export function LandingPage() {
-  const [email,    setEmail]    = useState('');
-  const [openFaq,  setOpenFaq]  = useState<number | null>(0);
-  const [scrolled, setScrolled] = useState(false);
+  const [email,       setEmail]       = useState('');
+  const [openFaq,     setOpenFaq]     = useState<number | null>(0);
+  const [scrolled,    setScrolled]    = useState(false);
+  const [lightboxImg, setLightboxImg] = useState<{ src: string; alt: string } | null>(null);
 
   // Counters
   const ops    = useCounter(2847, 2200);
@@ -636,7 +624,7 @@ export function LandingPage() {
 
         {/* Dashboard screenshot — wider than the text container */}
         <div className="lp-fade-in lp-d6" style={{ position: 'relative', zIndex: 1, maxWidth: 1200, margin: '0 auto', padding: '0 16px' }}>
-          <HeroDashImage />
+          <HeroDashImage onClick={() => setLightboxImg({ src: '/dash.png', alt: 'Dashboard SureEdge' })} />
         </div>
       </section>
 
@@ -806,16 +794,18 @@ export function LandingPage() {
           {/* Freebet screenshot — full width */}
           <div style={{ position: 'relative', marginBottom: 48 }}>
             <div style={{ position: 'absolute', inset: -24, borderRadius: 32, background: 'rgba(63,255,33,.08)', filter: 'blur(40px)', pointerEvents: 'none' }} />
-            <div style={{ position: 'relative', overflow: 'hidden', borderRadius: 20, border: '1px solid rgba(63,255,33,.2)', boxShadow: '0 30px 80px rgba(0,0,0,.5)' }}>
-              <NextImage
-                src="/freebet.png"
-                alt="Ferramenta de extração de freebet — lista de conversões em tempo real"
-                width={1910}
-                height={943}
-                quality={100}
-                style={{ width: '100%', height: 'auto', display: 'block' }}
-              />
-            </div>
+            <ClickableImage onClick={() => setLightboxImg({ src: '/freebet.png', alt: 'Extração de freebet — SureEdge' })}>
+              <div style={{ overflow: 'hidden', borderRadius: 20, border: '1px solid rgba(63,255,33,.2)', boxShadow: '0 30px 80px rgba(0,0,0,.5)' }}>
+                <NextImage
+                  src="/freebet.png"
+                  alt="Ferramenta de extração de freebet — lista de conversões em tempo real"
+                  width={1910}
+                  height={943}
+                  quality={100}
+                  style={{ width: '100%', height: 'auto', display: 'block' }}
+                />
+              </div>
+            </ClickableImage>
           </div>
 
           {/* Bullet points — centered below */}
@@ -869,62 +859,60 @@ export function LandingPage() {
           </div>
 
           {/* duplogreen.png — full width */}
-          <div style={{ position: 'relative', marginBottom: 40 }}>
+          <div style={{ position: 'relative', marginBottom: 48 }}>
             <div style={{ position: 'absolute', inset: -24, borderRadius: 32, background: 'rgba(63,255,33,.08)', filter: 'blur(40px)', pointerEvents: 'none' }} />
-            <div style={{ position: 'relative', overflow: 'hidden', borderRadius: 16, border: '1px solid rgba(63,255,33,.2)', boxShadow: '0 30px 80px rgba(0,0,0,.5)' }}>
-              <div style={{
-                display: 'flex', alignItems: 'center',
-                padding: '10px 16px',
-                background: 'oklch(0.20 0.02 240)',
-                borderBottom: '1px solid rgba(255,255,255,.06)',
-              }}>
-                <TrendingUp size={13} color="#3FFF21" />
-                <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#F0F4F8', marginLeft: 8 }}>Odds em tempo real</span>
-                <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span className="lp-pulse-dot" style={{ width: 6, height: 6, borderRadius: '50%', background: '#3FFF21', display: 'block' }} />
-                  <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 10, color: '#3FFF21' }}>LIVE</span>
+            <ClickableImage onClick={() => setLightboxImg({ src: '/duplogreen.png', alt: 'Odds em tempo real — Duplo Green SureEdge' })}>
+              <div style={{ overflow: 'hidden', borderRadius: 16, border: '1px solid rgba(63,255,33,.2)', boxShadow: '0 30px 80px rgba(0,0,0,.5)' }}>
+                <div style={{
+                  display: 'flex', alignItems: 'center',
+                  padding: '10px 16px',
+                  background: 'oklch(0.20 0.02 240)',
+                  borderBottom: '1px solid rgba(255,255,255,.06)',
+                }}>
+                  <TrendingUp size={13} color="#3FFF21" />
+                  <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#F0F4F8', marginLeft: 8 }}>Odds em tempo real</span>
+                  <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span className="lp-pulse-dot" style={{ width: 6, height: 6, borderRadius: '50%', background: '#3FFF21', display: 'block' }} />
+                    <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 10, color: '#3FFF21' }}>LIVE</span>
+                  </div>
                 </div>
+                <NextImage
+                  src="/duplogreen.png"
+                  alt="Odds extraídas em tempo real para duplo green"
+                  width={1918}
+                  height={935}
+                  quality={100}
+                  style={{ width: '100%', height: 'auto', display: 'block' }}
+                />
               </div>
-              <NextImage
-                src="/duplogreen.png"
-                alt="Odds extraídas em tempo real para duplo green"
-                width={1918}
-                height={935}
-                quality={100}
-                style={{ width: '100%', height: 'auto', display: 'block' }}
-              />
-            </div>
+            </ClickableImage>
           </div>
 
-          {/* Video + bullet points — 2 col */}
-          <div style={{ display: 'grid', gap: 48 }} className="grid grid-cols-1 lg:grid-cols-2 items-center">
-            <VideoPlayer src="/reentrada.mp4" label="Reentrada" />
-
-            <div>
-              <p style={{ fontFamily: '"Inter", sans-serif', fontSize: 16, color: 'rgba(240,244,248,.55)', lineHeight: 1.75, marginBottom: 28 }}>
-                Não quer esperar o jogo acabar? A opção de reentrada permite fechar a posição antecipadamente e partir para a próxima oportunidade.
-              </p>
-              <ul style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                {[
-                  'Odds atualizadas de 30+ casas em tempo real',
-                  'Identifique operações com alto potencial de retorno',
-                  'Reentrada: encerre a posição antes do término',
-                  'Sem precisar esperar o jogo acabar para lucrar',
-                ].map(t => (
-                  <li key={t} style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-                    <div style={{
-                      width: 20, height: 20, borderRadius: '50%',
-                      background: 'rgba(63,255,33,.15)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      flexShrink: 0, marginTop: 2,
-                    }}>
-                      <Check size={11} color="#3FFF21" strokeWidth={3} />
-                    </div>
-                    <span style={{ fontFamily: '"Inter", sans-serif', fontSize: 15, color: 'rgba(240,244,248,.8)', lineHeight: 1.6 }}>{t}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
+          {/* Bullet points — 2-col grid */}
+          <div>
+            <p style={{ fontFamily: '"Inter", sans-serif', fontSize: 16, color: 'rgba(240,244,248,.55)', lineHeight: 1.75, marginBottom: 28, maxWidth: '72ch', margin: '0 auto 28px' }}>
+              Não quer esperar o jogo acabar? A opção de reentrada permite fechar a posição antecipadamente e partir para a próxima oportunidade.
+            </p>
+            <ul style={{ display: 'grid', gap: 14, maxWidth: 800, margin: '0 auto' }} className="grid grid-cols-1 sm:grid-cols-2">
+              {[
+                'Odds atualizadas de 30+ casas em tempo real',
+                'Identifique operações com alto potencial de retorno',
+                'Reentrada: encerre a posição antes do término',
+                'Sem precisar esperar o jogo acabar para lucrar',
+              ].map(t => (
+                <li key={t} style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                  <div style={{
+                    width: 20, height: 20, borderRadius: '50%',
+                    background: 'rgba(63,255,33,.15)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    flexShrink: 0, marginTop: 2,
+                  }}>
+                    <Check size={11} color="#3FFF21" strokeWidth={3} />
+                  </div>
+                  <span style={{ fontFamily: '"Inter", sans-serif', fontSize: 15, color: 'rgba(240,244,248,.8)', lineHeight: 1.6 }}>{t}</span>
+                </li>
+              ))}
+            </ul>
           </div>
 
         </div>
@@ -1249,6 +1237,15 @@ export function LandingPage() {
           </div>
         </div>
       </footer>
+
+      {/* ══════════ LIGHTBOX ══════════ */}
+      {lightboxImg && (
+        <LightboxModal
+          src={lightboxImg.src}
+          alt={lightboxImg.alt}
+          onClose={() => setLightboxImg(null)}
+        />
+      )}
 
       {/* ══════════ STYLES ══════════ */}
       <style>{`
