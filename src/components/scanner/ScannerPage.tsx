@@ -1,11 +1,15 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   Radio, RefreshCw, PauseCircle, PlayCircle,
-  TrendingUp, Filter, Bell, BellOff, ChevronDown,
+  TrendingUp, Filter, Bell, BellOff, X,
+  ExternalLink, Calculator, PlusCircle, ChevronDown,
 } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
+import { useStore } from '@/store/useStore';
+import { houseFavicon } from '@/lib/bookmakers/logos';
+import type { Leg } from '@/types';
 
 // ── CSS keyframes ──────────────────────────────────────────────────────────────
 const STYLES = `
@@ -25,6 +29,11 @@ const STYLES = `
   0%, 100% { opacity: 1; }
   50%       { opacity: .25; }
 }
+@keyframes modalIn {
+  from { opacity: 0; transform: translateY(12px) scale(.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes spin { to { transform: rotate(360deg); } }
 `;
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -78,6 +87,31 @@ function formatAgo(iso: string) {
   return `${Math.floor(s / 3600)}h atrás`;
 }
 
+/** Derive the bookmaker site URL from the favicon helper */
+function houseSiteUrl(name: string): string | null {
+  const favicon = houseFavicon(name);
+  if (!favicon) return null;
+  const match = favicon.match(/domain=(.+)$/);
+  return match ? `https://www.${match[1]}` : null;
+}
+
+/** Surebet/DG calculator: profit% for given odds array */
+function calcProfit(odds: number[]): number {
+  const valid = odds.filter(o => o > 1);
+  if (valid.length < 2) return 0;
+  const arb = valid.reduce((acc, o) => acc + 1 / o, 0);
+  return (1 / arb - 1) * 100;
+}
+
+/** Balanced stake distribution for each leg */
+function calcStakes(odds: number[], total: number): number[] {
+  const valid = odds.filter(o => o > 1);
+  if (valid.length < 2) return odds.map(() => 0);
+  const arb = valid.reduce((acc, o) => acc + 1 / o, 0);
+  const ret = 1 / arb;
+  return odds.map(o => o > 1 ? total * (ret / o) : 0);
+}
+
 // ── Supabase (para pausa do daemon) ───────────────────────────────────────────
 function getSupabase() {
   return createClient(
@@ -86,25 +120,8 @@ function getSupabase() {
   );
 }
 
-// ── Componente: chip de casa ──────────────────────────────────────────────────
-function CasaChip({ name }: { name: string }) {
-  const isPA = name.includes('(PA)') || name.includes('(pa)');
-  return (
-    <span style={{
-      display: 'inline-flex', alignItems: 'center', gap: 3,
-      padding: '2px 7px', borderRadius: 4, fontSize: 11, fontWeight: 500,
-      background: isPA ? 'rgba(255,159,10,.12)' : 'rgba(255,255,255,.07)',
-      color: isPA ? '#FF9F0A' : '#CBD5E1',
-      border: `1px solid ${isPA ? 'rgba(255,159,10,.25)' : 'rgba(255,255,255,.08)'}`,
-      whiteSpace: 'nowrap',
-    }}>
-      {name}
-      {isPA && <span style={{ fontSize: 9, opacity: .8 }}>PA</span>}
-    </span>
-  );
-}
+// ── Sub-components ─────────────────────────────────────────────────────────────
 
-// ── Componente: badge tipo ────────────────────────────────────────────────────
 function TipoBadge({ tipo }: { tipo: string | null }) {
   const isDuo = tipo === 'DUO';
   return (
@@ -120,23 +137,425 @@ function TipoBadge({ tipo }: { tipo: string | null }) {
   );
 }
 
-// ── Componente: card de sinal ──────────────────────────────────────────────────
-function SignalCard({ signal }: { signal: Signal }) {
+function CasaChipSmall({ name }: { name: string }) {
+  const isPA = name.includes('(PA)') || name.includes('(pa)');
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: 3,
+      padding: '2px 7px', borderRadius: 4, fontSize: 11, fontWeight: 500,
+      background: isPA ? 'rgba(255,159,10,.12)' : 'rgba(255,255,255,.07)',
+      color: isPA ? '#FF9F0A' : '#CBD5E1',
+      border: `1px solid ${isPA ? 'rgba(255,159,10,.25)' : 'rgba(255,255,255,.08)'}`,
+      whiteSpace: 'nowrap',
+    }}>
+      {name}
+    </span>
+  );
+}
+
+// ── Toggle (reutilizável) ──────────────────────────────────────────────────────
+function Toggle({ value, onChange, color = '#3DFF8F', label }: {
+  value: boolean; onChange: (v: boolean) => void; color?: string; label: string;
+}) {
+  return (
+    <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+      <div
+        onClick={() => onChange(!value)}
+        style={{
+          width: 32, height: 17, borderRadius: 9, cursor: 'pointer',
+          background: value ? `${color}55` : 'rgba(255,255,255,.1)',
+          border: `1px solid ${value ? `${color}66` : 'rgba(255,255,255,.12)'}`,
+          position: 'relative', transition: 'all .15s',
+        }}
+      >
+        <div style={{
+          position: 'absolute', top: 2, width: 11, height: 11, borderRadius: '50%',
+          background: value ? color : '#475569',
+          left: value ? 18 : 2, transition: 'left .15s, background .15s',
+        }} />
+      </div>
+      <span style={{ fontSize: 11, color: value ? color : '#475569' }}>{label}</span>
+    </label>
+  );
+}
+
+// ── Modal de sinal ─────────────────────────────────────────────────────────────
+function SignalModal({ signal, onClose }: { signal: Signal; onClose: () => void }) {
+  const bulkAddLegs = useStore(s => s.bulkAddLegs);
+  const setView     = useStore(s => s.setView);
+
   const casas = [signal.casa1, signal.casa2, signal.casa3].filter(Boolean) as string[];
-  const profit = signal.profit_margin;
+  const [odds,  setOdds]  = useState<number[]>(() => casas.map(() => 1.0));
+  const [stake, setStake] = useState(100);
+  const [added, setAdded] = useState(false);
+
+  // Initialise odds with neutral values; user can type their actual odds
+  const liveProfit = calcProfit(odds);
+  const stakes     = calcStakes(odds, stake);
+  const totalReturn = stake + stake * (liveProfit / 100);
+
+  // Close on Escape
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [onClose]);
+
+  function handleAddToPanel() {
+    const oid = `dg_${Date.now()}`;
+    const bd  = new Date().toISOString().slice(0, 10);
+    const ed  = signal.data_evento
+      ? new Date(signal.data_evento).toISOString().slice(0, 10)
+      : bd;
+
+    const legs: Leg[] = casas.map((casa, i) => ({
+      id:     `${oid}_${i}`,
+      oid,
+      bd,
+      ed,
+      sp:     'Futebol',
+      ev:     signal.jogo ?? 'Jogo desconhecido',
+      ho:     casa,
+      mk:     signal.tipo === 'DUO' ? 'Duplo Green DUO' : 'Duplo Green ML',
+      od:     odds[i] > 1 ? odds[i] : 1.01,
+      st:     stakes[i] > 0 ? Math.round(stakes[i] * 100) / 100 : stake / casas.length,
+      pc:     liveProfit / casas.length,
+      re:     'Pendente',
+      pr:     0,
+      fl:     [],
+      opType: 'duplo_green',
+      signal: 'pre',
+      source: 'manual',
+    }));
+
+    bulkAddLegs(legs);
+    setAdded(true);
+    setTimeout(() => {
+      onClose();
+      setView('ops');
+    }, 900);
+  }
 
   return (
-    <div style={{
-      background: 'rgba(255,255,255,.04)',
-      border: `1px solid ${signal.is_new ? 'rgba(61,255,143,.45)' : 'rgba(255,255,255,.07)'}`,
-      borderRadius: 10,
-      padding: '14px 16px',
-      display: 'flex', flexDirection: 'column', gap: 10,
-      animation: signal.is_new
-        ? 'scannerFadeIn .3s ease-out, scannerNewBorder 1.8s ease-in-out 3'
-        : 'scannerFadeIn .25s ease-out',
-      position: 'relative', overflow: 'hidden',
-    }}>
+    <div
+      style={{
+        position: 'fixed', inset: 0, zIndex: 1000,
+        background: 'rgba(0,0,0,.75)', backdropFilter: 'blur(8px)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: '16px',
+      }}
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div style={{
+        width: '100%', maxWidth: 560,
+        background: '#0F1A14',
+        border: '1px solid rgba(255,255,255,.1)',
+        borderRadius: 14, overflow: 'hidden',
+        animation: 'modalIn .22s ease-out',
+        maxHeight: '90vh', overflowY: 'auto',
+      }}>
+        {/* Header */}
+        <div style={{
+          padding: '16px 18px 14px',
+          borderBottom: '1px solid rgba(255,255,255,.07)',
+          display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10,
+          background: 'linear-gradient(180deg, rgba(61,255,143,.05) 0%, transparent 100%)',
+        }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 4 }}>
+              <TipoBadge tipo={signal.tipo} />
+              {signal.is_new && (
+                <span style={{
+                  padding: '2px 7px', borderRadius: 3, fontSize: 10, fontWeight: 700,
+                  background: 'rgba(61,255,143,.15)', color: '#3DFF8F',
+                  border: '1px solid rgba(61,255,143,.3)', letterSpacing: '.04em',
+                  animation: 'scannerPulse 1.6s ease-in-out infinite',
+                }}>NOVO</span>
+              )}
+            </div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: '#F1F5F9', lineHeight: 1.3 }}>
+              {signal.jogo ?? 'Jogo desconhecido'}
+            </div>
+            <div style={{ fontSize: 12, color: '#475569', marginTop: 3 }}>
+              {signal.campeonato ?? '—'}
+              {signal.data_evento ? ` · ⚽ ${formatDate(signal.data_evento)}` : ''}
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            style={{
+              width: 28, height: 28, borderRadius: 6, border: '1px solid rgba(255,255,255,.1)',
+              background: 'rgba(255,255,255,.05)', color: '#475569', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+            }}
+          >
+            <X size={14} />
+          </button>
+        </div>
+
+        {/* Profit original */}
+        <div style={{ padding: '14px 18px 0' }}>
+          <div style={{ fontSize: 11, color: '#334155', fontWeight: 600, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '.05em' }}>
+            Profit original (scanner)
+          </div>
+          <div style={{
+            display: 'inline-flex', alignItems: 'center', gap: 7,
+            padding: '6px 14px', borderRadius: 7,
+            background: profitBg(signal.profit_margin),
+            border: `1px solid ${profitColor(signal.profit_margin)}30`,
+          }}>
+            <TrendingUp size={13} color={profitColor(signal.profit_margin)} />
+            <span style={{ fontSize: 17, fontWeight: 800, color: profitColor(signal.profit_margin), fontVariantNumeric: 'tabular-nums' }}>
+              {formatProfit(signal.profit_margin)}
+            </span>
+          </div>
+        </div>
+
+        {/* Casas com odds e links */}
+        <div style={{ padding: '14px 18px 0' }}>
+          <div style={{ fontSize: 11, color: '#334155', fontWeight: 600, marginBottom: 8, textTransform: 'uppercase', letterSpacing: '.05em' }}>
+            Casas e Odds
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+            {casas.map((casa, i) => {
+              const favicon = houseFavicon(casa);
+              const siteUrl = houseSiteUrl(casa);
+              return (
+                <div key={i} style={{
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  padding: '9px 12px', borderRadius: 8,
+                  background: 'rgba(255,255,255,.04)',
+                  border: '1px solid rgba(255,255,255,.07)',
+                }}>
+                  {/* Favicon */}
+                  <div style={{
+                    width: 22, height: 22, borderRadius: 4, overflow: 'hidden',
+                    background: 'rgba(255,255,255,.06)', flexShrink: 0,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    {favicon
+                      ? <img src={favicon} alt="" width={16} height={16} style={{ objectFit: 'contain' }} />
+                      : <span style={{ fontSize: 9, color: '#475569', fontWeight: 700 }}>{casa.slice(0, 2).toUpperCase()}</span>
+                    }
+                  </div>
+
+                  {/* Nome */}
+                  <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: '#CBD5E1', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {casa}
+                  </span>
+
+                  {/* Odds input */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <span style={{ fontSize: 10, color: '#475569' }}>Odd:</span>
+                    <input
+                      type="number"
+                      min="1.01"
+                      step="0.01"
+                      value={odds[i] <= 1 ? '' : odds[i]}
+                      placeholder="—"
+                      onChange={e => {
+                        const val = parseFloat(e.target.value);
+                        setOdds(prev => prev.map((o, idx) => idx === i ? (isNaN(val) ? 1.0 : val) : o));
+                      }}
+                      style={{
+                        width: 70, padding: '4px 8px', borderRadius: 5, fontSize: 13, fontWeight: 700,
+                        background: 'rgba(255,255,255,.07)', border: '1px solid rgba(255,255,255,.12)',
+                        color: '#F1F5F9', textAlign: 'right', outline: 'none',
+                        fontVariantNumeric: 'tabular-nums',
+                      }}
+                    />
+                  </div>
+
+                  {/* Link */}
+                  {siteUrl && (
+                    <a
+                      href={siteUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title={`Abrir ${casa}`}
+                      style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        width: 28, height: 28, borderRadius: 6, flexShrink: 0,
+                        background: 'rgba(56,189,248,.08)', border: '1px solid rgba(56,189,248,.18)',
+                        color: '#38BDF8', textDecoration: 'none',
+                      }}
+                    >
+                      <ExternalLink size={12} />
+                    </a>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Calculadora */}
+        <div style={{ padding: '14px 18px 0' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8 }}>
+            <Calculator size={12} color="#475569" />
+            <span style={{ fontSize: 11, color: '#334155', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.05em' }}>
+              Calculadora
+            </span>
+          </div>
+
+          {/* Stake total */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+            <span style={{ fontSize: 12, color: '#475569' }}>Banca total:</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ fontSize: 12, color: '#475569' }}>R$</span>
+              <input
+                type="number"
+                min="1"
+                step="10"
+                value={stake}
+                onChange={e => setStake(Math.max(1, parseFloat(e.target.value) || 100))}
+                style={{
+                  width: 90, padding: '5px 8px', borderRadius: 5, fontSize: 13, fontWeight: 700,
+                  background: 'rgba(255,255,255,.07)', border: '1px solid rgba(255,255,255,.12)',
+                  color: '#F1F5F9', outline: 'none', fontVariantNumeric: 'tabular-nums',
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Distribuição */}
+          {odds.some(o => o > 1) && (
+            <div style={{
+              borderRadius: 8, overflow: 'hidden',
+              border: '1px solid rgba(255,255,255,.06)',
+              marginBottom: 10,
+            }}>
+              {/* Cabeçalho tabela */}
+              <div style={{
+                display: 'grid', gridTemplateColumns: '1fr 80px 80px',
+                padding: '6px 12px', fontSize: 10, fontWeight: 700,
+                color: '#334155', textTransform: 'uppercase', letterSpacing: '.06em',
+                background: 'rgba(255,255,255,.03)',
+                borderBottom: '1px solid rgba(255,255,255,.05)',
+              }}>
+                <span>Casa</span><span style={{ textAlign: 'right' }}>Stake</span><span style={{ textAlign: 'right' }}>Retorno</span>
+              </div>
+              {casas.map((casa, i) => (
+                <div key={i} style={{
+                  display: 'grid', gridTemplateColumns: '1fr 80px 80px',
+                  padding: '7px 12px', fontSize: 12,
+                  borderBottom: i < casas.length - 1 ? '1px solid rgba(255,255,255,.04)' : 'none',
+                  background: 'transparent',
+                }}>
+                  <span style={{ color: '#94A3B8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{casa}</span>
+                  <span style={{ color: '#E2E8F0', fontWeight: 600, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                    R$ {stakes[i].toFixed(2)}
+                  </span>
+                  <span style={{ color: '#94A3B8', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                    R$ {(odds[i] > 1 ? stakes[i] * odds[i] : 0).toFixed(2)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Resultado */}
+          <div style={{
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            padding: '10px 14px', borderRadius: 8,
+            background: liveProfit >= 0 ? 'rgba(61,255,143,.06)' : 'rgba(255,107,107,.06)',
+            border: `1px solid ${liveProfit >= 0 ? 'rgba(61,255,143,.15)' : 'rgba(255,107,107,.15)'}`,
+          }}>
+            <div>
+              <div style={{ fontSize: 10, color: '#475569', marginBottom: 2 }}>Retorno esperado</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: '#E2E8F0', fontVariantNumeric: 'tabular-nums' }}>
+                R$ {totalReturn.toFixed(2)}
+              </div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: 10, color: '#475569', marginBottom: 2 }}>Lucro</div>
+              <div style={{
+                fontSize: 18, fontWeight: 800, fontVariantNumeric: 'tabular-nums',
+                color: profitColor(liveProfit),
+              }}>
+                {formatProfit(liveProfit)}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Ações */}
+        <div style={{ padding: '14px 18px 18px', display: 'flex', gap: 8 }}>
+          <button
+            onClick={onClose}
+            style={{
+              flex: 1, padding: '10px 0', borderRadius: 8, fontSize: 13, fontWeight: 600,
+              cursor: 'pointer', background: 'rgba(255,255,255,.05)',
+              border: '1px solid rgba(255,255,255,.1)', color: '#64748B',
+            }}
+          >
+            Fechar
+          </button>
+          <button
+            onClick={handleAddToPanel}
+            disabled={added}
+            style={{
+              flex: 2, padding: '10px 0', borderRadius: 8, fontSize: 13, fontWeight: 700,
+              cursor: added ? 'default' : 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+              background: added ? 'rgba(61,255,143,.15)' : 'rgba(61,255,143,.12)',
+              border: `1px solid ${added ? 'rgba(61,255,143,.4)' : 'rgba(61,255,143,.25)'}`,
+              color: added ? '#3DFF8F' : '#86EFAC',
+              transition: 'all .15s',
+            }}
+          >
+            {added ? (
+              <>✓ Adicionado — indo para painel...</>
+            ) : (
+              <><PlusCircle size={14} /> Adicionar ao painel</>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Card de sinal ─────────────────────────────────────────────────────────────
+function SignalCard({ signal, onClick }: { signal: Signal; onClick: () => void }) {
+  const casas  = [signal.casa1, signal.casa2, signal.casa3].filter(Boolean) as string[];
+  const profit = signal.profit_margin;
+  const isGreenNew = signal.is_new && profit >= 0;
+
+  return (
+    <div
+      onClick={onClick}
+      role="button"
+      tabIndex={0}
+      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') onClick(); }}
+      style={{
+        background: isGreenNew
+          ? 'rgba(61,255,143,.07)'
+          : 'rgba(255,255,255,.04)',
+        border: `1px solid ${signal.is_new ? (isGreenNew ? 'rgba(61,255,143,.5)' : 'rgba(61,255,143,.35)') : 'rgba(255,255,255,.07)'}`,
+        borderRadius: 10,
+        padding: '14px 16px',
+        display: 'flex', flexDirection: 'column', gap: 10,
+        animation: signal.is_new
+          ? 'scannerFadeIn .3s ease-out, scannerNewBorder 1.8s ease-in-out 3'
+          : 'scannerFadeIn .25s ease-out',
+        position: 'relative', overflow: 'hidden',
+        cursor: 'pointer',
+        transition: 'border-color .15s, background .15s',
+      }}
+      onMouseEnter={e => {
+        (e.currentTarget as HTMLElement).style.borderColor =
+          isGreenNew ? 'rgba(61,255,143,.7)' : 'rgba(255,255,255,.16)';
+        (e.currentTarget as HTMLElement).style.background =
+          isGreenNew ? 'rgba(61,255,143,.10)' : 'rgba(255,255,255,.06)';
+      }}
+      onMouseLeave={e => {
+        (e.currentTarget as HTMLElement).style.borderColor =
+          signal.is_new ? (isGreenNew ? 'rgba(61,255,143,.5)' : 'rgba(61,255,143,.35)') : 'rgba(255,255,255,.07)';
+        (e.currentTarget as HTMLElement).style.background =
+          isGreenNew ? 'rgba(61,255,143,.07)' : 'rgba(255,255,255,.04)';
+      }}
+    >
       {/* Linha de acento colorida pelo profit */}
       <div style={{
         position: 'absolute', top: 0, left: 0, right: 0, height: 2,
@@ -186,7 +605,7 @@ function SignalCard({ signal }: { signal: Signal }) {
       {/* Casas */}
       {casas.length > 0 && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-          {casas.map((c, i) => <CasaChip key={i} name={c} />)}
+          {casas.map((c, i) => <CasaChipSmall key={i} name={c} />)}
         </div>
       )}
 
@@ -232,6 +651,121 @@ function TipoFilter({ value, onChange }: { value: string; onChange: (v: string) 
   );
 }
 
+// ── Painel de filtro de casas ──────────────────────────────────────────────────
+function CasaFilterPanel({
+  allCasas,
+  deselected,
+  onChange,
+}: {
+  allCasas: string[];
+  deselected: Set<string>;
+  onChange: (next: Set<string>) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const hiddenCount = deselected.size;
+
+  function toggle(casa: string) {
+    const next = new Set(deselected);
+    if (next.has(casa)) next.delete(casa);
+    else next.add(casa);
+    onChange(next);
+  }
+
+  function selectAll()   { onChange(new Set()); }
+  function deselectAll() { onChange(new Set(allCasas)); }
+
+  return (
+    <div style={{
+      borderRadius: 9, overflow: 'hidden',
+      background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.06)',
+      marginBottom: 10,
+    }}>
+      {/* Header toggle */}
+      <button
+        onClick={() => setOpen(v => !v)}
+        style={{
+          width: '100%', display: 'flex', alignItems: 'center', gap: 8,
+          padding: '10px 14px', cursor: 'pointer', border: 'none',
+          background: 'transparent', textAlign: 'left',
+        }}
+      >
+        <Filter size={12} color="#475569" />
+        <span style={{ fontSize: 12, fontWeight: 600, color: '#64748B' }}>Filtro de Casas</span>
+        {hiddenCount > 0 && (
+          <span style={{
+            padding: '2px 7px', borderRadius: 4, fontSize: 10, fontWeight: 700,
+            background: 'rgba(255,159,10,.14)', color: '#FF9F0A',
+            border: '1px solid rgba(255,159,10,.25)',
+          }}>
+            {hiddenCount} oculta{hiddenCount > 1 ? 's' : ''}
+          </span>
+        )}
+        <ChevronDown
+          size={12}
+          color="#475569"
+          style={{
+            marginLeft: 'auto', transition: 'transform .18s',
+            transform: open ? 'rotate(180deg)' : 'none',
+          }}
+        />
+      </button>
+
+      {open && (
+        <div style={{ padding: '0 14px 12px' }}>
+          {/* Ações rápidas */}
+          <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+            <button
+              onClick={selectAll}
+              style={{
+                padding: '4px 10px', borderRadius: 5, fontSize: 11, fontWeight: 600,
+                cursor: 'pointer', background: 'rgba(61,255,143,.1)',
+                border: '1px solid rgba(61,255,143,.22)', color: '#3DFF8F',
+              }}
+            >
+              Todas
+            </button>
+            <button
+              onClick={deselectAll}
+              style={{
+                padding: '4px 10px', borderRadius: 5, fontSize: 11, fontWeight: 600,
+                cursor: 'pointer', background: 'rgba(255,255,255,.05)',
+                border: '1px solid rgba(255,255,255,.1)', color: '#64748B',
+              }}
+            >
+              Nenhuma
+            </button>
+          </div>
+
+          {/* Grid de chips */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+            {allCasas.map(casa => {
+              const active = !deselected.has(casa);
+              return (
+                <button
+                  key={casa}
+                  onClick={() => toggle(casa)}
+                  style={{
+                    padding: '4px 10px', borderRadius: 5, fontSize: 11, fontWeight: 500,
+                    cursor: 'pointer', border: '1px solid',
+                    background: active ? 'rgba(255,255,255,.08)' : 'transparent',
+                    borderColor: active ? 'rgba(255,255,255,.14)' : 'rgba(255,255,255,.06)',
+                    color: active ? '#CBD5E1' : '#334155',
+                    transition: 'all .1s',
+                    textDecoration: active ? 'none' : 'line-through',
+                    opacity: active ? 1 : .5,
+                  }}
+                >
+                  {casa}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Componente principal ───────────────────────────────────────────────────────
 export function ScannerPage() {
   const [signals,     setSignals]     = useState<Signal[]>([]);
@@ -243,14 +777,44 @@ export function ScannerPage() {
   const [paused,      setPaused]      = useState(false);
   const [pausing,     setPausing]     = useState(false);
 
-  // Filtros
+  // Modal
+  const [selectedSignal, setSelectedSignal] = useState<Signal | null>(null);
+
+  // Filtros de query
   const [tipo,      setTipo]      = useState('');
   const [profitMin, setProfitMin] = useState(-2.5);
   const [onlyNew,   setOnlyNew]   = useState(false);
 
-  const prevNewIds = useRef<Set<string>>(new Set());
-  const audioCtx   = useRef<AudioContext | null>(null);
+  // Filtro de casas (client-side)
+  // deselectedCasas: conjunto de casas que o usuário OCULTOU
+  const [deselectedCasas, setDeselectedCasas] = useState<Set<string>>(new Set());
+
+  const prevNewIds  = useRef<Set<string>>(new Set());
+  const audioCtx    = useRef<AudioContext | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // ── Extrai todas as casas únicas dos sinais (antes de filtrar) ──────────────
+  const allCasas = useMemo(() => {
+    const set = new Set<string>();
+    signals.forEach(s => {
+      if (s.casa1) set.add(s.casa1);
+      if (s.casa2) set.add(s.casa2);
+      if (s.casa3) set.add(s.casa3);
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [signals]);
+
+  // ── Aplica filtro de casas client-side ────────────────────────────────────
+  const visibleSignals = useMemo(() => {
+    if (deselectedCasas.size === 0) return signals;
+    return signals.filter(s => {
+      const casas = [s.casa1, s.casa2, s.casa3].filter(Boolean) as string[];
+      // Ocultar se TODAS as casas do sinal estão deselected, OU se pelo menos uma está deselected
+      // Regra do usuário: "ao desmarcar a casa, aquela casa não vai mais aparecer no site"
+      // → ocultar o sinal se QUALQUER uma das suas casas estiver deselected
+      return casas.every(c => !deselectedCasas.has(c));
+    });
+  }, [signals, deselectedCasas]);
 
   // ── Beep ──────────────────────────────────────────────────────────────────────
   const playBeep = useCallback(() => {
@@ -278,7 +842,7 @@ export function ScannerPage() {
     try {
       const qs = new URLSearchParams({
         profitMin: String(profitMin),
-        limit:     '300',
+        limit:     '500',
       });
       if (tipo)    qs.set('tipo', tipo);
       if (onlyNew) qs.set('onlyNew', 'true');
@@ -346,13 +910,22 @@ export function ScannerPage() {
   }, []);
 
   // ── Contadores ────────────────────────────────────────────────────────────────
-  const newCount      = signals.filter(s => s.is_new).length;
-  const positiveCount = signals.filter(s => s.profit_margin >= 0).length;
+  const newCount      = visibleSignals.filter(s => s.is_new).length;
+  const positiveCount = visibleSignals.filter(s => s.profit_margin >= 0).length;
 
   // ── Render ────────────────────────────────────────────────────────────────────
   return (
     <>
       <style>{STYLES}</style>
+
+      {/* Modal */}
+      {selectedSignal && (
+        <SignalModal
+          signal={selectedSignal}
+          onClose={() => setSelectedSignal(null)}
+        />
+      )}
+
       <div style={{ padding: '20px 20px 40px', maxWidth: 1100, margin: '0 auto' }}>
 
         {/* Cabeçalho */}
@@ -367,7 +940,7 @@ export function ScannerPage() {
                 flexShrink: 0,
               }} />
               <h1 style={{ fontSize: 20, fontWeight: 700, color: '#F1F5F9', margin: 0 }}>
-                Scanner de Alertas
+                Alertas Duplo Green
               </h1>
               {paused && (
                 <span style={{
@@ -381,7 +954,7 @@ export function ScannerPage() {
             </div>
             <p style={{ fontSize: 13, color: '#475569', margin: '4px 0 0 18px' }}>
               {lastFetch
-                ? `Atualizado ${formatAgo(lastFetch.toISOString())} · ${signals.length} sinais`
+                ? `Atualizado ${formatAgo(lastFetch.toISOString())} · ${visibleSignals.length} sinais`
                 : 'Carregando sinais...'}
               {newCount > 0 && (
                 <span style={{ marginLeft: 8, color: '#3DFF8F', fontWeight: 600 }}>
@@ -444,7 +1017,7 @@ export function ScannerPage() {
         {/* Barra de filtros */}
         <div style={{
           display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 12,
-          padding: '12px 14px', borderRadius: 9, marginBottom: 18,
+          padding: '12px 14px', borderRadius: 9, marginBottom: 10,
           background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.06)',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -488,58 +1061,31 @@ export function ScannerPage() {
           <div style={{ width: 1, height: 18, background: 'rgba(255,255,255,.07)' }} />
 
           {/* Apenas novos */}
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
-            <div
-              onClick={() => setOnlyNew(v => !v)}
-              style={{
-                width: 32, height: 17, borderRadius: 9, cursor: 'pointer',
-                background: onlyNew ? 'rgba(61,255,143,.35)' : 'rgba(255,255,255,.1)',
-                border: `1px solid ${onlyNew ? 'rgba(61,255,143,.4)' : 'rgba(255,255,255,.12)'}`,
-                position: 'relative', transition: 'all .15s',
-              }}
-            >
-              <div style={{
-                position: 'absolute', top: 2, width: 11, height: 11, borderRadius: '50%',
-                background: onlyNew ? '#3DFF8F' : '#475569',
-                left: onlyNew ? 18 : 2, transition: 'left .15s, background .15s',
-              }} />
-            </div>
-            <span style={{ fontSize: 11, color: onlyNew ? '#3DFF8F' : '#475569' }}>Só novos</span>
-          </label>
+          <Toggle value={onlyNew} onChange={setOnlyNew} label="Só novos" />
 
-          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
-              <div
-                onClick={() => setAutoRefresh(v => !v)}
-                style={{
-                  width: 32, height: 17, borderRadius: 9, cursor: 'pointer',
-                  background: autoRefresh ? 'rgba(56,189,248,.3)' : 'rgba(255,255,255,.1)',
-                  border: `1px solid ${autoRefresh ? 'rgba(56,189,248,.4)' : 'rgba(255,255,255,.12)'}`,
-                  position: 'relative', transition: 'all .15s',
-                }}
-              >
-                <div style={{
-                  position: 'absolute', top: 2, width: 11, height: 11, borderRadius: '50%',
-                  background: autoRefresh ? '#38BDF8' : '#475569',
-                  left: autoRefresh ? 18 : 2, transition: 'left .15s, background .15s',
-                }} />
-              </div>
-              <span style={{ fontSize: 11, color: autoRefresh ? '#38BDF8' : '#475569' }}>
-                Auto (5s)
-              </span>
-            </label>
+          <div style={{ marginLeft: 'auto' }}>
+            <Toggle value={autoRefresh} onChange={setAutoRefresh} color="#38BDF8" label="Auto (5s)" />
           </div>
         </div>
 
+        {/* Filtro de casas */}
+        {allCasas.length > 0 && (
+          <CasaFilterPanel
+            allCasas={allCasas}
+            deselected={deselectedCasas}
+            onChange={setDeselectedCasas}
+          />
+        )}
+
         {/* Stats rápidas */}
-        {signals.length > 0 && (
+        {visibleSignals.length > 0 && (
           <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
             {[
-              { label: 'Total',    value: signals.length,   color: '#94A3B8' },
-              { label: 'Novos',    value: newCount,         color: '#3DFF8F' },
-              { label: 'Lucro ≥0', value: positiveCount,   color: '#3DFF8F' },
-              { label: 'ML',       value: signals.filter(s => s.tipo === 'ML').length,  color: '#38BDF8' },
-              { label: 'DUO',      value: signals.filter(s => s.tipo === 'DUO').length, color: '#A78BFA' },
+              { label: 'Total',    value: visibleSignals.length,   color: '#94A3B8' },
+              { label: 'Novos',    value: newCount,                color: '#3DFF8F' },
+              { label: 'Lucro ≥0', value: positiveCount,          color: '#3DFF8F' },
+              { label: 'ML',       value: visibleSignals.filter(s => s.tipo === 'ML').length,  color: '#38BDF8' },
+              { label: 'DUO',      value: visibleSignals.filter(s => s.tipo === 'DUO').length, color: '#A78BFA' },
             ].map(stat => (
               <div key={stat.label} style={{
                 padding: '5px 12px', borderRadius: 6, fontSize: 12,
@@ -553,6 +1099,14 @@ export function ScannerPage() {
           </div>
         )}
 
+        {/* Dica clique */}
+        {visibleSignals.length > 0 && (
+          <div style={{ fontSize: 11, color: '#334155', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 5 }}>
+            <Calculator size={11} />
+            Clique em qualquer card para abrir a calculadora e adicionar ao painel.
+          </div>
+        )}
+
         {/* Estado: erro */}
         {error && (
           <div style={{
@@ -561,11 +1115,6 @@ export function ScannerPage() {
             color: '#FF6B6B', fontSize: 13,
           }}>
             Erro ao buscar sinais: {error}
-            {error.includes('daemon') && (
-              <div style={{ marginTop: 6, fontSize: 12, color: '#FF9F0A' }}>
-                Verifique se o <code style={{ fontFamily: 'monospace' }}>process-queue.mjs</code> está rodando no seu PC.
-              </div>
-            )}
           </div>
         )}
 
@@ -581,7 +1130,7 @@ export function ScannerPage() {
         )}
 
         {/* Estado: vazio */}
-        {!loading && !error && signals.length === 0 && (
+        {!loading && !error && visibleSignals.length === 0 && (
           <div style={{
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
             padding: '60px 20px', gap: 12, color: '#334155',
@@ -591,19 +1140,27 @@ export function ScannerPage() {
             <div style={{ fontSize: 13, textAlign: 'center', maxWidth: 340 }}>
               {paused
                 ? 'O scanner está pausado. Clique em "Retomar" para iniciar a captação.'
-                : 'O daemon está buscando sinais. Aguarde ou ajuste os filtros.'}
+                : deselectedCasas.size > 0
+                  ? 'Todos os sinais foram ocultados pelo filtro de casas.'
+                  : 'O daemon está buscando sinais. Aguarde ou ajuste os filtros.'}
             </div>
           </div>
         )}
 
         {/* Grid de sinais */}
-        {signals.length > 0 && (
+        {visibleSignals.length > 0 && (
           <div style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
             gap: 10,
           }}>
-            {signals.map(s => <SignalCard key={s.id} signal={s} />)}
+            {visibleSignals.map(s => (
+              <SignalCard
+                key={s.id}
+                signal={s}
+                onClick={() => setSelectedSignal(s)}
+              />
+            ))}
           </div>
         )}
       </div>
