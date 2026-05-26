@@ -609,6 +609,21 @@ function FreebetCalcModal({ result, freebetHouse, freebetValue, onClose }: {
           Ajuste as odds se necessário — as stakes são recalculadas automaticamente.
         </div>
 
+        {/* PA warning — only shown when at least one hedge is PA */}
+        {result.bets.some(b => b.is_pa) && (
+          <div style={{ margin: '8px 20px 0', padding: '10px 12px', borderRadius: 8,
+            background: 'rgba(255,159,10,.07)', border: '1px solid rgba(255,159,10,.3)',
+            display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+            <span style={{ fontSize: 14, flexShrink: 0, lineHeight: 1 }}>⚠️</span>
+            <div style={{ fontSize: 11, color: '#FFB340', lineHeight: 1.55 }}>
+              <strong style={{ display: 'block', marginBottom: 2 }}>Odd PA pode ser diferente</strong>
+              A odd exibida é a odd de pré-jogo. A odd real de{' '}
+              <strong>Pagamento Antecipado (PA)</strong> na casa pode ser menor.
+              Verifique no site da casa e ajuste o campo antes de apostar.
+            </div>
+          </div>
+        )}
+
         {/* Bet rows com odd editável */}
         <div style={{ padding: '14px 20px', display: 'flex', flexDirection: 'column', gap: 8 }}>
           {/* Column labels */}
@@ -656,7 +671,7 @@ function FreebetCalcModal({ result, freebetHouse, freebetValue, onClose }: {
               </div>
 
               {/* Odd editável */}
-              <div style={{ display: 'flex', justifyContent: 'center' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
                 <input
                   type="number" min="1.01" step="0.01"
                   value={editOdds[i]}
@@ -664,10 +679,17 @@ function FreebetCalcModal({ result, freebetHouse, freebetValue, onClose }: {
                   onFocus={e => e.target.select()}
                   style={{
                     ...INPUT_STYLE,
-                    color: b.is_freebet ? '#3DFF8F' : '#E2E8F0',
-                    border: `1px solid ${b.is_freebet ? 'rgba(63,255,33,.3)' : 'rgba(255,255,255,.12)'}`,
+                    color: b.is_pa ? '#FFB340' : b.is_freebet ? '#3DFF8F' : '#E2E8F0',
+                    border: `1px solid ${b.is_pa ? 'rgba(255,159,10,.55)' : b.is_freebet ? 'rgba(63,255,33,.3)' : 'rgba(255,255,255,.12)'}`,
+                    boxShadow: b.is_pa ? '0 0 0 2px rgba(255,159,10,.12)' : 'none',
                   }}
                 />
+                {b.is_pa && (
+                  <span style={{ fontSize: 8, fontWeight: 800, color: '#FF9F0A',
+                    textAlign: 'center', lineHeight: 1.2 }}>
+                    Verifique<br/>odd PA
+                  </span>
+                )}
               </div>
 
               {/* Stake recalculada */}
