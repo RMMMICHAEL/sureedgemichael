@@ -152,6 +152,7 @@ async function keepalive() {
       _cookieValidatedAt = 0;
       invalidateSession();
       invalidateFreebetSession();
+      invalidateScannerSession();
     }
   } catch { /* ignora erros de rede temporários */ }
 }
@@ -162,6 +163,7 @@ async function autoRenewCookie() {
   _session = null;          // invalida sessao buscador cacheada
   _freebetSession = null;   // invalida sessao freebet cacheada
   _freebetSessionCookieHash = '';
+  invalidateScannerSession(); // invalida sessao scanner cacheada
   try {
     await execFileAsync(process.execPath, [resolve(__dir, 'renew-cookie.mjs')], {
       cwd: __dir, timeout: 300_000, // 5 min (2captcha pode demorar até 4 min)
@@ -775,6 +777,519 @@ async function processFreebetCycle() {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// SCANNER (Duplo Green / Alertas)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ── Scanner ECDH session ──────────────────────────────────────────────────────
+const SCANNER_SESSION_TTL = 250_000; // 250s (server expires_in = 300s)
+let _scannerSession = null;
+let _scannerSessionCookieHash = '';
+let _scannerSessionExpiresAt  = 0;
+
+async function createScannerSession(cookie) {
+  const cookieWithCf = await mergeCfClearance(cookie);
+  const hdrs = {
+    'User-Agent':        UA,
+    'Accept':            '*/*',
+    'Accept-Language':   'pt-BR,pt;q=0.6',
+    'Cache-Control':     'no-cache',
+    'Pragma':            'no-cache',
+    'Origin':            BASE,
+    'Referer':           `${BASE}/index.php?page=alertas-scanner`,
+    'Cookie':            cookieWithCf,
+    'Sec-Fetch-Dest':    'empty',
+    'Sec-Fetch-Mode':    'cors',
+    'Sec-Fetch-Site':    'same-origin',
+    'Sec-Ch-Ua':         '"Chromium";v="148", "Brave";v="148", "Not/A)Brand";v="99"',
+    'Sec-Ch-Ua-Mobile':  '?0',
+    'Sec-Ch-Ua-Platform':'"Windows"',
+    'Sec-Gpc':           '1',
+  };
+
+  // Step 1: nonce para o handshake do scanner
+  const nonceRes = await fetch(`${BASE}/api/proxy_nonce_scanner_handshake.php`, { headers: hdrs });
+  if (!nonceRes.ok) throw new Error(`scanner: nonce handshake falhou (${nonceRes.status})`);
+  const { nonce: handshakeNonce } = await nonceRes.json();
+  if (!handshakeNonce) throw new Error('scanner: handshake nonce inválido');
+
+  const nonceCookies = extractSetCookies(nonceRes.headers);
+  const hdrs2 = nonceCookies.length
+    ? { ...hdrs, 'Cookie': mergeCookies(hdrs['Cookie'], nonceCookies) }
+    : hdrs;
+
+  // Step 2: par de chaves ECDH P-256
+  const keyPair    = await subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits']);
+  const pubRaw     = new Uint8Array(await subtle.exportKey('raw', keyPair.publicKey));
+  const client_pub_x = bytesToHex(pubRaw.slice(1, 33));
+  const client_pub_y = bytesToHex(pubRaw.slice(33, 65));
+
+  // Step 3: handshake
+  const hsRes = await fetch(`${BASE}/api/scanner_handshake.php`, {
+    method:  'POST',
+    headers: { ...hdrs2, 'Content-Type': 'application/json', 'X-Handshake-Nonce': handshakeNonce },
+    body:    JSON.stringify({ client_pub_x, client_pub_y }),
+  });
+  if (!hsRes.ok) {
+    const body = await hsRes.text().catch(() => '');
+    throw new Error(`scanner: handshake falhou (${hsRes.status}) ${body.slice(0, 80)}`);
+  }
+  const hs = await hsRes.json();
+  if (!hs.success) throw new Error(`scanner: handshake negado: ${JSON.stringify(hs).slice(0, 100)}`);
+
+  const hsCookies = extractSetCookies(hsRes.headers);
+  const finalHdrs = hsCookies.length
+    ? { ...hdrs2, 'Cookie': mergeCookies(hdrs2['Cookie'], hsCookies) }
+    : hdrs2;
+
+  // Step 4: deriva chave AES — info string: 'scanner-aes256-v1'
+  const srvRaw = new Uint8Array(65);
+  srvRaw[0] = 0x04;
+  srvRaw.set(hexToBytes(hs.server_pub_x ?? ''), 1);
+  srvRaw.set(hexToBytes(hs.server_pub_y ?? ''), 33);
+
+  const serverPub  = await subtle.importKey('raw', srvRaw, { name: 'ECDH', namedCurve: 'P-256' }, false, []);
+  const sharedBits = await subtle.deriveBits({ name: 'ECDH', public: serverPub }, keyPair.privateKey, 256);
+  const hkdfKey    = await subtle.importKey('raw', sharedBits, 'HKDF', false, ['deriveKey']);
+  const aesKey     = await subtle.deriveKey(
+    { name: 'HKDF', hash: 'SHA-256', salt: new Uint8Array(32), info: new TextEncoder().encode('scanner-aes256-v1') },
+    hkdfKey, { name: 'AES-CBC', length: 256 }, false, ['decrypt']
+  );
+
+  const sessionToken = hs.session_token ?? null;
+  console.log('   Sessão ECDH scanner criada');
+  return { aesKey, hdrs: finalHdrs, sessionToken };
+}
+
+async function getScannerSession(cookie) {
+  const key = cookie.slice(0, 32);
+  if (_scannerSession && _scannerSessionCookieHash === key && Date.now() < _scannerSessionExpiresAt) {
+    return _scannerSession;
+  }
+  _scannerSession = await createScannerSession(cookie);
+  _scannerSessionCookieHash = key;
+  _scannerSessionExpiresAt  = Date.now() + SCANNER_SESSION_TTL;
+  return _scannerSession;
+}
+
+function invalidateScannerSession() {
+  _scannerSession = null;
+  _scannerSessionCookieHash = '';
+  _scannerSessionExpiresAt  = 0;
+}
+
+// ── Fetch scanner snapshot (signals_proxy.php) ────────────────────────────────
+async function fetchScannerSnapshot(scannerSession) {
+  // Nonce genérico — mesmo que o browser usa para signals_proxy
+  const nonceRes = await fetch(`${BASE}/api/proxy_nonce.php`, { headers: scannerSession.hdrs });
+  if (!nonceRes.ok) throw new Error(`scanner: proxy_nonce falhou (${nonceRes.status})`);
+  const { nonce } = await nonceRes.json();
+
+  const nonceCookies = extractSetCookies(nonceRes.headers);
+  const hdrs = nonceCookies.length
+    ? { ...scannerSession.hdrs, 'Cookie': mergeCookies(scannerSession.hdrs['Cookie'], nonceCookies) }
+    : scannerSession.hdrs;
+
+  const sessionHdr = scannerSession.sessionToken
+    ? { 'X-Session-Token': scannerSession.sessionToken }
+    : {};
+
+  const res = await fetch(`${BASE}/api/signals_proxy.php?limit=3000`, {
+    headers: { ...hdrs, 'X-Proxy-Nonce': nonce, 'Accept': 'application/json', ...sessionHdr },
+  });
+  if (!res.ok) throw new Error(`scanner: signals_proxy falhou (${res.status})`);
+
+  const enc = await res.json();
+  if (enc.needs_handshake) throw new Error('401 needs_handshake — scanner ECDH expirou');
+
+  if (enc.encrypted && enc.data) {
+    const encBytes = base64ToBytes(enc.data);
+    const plain    = await subtle.decrypt(
+      { name: 'AES-CBC', iv: encBytes.slice(0, 16) },
+      scannerSession.aesKey,
+      encBytes.slice(16)
+    );
+    return JSON.parse(new TextDecoder().decode(plain));
+  }
+  return enc;
+}
+
+// ── Scanner SSE token (sse_token_proxy.php) ───────────────────────────────────
+// Filtros completos — aceita todos os tipos/casas/ligas disponíveis na plataforma
+const SCANNER_FILTERS = {
+  tipos:    ['ML', 'DUO'],
+  casas: [
+    '7games','Alfabet','Apostaganha','Betbra','BetfairSB','BetssonSO','Tradeball',
+    'Betnacional','BetmgmSO','Betao','BetanoSO','BetsulSO','BetesporteSO','Br4betSO',
+    'EsportesdasorteSO','EsportivaSO','EstrelabetSO','JogodeouroSO','StakeSO','Sporty',
+    'NovibetSO','KTOso','VaidebetSO','VivasorteSO','VersusbetSO',
+    'Betano (PA)','Novibet (PA)','Betsul (PA)','Betesporte (PA)','Betsson (PA)',
+    'Bet365 (PA)','KTO (PA)','Vivasorte (PA)','Sportingbet (PA)','Superbet (PA)',
+    'Apostabet (PA)','Br4bet (PA)','Esportesdasorte (PA)','Esportiva (PA)',
+    'Sortenabet (PA)','Betmgm (PA)','Estrelabet (PA)','Bet7k (PA)','Jogodeouro (PA)',
+    'Meridianbet (PA)','Versusbet (PA)','Vaidebet (PA)',
+  ],
+  profitMin:          -2.5,
+  maxDaysDiff:         2,
+  empate_sempa:        false,
+  empate_compa:        true,
+  ligas: [
+    'Alemanha - Bundesliga 2','Alemanha - Bundesliga','Alemanha - DFB-Pokal',
+    'Áustria - Bundesliga','Bélgica - Copa','Bélgica - Pro League',
+    'Dinamarca - Superliga','Escócia - Premiership','Espanha - Copa do Rei',
+    'Espanha - LaLiga','Espanha - LaLiga 2','França - Copa da França',
+    'França - Ligue 1','França - Ligue 2','Holanda - Eredivisie',
+    'Inglaterra - EFL Cup','Inglaterra - Championship','Inglaterra - FA Cup',
+    'Inglaterra - League One','Inglaterra - League Two','Inglaterra - Premier League',
+    'Itália - Coppa Italia','Itália - Serie A','Itália - Serie B',
+    'Noruega - Eliteserien','Portugal - Primeira Liga','Portugal - Taça de Portugal',
+    'Suécia - Allsvenskan','Suíça - Super League','Turquia - Süper Lig',
+    'UEFA - Champions League','UEFA - Conference League','UEFA - Europa League',
+    'Europa - Eliminatórias da Copa','Argentina - Superliga','Argentina - Copa Argentina',
+    'Bolívia - Divisón Profesional','Brasil - Copa do Brasil','Brasil - Serie A',
+    'Brasil - Serie B','Equador - Liga Pro Serie A','Sul-Americana','Libertadores',
+    'Colômbia - Categoría Primera A','Colômbia - Primera A','Peru - Liga 1',
+    'Estados Unidos - MLS','México - Liga de Expansion','México - Liga MX',
+    'Arábia Saudita - Saudi Pro League','China - Super League','Japão - J1 League',
+    'Austrália - A-League','FIFA - Copa do Mundo','FIFA - Qualificação Copa',
+    'CONMEBOL UEFA - Copa','__RESTO_MUNDO__',
+  ],
+  casasPrioridade: [],
+};
+
+async function fetchScannerSseToken(cookie) {
+  const hdrs = {
+    'User-Agent':        UA,
+    'Accept':            'application/json',
+    'Content-Type':      'application/json',
+    'Origin':            BASE,
+    'Referer':           `${BASE}/index.php?page=alertas-scanner`,
+    'Cookie':            cookie,
+    'Cache-Control':     'no-cache',
+    'Pragma':            'no-cache',
+    'Sec-Fetch-Dest':    'empty',
+    'Sec-Fetch-Mode':    'cors',
+    'Sec-Fetch-Site':    'same-origin',
+    'Sec-Ch-Ua':         '"Chromium";v="148", "Brave";v="148", "Not/A)Brand";v="99"',
+    'Sec-Ch-Ua-Mobile':  '?0',
+    'Sec-Ch-Ua-Platform':'"Windows"',
+    'Sec-Gpc':           '1',
+  };
+
+  const res = await fetch(`${BASE}/api/sse_token_proxy.php`, {
+    method:  'POST',
+    headers: hdrs,
+    body:    JSON.stringify({ filters: SCANNER_FILTERS }),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`scanner: sse_token_proxy falhou (${res.status}) ${body.slice(0, 80)}`);
+  }
+  const data = await res.json();
+  if (!data.success || !data.temp_token) {
+    throw new Error(`scanner: sse_token inválido: ${JSON.stringify(data).slice(0, 120)}`);
+  }
+  return data; // { success, temp_token, sse_url, expires_in, ... }
+}
+
+// ── Decrypt SSE payload ───────────────────────────────────────────────────────
+// Chave = SHA-256("SSE::" + tempToken) → AES-CBC (IV = primeiros 16 bytes)
+// WebCrypto AES-CBC já remove PKCS7 padding automaticamente — NÃO fazer manual.
+async function decryptSsePayload(encryptedBase64, tempToken) {
+  const keyData = new TextEncoder().encode('SSE::' + tempToken);
+  const hashBuf = await subtle.digest('SHA-256', keyData);
+  const aesKey  = await subtle.importKey('raw', hashBuf, { name: 'AES-CBC' }, false, ['decrypt']);
+
+  const enc   = base64ToBytes(encryptedBase64);
+  const iv    = enc.slice(0, 16);
+  const ct    = enc.slice(16);
+  const plain = await subtle.decrypt({ name: 'AES-CBC', iv }, aesKey, ct);
+
+  return JSON.parse(new TextDecoder().decode(plain));
+}
+
+// ── Normaliza sinal para a tabela scanner_signals ─────────────────────────────
+function normalizeSignal(raw) {
+  return {
+    id:            raw.id,
+    tipo:          raw.tipo          ?? raw.type   ?? null,
+    jogo:          raw.jogo          ?? raw.match  ?? raw.game ?? null,
+    casa1:         raw.casa1         ?? raw.bookmaker1 ?? null,
+    casa2:         raw.casa2         ?? raw.bookmaker2 ?? null,
+    casa3:         raw.casa3         ?? raw.bookmaker3 ?? null,
+    campeonato:    raw.campeonato    ?? raw.league ?? raw.competition ?? null,
+    data_evento:   raw.data          ?? raw.data_evento ?? raw.event_date ?? null,
+    profit_margin: raw.profit_margin ?? raw.profit ?? 0,
+    raw_data:      raw,
+    updated_at:    new Date().toISOString(),
+  };
+}
+
+// ── Supabase scanner helpers ──────────────────────────────────────────────────
+async function upsertSignals(signals) {
+  if (!signals.length) return;
+  const rows = signals.map(normalizeSignal);
+  const res  = await sbFetch('scanner_signals', 'POST', rows, {
+    'Prefer': 'resolution=merge-duplicates',
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`upsertSignals falhou (${res.status}): ${body.slice(0, 120)}`);
+  }
+}
+
+async function deleteSignals(ids) {
+  if (!ids.length) return;
+  const inList = ids.map(id => `"${String(id).replace(/"/g, '')}"`).join(',');
+  await sbFetch(`scanner_signals?id=in.(${inList})`, 'DELETE');
+}
+
+async function replaceAllSignals(signals) {
+  // Delete tudo (filter sempre verdadeiro via timestamp epoch)
+  await sbFetch('scanner_signals?updated_at=gte.1970-01-01T00:00:00.000Z', 'DELETE');
+  if (signals.length) await upsertSignals(signals);
+}
+
+async function markSignalsNew(ids) {
+  if (!ids.length) return;
+  const inList = ids.map(id => `"${String(id).replace(/"/g, '')}"`).join(',');
+  const now    = new Date().toISOString();
+  await sbFetch(`scanner_signals?id=in.(${inList})`, 'PATCH', { is_new: true, new_at: now });
+}
+
+async function clearOldNewFlags() {
+  const cutoff = new Date(Date.now() - 60_000).toISOString();
+  await sbFetch(
+    `scanner_signals?is_new=eq.true&new_at=lt.${cutoff}`,
+    'PATCH', { is_new: false }
+  );
+}
+
+// ── Verifica flag de pausa do scanner ─────────────────────────────────────────
+async function isScannerPaused() {
+  try {
+    const res  = await sbFetch('app_config?key=eq.scanner_paused&select=value');
+    const rows = await res.json();
+    return rows?.[0]?.value === 'true';
+  } catch { return false; }
+}
+
+// ── SSE parser (texto → eventos) ──────────────────────────────────────────────
+function makeSseParser(onEvent) {
+  let eventType = '';
+  let dataLines = [];
+  return (line) => {
+    if (line.startsWith('event:')) {
+      eventType = line.slice(6).trim();
+    } else if (line.startsWith('data:')) {
+      dataLines.push(line.slice(5).trim());
+    } else if (line === '') {
+      if (dataLines.length) {
+        const data = dataLines.join('\n');
+        onEvent(eventType || 'message', data);
+      }
+      eventType = '';
+      dataLines = [];
+    }
+  };
+}
+
+// ── Conexão SSE via raw HTTPS ─────────────────────────────────────────────────
+function connectScannerSse(sseUrl, onLine, onClose) {
+  const u   = new URL(sseUrl);
+  const lib = u.protocol === 'https:' ? https : http;
+  const req = lib.request(
+    {
+      hostname: u.hostname,
+      port:     u.port || (u.protocol === 'https:' ? 443 : 80),
+      path:     u.pathname + u.search,
+      method:   'GET',
+      headers:  {
+        'Accept':          'text/event-stream',
+        'Cache-Control':   'no-cache',
+        'Connection':      'keep-alive',
+        'User-Agent':      UA,
+      },
+      // timeout: 0 — stream indefinido; nunca força fechamento por inatividade
+    },
+    res => {
+      console.log(`[Scanner] SSE status HTTP: ${res.statusCode} | Content-Type: ${res.headers['content-type'] ?? '(sem)'}`);
+      let buf = '';
+      let bytesReceived = 0;
+      res.on('data', chunk => {
+        bytesReceived += chunk.length;
+        buf += chunk.toString('utf8');
+        const lines = buf.split('\n');
+        buf = lines.pop() ?? '';
+        for (const line of lines) onLine(line);
+      });
+      res.on('end',   () => {
+        const isJson = (res.headers['content-type'] ?? '').includes('json');
+        if (isJson && buf.trim()) {
+          console.log(`[Scanner] SSE body (JSON): ${buf.trim().slice(0, 200)}`);
+        }
+        console.log(`[Scanner] SSE end — ${bytesReceived} bytes`);
+        onClose(null);
+      });
+      res.on('error', err => onClose(err));
+    }
+  );
+  req.on('error', err => onClose(err));
+  req.end();
+  return req;
+}
+
+// ── Processa um evento SSE ────────────────────────────────────────────────────
+async function handleSseEvent(type, rawData, tempToken) {
+  let parsed;
+  try {
+    parsed = await decryptSsePayload(rawData, tempToken);
+  } catch {
+    // Pode ser ping ou evento não-criptografado
+    try { parsed = JSON.parse(rawData); } catch { return; }
+  }
+  if (!parsed) return;
+
+  const t      = new Date().toLocaleTimeString('pt-BR');
+  const action = parsed.action ?? type;
+
+  if (action === 'snapshot') {
+    const signals = parsed.signals ?? parsed.data ?? [];
+    console.log(`[Scanner ${t}] snapshot SSE: ${signals.length} sinais`);
+    await replaceAllSignals(signals);
+
+  } else if (action === 'delta') {
+    const added   = parsed.added   ?? [];
+    const updated = parsed.updated ?? [];
+    const removed = parsed.removed ?? parsed.deleted ?? [];
+    const newIds  = parsed.new     ?? parsed.new_ids  ?? [];
+
+    if (added.length || updated.length) await upsertSignals([...added, ...updated]);
+    if (removed.length) {
+      const ids = removed.map(r => (typeof r === 'string' ? r : r?.id ?? r));
+      await deleteSignals(ids);
+    }
+    if (newIds.length) await markSignalsNew(newIds);
+
+    if (added.length || updated.length || removed.length || newIds.length) {
+      console.log(`[Scanner ${t}] delta +${added.length} ~${updated.length} -${removed.length} new=${newIds.length}`);
+    }
+
+  } else if (action === 'new' || action === 'reopened') {
+    const signals = parsed.signals ?? (parsed.id ? [parsed] : []);
+    if (signals.length) {
+      await upsertSignals(signals);
+      await markSignalsNew(signals.map(s => s.id));
+      console.log(`[Scanner ${t}] novo sinal: ${signals.map(s => s.jogo ?? s.id).join(', ')}`);
+    }
+
+  } else if (action === 'ping' || action === 'heartbeat' || action === 'connected') {
+    // ignora keepalive
+
+  } else if (parsed.signals || parsed.data) {
+    // update genérico com array de sinais
+    const signals = parsed.signals ?? parsed.data ?? [];
+    if (signals.length) await upsertSignals(signals);
+  }
+
+  // Limpa flags "new" expiradas
+  await clearOldNewFlags().catch(() => {});
+}
+
+// ── Loop principal do scanner (polling de snapshot) ───────────────────────────
+// Estratégia: polling do signals_proxy.php a cada 15s com diff para detectar
+// sinais novos/removidos. SSE direto requer autenticação de sessão de browser
+// que não está disponível no contexto do daemon.
+const SCANNER_POLL_INTERVAL = 20_000; // 20s — suficiente para scanner, evita 429
+let   _prevSignalIds        = new Set();
+
+async function runScannerSse() {
+  console.log('[Scanner] Loop iniciado (modo polling 15s).');
+
+  while (true) {
+    // Pausa manual via Supabase app_config scanner_paused=true
+    if (await isScannerPaused()) {
+      console.log('[Scanner] Pausado — aguardando 30s...');
+      await sleep(30_000);
+      continue;
+    }
+
+    const cookie = await getCookie();
+    if (!cookie) {
+      console.error('[Scanner] Sem cookie válido — aguardando 30s...');
+      await sleep(30_000);
+      continue;
+    }
+
+    try {
+      // Sessão ECDH scanner
+      const scannerSession = await getScannerSession(cookie);
+
+      // Snapshot completo
+      let snapshot;
+      try {
+        snapshot = await fetchScannerSnapshot(scannerSession);
+      } catch (err) {
+        if (err.message.includes('401') || err.message.includes('needs_handshake')) {
+          invalidateScannerSession();
+        }
+        throw err;
+      }
+
+      const signals = Array.isArray(snapshot)
+        ? snapshot
+        : (snapshot?.signals ?? snapshot?.data ?? []);
+
+      const t = new Date().toLocaleTimeString('pt-BR');
+
+      // Diff: detecta IDs novos para marcar is_new
+      const currentIds = new Set(signals.map(s => s.id));
+      const newIds     = signals
+        .filter(s => !_prevSignalIds.has(s.id))
+        .map(s => s.id);
+
+      // Upsert todos os sinais (merge-duplicates)
+      await upsertSignals(signals);
+
+      // Remove sinais que sumiram do snapshot
+      const removedIds = [..._prevSignalIds].filter(id => !currentIds.has(id));
+      if (removedIds.length) await deleteSignals(removedIds);
+
+      // Marca novos
+      if (newIds.length) await markSignalsNew(newIds);
+
+      // Limpa flags expiradas
+      await clearOldNewFlags().catch(() => {});
+
+      _prevSignalIds = currentIds;
+
+      // Log apenas quando há mudanças
+      if (newIds.length || removedIds.length) {
+        console.log(`[Scanner ${t}] +${newIds.length} novos, -${removedIds.length} removidos | total ${signals.length}`);
+      } else {
+        // Log silencioso periódico (a cada ~5 min = 20 ciclos)
+        if (Math.random() < 0.05) {
+          console.log(`[Scanner ${t}] ${signals.length} sinais (sem mudanças)`);
+        }
+      }
+
+    } catch (err) {
+      console.error(`[Scanner] Erro no ciclo: ${err.message}`);
+      if (err.message.includes('401') || err.message.includes('needs_handshake')) {
+        invalidateScannerSession();
+      }
+      // Backoff em rate-limit (429) ou erro de servidor (5xx)
+      if (err.message.includes('429') || err.message.includes('508') || err.message.includes('503')) {
+        console.log('[Scanner] Rate-limit — aguardando 60s...');
+        await sleep(60_000);
+        continue;
+      }
+    }
+
+    await sleep(SCANNER_POLL_INTERVAL);
+  }
+}
+
 // ── SSE Token refresh ─────────────────────────────────────────────────────────
 // Roda no startup e a cada 12 min (TTL do token é 840s = 14 min).
 // Salva temp_token + sse_url no Supabase para o frontend consumir.
@@ -832,7 +1347,7 @@ async function fetchSseToken(cookie) {
 console.log('SureEdge Queue Daemon v3 iniciado');
 console.log(`Verificando fila a cada ${POLL_INTERVAL}ms (anti-ban: 3-6s entre requests SM) | Ctrl+C para parar\n`);
 
-// Startup: busca SSE token imediatamente (antes de processar a fila)
+// Startup: busca SSE token (buscador) imediatamente
 {
   const initCookie = await getCookie();
   if (initCookie) await fetchSseToken(initCookie);
@@ -840,6 +1355,9 @@ console.log(`Verificando fila a cada ${POLL_INTERVAL}ms (anti-ban: 3-6s entre re
 
 await processOneCycle();
 await processFreebetCycle();
+
+// Inicia o scanner SSE em background (não bloqueia o loop principal)
+runScannerSse().catch(err => console.error('[Scanner] Loop encerrado inesperadamente:', err.message));
 
 while (true) {
   await sleep(POLL_INTERVAL);

@@ -21,6 +21,7 @@ import { AdminPage }         from '@/components/admin/AdminPage';
 import { PerfilPage }      from '@/components/perfil/PerfilPage';
 import { NotasPage }           from '@/components/notas/NotasPage';
 import { FreebetConverterPage } from '@/components/freebet/FreebetConverterPage';
+import { ScannerPage }          from '@/components/scanner/ScannerPage';
 import { ResumoPage }      from '@/components/resumo/ResumoPage';
 import { MetasPage }       from '@/components/metas/MetasPage';
 import { OperadoresPage }  from '@/components/operadores/OperadoresPage';
@@ -263,6 +264,7 @@ export function AppShell() {
             {view === 'resumo'     && <ResumoPage />}
             {view === 'metas'      && <MetasPage />}
             {view === 'operadores' && <OperadoresPage />}
+            {view === 'scanner'    && <ScannerPage />}
             {view === 'admin'      && <AdminPage />}
             {view === 'perfil'  && <PerfilPage />}
           </PageErrorBoundary>
