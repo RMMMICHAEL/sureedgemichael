@@ -1,5 +1,5 @@
 /**
- * POST /api/supermonitor/save-cookie
+ * POST /api/sure/save-cookie
  * Recebe o cookie do browser do admin, valida e salva no Supabase.
  * Só aceita requisições autenticadas (usuário logado).
  */

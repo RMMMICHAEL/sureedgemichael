@@ -1,5 +1,5 @@
 /**
- * GET /api/supermonitor/debug-markets
+ * GET /api/sure/debug-markets
  * Pega a entrada mais recente do cache sm_odds e lista todos os mercados
  * disponíveis na resposta da API, com seus nomes e estrutura de odds.
  * APENAS PARA TESTE — pode remover depois.

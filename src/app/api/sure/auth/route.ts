@@ -1,5 +1,5 @@
 /**
- * /api/supermonitor/auth — uso interno apenas
+ * /api/sure/auth — uso interno apenas
  * Não expõe informações sensíveis ao cliente.
  *
  * GET  — retorna { ok, connected } — sem modo, sem email, sem detalhes

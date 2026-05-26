@@ -1,5 +1,5 @@
 /**
- * /api/supermonitor/freebet
+ * /api/sure/freebet
  *
  * POST { bookmaker, value, min_odd, max_odd, pa_filter }
  *   → insere requisição em freebet_queue (status: pending)

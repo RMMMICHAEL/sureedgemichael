@@ -1,5 +1,5 @@
 /**
- * POST /api/supermonitor/search
+ * POST /api/sure/search
  * Retorna odds de um evento lidas do Supabase (cache do PC).
  * Body: { query: string, eventId?: string }
  *   eventId — ID do evento (preferencial, busca exata)

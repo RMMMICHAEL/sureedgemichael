@@ -1198,7 +1198,7 @@ export function FreebetConverterPage() {
     setStep(4);
 
     try {
-      const postRes  = await fetch('/api/supermonitor/freebet', {
+      const postRes  = await fetch('/api/sure/freebet', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

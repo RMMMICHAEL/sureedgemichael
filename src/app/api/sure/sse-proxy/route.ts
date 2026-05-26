@@ -1,5 +1,5 @@
 /**
- * GET /api/supermonitor/sse-proxy
+ * GET /api/sure/sse-proxy
  *
  * Proxy SSE server-to-server para evitar bloqueio CORS/CSP no navegador.
  * O browser conecta neste endpoint (mesmo domínio, sem CORS).

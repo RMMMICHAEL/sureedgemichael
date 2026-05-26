@@ -1,5 +1,5 @@
 /**
- * /api/supermonitor/diag — diagnóstico do auto-login via node:https.
+ * /api/sure/diag — diagnóstico do auto-login via node:https.
  * Usa a mesma lógica do supermonitor-auth.ts (keepAlive agent).
  */
 import { NextResponse } from 'next/server';

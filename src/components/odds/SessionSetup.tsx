@@ -22,7 +22,7 @@ export function SessionSetup({ onSuccess }: SessionSetupProps) {
     setLoading(true);
     setError('');
     try {
-      const res  = await fetch('/api/supermonitor/save-cookie', {
+      const res  = await fetch('/api/sure/save-cookie', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ cookie: val }),

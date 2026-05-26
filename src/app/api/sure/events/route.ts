@@ -1,5 +1,5 @@
 /**
- * POST /api/supermonitor/events
+ * POST /api/sure/events
  * Retorna a lista de eventos do dia lida do Supabase (cache do PC).
  * O PC roda renew-cookie.mjs a cada 30 min e salva em sm_events.
  */

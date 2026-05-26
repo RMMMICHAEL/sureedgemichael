@@ -1463,7 +1463,7 @@ export function BuscarOddsPage() {
   // ── Load ALL future events (sem filtro de data) — usado na busca ────────────
   const loadSearchEvents = useCallback(async () => {
     try {
-      const res  = await fetch('/api/supermonitor/events', {
+      const res  = await fetch('/api/sure/events', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ all: true }),
       });
@@ -1483,7 +1483,7 @@ export function BuscarOddsPage() {
     const localDateStr = `${localNow.getFullYear()}-${pad(localNow.getMonth()+1)}-${pad(localNow.getDate())}`;
     const targetDate = date ?? localDateStr;
     try {
-      const res  = await fetch('/api/supermonitor/events', {
+      const res  = await fetch('/api/sure/events', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ date: targetDate }),
       });
@@ -1549,7 +1549,7 @@ export function BuscarOddsPage() {
       try {
         // Proxy SSE server-to-server → sem CORS, token gerenciado pelo servidor
         closeSse();
-        const es = new EventSource('/api/supermonitor/sse-proxy');
+        const es = new EventSource('/api/sure/sse-proxy');
         sseRef.current = es;
 
         es.addEventListener('update', (e: MessageEvent) => {
@@ -1638,7 +1638,7 @@ export function BuscarOddsPage() {
 
     try {
       // 1. Tenta cache primeiro
-      const res = await fetch('/api/supermonitor/search', {
+      const res = await fetch('/api/sure/search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query: event.name, eventId: event.id }),
@@ -1664,7 +1664,7 @@ export function BuscarOddsPage() {
         for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
           setOddsLoadingMsg('Coletando odds...');
 
-          await fetch('/api/supermonitor/queue', {
+          await fetch('/api/sure/queue', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ event_id: event.id, event_name: event.name }),
@@ -1682,7 +1682,7 @@ export function BuscarOddsPage() {
 
             if (pollJson.ready) {
               // Dado pronto — busca o resultado final
-              const finalRes  = await fetch('/api/supermonitor/search', {
+              const finalRes  = await fetch('/api/sure/search', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ query: event.name, eventId: event.id }),

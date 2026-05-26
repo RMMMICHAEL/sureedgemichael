@@ -1,5 +1,5 @@
 /**
- * /api/supermonitor/queue
+ * /api/sure/queue
  *
  * POST { event_id, event_name }
  *   → verifica cache fresco (< 15 min) em sm_odds

@@ -1,5 +1,5 @@
 /**
- * GET /api/supermonitor/sse-token
+ * GET /api/sure/sse-token
  * Retorna o temp_token SSE e sse_url salvos pelo process-queue.mjs no Supabase.
  * O frontend usa esses valores para abrir EventSource: {sse_url}/events?temp_token=...
  *

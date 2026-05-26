@@ -1,5 +1,5 @@
 /**
- * GET /api/supermonitor/debug-freebet
+ * GET /api/sure/debug-freebet
  * Retorna o JSON bruto dos últimos resultados de freebet_queue (done)
  * para inspecionar a estrutura exata que o SuperMonitor retorna.
  * APENAS PARA DEBUG — remover após identificar os campos corretos.

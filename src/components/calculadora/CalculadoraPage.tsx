@@ -394,7 +394,7 @@ function EventSearchCard({
     const targetDate = date ?? new Date().toISOString().slice(0, 10);
 
     try {
-      const res  = await fetch('/api/supermonitor/events', {
+      const res  = await fetch('/api/sure/events', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ date: targetDate }),
@@ -921,7 +921,7 @@ function BuscarOddsTab({ selectedEvent }: { selectedEvent: CachedEvent | null })
     setFetchErr('');
     setParsed(null);
     try {
-      const res  = await fetch('/api/supermonitor/search', {
+      const res  = await fetch('/api/sure/search', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query: event.name }),
       });
