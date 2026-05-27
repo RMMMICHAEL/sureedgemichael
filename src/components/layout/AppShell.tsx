@@ -33,7 +33,14 @@ import { getMySubscription, isSubscriptionActive } from '@/lib/supabase/subscrip
 import { getSupabaseClient } from '@/lib/supabase/client';
 
 // ── Scanner Global Notification Banner ────────────────────────────────────────
-interface ScanSignal { id: string; jogo: string | null; profit_margin: number; }
+interface ScanSignal { id: string; tipo: string | null; jogo: string | null; casa1: string | null; casa2: string | null; profit_margin: number; }
+
+// Chave estável para identificar um sinal pelo conteúdo, não pelo ID.
+// SuperMonitor rotaciona IDs a cada ciclo — comparar por ID causaria alertas
+// repetidos para o mesmo jogo.
+function signalKey(s: ScanSignal) {
+  return `${s.tipo ?? ''}|${s.jogo ?? ''}|${s.casa1 ?? ''}|${s.casa2 ?? ''}`;
+}
 
 const BANNER_CSS = `
 @keyframes bannerIn {
@@ -119,19 +126,21 @@ function ScannerNotifBanner() {
         if (!json.ok) return;
 
         const incoming = json.signals;
-        const currentIds = new Set(incoming.map(s => s.id));
+        const currentKeys = new Set(incoming.map(signalKey));
 
         if (isFirstPoll.current) {
           // Seed snapshot without alerting — we don't know which signals are
           // truly "new" vs already visible to the user.
-          prevSnapshot.current = currentIds;
+          prevSnapshot.current = currentKeys;
           isFirstPoll.current  = false;
           return;
         }
 
-        // Genuinely new: present in current snapshot but absent from previous
-        const fresh = incoming.filter(s => !prevSnapshot.current.has(s.id));
-        prevSnapshot.current = currentIds;
+        // Genuinely new: present in current snapshot but absent from previous.
+        // Comparação por conteúdo (jogo+casas) — não por ID — para evitar
+        // alertas repetidos quando o SuperMonitor rotaciona os IDs dos sinais.
+        const fresh = incoming.filter(s => !prevSnapshot.current.has(signalKey(s)));
+        prevSnapshot.current = currentKeys;
 
         // Always update snapshot (even on scanner view) so we don't
         // retroactively show signals the user already saw there.
