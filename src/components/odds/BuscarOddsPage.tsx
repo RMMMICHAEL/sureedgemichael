@@ -106,7 +106,10 @@ const PA_SET = new Set([
   'bet365arg','bet365pe','lotogreen','kto','vivasorte','sportingbet','superbet',
   'apostabet','aposta','br4bet','esportesdasorte','esportiva','esportivabet',
   'sortenabet','betmgm','estrelabet','bet7k','jogodeouro','mcgames','meridianbet',
-  'meridian','versusbet','vupi','vupibet','vaidebet','sporty','sportybet',
+  'meridian','versusbet','vupi','vupibet','vaidebet','sportybet',
+  // Sporty.bet.br: apenas 1UP e 2UP são PA (vantagem de 1 ou 2 gols).
+  // O mercado normal "Sporty" NÃO tem PA — fica na seção "Sem PA".
+  'sporty1up','sporty2up',
   // alfabet e tradeball são SEM PA — não adicionar aqui
 ]);
 
