@@ -1065,6 +1065,37 @@ async function clearOldNewFlags() {
   );
 }
 
+/**
+ * Deletes scanner signals whose event has already started.
+ * Uses a 5-minute grace window so we don't delete signals seconds before
+ * kick-off while the user is still placing bets.
+ *
+ * This is the primary defence against SuperMonitor returning stale events
+ * that never disappear from their feed — we purge them ourselves.
+ */
+async function cleanupPastSignals() {
+  try {
+    // cutoff = 5 minutes ago — events that started more than 5 min ago are gone
+    const cutoff = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    const res = await sbFetch(
+      `scanner_signals?data_evento=not.is.null&data_evento=lt.${cutoff}`,
+      'DELETE',
+    );
+    // Log only when something was actually deleted
+    if (res.ok) {
+      const body = await res.text().catch(() => '');
+      // PostgREST returns the deleted rows when Prefer: return=representation is set;
+      // without it the body is empty on success — either way we succeeded.
+      const t = new Date().toLocaleTimeString('pt-BR');
+      if (body && body !== '[]' && body.trim().length > 2) {
+        console.log(`[Scanner ${t}] cleanupPastSignals: removidos sinais passados`);
+      }
+    }
+  } catch (err) {
+    console.error('[Scanner] cleanupPastSignals erro:', err.message);
+  }
+}
+
 // ── Verifica flag de pausa do scanner ─────────────────────────────────────────
 async function isScannerPaused() {
   try {
@@ -1260,6 +1291,10 @@ async function runScannerSse() {
 
       // Limpa flags expiradas
       await clearOldNewFlags().catch(() => {});
+
+      // Sempre remove sinais cujo evento já começou, independente do que
+      // o SuperMonitor retornou — defesa contra feeds congelados.
+      await cleanupPastSignals().catch(() => {});
 
       _prevSignalIds = currentIds;
 

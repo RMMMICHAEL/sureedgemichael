@@ -708,14 +708,32 @@ export function ScannerPage() {
     return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [signals]);
 
-  // Apply casa filter
+  // Apply casa filter + hide events that have already started (5-min grace)
   const visibleSignals = useMemo(() => {
-    if (deselectedCasas.size === 0) return signals;
+    const now = Date.now();
     return signals.filter(s => {
-      const casas = [s.casa1, s.casa2, s.casa3].filter(Boolean) as string[];
-      return casas.every(c => !deselectedCasas.has(c));
+      // Casa filter
+      if (deselectedCasas.size > 0) {
+        const casas = [s.casa1, s.casa2, s.casa3].filter(Boolean) as string[];
+        if (!casas.every(c => !deselectedCasas.has(c))) return false;
+      }
+      // Date filter — exclude past events (API already does this, belt-and-braces)
+      if (s.data_evento) {
+        const startMs = new Date(s.data_evento).getTime();
+        if (!isNaN(startMs) && startMs < now - 5 * 60 * 1000) return false;
+      }
+      return true;
     });
   }, [signals, deselectedCasas]);
+
+  // Daemon staleness: warn if newest updated_at is > 3 min ago
+  const daemonStale = useMemo(() => {
+    if (signals.length === 0) return false;
+    const newest = signals.reduce(
+      (max, s) => Math.max(max, new Date(s.updated_at).getTime()), 0,
+    );
+    return Date.now() - newest > 3 * 60 * 1000;
+  }, [signals]);
 
   // Beep
   const playBeep = useCallback(() => {
@@ -970,6 +988,22 @@ export function ScannerPage() {
           <p style={{ fontSize: 11, color: '#334155', marginBottom: 12 }}>
             Clique em qualquer card para abrir a calculadora.
           </p>
+        )}
+
+        {/* Daemon offline warning */}
+        {daemonStale && !error && (
+          <div style={{
+            padding: '12px 16px', borderRadius: 8, marginBottom: 12,
+            background: 'rgba(255,159,10,.08)', border: '1px solid rgba(255,159,10,.25)',
+            color: '#FF9F0A', fontSize: 13,
+            display: 'flex', alignItems: 'center', gap: 8,
+          }}>
+            <span style={{ fontSize: 16 }}>⚠️</span>
+            <span>
+              <strong>Daemon inativo</strong> — os sinais não são atualizados há mais de 3 minutos.
+              Reinicie o processo <code style={{ background: 'rgba(255,255,255,.07)', padding: '1px 6px', borderRadius: 4 }}>process-queue.mjs</code> no servidor.
+            </span>
+          </div>
         )}
 
         {/* Erro */}

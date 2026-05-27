@@ -9,6 +9,9 @@
  *   tipo       — "ML", "DUO" ou "ML,DUO"
  *   limit      — int, default 200, max 500
  *   onlyNew    — "true" → só is_new=true
+ *
+ * Sinais com data_evento já passada são automaticamente excluídos da resposta
+ * (margem de 5 min para pequenas diferenças de relógio).
  */
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -35,10 +38,15 @@ export async function GET(req: NextRequest) {
   try {
     const sb = await getSupabaseAdmin();
 
+    // Exclude events that have already started (5-min grace window).
+    // Signals with null data_evento are kept — we don't know their start time.
+    const cutoff = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+
     let q = sb
       .from('scanner_signals')
       .select('id,tipo,jogo,casa1,casa2,casa3,campeonato,data_evento,profit_margin,is_new,new_at,updated_at,raw_data')
       .gte('profit_margin', isNaN(profitMin) ? -2.5 : profitMin)
+      .or(`data_evento.is.null,data_evento.gte.${cutoff}`)
       .order('profit_margin', { ascending: false })
       .limit(limit);
 
