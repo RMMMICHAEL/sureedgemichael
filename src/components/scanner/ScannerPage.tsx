@@ -254,8 +254,17 @@ function TipoBadge({ tipo }: { tipo: string | null }) {
   );
 }
 
+// Detecta se uma casa é PA: "(PA)" explícito ou variantes Sporty 1UP / 2UP
+function isCasaPA(name: string): boolean {
+  if (!name) return false;
+  const n = name.toLowerCase();
+  if (n.includes('(pa)')) return true;
+  const norm = n.replace(/[\s\-_.]/g, '');
+  return norm === 'sporty1up' || norm === 'sporty2up';
+}
+
 function CasaChipSmall({ name }: { name: string }) {
-  const isPA = name.includes('(PA)') || name.includes('(pa)');
+  const isPA = isCasaPA(name);
   return (
     <span style={{
       display: 'inline-flex', alignItems: 'center', gap: 3,
@@ -578,6 +587,44 @@ function TipoFilter({ value, onChange }: { value: string; onChange: (v: string) 
   );
 }
 
+// ── Filtro de PA ───────────────────────────────────────────────────────────────
+type PaFilterVal = 'all' | 'none' | 'one' | 'two';
+const PA_FILTER_OPTS: { id: PaFilterVal; label: string }[] = [
+  { id: 'all',  label: 'Todos'        },
+  { id: 'none', label: 'Sem PA'       },
+  { id: 'one',  label: 'PA 1 lado'   },
+  { id: 'two',  label: 'PA 2 lados'  },
+];
+
+function PaFilter({ value, onChange }: { value: PaFilterVal; onChange: (v: PaFilterVal) => void }) {
+  return (
+    <div style={{ display: 'flex', gap: 4 }}>
+      {PA_FILTER_OPTS.map(o => {
+        const active = value === o.id;
+        const isPA   = o.id !== 'all' && o.id !== 'none';
+        return (
+          <button
+            key={o.id} type="button"
+            onClick={() => onChange(o.id)}
+            style={{
+              padding: '5px 12px', borderRadius: 6, fontSize: 12, fontWeight: 500,
+              cursor: 'pointer', border: '1px solid',
+              background: active
+                ? (isPA ? 'rgba(255,159,10,.14)' : 'rgba(255,255,255,.1)')
+                : 'transparent',
+              borderColor: active
+                ? (isPA ? 'rgba(255,159,10,.35)' : 'rgba(255,255,255,.2)')
+                : 'rgba(255,255,255,.07)',
+              color: active ? (isPA ? '#FF9F0A' : '#E2E8F0') : '#64748B',
+              transition: 'all .15s',
+            }}
+          >{o.label}</button>
+        );
+      })}
+    </div>
+  );
+}
+
 // ── Painel de filtro de casas ─────────────────────────────────────────────────
 function CasaFilterPanel({ allCasas, deselected, onChange }: {
   allCasas: string[]; deselected: Set<string>; onChange: (next: Set<string>) => void;
@@ -683,6 +730,9 @@ export function ScannerPage() {
   const [tipo,      setTipo]      = useState('');
   const [profitMin, setProfitMin] = useState(-2.5);
   const [onlyNew,   setOnlyNew]   = useState(false);
+  const [paFilter,  setPaFilter]  = useState<PaFilterVal>(() => {
+    try { return (localStorage.getItem('scanner-pa-filter-v1') as PaFilterVal) || 'all'; } catch { return 'all'; }
+  });
 
   // Filtro client-side de casas
   const [deselectedCasas, setDeselectedCasas] = useState<Set<string>>(new Set());
@@ -697,6 +747,12 @@ export function ScannerPage() {
     try { localStorage.setItem(SCANNER_NOTIF_KEY, v ? '1' : '0'); } catch {}
   }, []);
 
+  // Persist PA filter preference
+  const changePaFilter = useCallback((v: PaFilterVal) => {
+    setPaFilter(v);
+    try { localStorage.setItem('scanner-pa-filter-v1', v); } catch {}
+  }, []);
+
   // Extract unique casas
   const allCasas = useMemo(() => {
     const set = new Set<string>();
@@ -708,7 +764,7 @@ export function ScannerPage() {
     return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [signals]);
 
-  // Apply casa filter + hide events that have already started (5-min grace)
+  // Apply casa filter + PA filter + hide events that have already started (5-min grace)
   const visibleSignals = useMemo(() => {
     const now = Date.now();
     return signals.filter(s => {
@@ -717,6 +773,14 @@ export function ScannerPage() {
         const casas = [s.casa1, s.casa2, s.casa3].filter(Boolean) as string[];
         if (!casas.every(c => !deselectedCasas.has(c))) return false;
       }
+      // PA filter
+      if (paFilter !== 'all') {
+        const casas  = [s.casa1, s.casa2, s.casa3].filter(Boolean) as string[];
+        const paCount = casas.filter(isCasaPA).length;
+        if (paFilter === 'none' && paCount > 0)  return false;
+        if (paFilter === 'one'  && paCount !== 1) return false;
+        if (paFilter === 'two'  && paCount < 2)  return false;
+      }
       // Date filter — exclude past events (API already does this, belt-and-braces)
       if (s.data_evento) {
         const startMs = new Date(s.data_evento).getTime();
@@ -724,7 +788,7 @@ export function ScannerPage() {
       }
       return true;
     });
-  }, [signals, deselectedCasas]);
+  }, [signals, deselectedCasas, paFilter]);
 
   // Daemon staleness: warn if newest updated_at is > 3 min ago
   const daemonStale = useMemo(() => {
@@ -916,6 +980,13 @@ export function ScannerPage() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <span style={{ fontSize: 11, color: '#475569' }}>Tipo</span>
             <TipoFilter value={tipo} onChange={setTipo} />
+          </div>
+
+          <div style={{ width: 1, height: 18, background: 'rgba(255,255,255,.07)' }} />
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontSize: 11, color: '#475569' }}>PA</span>
+            <PaFilter value={paFilter} onChange={changePaFilter} />
           </div>
 
           <div style={{ width: 1, height: 18, background: 'rgba(255,255,255,.07)' }} />
