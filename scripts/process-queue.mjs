@@ -157,8 +157,10 @@ async function keepalive() {
   if (Date.now() - _lastKeepalive < KEEPALIVE_INTERVAL) return;
   _lastKeepalive = Date.now(); // marca antes da chamada para evitar disparos duplos
   try {
-    // ajax.php?action=events_lite — mesmo endpoint de validateCookie, renova sessão
-    const res = await request('GET', `${BASE}/ajax.php?action=events_lite`, {
+    // proxy_nonce.php: endpoint leve usado em cada ciclo do scanner.
+    // Retorna {"nonce":"..."} quando a sessão é válida, HTML/401 quando expirou.
+    // Chamar session_start() via qualquer endpoint PHP renova o TTL da sessão.
+    const res = await request('GET', `${BASE}/api/proxy_nonce.php`, {
       'User-Agent': UA, 'Cookie': _cookie,
       'Accept': 'application/json',
       'X-Requested-With': 'XMLHttpRequest',
@@ -169,7 +171,7 @@ async function keepalive() {
       && !res.body.trimStart().startsWith('<');
     if (ok) {
       const t = new Date().toLocaleTimeString('pt-BR');
-      console.log(`   [keepalive ${t}] Sessao renovada OK`);
+      console.log(`   [keepalive ${t}] Sessao OK`);
     } else {
       // Sessão expirou — renova cookie imediatamente
       const preview = res.body.slice(0, 80).replace(/\s+/g, ' ');
@@ -184,8 +186,7 @@ async function keepalive() {
         _cookie = renewed;
         _cookieValidatedAt = Date.now();
       }
-      // Reseta para agora para evitar loop imediato (autoRenewCookie pode ter
-      // sido chamado por outra corrotina que já setou _lastKeepalive = 0)
+      // Reseta para evitar re-disparo imediato após renovação
       _lastKeepalive = Date.now();
     }
   } catch (err) {
