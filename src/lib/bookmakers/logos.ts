@@ -178,7 +178,7 @@ const DOMAINS: Record<string, string> = {
   'esportesdasorte':  'esportedasorte.com.br', // SM usa "esportesdasorte" (com s)
   'esportiva':        'esportiva.bet.br',       // alias: SM usa "Esportiva" (sem "bet")
   'sporty':           'sporty.bet.br',          // alias: SM usa "Sporty" (sem "bet")
-  'tradeball':        'tradeball.bet.br',
+  'tradeball':        'betbra.bet.br',  // Tradeball opera no domínio betbra.bet.br
   'versusbet':        'versusbet.bet.br',
   'vivasorte':        'vivasorte.bet.br',
 

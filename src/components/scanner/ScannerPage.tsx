@@ -93,7 +93,8 @@ function houseSiteUrl(name: string): string | null {
   const favicon = houseFavicon(name);
   if (!favicon) return null;
   const match = favicon.match(/domain=(.+)$/);
-  return match ? `https://www.${match[1]}` : null;
+  // Sem www — vários domínios .bet.br não respondem ao subdomínio www
+  return match ? `https://${match[1]}` : null;
 }
 
 /**
