@@ -254,6 +254,50 @@ async function autoRenewCookie() {
   return result;
 }
 
+// ── Renovação proativa (background, sem interromper operações em curso) ────────
+// Usada pelo scanner após 2 calls bem-sucedidos para trocar o PHPSESSID ANTES
+// de bater no limite de 3 calls por sessão. Diferença-chave vs autoRenewCookie:
+//   • NÃO nula _cookie nem sessões ECDH antes da renovação — operações em curso
+//     continuam com o cookie antigo enquanto o novo é gerado em background.
+//   • Aplica o novo cookie + invalida sessões de forma atômica SÓ ao concluir.
+// Se uma renovação (proativa ou reativa) já estiver em andamento, registra como
+// waiter no mesmo mutex — nenhum processo de login duplicado.
+async function renewCookieBackground() {
+  if (_renewingCookie) {
+    // Já existe renovação em andamento — aguarda ela terminar
+    return new Promise(resolve => _renewWaiters.push(resolve));
+  }
+
+  _renewingCookie = true;
+  console.log('   [proativo] Renovando PHPSESSID antecipadamente...');
+
+  let result = null;
+  try {
+    await execFileAsync(process.execPath, [resolve(__dir, 'renew-cookie.mjs')], {
+      cwd: __dir, timeout: 300_000,
+    });
+    const cookie = await readCookieFromSupabase();
+    if (cookie) {
+      // Aplica novo cookie e invalida sessões de forma atômica
+      _cookie = cookie;
+      _cookieValidatedAt = Date.now();
+      _session = null;
+      _freebetSession = null;
+      _freebetSessionCookieHash = '';
+      invalidateScannerSession();
+      console.log('   [proativo] PHPSESSID renovado — scanner usará novo cookie no próximo ciclo.');
+      result = cookie;
+    }
+  } catch (err) {
+    console.error(`   [proativo] Renovacao falhou: ${err.message}`);
+  } finally {
+    _renewingCookie = false;
+    const waiters = _renewWaiters.splice(0);
+    for (const resolve of waiters) resolve(result);
+  }
+  return result;
+}
+
 // ── Cookie jar helper ─────────────────────────────────────────────────────────
 // Node fetch() não mantém cookies entre chamadas. Precisamos capturar os
 // Set-Cookie das respostas do handshake e reencaminhar nas requisições seguintes.
@@ -1383,6 +1427,9 @@ let   _firstScannerCycle    = true;
 // se o próprio cookie base estiver expirado.
 let   _scannerConsecutiveFailures = 0;
 const SCANNER_FAILURE_LIMIT       = 3;
+// Conta scans bem-sucedidos consecutivos para disparar renovação proativa
+// antes de atingir o limite de ~3 calls por PHPSESSID no servidor.
+let   _scannerSuccessCount        = 0;
 
 async function runScannerSse() {
   console.log('[Scanner] Loop iniciado (modo polling 15s).');
@@ -1464,8 +1511,18 @@ async function runScannerSse() {
 
       _prevSignalIds = currentIds;
 
-      // Ciclo OK — reseta contador de falhas
+      // Ciclo OK — reseta contador de falhas e incrementa contador de sucessos
       _scannerConsecutiveFailures = 0;
+      _scannerSuccessCount++;
+
+      // Após 2 calls bem-sucedidos ao signals_proxy, inicia renovação proativa
+      // do PHPSESSID em background. O servidor limita ~3 calls por sessão PHP;
+      // renovar agora garante que o 3º call use um PHPSESSID fresco, evitando
+      // o ciclo de 3 falhas 401 + espera de renovação bloqueante.
+      if (_scannerSuccessCount >= 2 && !_renewingCookie) {
+        _scannerSuccessCount = 0;
+        renewCookieBackground().catch(() => {});
+      }
 
       // Log
       if (isFirstCycle) {
@@ -1486,6 +1543,7 @@ async function runScannerSse() {
       if (is401) {
         invalidateScannerSession();
         _scannerConsecutiveFailures++;
+        _scannerSuccessCount = 0; // reseta — próxima sequência de sucesso começa do zero
 
         // Após N falhas consecutivas, o cookie base provavelmente expirou —
         // renova antes de tentar criar mais sessões ECDH.
