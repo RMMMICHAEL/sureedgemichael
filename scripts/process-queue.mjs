@@ -184,25 +184,44 @@ async function keepalive() {
 }
 
 // ── Auto-renovação: chama renew-cookie.mjs ────────────────────────────────────
+// Mutex: evita que scanner e freebet renovem o cookie simultaneamente.
+// Se uma renovação já estiver em andamento, aguarda ela terminar e reutiliza
+// o resultado em vez de lançar um segundo processo renew-cookie.mjs.
+let _renewingCookie  = false;
+let _renewWaiters    = [];
+
 async function autoRenewCookie() {
+  // Se já está renovando, aguarda a renovação em curso e retorna o mesmo resultado
+  if (_renewingCookie) {
+    return new Promise(resolve => _renewWaiters.push(resolve));
+  }
+
+  _renewingCookie = true;
   console.log('   Cookie expirado — renovando automaticamente...');
-  _session = null;          // invalida sessao buscador cacheada
-  _freebetSession = null;   // invalida sessao freebet cacheada
+  _session = null;
+  _freebetSession = null;
   _freebetSessionCookieHash = '';
-  invalidateScannerSession(); // invalida sessao scanner cacheada
+  invalidateScannerSession();
+
+  let result = null;
   try {
     await execFileAsync(process.execPath, [resolve(__dir, 'renew-cookie.mjs')], {
-      cwd: __dir, timeout: 300_000, // 5 min (2captcha pode demorar até 4 min)
+      cwd: __dir, timeout: 300_000,
     });
     const cookie = await readCookieFromSupabase();
     if (cookie) {
       console.log('   Cookie renovado com sucesso.');
-      return cookie;
+      result = cookie;
     }
   } catch (err) {
     console.error(`   Renovacao falhou: ${err.message}`);
+  } finally {
+    _renewingCookie = false;
+    // Notifica todos os waiters com o mesmo resultado
+    const waiters = _renewWaiters.splice(0);
+    for (const resolve of waiters) resolve(result);
   }
-  return null;
+  return result;
 }
 
 // ── Cookie jar helper ─────────────────────────────────────────────────────────
