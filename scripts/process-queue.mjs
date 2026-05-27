@@ -171,8 +171,9 @@ async function keepalive() {
       const t = new Date().toLocaleTimeString('pt-BR');
       console.log(`   [keepalive ${t}] Sessao renovada OK`);
     } else {
-      // Sessão expirou — renova cookie imediatamente em vez de esperar o próximo ciclo
-      console.log('   [keepalive] Sessao expirada — renovando cookie agora...');
+      // Sessão expirou — renova cookie imediatamente
+      const preview = res.body.slice(0, 80).replace(/\s+/g, ' ');
+      console.log(`   [keepalive] Sessao expirada (${res.status}) — ${preview}`);
       _cookie = null;
       _cookieValidatedAt = 0;
       invalidateSession();
@@ -183,8 +184,13 @@ async function keepalive() {
         _cookie = renewed;
         _cookieValidatedAt = Date.now();
       }
+      // Reseta para agora para evitar loop imediato (autoRenewCookie pode ter
+      // sido chamado por outra corrotina que já setou _lastKeepalive = 0)
+      _lastKeepalive = Date.now();
     }
-  } catch { /* ignora erros de rede temporários */ }
+  } catch (err) {
+    console.error(`   [keepalive] erro de rede: ${err.message}`);
+  }
 }
 
 // setInterval garante disparos regulares independente do loop principal
@@ -219,9 +225,6 @@ async function autoRenewCookie() {
     if (cookie) {
       console.log('   Cookie renovado com sucesso.');
       result = cookie;
-      // Força keepalive imediato após renovação — a nova sessão PHP precisa
-      // de um ping rápido para que o timer seja registrado a partir de agora.
-      _lastKeepalive = 0;
     }
   } catch (err) {
     console.error(`   Renovacao falhou: ${err.message}`);
