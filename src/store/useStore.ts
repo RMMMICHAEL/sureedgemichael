@@ -376,24 +376,33 @@ export const useStore = create<StoreState>()((set, get) => ({
   bulkDeleteLegs(ids) {
     const idSet = new Set(ids);
     set(s => {
+      const deletedLegs = s.legs.filter(l => idSet.has(l.id));
+
       // Refund stakes for any pending manual bets being deleted
-      const deletedPending = s.legs.filter(
-        l => idSet.has(l.id) && l.re === 'Pendente' && l.source !== 'import'
-      );
       let bms = [...s.bms];
-      deletedPending.forEach(leg => {
-        const bmKey = normHouse(leg.ho).toLowerCase();
-        bms = bms.map(b =>
-          normHouse(b.name).toLowerCase() === bmKey
-            ? { ...b, balance: +(b.balance + leg.st).toFixed(2) }
-            : b
-        );
-      });
+      deletedLegs
+        .filter(l => l.re === 'Pendente' && l.source !== 'import')
+        .forEach(leg => {
+          const bmKey = normHouse(leg.ho).toLowerCase();
+          bms = bms.map(b =>
+            normHouse(b.name).toLowerCase() === bmKey
+              ? { ...b, balance: +(b.balance + leg.st).toFixed(2) }
+              : b
+          );
+        });
+
+      // Permanently exclude rowKeys of deleted import legs so auto-sync
+      // doesn't reimport them on the next tick.
+      const existing = new Set(s.excludedImportKeys ?? []);
+      deletedLegs
+        .filter(l => l.source === 'import' && l.ho && l.mk && l.bd)
+        .forEach(l => existing.add(`${l.ho}|${l.mk}|${l.bd.slice(0, 16)}`));
+      const excludedImportKeys = Array.from(existing);
 
       const legs = s.legs.filter(l => !idSet.has(l.id));
       const { bms: recalcedBms, totalCash } = recalc({ ...s, legs, bms });
-      persist({ ...s, legs, bms: recalcedBms });
-      return { legs, bms: recalcedBms, totalCash };
+      persist({ ...s, legs, bms: recalcedBms, excludedImportKeys });
+      return { legs, bms: recalcedBms, totalCash, excludedImportKeys };
     });
   },
 
@@ -450,10 +459,20 @@ export const useStore = create<StoreState>()((set, get) => ({
         );
       }
 
+      // If the leg came from an import, permanently exclude its rowKey so the
+      // next auto-sync doesn't reimport it.  rowKey format must match commitRows.
+      let excludedImportKeys = s.excludedImportKeys ?? [];
+      if (leg?.source === 'import' && leg.ho && leg.mk && leg.bd) {
+        const rowKey = `${leg.ho}|${leg.mk}|${leg.bd.slice(0, 16)}`;
+        if (!excludedImportKeys.includes(rowKey)) {
+          excludedImportKeys = [...excludedImportKeys, rowKey];
+        }
+      }
+
       const legs = s.legs.filter(l => l.id !== id);
       const { bms: recalcedBms, totalCash } = recalc({ ...s, legs, bms });
-      persist({ ...s, legs, bms: recalcedBms });
-      return { legs, bms: recalcedBms, totalCash };
+      persist({ ...s, legs, bms: recalcedBms, excludedImportKeys });
+      return { legs, bms: recalcedBms, totalCash, excludedImportKeys };
     });
   },
 
