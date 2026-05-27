@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { ExternalLink } from 'lucide-react';
 import {
   calculate,
   getMatrix,
@@ -113,8 +114,10 @@ const LABEL: React.CSSProperties = {
 };
 
 // Grid template: Desfecho | COM% | Odd | Stake | D | Freebet | C | Lucro
-const COLS     = '90px 96px 1fr 1fr 36px 70px 36px 100px';
-const COLS_MOB = '70px 60px 1fr 1fr 28px 52px 28px 72px';
+const COLS          = '90px 96px 1fr 1fr 36px 70px 36px 100px';
+const COLS_MOB      = '70px 60px 1fr 1fr 28px 52px 28px 72px';
+const COLS_LINKED   = '140px 96px 1fr 1fr 36px 70px 36px 100px';
+const COLS_MOB_LINKED = '110px 52px 1fr 1fr 26px 48px 26px 64px';
 
 // ── Add-to-panel modal ────────────────────────────────────────────────────────
 
@@ -309,7 +312,14 @@ function AddToPanelModal({ numOutcomes, formulaOpt, rawOdds, commissions, stakes
 
 interface SurebetCalcProps {
   selectedEvent?: { name: string; start_utc: string } | null;
-  externalFill?: { odds: string[]; houses: string[] } | null;
+  externalFill?: {
+    odds: string[];
+    houses: string[];
+    /** Optional site URLs for each house — renders the label as a clickable link */
+    urls?: string[];
+    /** Optional favicon URLs for each house */
+    favicons?: string[];
+  } | null;
   defaultNumOutcomes?: 2 | 3;
 }
 
@@ -323,8 +333,10 @@ export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 
   const [freebet,     setFreebet]     = useState([false, false, false]);
   const [roundEnabled, setRoundEnabled] = useState(false);
   const [roundToStr,  setRoundToStr]  = useState('5');
-  const [showAdd,     setShowAdd]     = useState(false);
-  const [injectedHouses, setInjectedHouses] = useState<string[]>([]);
+  const [showAdd,             setShowAdd]             = useState(false);
+  const [injectedHouses,     setInjectedHouses]     = useState<string[]>([]);
+  const [injectedHouseUrls,  setInjectedHouseUrls]  = useState<string[]>([]);
+  const [injectedFavicons,   setInjectedFavicons]   = useState<string[]>([]);
 
   // Commission per leg (% on winning profit — ex: BetBra = 2.8)
   const [commission, setCommission] = useState(['0', '0', '0']);
@@ -346,6 +358,8 @@ export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 
       return next;
     });
     setInjectedHouses(externalFill.houses?.slice(0, n) ?? []);
+    setInjectedHouseUrls(externalFill.urls?.slice(0, n) ?? []);
+    setInjectedFavicons(externalFill.favicons?.slice(0, n) ?? []);
     setFixedMode('sum');
   }, [externalFill]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -631,15 +645,19 @@ export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 
       }}>
 
         {/* Header */}
+        {/* eslint-disable-next-line no-nested-ternary */}
         <div style={{
-          display: 'grid', gridTemplateColumns: isMobile ? COLS_MOB : COLS,
+          display: 'grid',
+          gridTemplateColumns: injectedHouseUrls.some(Boolean)
+            ? (isMobile ? COLS_MOB_LINKED : COLS_LINKED)
+            : (isMobile ? COLS_MOB : COLS),
           gap: isMobile ? 4 : 8, padding: isMobile ? '8px 10px' : '10px 14px',
           background: 'rgba(255,255,255,.03)',
           borderBottom: '1px solid rgba(255,255,255,.07)',
           fontSize: 10, fontWeight: 800, textTransform: 'uppercase',
           letterSpacing: '0.07em', color: 'rgba(148,163,184,.6)',
         }}>
-          <span>Desfecho</span>
+          <span>Casa</span>
           <span style={{ textAlign: 'center' }}>COM%</span>
           <span>Odd</span>
           <span>Stake</span>
@@ -651,13 +669,18 @@ export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 
 
         {/* Rows */}
         {formulaOpt.labels.slice(0, numOutcomes).map((label, i) => {
-          const active  = distribute[i] ?? true;
-          const isFB    = freebet[i] ?? false;
-          const isFixed = fixedMode === i;
-          const stake   = result.stakes[i] ?? 0;
-          const profit  = result.profits[i] ?? 0;
-          const profC   = profit >= 0 ? '#3DFF8F' : '#FF4545';
-          const commVal = parseFloat(commission[i] || '0') || 0;
+          const active    = distribute[i] ?? true;
+          const isFB      = freebet[i] ?? false;
+          const isFixed   = fixedMode === i;
+          const stake     = result.stakes[i] ?? 0;
+          const profit    = result.profits[i] ?? 0;
+          const profC     = profit >= 0 ? '#3DFF8F' : '#FF4545';
+          const commVal   = parseFloat(commission[i] || '0') || 0;
+          const houseName = injectedHouses[i] ?? '';
+          const houseUrl  = injectedHouseUrls[i] ?? '';
+          const favicon   = injectedFavicons[i] ?? '';
+          const hasLink   = !!(houseName && houseUrl);
+          const hasLinkedCols = injectedHouseUrls.some(Boolean);
 
           // Display value for editable stake cell
           const stakeDisplayVal = isFixed
@@ -668,22 +691,62 @@ export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 
             <div key={i}>
               {/* Main row */}
               <div style={{
-                display: 'grid', gridTemplateColumns: isMobile ? COLS_MOB : COLS,
+                display: 'grid',
+                gridTemplateColumns: hasLinkedCols
+                  ? (isMobile ? COLS_MOB_LINKED : COLS_LINKED)
+                  : (isMobile ? COLS_MOB : COLS),
                 gap: isMobile ? 4 : 8, padding: isMobile ? '8px 10px' : '10px 14px',
                 borderBottom: '1px solid rgba(255,255,255,.04)',
                 alignItems: 'center',
                 background: isFB ? 'rgba(168,85,247,.025)' : !active ? 'rgba(255,191,0,.02)' : commVal > 0 ? 'rgba(61,255,143,.015)' : 'transparent',
               }}>
-                {/* Label */}
-                <span style={{
-                  padding: '3px 8px', borderRadius: 5, fontSize: 12, fontWeight: 700,
-                  background: 'rgba(77,166,255,.1)', color: '#4DA6FF',
-                  border: '1px solid rgba(77,166,255,.18)',
-                  textAlign: 'center', whiteSpace: 'nowrap', overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                }}>
-                  {label}
-                </span>
+                {/* Label / Casa link */}
+                {hasLink ? (
+                  <a
+                    href={houseUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title={`Abrir ${houseName}`}
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 4,
+                      padding: '4px 8px', borderRadius: 5, fontSize: isMobile ? 10 : 11,
+                      fontWeight: 700,
+                      background: 'rgba(77,166,255,.1)', color: '#4DA6FF',
+                      border: '1px solid rgba(77,166,255,.22)',
+                      textDecoration: 'none',
+                      whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                      maxWidth: '100%',
+                      transition: 'background .12s, border-color .12s',
+                    }}
+                    onMouseEnter={e => {
+                      (e.currentTarget as HTMLElement).style.background = 'rgba(77,166,255,.2)';
+                      (e.currentTarget as HTMLElement).style.borderColor = 'rgba(77,166,255,.4)';
+                    }}
+                    onMouseLeave={e => {
+                      (e.currentTarget as HTMLElement).style.background = 'rgba(77,166,255,.1)';
+                      (e.currentTarget as HTMLElement).style.borderColor = 'rgba(77,166,255,.22)';
+                    }}
+                  >
+                    {favicon && (
+                      <img src={favicon} alt="" width={12} height={12}
+                        style={{ borderRadius: 2, flexShrink: 0 }} />
+                    )}
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {houseName}
+                    </span>
+                    <ExternalLink size={9} style={{ flexShrink: 0, opacity: .7 }} />
+                  </a>
+                ) : (
+                  <span style={{
+                    padding: '3px 8px', borderRadius: 5, fontSize: 12, fontWeight: 700,
+                    background: 'rgba(77,166,255,.1)', color: '#4DA6FF',
+                    border: '1px solid rgba(77,166,255,.18)',
+                    textAlign: 'center', whiteSpace: 'nowrap', overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}>
+                    {houseName || label}
+                  </span>
+                )}
 
                 {/* COM% — commission input + BetBra preset */}
                 {isMobile ? (

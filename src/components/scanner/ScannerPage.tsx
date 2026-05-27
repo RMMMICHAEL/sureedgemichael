@@ -311,7 +311,9 @@ function SignalModal({ signal, onClose }: { signal: Signal; onClose: () => void 
       const n = parseFloat(o);
       return !isNaN(n) && n > 1 ? o : '';
     });
-    return { odds: cleanedOdds, houses: casas };
+    const urls     = casas.map(c => houseSiteUrl(c) ?? '');
+    const favicons = casas.map(c => houseFavicon(c) ?? '');
+    return { odds: cleanedOdds, houses: casas, urls, favicons };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [signal.id]);
 
