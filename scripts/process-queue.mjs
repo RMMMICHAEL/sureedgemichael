@@ -166,13 +166,19 @@ async function keepalive() {
     if (ok) {
       _lastKeepalive = Date.now();
     } else {
-      // Sessão expirou — invalida cache para renovação no próximo ciclo
-      console.log('   [keepalive] Sessao expirada — sera renovada no proximo ciclo');
+      // Sessão expirou — renova cookie imediatamente em vez de esperar o próximo ciclo
+      console.log('   [keepalive] Sessao expirada — renovando cookie agora...');
       _cookie = null;
       _cookieValidatedAt = 0;
       invalidateSession();
       invalidateFreebetSession();
       invalidateScannerSession();
+      const renewed = await autoRenewCookie();
+      if (renewed) {
+        _cookie = renewed;
+        _cookieValidatedAt = Date.now();
+        _lastKeepalive = Date.now();
+      }
     }
   } catch { /* ignora erros de rede temporários */ }
 }
@@ -616,6 +622,12 @@ async function createFreebetSession(cookie) {
   const { nonce: handshakeNonce } = await safeJson(nonceRes, 'freebet: proxy_nonce_app_handshake');
   if (!handshakeNonce) throw new Error('freebet: app handshake nonce inválido');
 
+  // Captura cookies retornados pelo nonce (ex: PHPSESSID renovado)
+  const nonceCookies = extractSetCookies(nonceRes.headers);
+  const hdrs2 = nonceCookies.length
+    ? { ...hdrs, 'Cookie': mergeCookies(hdrs['Cookie'], nonceCookies) }
+    : hdrs;
+
   // 2. Gera par de chaves ECDH
   const keyPair    = await subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits']);
   const pubRaw     = new Uint8Array(await subtle.exportKey('raw', keyPair.publicKey));
@@ -625,7 +637,7 @@ async function createFreebetSession(cookie) {
   // 3. Handshake via app_handshake.php (endpoint dedicado do freebet/app)
   const hsRes = await fetch(`${BASE}/api/app_handshake.php`, {
     method:  'POST',
-    headers: { ...hdrs, 'Content-Type': 'application/json', 'X-Handshake-Nonce': handshakeNonce },
+    headers: { ...hdrs2, 'Content-Type': 'application/json', 'X-Handshake-Nonce': handshakeNonce },
     body:    JSON.stringify({ client_pub_x, client_pub_y }),
   });
   if (!hsRes.ok) {
@@ -634,6 +646,13 @@ async function createFreebetSession(cookie) {
   }
   const hs = await safeJson(hsRes, 'freebet: app_handshake');
   if (!hs.success) throw new Error(`freebet: app_handshake negado: ${JSON.stringify(hs).slice(0, 100)}`);
+
+  // Captura cookies retornados pelo handshake (token de sessão ECDH do freebet)
+  const hsCookies = extractSetCookies(hsRes.headers);
+  const finalHdrs = hsCookies.length
+    ? { ...hdrs2, 'Cookie': mergeCookies(hdrs2['Cookie'], hsCookies) }
+    : hdrs2;
+
   // session_token é necessário — freebet_proxy-v2.php exige X-Session-Token
   const sessionToken = hs.session_token ?? null;
   console.log('   Sessão ECDH freebet criada');
@@ -654,7 +673,7 @@ async function createFreebetSession(cookie) {
     hkdfKey, { name: 'AES-CBC', length: 256 }, false, ['decrypt'],
   );
 
-  return { aesKey, hdrs, sessionToken };
+  return { aesKey, hdrs: finalHdrs, sessionToken };
 }
 
 async function getFreebetSession(cookie) {
@@ -689,6 +708,12 @@ async function fetchFreebetFromSuperMonitor(freebetSession, { bookmaker, value, 
   const { nonce } = await safeJson(nonceR, 'freebet: proxy_nonce');
   if (!nonce) throw new Error('freebet: nonce vazio');
 
+  // Captura cookies do nonce e propaga para o proxy
+  const nonceCookies = extractSetCookies(nonceR.headers);
+  const proxyHdrs = nonceCookies.length
+    ? { ...freebetHdrs, 'Cookie': mergeCookies(freebetHdrs['Cookie'], nonceCookies) }
+    : freebetHdrs;
+
   const qs = new URLSearchParams({
     endpoint:  'api/v2/freebet/convert',
     bookmaker: String(bookmaker),
@@ -704,7 +729,7 @@ async function fetchFreebetFromSuperMonitor(freebetSession, { bookmaker, value, 
     : {};
 
   const res = await fetch(`${BASE}/api/freebet_proxy-v2.php?${qs}`, {
-    headers: { ...freebetHdrs, 'X-Proxy-Nonce': nonce, ...sessionHdr },
+    headers: { ...proxyHdrs, 'X-Proxy-Nonce': nonce, ...sessionHdr },
   });
 
   if (!res.ok) {
@@ -1293,6 +1318,12 @@ let   _prevSignalIds        = new Set();
 // todos eles antes do reinício, apenas populamos _prevSignalIds.
 let   _firstScannerCycle    = true;
 
+// Contador de falhas 401 consecutivas no scanner.
+// Após o limite, força renovação do cookie — a sessão ECDH não resolve
+// se o próprio cookie base estiver expirado.
+let   _scannerConsecutiveFailures = 0;
+const SCANNER_FAILURE_LIMIT       = 3;
+
 async function runScannerSse() {
   console.log('[Scanner] Loop iniciado (modo polling 15s).');
 
@@ -1373,6 +1404,9 @@ async function runScannerSse() {
 
       _prevSignalIds = currentIds;
 
+      // Ciclo OK — reseta contador de falhas
+      _scannerConsecutiveFailures = 0;
+
       // Log
       if (isFirstCycle) {
         console.log(`[Scanner ${t}] startup: ${signals.length} sinais carregados (sem marcar novos)`);
@@ -1387,9 +1421,29 @@ async function runScannerSse() {
 
     } catch (err) {
       console.error(`[Scanner] Erro no ciclo: ${err.message}`);
-      if (err.message.includes('401') || err.message.includes('needs_handshake')) {
+
+      const is401 = err.message.includes('401') || err.message.includes('needs_handshake') || err.message.includes('INVALID_SESSION');
+      if (is401) {
         invalidateScannerSession();
+        _scannerConsecutiveFailures++;
+
+        // Após N falhas consecutivas, o cookie base provavelmente expirou —
+        // renova antes de tentar criar mais sessões ECDH.
+        if (_scannerConsecutiveFailures >= SCANNER_FAILURE_LIMIT) {
+          console.log(`[Scanner] ${_scannerConsecutiveFailures} falhas 401 consecutivas — renovando cookie...`);
+          _scannerConsecutiveFailures = 0;
+          _cookie = null;
+          _cookieValidatedAt = 0;
+          const renewed = await autoRenewCookie();
+          if (renewed) {
+            _cookie = renewed;
+            _cookieValidatedAt = Date.now();
+          }
+          await sleep(5_000);
+          continue;
+        }
       }
+
       // Backoff em rate-limit (429) ou erro de servidor (5xx)
       if (err.message.includes('429') || err.message.includes('508') || err.message.includes('503')) {
         console.log('[Scanner] Rate-limit — aguardando 60s...');
@@ -1468,13 +1522,27 @@ console.log(`Verificando fila a cada ${POLL_INTERVAL}ms (anti-ban: 3-6s entre re
 await processOneCycle();
 await processFreebetCycle();
 
-// Inicia o scanner SSE em background (não bloqueia o loop principal)
-runScannerSse().catch(err => console.error('[Scanner] Loop encerrado inesperadamente:', err.message));
+// ── Guardião do loop do scanner ───────────────────────────────────────────────
+// Se o loop do scanner cair por qualquer motivo, reinicia automaticamente
+// com backoff de 10s para não floodar o servidor em caso de erro persistente.
+async function guardScannerLoop() {
+  while (true) {
+    try {
+      await runScannerSse();
+    } catch (err) {
+      console.error('[Scanner] Loop encerrado — reiniciando em 10s:', err.message);
+    }
+    await sleep(10_000);
+  }
+}
+
+// Inicia o guardião do scanner em background
+guardScannerLoop();
 
 while (true) {
   await sleep(POLL_INTERVAL);
 
-  // Keepalive: pinga servidor a cada 18 min para manter sessão PHP viva
+  // Keepalive: pinga servidor a cada 8 min para manter sessão PHP viva
   await keepalive();
 
   // Renova SSE token a cada 12 min (independente da fila)

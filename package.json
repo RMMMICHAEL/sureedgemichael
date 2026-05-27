@@ -8,7 +8,12 @@
     "start": "next start",
     "lint": "next lint",
     "queue": "node scripts/process-queue.mjs",
-    "sse": "node scripts/sse-listener.mjs"
+    "sse": "node scripts/sse-listener.mjs",
+    "daemon:start": "pm2 start ecosystem.config.cjs",
+    "daemon:stop": "pm2 stop suredge-daemon",
+    "daemon:restart": "pm2 restart suredge-daemon",
+    "daemon:logs": "pm2 logs suredge-daemon",
+    "daemon:status": "pm2 status"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",
