@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
 
     let q = sb
       .from('scanner_signals')
-      .select('id,tipo,jogo,casa1,casa2,casa3,campeonato,data_evento,profit_margin,is_new,new_at,updated_at')
+      .select('id,tipo,jogo,casa1,casa2,casa3,campeonato,data_evento,profit_margin,is_new,new_at,updated_at,raw_data')
       .gte('profit_margin', isNaN(profitMin) ? -2.5 : profitMin)
       .order('profit_margin', { ascending: false })
       .limit(limit);

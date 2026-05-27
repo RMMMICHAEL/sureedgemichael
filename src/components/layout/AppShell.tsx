@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { PanelLeftOpen } from 'lucide-react';
+import { PanelLeftOpen, Radio, X, TrendingUp } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import { Sidebar, MobileDrawer } from './Sidebar';
 import { Topbar }          from './Topbar';
@@ -21,7 +21,7 @@ import { AdminPage }         from '@/components/admin/AdminPage';
 import { PerfilPage }      from '@/components/perfil/PerfilPage';
 import { NotasPage }           from '@/components/notas/NotasPage';
 import { FreebetConverterPage } from '@/components/freebet/FreebetConverterPage';
-import { ScannerPage }          from '@/components/scanner/ScannerPage';
+import { ScannerPage, SCANNER_NOTIF_KEY } from '@/components/scanner/ScannerPage';
 import { ResumoPage }      from '@/components/resumo/ResumoPage';
 import { MetasPage }       from '@/components/metas/MetasPage';
 import { OperadoresPage }  from '@/components/operadores/OperadoresPage';
@@ -31,6 +31,214 @@ import { syncFromSheet }   from '@/lib/import/sheetsSync';
 import { commitRows }      from '@/lib/import/importEngine';
 import { getMySubscription, isSubscriptionActive } from '@/lib/supabase/subscription';
 import { getSupabaseClient } from '@/lib/supabase/client';
+
+// ── Scanner Global Notification Banner ────────────────────────────────────────
+interface ScanSignal { id: string; jogo: string | null; profit_margin: number; }
+
+const BANNER_CSS = `
+@keyframes bannerIn {
+  from { opacity: 0; transform: translateY(-18px) scale(.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes bannerOut {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to   { opacity: 0; transform: translateY(-14px) scale(.96); }
+}
+@keyframes bannerPulse {
+  0%,100% { box-shadow: 0 0 0 0 rgba(61,255,143,.25); }
+  50%      { box-shadow: 0 0 0 8px rgba(61,255,143,0); }
+}
+`;
+let bannerCssInjected = false;
+
+function ScannerNotifBanner() {
+  const view    = useStore(s => s.view);
+  const setView = useStore(s => s.setView);
+
+  const [visible,  setVisible]  = useState(false);
+  const [leaving,  setLeaving]  = useState(false);
+  const [signals,  setSignals]  = useState<ScanSignal[]>([]);
+  const [enabled,  setEnabled]  = useState(false);
+
+  const seenIds   = useRef<Set<string>>(new Set());
+  const timerRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Inject CSS once
+  useEffect(() => {
+    if (!bannerCssInjected && typeof document !== 'undefined') {
+      const s = document.createElement('style');
+      s.textContent = BANNER_CSS;
+      document.head.appendChild(s);
+      bannerCssInjected = true;
+    }
+  }, []);
+
+  // Read preference from localStorage (reactive to storage events from ScannerPage toggle)
+  useEffect(() => {
+    function readPref() {
+      try { setEnabled(localStorage.getItem(SCANNER_NOTIF_KEY) === '1'); } catch {}
+    }
+    readPref();
+    window.addEventListener('storage', readPref);
+    // Also poll the key every 2s in case it was set in the same tab (storage event
+    // only fires for cross-tab changes)
+    const id = setInterval(readPref, 2000);
+    return () => { window.removeEventListener('storage', readPref); clearInterval(id); };
+  }, []);
+
+  // Dismiss helper
+  const dismiss = useCallback(() => {
+    if (leaving) return;
+    setLeaving(true);
+    if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
+    setTimeout(() => { setVisible(false); setLeaving(false); setSignals([]); }, 260);
+  }, [leaving]);
+
+  // Poll for new signals
+  useEffect(() => {
+    if (!enabled) return;
+
+    async function poll() {
+      // Don't show banner if user is already watching scanner
+      if (useStore.getState().view === 'scanner') return;
+      try {
+        const res = await fetch('/api/sure/scanner?onlyNew=true&profitMin=0&limit=10');
+        if (!res.ok) return;
+        const json = await res.json() as { ok: boolean; signals: ScanSignal[] };
+        if (!json.ok) return;
+
+        const fresh = json.signals.filter(s => !seenIds.current.has(s.id));
+        if (fresh.length === 0) return;
+
+        fresh.forEach(s => seenIds.current.add(s.id));
+
+        setSignals(fresh);
+        setLeaving(false);
+        setVisible(true);
+
+        if (timerRef.current) clearTimeout(timerRef.current);
+        timerRef.current = setTimeout(dismiss, 8000);
+      } catch { /* silent */ }
+    }
+
+    poll(); // immediate first check
+    const id = setInterval(poll, 12_000);
+    return () => { clearInterval(id); if (timerRef.current) clearTimeout(timerRef.current); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled]);
+
+  // Hide automatically when user navigates to scanner
+  useEffect(() => {
+    if (view === 'scanner' && visible) dismiss();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view]);
+
+  if (!visible || signals.length === 0) return null;
+
+  const preview = signals.slice(0, 3).map(s => s.jogo ?? 'Evento').join(' · ');
+  const extra   = signals.length > 3 ? ` +${signals.length - 3}` : '';
+
+  return (
+    <div
+      style={{
+        position:    'fixed',
+        top:         16,
+        left:        '50%',
+        transform:   'translateX(-50%)',
+        zIndex:      10000,
+        pointerEvents: 'none',
+      }}
+    >
+      <div
+        style={{
+          pointerEvents:  'auto',
+          display:        'flex',
+          alignItems:     'center',
+          gap:            10,
+          padding:        '11px 14px',
+          borderRadius:   12,
+          background:     'rgba(8, 22, 12, 0.92)',
+          border:         '1px solid rgba(61,255,143,.35)',
+          backdropFilter: 'blur(18px)',
+          boxShadow:      '0 8px 32px rgba(0,0,0,.55)',
+          maxWidth:       420,
+          cursor:         'pointer',
+          animation:      leaving
+            ? 'bannerOut .26s ease-out forwards'
+            : 'bannerIn .3s cubic-bezier(.2,.8,.4,1) both, bannerPulse 1.8s ease-in-out 0.3s 2',
+        }}
+        onClick={() => { setView('scanner'); dismiss(); }}
+        role="button"
+        tabIndex={0}
+        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { setView('scanner'); dismiss(); } }}
+      >
+        {/* Icon */}
+        <span style={{
+          flexShrink: 0,
+          width: 30, height: 30,
+          borderRadius: 8,
+          background: 'rgba(61,255,143,.12)',
+          border: '1px solid rgba(61,255,143,.2)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          color: '#3DFF8F',
+        }}>
+          <TrendingUp size={14} />
+        </span>
+
+        {/* Text */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#3DFF8F', letterSpacing: '.02em' }}>
+            {signals.length === 1
+              ? '1 nova oportunidade detectada'
+              : `${signals.length} novas oportunidades detectadas`}
+          </div>
+          <div style={{
+            fontSize: 11, color: 'rgba(148,163,184,.75)',
+            marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+          }}>
+            {preview}{extra}
+          </div>
+        </div>
+
+        {/* Scanner label */}
+        <span style={{
+          flexShrink: 0,
+          fontSize: 10, fontWeight: 600,
+          padding: '3px 8px',
+          borderRadius: 6,
+          background: 'rgba(61,255,143,.1)',
+          border: '1px solid rgba(61,255,143,.2)',
+          color: '#3DFF8F',
+          display: 'flex', alignItems: 'center', gap: 4,
+        }}>
+          <Radio size={9} />
+          Ver
+        </span>
+
+        {/* Close */}
+        <button
+          type="button"
+          onClick={e => { e.stopPropagation(); dismiss(); }}
+          aria-label="Fechar"
+          style={{
+            flexShrink: 0,
+            width: 24, height: 24,
+            borderRadius: 6, border: 'none',
+            background: 'transparent',
+            color: 'rgba(148,163,184,.55)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'pointer',
+            transition: 'color .12s',
+          }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#F1F5F9'; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'rgba(148,163,184,.55)'; }}
+        >
+          <X size={12} />
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export function AppShell() {
   const view           = useStore(s => s.view);
@@ -275,6 +483,7 @@ export function AppShell() {
       {initialized && !onboardingDone && <OnboardingModal />}
       {importBuffer    && <ImportPreview />}
       <ToastStack />
+      <ScannerNotifBanner />
     </div>
   );
 }

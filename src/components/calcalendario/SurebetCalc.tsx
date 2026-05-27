@@ -329,16 +329,20 @@ export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 
   // Commission per leg (% on winning profit — ex: BetBra = 2.8)
   const [commission, setCommission] = useState(['0', '0', '0']);
 
-  // External fill from BuscarOddsPage (odd-click or ranking fill)
+  // External fill from BuscarOddsPage / ScannerPage (odd-click or signal fill)
   useEffect(() => {
     if (!externalFill) return;
-    const n = (externalFill.odds.length === 2 ? 2 : 3) as 2 | 3;
+    // Determine num outcomes from non-empty odds, fallback to array length
+    const nonEmpty = externalFill.odds.filter(o => o !== '');
+    const n = (nonEmpty.length <= 2 && externalFill.odds.length <= 2 ? 2 : 3) as 2 | 3;
     setNumOutcomes(n);
     const opts = n === 2 ? FORMULA_OPTIONS_2WAY : FORMULA_OPTIONS_3WAY;
     setFormulaVal(opts[0].value);
     setOdds(prev => {
       const next = [...prev];
-      externalFill.odds.forEach((o, i) => { if (i < 3) next[i] = o; });
+      externalFill.odds.forEach((o, i) => {
+        if (i < 3 && o !== '') next[i] = o; // skip empty — keep existing value
+      });
       return next;
     });
     setInjectedHouses(externalFill.houses?.slice(0, n) ?? []);

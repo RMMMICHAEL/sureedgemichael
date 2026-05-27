@@ -234,7 +234,7 @@ export const useStore = create<StoreState>()((set, get) => ({
       const goalConfig         = db.goalConfig;
       const migrated = { ...db, bms: bmsNorm, legs: legsWithComm, expenses, partnerAccounts, clients, targetHouses, sheetSync, excludedImportKeys, notes, transfers, operators, goalConfig };
       const { bms, totalCash } = recalc(migrated);
-      set({ ...migrated, bms, totalCash, initialized: true });
+      set({ ...migrated, bms, totalCash, initialized: true, toasts: [] });
       // Persiste se alguma migração foi aplicada
       if (bmsMigrated || betbraMigrated) {
         if (betbraMigrated) console.log('[migration] Betbra: cm=2.8 aplicado em legs existentes');
@@ -918,9 +918,14 @@ export const useStore = create<StoreState>()((set, get) => ({
   setImportBuffer(r) { set({ importBuffer: r }); },
 
   toast(msg, type = 'info') {
+    // Dedup: don't stack identical messages already visible
+    const already = get().toasts.some(t => t.message === msg && t.type === type);
+    if (already) return;
     const id = ++toastSeq;
     set(s => ({ toasts: [...s.toasts, { id, message: msg, type }] }));
-    setTimeout(() => get().dismissToast(id), 4000);
+    // Auto-dismiss after 4.5 s — the ToastItem component also drives this,
+    // but we keep the store-side timeout as a safety net.
+    setTimeout(() => get().dismissToast(id), 4500);
   },
 
   dismissToast(id) {
