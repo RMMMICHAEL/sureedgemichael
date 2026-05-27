@@ -891,7 +891,8 @@ async function processFreebetCycle() {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 // ── Scanner ECDH session ──────────────────────────────────────────────────────
-const SCANNER_SESSION_TTL = 120_000; // 120s — conservador para evitar INVALID_SESSION por TTL do servidor
+const SCANNER_SESSION_TTL = 30_000;  // 30s — servidor limita ~3 calls por session_token (ciclo=20s),
+                                     // recria proativamente antes de atingir o limite
 let _scannerSession = null;
 let _scannerSessionCookieHash = '';
 let _scannerSessionExpiresAt  = 0;
