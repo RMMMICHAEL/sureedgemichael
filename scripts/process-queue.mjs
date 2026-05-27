@@ -923,7 +923,18 @@ async function processFreebetCycle() {
         // no cookie/servidor que não é resolvido criando mais sessões.
         const is401 = err.message.includes('401') || err.message.includes('INVALID_SESSION') || err.message.includes('NEEDS_HANDSHAKE');
         if (is401) {
-          console.log(`   Freebet: sessão inválida — recriando e retentando...`);
+          // 401 no freebet = PHPSESSID esgotado (scanner compartilha o mesmo limite).
+          // Simplesmente recriar a sessão ECDH NÃO resolve — o PHPSESSID continua
+          // esgotado. É necessário um cookie novo (novo PHPSESSID).
+          // autoRenewCookie() é seguro: se o scanner já estiver renovando, entra na
+          // fila (mutex _renewWaiters) e reutiliza o resultado sem duplicar o login.
+          console.log(`   Freebet: PHPSESSID esgotado — renovando cookie e retentando...`);
+          const renewed = await autoRenewCookie();
+          if (renewed) {
+            cookie = renewed;
+            _cookie = renewed;
+            _cookieValidatedAt = Date.now();
+          }
           invalidateFreebetSession();
           freebetSession = await createFreebetSession(cookie);
           _freebetSession = freebetSession;
@@ -1428,9 +1439,6 @@ let   _firstScannerCycle    = true;
 // se o próprio cookie base estiver expirado.
 let   _scannerConsecutiveFailures = 0;
 const SCANNER_FAILURE_LIMIT       = 3;
-// Conta scans bem-sucedidos consecutivos para disparar renovação proativa
-// antes de atingir o limite de ~3 calls por PHPSESSID no servidor.
-let   _scannerSuccessCount        = 0;
 
 async function runScannerSse() {
   console.log('[Scanner] Loop iniciado (modo polling 15s).');
@@ -1512,18 +1520,8 @@ async function runScannerSse() {
 
       _prevSignalIds = currentIds;
 
-      // Ciclo OK — reseta contador de falhas e incrementa contador de sucessos
+      // Ciclo OK — reseta contador de falhas
       _scannerConsecutiveFailures = 0;
-      _scannerSuccessCount++;
-
-      // Após 2 calls bem-sucedidos ao signals_proxy, inicia renovação proativa
-      // do PHPSESSID em background. O servidor limita ~3 calls por sessão PHP;
-      // renovar agora garante que o 3º call use um PHPSESSID fresco, evitando
-      // o ciclo de 3 falhas 401 + espera de renovação bloqueante.
-      if (_scannerSuccessCount >= 2 && !_renewingCookie) {
-        _scannerSuccessCount = 0;
-        renewCookieBackground().catch(() => {});
-      }
 
       // Log
       if (isFirstCycle) {
@@ -1544,7 +1542,6 @@ async function runScannerSse() {
       if (is401) {
         invalidateScannerSession();
         _scannerConsecutiveFailures++;
-        _scannerSuccessCount = 0; // reseta — próxima sequência de sucesso começa do zero
 
         // Após N falhas consecutivas, o cookie base provavelmente expirou —
         // renova antes de tentar criar mais sessões ECDH.
