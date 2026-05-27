@@ -16,7 +16,8 @@ const BOOKMAKERS = [
   'Bet7k','Betano','Betao','Betbra','Betesporte','BetfairSB','BetMGM',
   'Betnacional','Betsson','Betsul','BR4Bet','Esportivabet','Esportedasorte',
   'Estrelabet','JogoDeOuro','KTO','MCGames','Meridianbet','MMABET',
-  'NoviBet','Novibet','Pixbet','Sortenabet','Sportingbet','Sporty',
+  'NoviBet','Novibet','Pixbet','Sortenabet','Sportingbet',
+  'Sporty','Sporty 1UP','Sporty 2UP',
   'Superbet','Tradeball','Vaidebet','Versusbet','Vivasorte',
 ];
 
@@ -75,7 +76,8 @@ const HOUSES_DEFAULT = [
   'BetMGM','Betnacional','Betesporte','Betsson','Bet365','Bet7k','Betano',
   'BR4Bet','Esportivabet','Esportedasorte','Estrelabet','JogoDeOuro','KTO',
   'MCGames','Meridianbet','MMABET','NoviBet','Pixbet','Sortenabet',
-  'Sportingbet','Sporty','Superbet','Tradeball','Vaidebet','Versusbet','Vivasorte',
+  'Sportingbet','Sporty','Sporty 1UP','Sporty 2UP',
+  'Superbet','Tradeball','Vaidebet','Versusbet','Vivasorte',
 ];
 
 const HOUSES_SO = [
@@ -1168,10 +1170,12 @@ export function FreebetConverterPage() {
     }
 
     // House filter (only if not all selected)
+    // Usa every() — remove resultados que exigem aposta em casa removida do filtro.
+    // some() era errado: mantinha resultados onde apenas 1 das casas estava selecionada.
     const allHousesSelected = ALL_HOUSES_FLAT.every(h => selHouses.has(h));
     if (!allHousesSelected) {
       arr = arr.filter(r =>
-        r.bets.filter(b => !b.is_freebet).some(b => selHouses.has(b.house))
+        r.bets.filter(b => !b.is_freebet).every(b => selHouses.has(b.house))
       );
     }
 
@@ -1195,6 +1199,9 @@ export function FreebetConverterPage() {
     setLoading(true);
     setError('');
     setResults([]);
+    // Sincroniza o filtro de PA do step 4 com o valor configurado no step 3,
+    // para que os resultados já apareçam filtrados corretamente ao carregar.
+    setFPA(paFilter as typeof fPA);
     setStep(4);
 
     try {
@@ -1417,7 +1424,7 @@ export function FreebetConverterPage() {
               <div className="flex flex-col gap-4">
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-black uppercase tracking-wider" style={{ color: 'var(--t3)' }}>
-                    {filteredResults.length} conversão{filteredResults.length !== 1 ? 'ões' : ''} encontrada{filteredResults.length !== 1 ? 's' : ''}
+                    {filteredResults.length} {filteredResults.length !== 1 ? 'conversões encontradas' : 'conversão encontrada'}
                   </span>
                   {results.length !== filteredResults.length && (
                     <span className="text-[10px] px-2 py-0.5 rounded-md font-bold"

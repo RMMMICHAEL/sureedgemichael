@@ -1105,7 +1105,8 @@ const SCANNER_FILTERS = {
   casas: [
     '7games','Alfabet','Apostaganha','Betbra','BetfairSB','BetssonSO','Tradeball',
     'Betnacional','BetmgmSO','Betao','BetanoSO','BetsulSO','BetesporteSO','Br4betSO',
-    'EsportesdasorteSO','EsportivaSO','EstrelabetSO','JogodeouroSO','StakeSO','Sporty',
+    'EsportesdasorteSO','EsportivaSO','EstrelabetSO','JogodeouroSO','StakeSO',
+    'Sporty','Sporty 1UP','Sporty 2UP',
     'NovibetSO','KTOso','VaidebetSO','VivasorteSO','VersusbetSO',
     'Betano (PA)','Novibet (PA)','Betsul (PA)','Betesporte (PA)','Betsson (PA)',
     'Bet365 (PA)','KTO (PA)','Vivasorte (PA)','Sportingbet (PA)','Superbet (PA)',
