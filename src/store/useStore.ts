@@ -120,11 +120,14 @@ interface StoreState extends AppDB {
   finishOnboarding:       () => void;
 
   // Actions — UI
-  setView:         (v: ViewId) => void;
-  setDateRange:    (from: string | null, to: string | null) => void;
-  setImportBuffer: (r: import('@/lib/import/importEngine').ImportResult | null) => void;
-  toast:           (msg: string, type?: ToastMsg['type']) => void;
-  dismissToast:    (id: number) => void;
+  setView:          (v: ViewId) => void;
+  setDateRange:     (from: string | null, to: string | null) => void;
+  setImportBuffer:  (r: import('@/lib/import/importEngine').ImportResult | null) => void;
+  toast:            (msg: string, type?: ToastMsg['type']) => void;
+  dismissToast:     (id: number) => void;
+  // Cross-page navigation: scanner → buscar odds
+  oddsInitQuery:     string | null;
+  setOddsInitQuery:  (q: string | null) => void;
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -195,6 +198,7 @@ export const useStore = create<StoreState>()((set, get) => ({
   importBuffer:     null,
   isSyncing:        false,
   authEmail:        null,
+  oddsInitQuery:    null,
 
   // ── init ──────────────────────────────────────────────────────────────────
   init() {
@@ -935,6 +939,7 @@ export const useStore = create<StoreState>()((set, get) => ({
   setView(v) { set({ view: v }); },
   setDateRange(from, to) { set({ dateFrom: from, dateTo: to }); },
   setImportBuffer(r) { set({ importBuffer: r }); },
+  setOddsInitQuery(q) { set({ oddsInitQuery: q }); },
 
   toast(msg, type = 'info') {
     // Dedup: don't stack identical messages already visible

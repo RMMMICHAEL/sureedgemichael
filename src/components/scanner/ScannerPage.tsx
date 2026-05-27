@@ -342,7 +342,9 @@ function Toggle({ value, onChange, color = '#3DFF8F', label }: {
 }
 
 // ── Signal Modal — embeds the full SurebetCalc ────────────────────────────────
-function SignalModal({ signal, onClose }: { signal: Signal; onClose: () => void }) {
+function SignalModal({ signal, onClose, onOpenInOdds }: {
+  signal: Signal; onClose: () => void; onOpenInOdds: (name: string) => void;
+}) {
   // Memoize so references stay stable — prevents SurebetCalc from resetting
   // user-edited odds on every re-render of this modal.
   const casas = useMemo(
@@ -377,8 +379,6 @@ function SignalModal({ signal, onClose }: { signal: Signal; onClose: () => void 
     : signal.jogo
       ? { name: signal.jogo, start_utc: new Date().toISOString() }
       : null;
-
-  const eventUrl = extractEventUrl(signal.raw_data);
 
   return (
     <div
@@ -429,21 +429,23 @@ function SignalModal({ signal, onClose }: { signal: Signal; onClose: () => void 
                 </span>
               </div>
             </div>
-            {eventUrl ? (
-              <a
-                href={eventUrl} target="_blank" rel="noopener noreferrer"
+            {signal.jogo ? (
+              <button
+                type="button"
+                onClick={() => { onClose(); onOpenInOdds(signal.jogo!); }}
+                title="Buscar odds deste jogo"
                 style={{
+                  background: 'none', border: 'none', padding: 0, cursor: 'pointer',
                   fontSize: 16, fontWeight: 700, color: '#818cf8', lineHeight: 1.3,
                   display: 'inline-flex', alignItems: 'center', gap: 5,
-                  textDecoration: 'none',
                 }}
               >
-                {signal.jogo ?? 'Jogo desconhecido'}
+                {signal.jogo}
                 <ExternalLink size={12} style={{ opacity: .7, flexShrink: 0 }} />
-              </a>
+              </button>
             ) : (
               <div style={{ fontSize: 16, fontWeight: 700, color: '#F1F5F9', lineHeight: 1.3 }}>
-                {signal.jogo ?? 'Jogo desconhecido'}
+                Jogo desconhecido
               </div>
             )}
             <div style={{ fontSize: 12, color: '#475569', marginTop: 3 }}>
@@ -528,11 +530,12 @@ function SignalModal({ signal, onClose }: { signal: Signal; onClose: () => void 
 }
 
 // ── Card de sinal ─────────────────────────────────────────────────────────────
-function SignalCard({ signal, onClick }: { signal: Signal; onClick: () => void }) {
+function SignalCard({ signal, onClick, onOpenInOdds }: {
+  signal: Signal; onClick: () => void; onOpenInOdds: (name: string) => void;
+}) {
   const casas     = [signal.casa1, signal.casa2, signal.casa3].filter(Boolean) as string[];
   const profit    = signal.profit_margin;
   const isGreenNew = signal.is_new && profit >= 0;
-  const eventUrl  = extractEventUrl(signal.raw_data);
 
   return (
     <div
@@ -573,25 +576,27 @@ function SignalCard({ signal, onClick }: { signal: Signal; onClick: () => void }
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          {eventUrl ? (
-            <a
-              href={eventUrl} target="_blank" rel="noopener noreferrer"
-              onClick={e => e.stopPropagation()}
+          {signal.jogo ? (
+            <button
+              type="button"
+              onClick={e => { e.stopPropagation(); onOpenInOdds(signal.jogo!); }}
+              title="Ver odds deste jogo"
               style={{
+                background: 'none', border: 'none', padding: 0, cursor: 'pointer',
                 fontSize: 14, fontWeight: 600, color: '#818cf8', lineHeight: 1.3,
                 whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                display: 'flex', alignItems: 'center', gap: 4, textDecoration: 'none',
+                display: 'flex', alignItems: 'center', gap: 4, maxWidth: '100%',
               }}
             >
               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {signal.jogo ?? 'Jogo desconhecido'}
+                {signal.jogo}
               </span>
               <ExternalLink size={10} style={{ flexShrink: 0, opacity: .7 }} />
-            </a>
+            </button>
           ) : (
             <div style={{ fontSize: 14, fontWeight: 600, color: '#E2E8F0', lineHeight: 1.3,
               whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {signal.jogo ?? 'Jogo desconhecido'}
+              Jogo desconhecido
             </div>
           )}
           <div style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>{signal.campeonato ?? '—'}</div>
@@ -807,8 +812,15 @@ export const SCANNER_NOTIF_KEY = 'scanner-notif-v1';
 
 // ── Componente principal ───────────────────────────────────────────────────────
 export function ScannerPage() {
-  const authEmail = useStore(s => s.authEmail);
-  const isAdmin   = isAdminEmail(authEmail);
+  const authEmail        = useStore(s => s.authEmail);
+  const isAdmin          = isAdminEmail(authEmail);
+  const setView          = useStore(s => s.setView);
+  const setOddsInitQuery = useStore(s => s.setOddsInitQuery);
+
+  const openInOdds = useCallback((gameName: string) => {
+    setOddsInitQuery(gameName);
+    setView('odds');
+  }, [setOddsInitQuery, setView]);
 
   const [signals,     setSignals]     = useState<Signal[]>([]);
   const [loading,     setLoading]     = useState(true);
@@ -1003,7 +1015,11 @@ export function ScannerPage() {
 
       {/* Modal */}
       {selectedSignal && (
-        <SignalModal signal={selectedSignal} onClose={() => setSelectedSignal(null)} />
+        <SignalModal
+          signal={selectedSignal}
+          onClose={() => setSelectedSignal(null)}
+          onOpenInOdds={openInOdds}
+        />
       )}
 
       <div style={{ padding: '20px 20px 40px', maxWidth: 1100, margin: '0 auto' }}>
@@ -1249,7 +1265,12 @@ export function ScannerPage() {
             gap: 10,
           }}>
             {visibleSignals.map(s => (
-              <SignalCard key={s.id} signal={s} onClick={() => setSelectedSignal(s)} />
+              <SignalCard
+                key={s.id}
+                signal={s}
+                onClick={() => setSelectedSignal(s)}
+                onOpenInOdds={openInOdds}
+              />
             ))}
           </div>
         )}

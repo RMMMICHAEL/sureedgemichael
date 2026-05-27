@@ -7,6 +7,7 @@ import {
   ChevronDown, Star, ExternalLink, Loader2, SlidersHorizontal,
 } from 'lucide-react';
 import { SurebetCalc, ALL_HOUSES } from '@/components/calcalendario/SurebetCalc';
+import { useStore } from '@/store/useStore';
 
 // ── CSS keyframes (injected once) ─────────────────────────────────────────────
 const LIVE_STYLES = `
@@ -1410,6 +1411,10 @@ function TodayGamesGrid({
 // ── Main page ──────────────────────────────────────────────────────────────────
 
 export function BuscarOddsPage() {
+  // ── Cross-page navigation: scanner → buscar odds ─────────────────────────────
+  const oddsInitQuery    = useStore(s => s.oddsInitQuery);
+  const setOddsInitQuery = useStore(s => s.setOddsInitQuery);
+
   // ── Event search state ───────────────────────────────────────────────────────
   const [query,       setQuery]       = useState('');
   const [events,      setEvents]      = useState<CachedEvent[]>([]);
@@ -1502,6 +1507,14 @@ export function BuscarOddsPage() {
   }, []);
 
   useEffect(() => { loadEvents(); loadSearchEvents(); }, [loadEvents, loadSearchEvents]);
+
+  // Consume navigation from scanner page: pre-fill search and open dropdown
+  useEffect(() => {
+    if (!oddsInitQuery) return;
+    setQuery(oddsInitQuery);
+    setDropOpen(true);
+    setOddsInitQuery(null);
+  }, [oddsInitQuery, setOddsInitQuery]);
 
   // Close dropdown on outside click
   useEffect(() => {
