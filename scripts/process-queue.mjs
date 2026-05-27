@@ -211,11 +211,21 @@ async function autoRenewCookie() {
 
 function extractSetCookies(headers) {
   const cookies = [];
-  // Headers.entries() retorna pares [name, value]; Set-Cookie pode aparecer
-  // múltiplas vezes mas a API Headers do Node agrupa em uma string com \n
+
+  // Node.js 18+ expõe getSetCookie() que retorna cada Set-Cookie como item
+  // separado — é o método correto para fetch nativo (undici). O método legado
+  // headers.get('set-cookie') junta todos numa string e perde separadores em
+  // cookies que têm vírgula no campo expires.
+  if (typeof headers.getSetCookie === 'function') {
+    for (const cookie of headers.getSetCookie()) {
+      const part = cookie.split(';')[0].trim();
+      if (part) cookies.push(part);
+    }
+    return cookies;
+  }
+
+  // Fallback para ambientes sem getSetCookie (Node 16 ou polyfills)
   const raw = headers.get('set-cookie') ?? '';
-  // Node.js 18+ agrupa múltiplos Set-Cookie separados por ", " — divide com cuidado
-  // (cookies com "expires=..." também têm vírgulas, então split por "\n" é mais seguro)
   for (const line of raw.split('\n')) {
     const part = line.split(';')[0].trim();
     if (part) cookies.push(part);
@@ -588,7 +598,7 @@ async function processOneCycle() {
 let _freebetSession = null;
 let _freebetSessionCookieHash = '';
 let _freebetSessionExpiresAt = 0;
-const FREEBET_SESSION_TTL = 240_000; // 4 min (server TTL = 4.5 min)
+const FREEBET_SESSION_TTL = 90_000; // 90s — conservador, servidor pode expirar antes dos 4 min declarados
 
 // Contador de falhas INVALID_SESSION consecutivas em ciclos de freebet.
 // Quando atinge o limite, força renovação completa do cookie em vez de
@@ -862,7 +872,7 @@ async function processFreebetCycle() {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 // ── Scanner ECDH session ──────────────────────────────────────────────────────
-const SCANNER_SESSION_TTL = 250_000; // 250s (server expires_in = 300s)
+const SCANNER_SESSION_TTL = 120_000; // 120s — conservador para evitar INVALID_SESSION por TTL do servidor
 let _scannerSession = null;
 let _scannerSessionCookieHash = '';
 let _scannerSessionExpiresAt  = 0;
