@@ -8,6 +8,8 @@ import {
 import { createClient } from '@supabase/supabase-js';
 import { houseFavicon } from '@/lib/bookmakers/logos';
 import { SurebetCalc } from '@/components/calcalendario/SurebetCalc';
+import { useStore } from '@/store/useStore';
+import { isAdminEmail } from '@/lib/supabase/subscription';
 
 // ── CSS keyframes ──────────────────────────────────────────────────────────────
 const STYLES = `
@@ -657,6 +659,9 @@ export const SCANNER_NOTIF_KEY = 'scanner-notif-v1';
 
 // ── Componente principal ───────────────────────────────────────────────────────
 export function ScannerPage() {
+  const authEmail = useStore(s => s.authEmail);
+  const isAdmin   = isAdminEmail(authEmail);
+
   const [signals,     setSignals]     = useState<Signal[]>([]);
   const [loading,     setLoading]     = useState(true);
   const [error,       setError]       = useState<string | null>(null);
@@ -861,17 +866,19 @@ export function ScannerPage() {
               {beep ? 'Som ativo' : 'Mudo'}
             </button>
 
-            <button type="button" onClick={togglePause} disabled={pausing} style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              padding: '7px 12px', borderRadius: 7, fontSize: 12, fontWeight: 500,
-              background: paused ? 'rgba(61,255,143,.08)' : 'rgba(255,159,10,.08)',
-              border: `1px solid ${paused ? 'rgba(61,255,143,.2)' : 'rgba(255,159,10,.22)'}`,
-              color: paused ? '#3DFF8F' : '#FF9F0A',
-              cursor: pausing ? 'not-allowed' : 'pointer', opacity: pausing ? .6 : 1,
-            }}>
-              {paused ? <PlayCircle size={13} /> : <PauseCircle size={13} />}
-              {paused ? 'Retomar' : 'Pausar daemon'}
-            </button>
+            {isAdmin && (
+              <button type="button" onClick={togglePause} disabled={pausing} style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                padding: '7px 12px', borderRadius: 7, fontSize: 12, fontWeight: 500,
+                background: paused ? 'rgba(61,255,143,.08)' : 'rgba(255,159,10,.08)',
+                border: `1px solid ${paused ? 'rgba(61,255,143,.2)' : 'rgba(255,159,10,.22)'}`,
+                color: paused ? '#3DFF8F' : '#FF9F0A',
+                cursor: pausing ? 'not-allowed' : 'pointer', opacity: pausing ? .6 : 1,
+              }}>
+                {paused ? <PlayCircle size={13} /> : <PauseCircle size={13} />}
+                {paused ? 'Retomar' : 'Pausar daemon'}
+              </button>
+            )}
           </div>
         </div>
 
