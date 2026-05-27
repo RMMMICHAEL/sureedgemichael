@@ -141,24 +141,26 @@ async function validateCookie(cookie) {
 }
 
 // ── Keepalive de sessão ───────────────────────────────────────────────────────
-// A sessão PHP do SuperMonitor expira em ~90s de inatividade. O keepalive
-// precisa ser MENOR que 90s. Usamos 60s para um safety margin de 30s.
-// (O session_monitor.js original usa 5 min, mas supõe que o browser faz
-//  outras requisições frequentes que também renovam a sessão. No daemon
-//  só há o scanner polling que não renova a sessão PHP principal.)
-const KEEPALIVE_INTERVAL = 60 * 1000; // 60s — PHP session TTL ~90s
-// Inicializa no momento atual para evitar ping imediato no startup
-// (acabamos de validar o cookie ao subir — não precisa pingar de novo)
+// Problema: check_session.php parece ser read-only — não renova o TTL da sessão
+// PHP no servidor. Usamos ajax.php?action=events_lite (mesmo endpoint do
+// validateCookie) que faz uma leitura real e com certeza chama session_start()
+// com escrita, renovando o TTL.
+//
+// Intervalo: 45s. Sessão expira em ~90s; disparamos 45s antes do limite.
+// O setInterval garante que o keepalive dispare INDEPENDENTE do loop principal
+// (que pode estar preso numa operação de rede de 15-20s).
+const KEEPALIVE_INTERVAL = 45 * 1000; // 45s — dispara antes do TTL ~90s
 let _lastKeepalive = Date.now();
 
 async function keepalive() {
   if (!_cookie) return;
   if (Date.now() - _lastKeepalive < KEEPALIVE_INTERVAL) return;
+  _lastKeepalive = Date.now(); // marca antes da chamada para evitar disparos duplos
   try {
-    // Usa check_session.php — mesmo endpoint do session_monitor.js do SuperMonitor
-    const res = await request('GET', `${BASE}/check_session.php`, {
+    // ajax.php?action=events_lite — mesmo endpoint de validateCookie, renova sessão
+    const res = await request('GET', `${BASE}/ajax.php?action=events_lite`, {
       'User-Agent': UA, 'Cookie': _cookie,
-      'Accept': 'application/json, text/javascript, */*; q=0.01',
+      'Accept': 'application/json',
       'X-Requested-With': 'XMLHttpRequest',
       'Referer': `${BASE}/index.php?page=buscador`,
     });
@@ -166,7 +168,8 @@ async function keepalive() {
       && !res.body.includes('name="senha"')
       && !res.body.trimStart().startsWith('<');
     if (ok) {
-      _lastKeepalive = Date.now();
+      const t = new Date().toLocaleTimeString('pt-BR');
+      console.log(`   [keepalive ${t}] Sessao renovada OK`);
     } else {
       // Sessão expirou — renova cookie imediatamente em vez de esperar o próximo ciclo
       console.log('   [keepalive] Sessao expirada — renovando cookie agora...');
@@ -179,11 +182,13 @@ async function keepalive() {
       if (renewed) {
         _cookie = renewed;
         _cookieValidatedAt = Date.now();
-        _lastKeepalive = Date.now();
       }
     }
   } catch { /* ignora erros de rede temporários */ }
 }
+
+// setInterval garante disparos regulares independente do loop principal
+setInterval(() => { keepalive().catch(() => {}); }, 15_000);
 
 // ── Auto-renovação: chama renew-cookie.mjs ────────────────────────────────────
 // Mutex: evita que scanner e freebet renovem o cookie simultaneamente.
