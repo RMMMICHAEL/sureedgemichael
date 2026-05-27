@@ -170,8 +170,24 @@ async function keepalive() {
       && !res.body.includes('name="senha"')
       && !res.body.trimStart().startsWith('<');
     if (ok) {
+      // Captura cookies do servidor (ex: PHPSESSID renovado) e aplica no _cookie.
+      // Se o servidor envia um novo PHPSESSID a cada proxy_nonce, isso efetivamente
+      // reseta o contador de rate-limit do scanner na sessão PHP.
+      const setCookieRaw = res.headers['set-cookie'];
+      if (setCookieRaw) {
+        const parts = (Array.isArray(setCookieRaw) ? setCookieRaw : [setCookieRaw])
+          .map(c => c.split(';')[0].trim()).filter(Boolean);
+        if (parts.length) {
+          _cookie = mergeCookies(_cookie, parts);
+          _cookieValidatedAt = Date.now();
+          // Invalida sessões em cache para que usem o cookie atualizado
+          invalidateSession();
+          invalidateFreebetSession();
+          invalidateScannerSession();
+        }
+      }
       const t = new Date().toLocaleTimeString('pt-BR');
-      console.log(`   [keepalive ${t}] Sessao OK`);
+      console.log(`   [keepalive ${t}] Sessao OK${setCookieRaw ? ' (cookie renovado)' : ''}`);
     } else {
       // Sessão expirou — renova cookie imediatamente
       const preview = res.body.slice(0, 80).replace(/\s+/g, ' ');
