@@ -1233,9 +1233,20 @@ async function handleSseEvent(type, rawData, tempToken) {
 // que não está disponível no contexto do daemon.
 const SCANNER_POLL_INTERVAL = 20_000; // 20s — suficiente para scanner, evita 429
 let   _prevSignalIds        = new Set();
+// Flag: true no primeiro ciclo após o startup do processo.
+// No primeiro ciclo nunca marcamos sinais como is_new — o banco já continha
+// todos eles antes do reinício, apenas populamos _prevSignalIds.
+let   _firstScannerCycle    = true;
 
 async function runScannerSse() {
   console.log('[Scanner] Loop iniciado (modo polling 15s).');
+
+  // Ao iniciar, limpa qualquer is_new=true que ficou do ciclo anterior
+  // (evita que usuários vejam alertas de sinais antigos no reload).
+  await sbFetch(
+    'scanner_signals?is_new=eq.true',
+    'PATCH', { is_new: false },
+  ).catch(() => {});
 
   while (true) {
     // Pausa manual via Supabase app_config scanner_paused=true
@@ -1275,18 +1286,27 @@ async function runScannerSse() {
 
       // Diff: detecta IDs novos para marcar is_new
       const currentIds = new Set(signals.map(s => s.id));
-      const newIds     = signals
-        .filter(s => !_prevSignalIds.has(s.id))
-        .map(s => s.id);
+
+      // No primeiro ciclo após reinício o _prevSignalIds está vazio, então
+      // TODOS os sinais pareceriam "novos". Evitamos isso: apenas populamos
+      // o Set e não marcamos nenhum como is_new — eles já estavam no banco.
+      const isFirstCycle = _firstScannerCycle;
+      _firstScannerCycle = false;
+
+      const newIds = isFirstCycle
+        ? []
+        : signals.filter(s => !_prevSignalIds.has(s.id)).map(s => s.id);
 
       // Upsert todos os sinais (merge-duplicates)
       await upsertSignals(signals);
 
       // Remove sinais que sumiram do snapshot
-      const removedIds = [..._prevSignalIds].filter(id => !currentIds.has(id));
+      const removedIds = isFirstCycle
+        ? []   // no primeiro ciclo não apagamos nada — _prevSignalIds está vazio
+        : [..._prevSignalIds].filter(id => !currentIds.has(id));
       if (removedIds.length) await deleteSignals(removedIds);
 
-      // Marca novos
+      // Marca novos (nunca no primeiro ciclo)
       if (newIds.length) await markSignalsNew(newIds);
 
       // Limpa flags expiradas
@@ -1298,8 +1318,10 @@ async function runScannerSse() {
 
       _prevSignalIds = currentIds;
 
-      // Log apenas quando há mudanças
-      if (newIds.length || removedIds.length) {
+      // Log
+      if (isFirstCycle) {
+        console.log(`[Scanner ${t}] startup: ${signals.length} sinais carregados (sem marcar novos)`);
+      } else if (newIds.length || removedIds.length) {
         console.log(`[Scanner ${t}] +${newIds.length} novos, -${removedIds.length} removidos | total ${signals.length}`);
       } else {
         // Log silencioso periódico (a cada ~5 min = 20 ciclos)
