@@ -1677,7 +1677,7 @@ export function BuscarOddsPage() {
           while (Date.now() - start < 90_000) {
             await new Promise(r => setTimeout(r, 300));
 
-            const pollRes  = await fetch(`/api/supermonitor/queue?event_id=${encodeURIComponent(event.id)}`);
+            const pollRes  = await fetch(`/api/sure/queue?event_id=${encodeURIComponent(event.id)}`);
             const pollJson = await pollRes.json() as { ok: boolean; ready?: boolean; cached_at?: string };
 
             if (pollJson.ready) {

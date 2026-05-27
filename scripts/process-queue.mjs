@@ -75,6 +75,26 @@ async function sbFetch(path, method = 'GET', body = null, extra = {}) {
   });
 }
 
+// ── Safe JSON parser ──────────────────────────────────────────────────────────
+// Lê a resposta como texto antes de parsear para detectar páginas HTML
+// (redirecionamento de login / Cloudflare challenge) retornadas no lugar de JSON.
+// Quando HTML é detectado, invalida o cache do cookie para forçar renovação
+// no próximo ciclo e lança um erro descritivo com o contexto da chamada.
+async function safeJson(res, context) {
+  const text = await res.text();
+  if (text.trimStart().startsWith('<')) {
+    // Cookie expirado / desafio CF → invalida cache para renovação automática
+    _cookie = null;
+    _cookieValidatedAt = 0;
+    throw new Error(`${context}: HTML recebido em vez de JSON (cookie/CF expirado) — ${text.slice(0, 120)}`);
+  }
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    throw new Error(`${context}: JSON inválido — ${text.slice(0, 120)}`);
+  }
+}
+
 // ── Ler cookie do Supabase ────────────────────────────────────────────────────
 async function readCookieFromSupabase() {
   try {
@@ -244,7 +264,7 @@ async function createSession(cookie) {
 
   const nonceRes = await fetch(`${BASE}/api/proxy_nonce_handshake.php`, { headers: hdrs });
   if (!nonceRes.ok) throw new Error(`nonce handshake falhou (${nonceRes.status})`);
-  const { nonce: handshakeNonce } = await nonceRes.json();
+  const { nonce: handshakeNonce } = await safeJson(nonceRes, 'buscador: proxy_nonce_handshake');
   if (!handshakeNonce) throw new Error('nonce invalido');
 
   // Captura cookies de sessão retornados pelo servidor (ex: PHPSESSID renovado)
@@ -264,7 +284,7 @@ async function createSession(cookie) {
     body: JSON.stringify({ client_pub_x, client_pub_y }),
   });
   if (!hsRes.ok) throw new Error(`handshake falhou (${hsRes.status})`);
-  const hs = await hsRes.json();
+  const hs = await safeJson(hsRes, 'buscador: buscador_handshake');
   if (!hs.success) throw new Error('cookie invalido (handshake negado)');
 
   // Captura cookies de sessão retornados pelo handshake (token de sessão ECDH)
@@ -296,7 +316,7 @@ async function fetchDecrypted(session, qs) {
   // Usa proxy_nonce.php — igual ao browser (sem endpoint buscador específico no proxy request)
   const nonceRes = await fetch(`${BASE}/api/proxy_nonce.php`, { headers: session.hdrs });
   if (!nonceRes.ok) throw new Error(`proxy_nonce falhou (${nonceRes.status})`);
-  const { nonce } = await nonceRes.json();
+  const { nonce } = await safeJson(nonceRes, 'buscador: proxy_nonce');
 
   const nonceCookies = extractSetCookies(nonceRes.headers);
   const proxyHdrs = nonceCookies.length
@@ -312,7 +332,7 @@ async function fetchDecrypted(session, qs) {
     throw new Error(`proxy falhou (${res.status})`);
   }
 
-  const enc = await res.json();
+  const enc = await safeJson(res, 'buscador: buscador_proxy');
 
   // Servidor pode sinalizar needs_handshake no body mesmo com HTTP 200
   // (espelha a lógica do buscador-sse.js: fetchEncrypted verifica res.needs_handshake)
@@ -564,6 +584,12 @@ let _freebetSessionCookieHash = '';
 let _freebetSessionExpiresAt = 0;
 const FREEBET_SESSION_TTL = 240_000; // 4 min (server TTL = 4.5 min)
 
+// Contador de falhas INVALID_SESSION consecutivas em ciclos de freebet.
+// Quando atinge o limite, força renovação completa do cookie em vez de
+// ficar criando sessões que o servidor rejeita imediatamente.
+let _freebetConsecutiveFailures = 0;
+const FREEBET_FAILURE_LIMIT = 3;
+
 async function createFreebetSession(cookie) {
   const cookieWithCf = await mergeCfClearance(cookie);
 
@@ -587,7 +613,7 @@ async function createFreebetSession(cookie) {
   // 1. Nonce para o handshake (endpoint específico da app)
   const nonceRes = await fetch(`${BASE}/api/proxy_nonce_app_handshake.php`, { headers: hdrs });
   if (!nonceRes.ok) throw new Error(`freebet: proxy_nonce_app_handshake falhou (${nonceRes.status})`);
-  const { nonce: handshakeNonce } = await nonceRes.json();
+  const { nonce: handshakeNonce } = await safeJson(nonceRes, 'freebet: proxy_nonce_app_handshake');
   if (!handshakeNonce) throw new Error('freebet: app handshake nonce inválido');
 
   // 2. Gera par de chaves ECDH
@@ -606,7 +632,7 @@ async function createFreebetSession(cookie) {
     const body = await hsRes.text().catch(() => '');
     throw new Error(`freebet: app_handshake falhou (${hsRes.status}) ${body.slice(0, 80)}`);
   }
-  const hs = await hsRes.json();
+  const hs = await safeJson(hsRes, 'freebet: app_handshake');
   if (!hs.success) throw new Error(`freebet: app_handshake negado: ${JSON.stringify(hs).slice(0, 100)}`);
   // session_token é necessário — freebet_proxy-v2.php exige X-Session-Token
   const sessionToken = hs.session_token ?? null;
@@ -660,7 +686,7 @@ async function fetchFreebetFromSuperMonitor(freebetSession, { bookmaker, value, 
   // Nonce para a requisição freebet — proxy_nonce_freebet.php retorna 404, usa o genérico
   const nonceR = await fetch(`${BASE}/api/proxy_nonce.php`, { headers: freebetHdrs });
   if (!nonceR.ok) throw new Error(`freebet: proxy_nonce falhou (${nonceR.status})`);
-  const { nonce } = await nonceR.json();
+  const { nonce } = await safeJson(nonceR, 'freebet: proxy_nonce');
   if (!nonce) throw new Error('freebet: nonce vazio');
 
   const qs = new URLSearchParams({
@@ -687,7 +713,7 @@ async function fetchFreebetFromSuperMonitor(freebetSession, { bookmaker, value, 
     throw new Error(`freebet_proxy falhou (${res.status})`);
   }
 
-  const enc = await res.json();
+  const enc = await safeJson(res, 'freebet: freebet_proxy-v2');
   if (enc.encrypted && enc.data) {
     const encBytes = base64ToBytes(enc.data);
     const plain    = await subtle.decrypt(
@@ -716,10 +742,28 @@ async function processFreebetCycle() {
   const t = new Date().toLocaleTimeString('pt-BR');
   console.log(`\n[${t}] ${pending.length} freebet(s) na fila`);
 
-  const cookie = await getCookie();
+  let cookie = await getCookie();
   if (!cookie) {
     console.error('   Freebet: sem cookie válido');
     return;
+  }
+
+  // Se atingimos o limite de falhas INVALID_SESSION consecutivas, o cookie
+  // provavelmente está com problemas. Tenta renovar antes de qualquer coisa.
+  if (_freebetConsecutiveFailures >= FREEBET_FAILURE_LIMIT) {
+    console.log(`   Freebet: ${_freebetConsecutiveFailures} falhas INVALID_SESSION consecutivas — renovando cookie...`);
+    _freebetConsecutiveFailures = 0;
+    _cookie = null;
+    _cookieValidatedAt = 0;
+    const renewed = await autoRenewCookie();
+    if (renewed) {
+      cookie = renewed;
+      _cookie = renewed;
+      _cookieValidatedAt = Date.now();
+    } else {
+      console.error('   Freebet: renovação falhou — abortando ciclo');
+      return;
+    }
   }
 
   // Sempre cria sessão fresca por ciclo — evita INVALID_SESSION por TTL/cache
@@ -746,17 +790,25 @@ async function processFreebetCycle() {
       try {
         result = await fetchFreebetFromSuperMonitor(freebetSession, req);
       } catch (err) {
-        // Sessão expirou ou foi invalidada → tenta uma vez com nova sessão
+        // Sessão expirou ou foi invalidada → tenta UMA vez com nova sessão.
+        // Não tenta uma terceira vez — INVALID_SESSION repetido indica problema
+        // no cookie/servidor que não é resolvido criando mais sessões.
         const is401 = err.message.includes('401') || err.message.includes('INVALID_SESSION') || err.message.includes('NEEDS_HANDSHAKE');
         if (is401) {
           console.log(`   Freebet: sessão inválida — recriando e retentando...`);
           invalidateFreebetSession();
-          freebetSession = await getFreebetSession(cookie);
+          freebetSession = await createFreebetSession(cookie);
+          _freebetSession = freebetSession;
+          _freebetSessionCookieHash = cookie.slice(0, 32);
+          _freebetSessionExpiresAt = Date.now() + FREEBET_SESSION_TTL;
+          // Se isso também falhar, a exceção propaga para o catch externo
           result = await fetchFreebetFromSuperMonitor(freebetSession, req);
         } else {
           throw err;
         }
       }
+      // Sucesso: reseta contador de falhas
+      _freebetConsecutiveFailures = 0;
       await sbFetch(
         `freebet_queue?id=eq.${req.id}`,
         'PATCH', { status: 'done', result, updated_at: new Date().toISOString() },
@@ -768,7 +820,10 @@ async function processFreebetCycle() {
         'PATCH', { status: 'error', error_msg: err.message, updated_at: new Date().toISOString() },
       );
       console.error(`   Freebet erro: ${req.bookmaker} R$${req.value}: ${err.message}`);
-      if (err.message.includes('401') || err.message.includes('403') || err.message.includes('handshake')) {
+      if (err.message.includes('401') || err.message.includes('INVALID_SESSION') || err.message.includes('NEEDS_HANDSHAKE')) {
+        invalidateFreebetSession();
+        _freebetConsecutiveFailures++;
+      } else if (err.message.includes('403') || err.message.includes('handshake')) {
         invalidateFreebetSession();
       }
     }
@@ -810,7 +865,7 @@ async function createScannerSession(cookie) {
   // Step 1: nonce para o handshake do scanner
   const nonceRes = await fetch(`${BASE}/api/proxy_nonce_scanner_handshake.php`, { headers: hdrs });
   if (!nonceRes.ok) throw new Error(`scanner: nonce handshake falhou (${nonceRes.status})`);
-  const { nonce: handshakeNonce } = await nonceRes.json();
+  const { nonce: handshakeNonce } = await safeJson(nonceRes, 'scanner: proxy_nonce_scanner_handshake');
   if (!handshakeNonce) throw new Error('scanner: handshake nonce inválido');
 
   const nonceCookies = extractSetCookies(nonceRes.headers);
@@ -834,7 +889,7 @@ async function createScannerSession(cookie) {
     const body = await hsRes.text().catch(() => '');
     throw new Error(`scanner: handshake falhou (${hsRes.status}) ${body.slice(0, 80)}`);
   }
-  const hs = await hsRes.json();
+  const hs = await safeJson(hsRes, 'scanner: scanner_handshake');
   if (!hs.success) throw new Error(`scanner: handshake negado: ${JSON.stringify(hs).slice(0, 100)}`);
 
   const hsCookies = extractSetCookies(hsRes.headers);
@@ -883,7 +938,7 @@ async function fetchScannerSnapshot(scannerSession) {
   // Nonce genérico — mesmo que o browser usa para signals_proxy
   const nonceRes = await fetch(`${BASE}/api/proxy_nonce.php`, { headers: scannerSession.hdrs });
   if (!nonceRes.ok) throw new Error(`scanner: proxy_nonce falhou (${nonceRes.status})`);
-  const { nonce } = await nonceRes.json();
+  const { nonce } = await safeJson(nonceRes, 'scanner: proxy_nonce');
 
   const nonceCookies = extractSetCookies(nonceRes.headers);
   const hdrs = nonceCookies.length
@@ -899,7 +954,7 @@ async function fetchScannerSnapshot(scannerSession) {
   });
   if (!res.ok) throw new Error(`scanner: signals_proxy falhou (${res.status})`);
 
-  const enc = await res.json();
+  const enc = await safeJson(res, 'scanner: signals_proxy');
   if (enc.needs_handshake) throw new Error('401 needs_handshake — scanner ECDH expirou');
 
   if (enc.encrypted && enc.data) {
@@ -985,7 +1040,7 @@ async function fetchScannerSseToken(cookie) {
     const body = await res.text().catch(() => '');
     throw new Error(`scanner: sse_token_proxy falhou (${res.status}) ${body.slice(0, 80)}`);
   }
-  const data = await res.json();
+  const data = await safeJson(res, 'scanner: sse_token_proxy');
   if (!data.success || !data.temp_token) {
     throw new Error(`scanner: sse_token inválido: ${JSON.stringify(data).slice(0, 120)}`);
   }
@@ -1366,7 +1421,7 @@ async function fetchSseToken(cookie) {
     // 1. Nonce específico do buscador
     const nonceRes = await fetch(`${BASE}/api/proxy_nonce_buscador.php`, { headers: hdrs });
     if (!nonceRes.ok) throw new Error(`nonce_buscador falhou (${nonceRes.status})`);
-    const { nonce } = await nonceRes.json();
+    const { nonce } = await safeJson(nonceRes, 'buscador_sse: proxy_nonce_buscador');
     if (!nonce) throw new Error('nonce_buscador: campo nonce ausente');
 
     // 2. Token SSE
@@ -1374,7 +1429,7 @@ async function fetchSseToken(cookie) {
       headers: { ...hdrs, 'X-Proxy-Nonce': nonce },
     });
     if (!tokenRes.ok) throw new Error(`sse_token_buscador_proxy falhou (${tokenRes.status})`);
-    const data = await tokenRes.json();
+    const data = await safeJson(tokenRes, 'buscador_sse: sse_token_buscador_proxy');
 
     if (!data?.success || !data.temp_token || !data.sse_url) {
       throw new Error(`resposta inválida: ${JSON.stringify(data).slice(0, 120)}`);

@@ -1209,6 +1209,10 @@ export function FreebetConverterPage() {
           pa_filter: paFilter,
         }),
       });
+      if (!postRes.ok) {
+        const text = await postRes.text();
+        throw new Error(`Erro HTTP ${postRes.status}: ${text.slice(0, 200)}`);
+      }
       const postJson = await postRes.json() as { ok: boolean; request_id?: string; error?: string };
       if (!postJson.ok) throw new Error(postJson.error ?? 'Erro ao enfileirar requisição');
 
@@ -1217,7 +1221,11 @@ export function FreebetConverterPage() {
 
       while (Date.now() < deadline) {
         await new Promise(r => setTimeout(r, 400));
-        const pollRes  = await fetch(`/api/supermonitor/freebet?request_id=${requestId}`);
+        const pollRes  = await fetch(`/api/sure/freebet?request_id=${requestId}`);
+        if (!pollRes.ok) {
+          const text = await pollRes.text();
+          throw new Error(`Erro HTTP ${pollRes.status}: ${text.slice(0, 200)}`);
+        }
         const pollJson = await pollRes.json() as {
           ok: boolean; status?: string; data?: unknown; error_msg?: string; error?: string;
         };
