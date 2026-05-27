@@ -141,10 +141,12 @@ async function validateCookie(cookie) {
 }
 
 // ── Keepalive de sessão ───────────────────────────────────────────────────────
-// Pinga o servidor a cada 8 min — igual ao session_monitor.js do SuperMonitor
-// que usa 5 min. 8 min é conservador o suficiente para evitar expiração da
-// sessão PHP sem gerar tráfego desnecessário.
-const KEEPALIVE_INTERVAL = 8 * 60 * 1000;
+// A sessão PHP do SuperMonitor expira em ~90s de inatividade. O keepalive
+// precisa ser MENOR que 90s. Usamos 60s para um safety margin de 30s.
+// (O session_monitor.js original usa 5 min, mas supõe que o browser faz
+//  outras requisições frequentes que também renovam a sessão. No daemon
+//  só há o scanner polling que não renova a sessão PHP principal.)
+const KEEPALIVE_INTERVAL = 60 * 1000; // 60s — PHP session TTL ~90s
 // Inicializa no momento atual para evitar ping imediato no startup
 // (acabamos de validar o cookie ao subir — não precisa pingar de novo)
 let _lastKeepalive = Date.now();
@@ -212,6 +214,9 @@ async function autoRenewCookie() {
     if (cookie) {
       console.log('   Cookie renovado com sucesso.');
       result = cookie;
+      // Força keepalive imediato após renovação — a nova sessão PHP precisa
+      // de um ping rápido para que o timer seja registrado a partir de agora.
+      _lastKeepalive = 0;
     }
   } catch (err) {
     console.error(`   Renovacao falhou: ${err.message}`);
