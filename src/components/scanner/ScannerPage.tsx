@@ -88,8 +88,17 @@ function formatAgo(iso: string) {
   return `${Math.floor(s / 3600)}h atrás`;
 }
 
+// Casas com URL completa (path específico além do domínio raiz)
+const SITE_URL_OVERRIDES: Record<string, string> = {
+  'tradeball': 'https://betbra.bet.br/tradeball/dballTradingFeed',
+  'betbra':    'https://betbra.bet.br/tradeball/dballTradingFeed',
+};
+
 /** Extract a site URL from the favicon helper */
 function houseSiteUrl(name: string): string | null {
+  const key = name.toLowerCase().replace(/[\s\-_.]/g, '');
+  if (SITE_URL_OVERRIDES[key]) return SITE_URL_OVERRIDES[key];
+
   const favicon = houseFavicon(name);
   if (!favicon) return null;
   const match = favicon.match(/domain=(.+)$/);
