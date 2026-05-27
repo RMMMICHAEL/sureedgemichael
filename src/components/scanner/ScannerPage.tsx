@@ -99,11 +99,38 @@ function houseSiteUrl(name: string): string | null {
   const key = name.toLowerCase().replace(/[\s\-_.]/g, '');
   if (SITE_URL_OVERRIDES[key]) return SITE_URL_OVERRIDES[key];
 
-  const favicon = houseFavicon(name);
+  // Strip PA/variant suffixes antes do lookup de domínio:
+  // "Betano (PA)" → "Betano", "Sporty 1UP" → "Sporty", "Sporty 2UP" → "Sporty"
+  const baseName = name
+    .replace(/\s*\(PA\)/gi, '')
+    .replace(/\s+[12]UP$/i, '')
+    .trim();
+
+  const favicon = houseFavicon(baseName);
   if (!favicon) return null;
   const match = favicon.match(/domain=(.+)$/);
   // Sem www — vários domínios .bet.br não respondem ao subdomínio www
   return match ? `https://${match[1]}` : null;
+}
+
+/** Tenta extrair URL do evento/jogo a partir do raw_data do sinal */
+function extractEventUrl(raw: Record<string, unknown> | null | undefined): string | null {
+  if (!raw) return null;
+  // Campos diretos de URL do evento
+  for (const key of ['url', 'event_url', 'game_url', 'match_url', 'link', 'event_link', 'match_link']) {
+    const v = raw[key];
+    if (typeof v === 'string' && v.startsWith('http')) return v;
+  }
+  // Mapa de URLs por casa — pega o primeiro valor disponível
+  for (const key of ['urls', 'bookmaker_urls', 'links']) {
+    const obj = raw[key];
+    if (obj && typeof obj === 'object' && !Array.isArray(obj)) {
+      const first = Object.values(obj as Record<string, unknown>)
+        .find(v => typeof v === 'string' && (v as string).startsWith('http'));
+      if (first) return first as string;
+    }
+  }
+  return null;
 }
 
 /**
@@ -351,6 +378,8 @@ function SignalModal({ signal, onClose }: { signal: Signal; onClose: () => void 
       ? { name: signal.jogo, start_utc: new Date().toISOString() }
       : null;
 
+  const eventUrl = extractEventUrl(signal.raw_data);
+
   return (
     <div
       style={{
@@ -400,9 +429,23 @@ function SignalModal({ signal, onClose }: { signal: Signal; onClose: () => void 
                 </span>
               </div>
             </div>
-            <div style={{ fontSize: 16, fontWeight: 700, color: '#F1F5F9', lineHeight: 1.3 }}>
-              {signal.jogo ?? 'Jogo desconhecido'}
-            </div>
+            {eventUrl ? (
+              <a
+                href={eventUrl} target="_blank" rel="noopener noreferrer"
+                style={{
+                  fontSize: 16, fontWeight: 700, color: '#818cf8', lineHeight: 1.3,
+                  display: 'inline-flex', alignItems: 'center', gap: 5,
+                  textDecoration: 'none',
+                }}
+              >
+                {signal.jogo ?? 'Jogo desconhecido'}
+                <ExternalLink size={12} style={{ opacity: .7, flexShrink: 0 }} />
+              </a>
+            ) : (
+              <div style={{ fontSize: 16, fontWeight: 700, color: '#F1F5F9', lineHeight: 1.3 }}>
+                {signal.jogo ?? 'Jogo desconhecido'}
+              </div>
+            )}
             <div style={{ fontSize: 12, color: '#475569', marginTop: 3 }}>
               {signal.campeonato ?? '—'}
               {signal.data_evento ? ` · ⚽ ${formatDate(signal.data_evento)}` : ''}
@@ -486,9 +529,10 @@ function SignalModal({ signal, onClose }: { signal: Signal; onClose: () => void 
 
 // ── Card de sinal ─────────────────────────────────────────────────────────────
 function SignalCard({ signal, onClick }: { signal: Signal; onClick: () => void }) {
-  const casas  = [signal.casa1, signal.casa2, signal.casa3].filter(Boolean) as string[];
-  const profit = signal.profit_margin;
+  const casas     = [signal.casa1, signal.casa2, signal.casa3].filter(Boolean) as string[];
+  const profit    = signal.profit_margin;
   const isGreenNew = signal.is_new && profit >= 0;
+  const eventUrl  = extractEventUrl(signal.raw_data);
 
   return (
     <div
@@ -529,10 +573,27 @@ function SignalCard({ signal, onClick }: { signal: Signal; onClick: () => void }
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 14, fontWeight: 600, color: '#E2E8F0', lineHeight: 1.3,
-            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            {signal.jogo ?? 'Jogo desconhecido'}
-          </div>
+          {eventUrl ? (
+            <a
+              href={eventUrl} target="_blank" rel="noopener noreferrer"
+              onClick={e => e.stopPropagation()}
+              style={{
+                fontSize: 14, fontWeight: 600, color: '#818cf8', lineHeight: 1.3,
+                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                display: 'flex', alignItems: 'center', gap: 4, textDecoration: 'none',
+              }}
+            >
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {signal.jogo ?? 'Jogo desconhecido'}
+              </span>
+              <ExternalLink size={10} style={{ flexShrink: 0, opacity: .7 }} />
+            </a>
+          ) : (
+            <div style={{ fontSize: 14, fontWeight: 600, color: '#E2E8F0', lineHeight: 1.3,
+              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {signal.jogo ?? 'Jogo desconhecido'}
+            </div>
+          )}
           <div style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>{signal.campeonato ?? '—'}</div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
@@ -631,6 +692,36 @@ function PaFilter({ value, onChange }: { value: PaFilterVal; onChange: (v: PaFil
           >{o.label}</button>
         );
       })}
+    </div>
+  );
+}
+
+// ── Filtro de data (próximas Nh) ──────────────────────────────────────────────
+type DateFilterVal = 'all' | '24h' | '48h' | '72h';
+const DATE_FILTER_OPTS: { id: DateFilterVal; label: string }[] = [
+  { id: 'all', label: 'Todos' },
+  { id: '24h', label: '24h'  },
+  { id: '48h', label: '48h'  },
+  { id: '72h', label: '72h'  },
+];
+
+function DateFilter({ value, onChange }: { value: DateFilterVal; onChange: (v: DateFilterVal) => void }) {
+  return (
+    <div style={{ display: 'flex', gap: 4 }}>
+      {DATE_FILTER_OPTS.map(o => (
+        <button
+          key={o.id} type="button"
+          onClick={() => onChange(o.id)}
+          style={{
+            padding: '5px 12px', borderRadius: 6, fontSize: 12, fontWeight: 500,
+            cursor: 'pointer', border: '1px solid',
+            background: value === o.id ? 'rgba(255,255,255,.1)' : 'transparent',
+            borderColor: value === o.id ? 'rgba(255,255,255,.2)' : 'rgba(255,255,255,.07)',
+            color: value === o.id ? '#E2E8F0' : '#64748B',
+            transition: 'all .15s',
+          }}
+        >{o.label}</button>
+      ))}
     </div>
   );
 }
@@ -743,6 +834,9 @@ export function ScannerPage() {
   const [paFilter,  setPaFilter]  = useState<PaFilterVal>(() => {
     try { return (localStorage.getItem('scanner-pa-filter-v1') as PaFilterVal) || 'all'; } catch { return 'all'; }
   });
+  const [dateFilter, setDateFilter] = useState<DateFilterVal>(() => {
+    try { return (localStorage.getItem('scanner-date-filter-v1') as DateFilterVal) || 'all'; } catch { return 'all'; }
+  });
 
   // Filtro client-side de casas
   const [deselectedCasas, setDeselectedCasas] = useState<Set<string>>(new Set());
@@ -761,6 +855,12 @@ export function ScannerPage() {
   const changePaFilter = useCallback((v: PaFilterVal) => {
     setPaFilter(v);
     try { localStorage.setItem('scanner-pa-filter-v1', v); } catch {}
+  }, []);
+
+  // Persist date filter preference
+  const changeDateFilter = useCallback((v: DateFilterVal) => {
+    setDateFilter(v);
+    try { localStorage.setItem('scanner-date-filter-v1', v); } catch {}
   }, []);
 
   // Extract unique casas
@@ -796,9 +896,16 @@ export function ScannerPage() {
         const startMs = new Date(s.data_evento).getTime();
         if (!isNaN(startMs) && startMs < now - 5 * 60 * 1000) return false;
       }
+      // Date filter — show only events starting within the next N hours
+      if (dateFilter !== 'all' && s.data_evento) {
+        const startMs = new Date(s.data_evento).getTime();
+        const hoursAhead = (startMs - now) / 3_600_000;
+        const maxHours = dateFilter === '24h' ? 24 : dateFilter === '48h' ? 48 : 72;
+        if (!isNaN(hoursAhead) && hoursAhead > maxHours) return false;
+      }
       return true;
     });
-  }, [signals, deselectedCasas, paFilter]);
+  }, [signals, deselectedCasas, paFilter, dateFilter]);
 
   // Daemon staleness: warn if newest updated_at is > 3 min ago
   const daemonStale = useMemo(() => {
@@ -997,6 +1104,13 @@ export function ScannerPage() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <span style={{ fontSize: 11, color: '#475569' }}>PA</span>
             <PaFilter value={paFilter} onChange={changePaFilter} />
+          </div>
+
+          <div style={{ width: 1, height: 18, background: 'rgba(255,255,255,.07)' }} />
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontSize: 11, color: '#475569' }}>Evento em</span>
+            <DateFilter value={dateFilter} onChange={changeDateFilter} />
           </div>
 
           <div style={{ width: 1, height: 18, background: 'rgba(255,255,255,.07)' }} />
