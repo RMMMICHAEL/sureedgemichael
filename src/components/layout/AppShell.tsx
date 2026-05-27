@@ -60,8 +60,12 @@ function ScannerNotifBanner() {
   const [signals,  setSignals]  = useState<ScanSignal[]>([]);
   const [enabled,  setEnabled]  = useState(false);
 
-  const seenIds   = useRef<Set<string>>(new Set());
-  const timerRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Snapshot of signal IDs from the previous poll — used to detect genuinely
+  // new signals without relying on the ephemeral is_new flag (which clears
+  // after 60 s and is skipped when the user is on the scanner view).
+  const prevSnapshot  = useRef<Set<string>>(new Set());
+  const isFirstPoll   = useRef(true);
+  const timerRef      = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Inject CSS once
   useEffect(() => {
@@ -94,23 +98,47 @@ function ScannerNotifBanner() {
     setTimeout(() => { setVisible(false); setLeaving(false); setSignals([]); }, 260);
   }, [leaving]);
 
-  // Poll for new signals
+  // Poll for new signals — snapshot comparison, independent of is_new flag.
+  //
+  // Why NOT use onlyNew=true:
+  //   The is_new flag is cleared after 60 s by the daemon. If the user was on
+  //   the scanner view for >60 s before switching tabs, those signals are no
+  //   longer is_new=true and would never trigger the banner.
+  //
+  // Instead we fetch ALL profitable future signals, compare against the
+  // previous snapshot, and alert on genuinely new IDs — identical strategy
+  // to the daemon's _prevSignalIds / _firstScannerCycle fix.
   useEffect(() => {
     if (!enabled) return;
 
     async function poll() {
-      // Don't show banner if user is already watching scanner
-      if (useStore.getState().view === 'scanner') return;
       try {
-        const res = await fetch('/api/sure/scanner?onlyNew=true&profitMin=0&limit=10');
+        const res = await fetch('/api/sure/scanner?profitMin=0&limit=200');
         if (!res.ok) return;
         const json = await res.json() as { ok: boolean; signals: ScanSignal[] };
         if (!json.ok) return;
 
-        const fresh = json.signals.filter(s => !seenIds.current.has(s.id));
+        const incoming = json.signals;
+        const currentIds = new Set(incoming.map(s => s.id));
+
+        if (isFirstPoll.current) {
+          // Seed snapshot without alerting — we don't know which signals are
+          // truly "new" vs already visible to the user.
+          prevSnapshot.current = currentIds;
+          isFirstPoll.current  = false;
+          return;
+        }
+
+        // Genuinely new: present in current snapshot but absent from previous
+        const fresh = incoming.filter(s => !prevSnapshot.current.has(s.id));
+        prevSnapshot.current = currentIds;
+
+        // Always update snapshot (even on scanner view) so we don't
+        // retroactively show signals the user already saw there.
         if (fresh.length === 0) return;
 
-        fresh.forEach(s => seenIds.current.add(s.id));
+        // Don't show banner while user is already watching scanner
+        if (useStore.getState().view === 'scanner') return;
 
         setSignals(fresh);
         setLeaving(false);
