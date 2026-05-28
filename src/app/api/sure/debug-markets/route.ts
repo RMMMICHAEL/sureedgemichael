@@ -2,11 +2,15 @@
  * GET /api/sure/debug-markets
  * Pega a entrada mais recente do cache sm_odds e lista todos os mercados
  * disponíveis na resposta da API, com seus nomes e estrutura de odds.
- * APENAS PARA TESTE — pode remover depois.
+ * APENAS PARA TESTE — requer admin.
  */
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
+import { createSupabaseServerClient } from '@/lib/supabase/server';
+
+const ADMIN_EMAIL = 'michael.martins.trader@gmail.com';
 
 async function getSupabaseAdmin() {
   const { createClient } = await import('@supabase/supabase-js');
@@ -17,6 +21,14 @@ async function getSupabaseAdmin() {
 }
 
 export async function GET() {
+  // Admin-only
+  const cookieStore = cookies();
+  const supabase = createSupabaseServerClient(cookieStore);
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user || user.email !== ADMIN_EMAIL) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
   try {
     const sb = await getSupabaseAdmin();
 

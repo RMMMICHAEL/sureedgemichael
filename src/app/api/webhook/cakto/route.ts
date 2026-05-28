@@ -111,8 +111,8 @@ export async function POST(req: NextRequest) {
   const email = payload.data?.customer?.email;
   const refId = payload.data?.refId;
 
-  // Log full payload for debugging (remove in production if too verbose)
-  console.log('[cakto-webhook] Received:', JSON.stringify({ event, email, refId, offer: payload.data?.offer, product: payload.data?.product }, null, 2));
+  // Log mínimo — não loga email nem dados do cliente (LGPD)
+  console.log('[cakto-webhook] Received:', JSON.stringify({ event, refId, offer: payload.data?.offer?.id, product: payload.data?.product?.id }));
 
   if (!email) {
     console.error('[cakto-webhook] Missing customer email', { event });

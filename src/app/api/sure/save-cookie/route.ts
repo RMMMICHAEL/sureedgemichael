@@ -8,13 +8,18 @@ import { cookies } from 'next/headers';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { storeCookieInSupabase, validateCookie } from '@/lib/supermonitor-auth';
 
+const ADMIN_EMAIL = 'michael.martins.trader@gmail.com';
+
 export async function POST(req: NextRequest) {
-  // Verifica autenticação
+  // Apenas admin pode injetar cookies do SuperMonitor
   const cookieStore = cookies();
   const supabase = createSupabaseServerClient(cookieStore);
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
     return NextResponse.json({ ok: false, error: 'Não autenticado' }, { status: 401 });
+  }
+  if (user.email !== ADMIN_EMAIL) {
+    return NextResponse.json({ ok: false, error: 'Acesso negado' }, { status: 403 });
   }
 
   let rawCookie = '';

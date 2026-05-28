@@ -132,8 +132,7 @@ export async function POST(req: NextRequest) {
     });
 
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error('[search] unexpected error:', msg);
-    return NextResponse.json({ ok: false, error: msg, reason: 'error' });
+    console.error('[search] unexpected error:', err instanceof Error ? err.message : String(err));
+    return NextResponse.json({ ok: false, error: 'Erro interno', reason: 'error' });
   }
 }

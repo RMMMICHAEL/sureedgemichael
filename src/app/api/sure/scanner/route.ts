@@ -68,8 +68,7 @@ export async function GET(req: NextRequest) {
       signals: data ?? [],
     });
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
-    console.error('[scanner GET]', msg);
-    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
+    console.error('[scanner GET]', e instanceof Error ? e.message : String(e));
+    return NextResponse.json({ ok: false, error: 'Erro interno' }, { status: 500 });
   }
 }

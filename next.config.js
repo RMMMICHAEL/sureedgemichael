@@ -18,8 +18,8 @@ const securityHeaders = [
     key: 'Content-Security-Policy',
     value: [
       "default-src 'self'",
-      // Next.js precisa de scripts inline e eval em dev; em prod apenas 'self' + CDNs usados
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+      // Next.js precisa de scripts inline; unsafe-eval removido (não necessário em produção)
+      "script-src 'self' 'unsafe-inline'",
       // Supabase (auth, storage), Google Sheets, TheSportsDB, Telegram
       "connect-src 'self' https://*.supabase.co https://docs.google.com https://www.thesportsdb.com https://t.me",
       // Imagens: self + Supabase storage + logos de times/ligas + favicons dos bookmakers (Google)

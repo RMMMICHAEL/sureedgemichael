@@ -58,9 +58,8 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ ok: true, request_id: data.id });
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
-    console.error('[freebet POST]', msg);
-    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
+    console.error('[freebet POST]', e instanceof Error ? e.message : String(e));
+    return NextResponse.json({ ok: false, error: 'Erro interno' }, { status: 500 });
   }
 }
 
@@ -105,8 +104,7 @@ export async function GET(req: NextRequest) {
       error_msg: data.error_msg ?? undefined,
     });
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
-    console.error('[freebet GET]', msg);
-    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
+    console.error('[freebet GET]', e instanceof Error ? e.message : String(e));
+    return NextResponse.json({ ok: false, error: 'Erro interno' }, { status: 500 });
   }
 }

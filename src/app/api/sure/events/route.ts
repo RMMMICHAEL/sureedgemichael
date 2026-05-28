@@ -125,8 +125,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, events, source: 'supabase-cache', date: targetDate });
 
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error('[events] unexpected error:', msg);
-    return NextResponse.json({ ok: false, error: msg });
+    console.error('[events] unexpected error:', err instanceof Error ? err.message : String(err));
+    return NextResponse.json({ ok: false, error: 'Erro interno' });
   }
 }

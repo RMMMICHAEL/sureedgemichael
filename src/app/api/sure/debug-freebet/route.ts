@@ -2,11 +2,15 @@
  * GET /api/sure/debug-freebet
  * Retorna o JSON bruto dos últimos resultados de freebet_queue (done)
  * para inspecionar a estrutura exata que o SuperMonitor retorna.
- * APENAS PARA DEBUG — remover após identificar os campos corretos.
+ * APENAS PARA DEBUG — requer admin.
  */
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
+import { createSupabaseServerClient } from '@/lib/supabase/server';
+
+const ADMIN_EMAIL = 'michael.martins.trader@gmail.com';
 
 async function getSupabaseAdmin() {
   const { createClient } = await import('@supabase/supabase-js');
@@ -17,6 +21,14 @@ async function getSupabaseAdmin() {
 }
 
 export async function GET() {
+  // Admin-only
+  const cookieStore = cookies();
+  const supabase = createSupabaseServerClient(cookieStore);
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user || user.email !== ADMIN_EMAIL) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
   try {
     const sb = await getSupabaseAdmin();
 

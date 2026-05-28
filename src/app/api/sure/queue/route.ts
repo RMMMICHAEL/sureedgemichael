@@ -82,9 +82,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, status: 'queued' });
 
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error('[queue POST] unexpected error:', msg);
-    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
+    console.error('[queue POST] unexpected error:', err instanceof Error ? err.message : String(err));
+    return NextResponse.json({ ok: false, error: 'Erro interno' }, { status: 500 });
   }
 }
 
@@ -117,8 +116,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ ok: true, ready: true, cached_at: data.updated_at });
 
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error('[queue GET] unexpected error:', msg);
-    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
+    console.error('[queue GET] unexpected error:', err instanceof Error ? err.message : String(err));
+    return NextResponse.json({ ok: false, error: 'Erro interno' }, { status: 500 });
   }
 }

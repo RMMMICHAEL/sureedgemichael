@@ -46,7 +46,7 @@ export async function GET() {
       updated_at: tokenRow.data.updated_at,
     });
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
-    return NextResponse.json({ ok: false, error: msg });
+    console.error('[sse-token]', e instanceof Error ? e.message : String(e));
+    return NextResponse.json({ ok: false, error: 'Erro interno' });
   }
 }

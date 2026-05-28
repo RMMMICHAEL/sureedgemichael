@@ -15,12 +15,14 @@ async function getAdminClient() {
   );
 }
 
+const ADMIN_EMAIL = 'michael.martins.trader@gmail.com';
+
 export async function GET() {
-  // Requer autenticação
+  // Admin-only
   const cookieStore = cookies();
   const supabase = createSupabaseServerClient(cookieStore);
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ failed: false });
+  if (!user || user.email !== ADMIN_EMAIL) return NextResponse.json({ failed: false });
 
   try {
     const sb = await getAdminClient();
