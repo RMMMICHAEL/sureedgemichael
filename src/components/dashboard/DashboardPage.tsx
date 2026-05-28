@@ -243,7 +243,8 @@ function ProfitByType({ legs }: { legs: Leg[] }) {
       if (opT === 'surebet')          label = 'Surebet';
       else if (opT === 'delay')       label = 'Delay';
       else if (opT === 'duplo_green') label = 'Duplo Green';
-      else                            label = l.ev?.trim() || 'Outros';
+      else if (opT === 'freebet')     label = 'Freebet';
+      else                            label = 'Outros';
       const key = label.toLowerCase();
       const cur = map.get(key) ?? { profit: 0, count: 0, label };
       map.set(key, { profit: cur.profit + calcLegProfit(l), count: cur.count + 1, label: cur.label });
