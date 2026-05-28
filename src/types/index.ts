@@ -45,6 +45,7 @@ export interface Leg {
   opType?: OpType;          // operation type (default: 'surebet')
   manualProfit?: number;    // for delay/duplo_green/outros — overrides calculated profit
   cashoutValue?: number;    // when result = 'Cashout', the amount received (replaces normal profit calc)
+  isFreebet?: boolean;      // freebet leg (stake not at risk) — Red = 0, not -stake
   /**
    * 'import' = dado histórico importado da planilha → NÃO afeta saldo das casas.
    * 'manual' ou undefined = operação registrada manualmente → afeta saldo.

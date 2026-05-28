@@ -557,6 +557,7 @@ function FreebetCalcModal({ result, freebetHouse, freebetValue, onClose }: {
         sp: 'Futebol', ev: evName.trim(), ho: b.house, mk: b.outcome,
         od: b.odd, st: +b.stake.toFixed(2), re: 'Pendente',
         pc: 0, pr: 0, fl: [], source: 'manual', signal: 'pre', opType: 'freebet',
+        isFreebet: b.is_freebet,
       };
       addLeg(leg);
     });

@@ -7,12 +7,24 @@ import type { Leg, Operation, ResultType, SignalType } from '@/types';
 
 // ── Leg profit ───────────────────────────────────────────────────────────────
 
-export function calcLegProfit(leg: Pick<Leg, 'st' | 'od' | 're' | 'manualProfit' | 'cashoutValue' | 'cm'>): number {
+export function calcLegProfit(leg: Pick<Leg, 'st' | 'od' | 're' | 'manualProfit' | 'cashoutValue' | 'cm' | 'isFreebet'>): number {
   if (leg.manualProfit !== undefined) return +leg.manualProfit.toFixed(2);
   const st = +(leg.st) || 0;
   const od = +(leg.od) || 0;
   // Commission reduces profit on winning results (ex: BetBra = 2.8%)
   const cm = +(leg.cm || 0) / 100;
+  // Freebet leg: stake is not real money — losses cost R$ 0 (SNR)
+  if (leg.isFreebet) {
+    switch (leg.re as ResultType) {
+      case 'Green':           return +(st * (od - 1) * (1 - cm)).toFixed(2);
+      case 'Meio Green':      return +(st * (od - 1) * 0.5 * (1 - cm)).toFixed(2);
+      case 'Red':             return 0;   // freebet perdida — sem custo real
+      case 'Meio Red':        return 0;
+      case 'Cashout':         return leg.cashoutValue !== undefined ? +(leg.cashoutValue).toFixed(2) : 0;
+      case 'Green Antecipado':return +(st * (od - 1) * (1 - cm)).toFixed(2);
+      default:                return 0;
+    }
+  }
   switch (leg.re as ResultType) {
     case 'Green':      return +(st * (od - 1) * (1 - cm)).toFixed(2);
     case 'Meio Green': return +(st * (od - 1) * 0.5 * (1 - cm)).toFixed(2);
