@@ -1,12 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useStore } from '@/store/useStore';
 import { Button } from '@/components/ui/Button';
 import { wipeDB, EMPTY_DB } from '@/lib/storage/db';
 import { saveToSupabase } from '@/lib/supabase/sync';
 import { loadSeedData, clearSeedData } from '@/lib/dev/seedData';
-import { AlertTriangle, Trash2, X, KeyRound, CheckCircle2, Loader2 } from 'lucide-react';
+import { AlertTriangle, Trash2, X, KeyRound, CheckCircle2, Loader2, RefreshCw } from 'lucide-react';
 
 const ADMIN_EMAIL = 'michael.martins.trader@gmail.com';
 
@@ -106,11 +106,25 @@ function ResetModal({ onConfirm, onCancel }: { onConfirm: () => void; onCancel: 
 
 // ── Cookie injection panel ────────────────────────────────────────────────────
 
+interface RenewalFailure {
+  failed: boolean;
+  ts?: string;
+  reason?: string;
+}
+
 function CookiePanel() {
   const toastFn = useStore(s => s.toast);
   const [value,   setValue]   = useState('');
   const [status,  setStatus]  = useState<'idle' | 'loading' | 'ok' | 'error'>('idle');
   const [errMsg,  setErrMsg]  = useState('');
+  const [failure, setFailure] = useState<RenewalFailure | null>(null);
+
+  useEffect(() => {
+    fetch('/api/sure/renewal-failed')
+      .then(r => r.json())
+      .then((d: RenewalFailure) => { if (d.failed) setFailure(d); })
+      .catch(() => {});
+  }, []);
 
   async function handleSave() {
     const trimmed = value.trim();
@@ -127,6 +141,7 @@ function CookiePanel() {
       if (data.ok) {
         setStatus('ok');
         setValue('');
+        setFailure(null);   // limpa alerta de falha
         toastFn('Cookie salvo com sucesso! O daemon vai usá-lo em breve.', 'ok');
         setTimeout(() => setStatus('idle'), 4000);
       } else {
@@ -146,6 +161,42 @@ function CookiePanel() {
       className="rounded-2xl p-5 flex flex-col gap-4"
       style={{ background: 'rgba(255,200,0,.04)', border: '1px solid rgba(255,200,0,.2)' }}
     >
+      {/* Alerta de falha de renovação automática */}
+      {failure?.failed && (
+        <div
+          className="rounded-xl px-4 py-3 flex items-start gap-3"
+          style={{ background: 'rgba(255,100,0,.1)', border: '1px solid rgba(255,100,0,.35)' }}
+        >
+          <RefreshCw size={16} className="flex-shrink-0 mt-0.5" style={{ color: '#FF6400' }} />
+          <div className="flex-1 min-w-0">
+            <div className="text-xs font-bold" style={{ color: '#FF6400' }}>
+              Renovação automática falhou
+            </div>
+            <p className="text-xs mt-0.5" style={{ color: 'var(--t2)' }}>
+              O daemon tentou renovar o cookie 3 vezes e não conseguiu.
+              {failure.reason && (
+                <span style={{ color: 'var(--t3)' }}> Motivo: {failure.reason}</span>
+              )}
+            </p>
+            {failure.ts && (
+              <p className="text-[10px] font-mono mt-1" style={{ color: 'var(--t3)' }}>
+                {new Date(failure.ts).toLocaleString('pt-BR')}
+              </p>
+            )}
+            <p className="text-xs mt-1.5 font-semibold" style={{ color: '#FF6400' }}>
+              Injete um novo cookie abaixo para restaurar o scanner.
+            </p>
+          </div>
+          <button
+            onClick={() => setFailure(null)}
+            className="flex-shrink-0 rounded p-0.5 transition-opacity hover:opacity-70"
+            style={{ color: 'var(--t3)' }}
+          >
+            <X size={13} />
+          </button>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center gap-3">
         <div

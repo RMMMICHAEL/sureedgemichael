@@ -135,6 +135,12 @@ async function saveCookie(cookie) {
   } else {
     console.log('   ℹ️  cf_clearance não presente no cookie — nenhuma atualização da chave CF.');
   }
+
+  // Limpa flag de falha anterior (login bem-sucedido)
+  await sbFetch('app_config', 'POST',
+    { key: 'cookie_renewal_failed', value: '', updated_at: new Date().toISOString() },
+    { 'Prefer': 'resolution=merge-duplicates' }
+  ).catch(() => {});
 }
 
 // ── Validar cookie ────────────────────────────────────────────────────────────
@@ -513,6 +519,11 @@ if (!cookie) {
 
   if (!cookie) {
     console.error(`\n💥  Todas as tentativas de login falharam: ${lastErr?.message}`);
+    // Salva flag de falha no Supabase para alerta no painel admin
+    await sbFetch('app_config', 'POST',
+      { key: 'cookie_renewal_failed', value: JSON.stringify({ ts: new Date().toISOString(), reason: lastErr?.message ?? 'unknown' }), updated_at: new Date().toISOString() },
+      { 'Prefer': 'resolution=merge-duplicates' }
+    ).catch(() => {});
     process.exit(1);
   }
 

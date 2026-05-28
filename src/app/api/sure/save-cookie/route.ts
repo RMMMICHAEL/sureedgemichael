@@ -41,5 +41,19 @@ export async function POST(req: NextRequest) {
 
   // Salva no Supabase
   await storeCookieInSupabase(normalized);
+
+  // Limpa flag de falha de renovação automática (se existia)
+  try {
+    const { createClient } = await import('@supabase/supabase-js');
+    const sb = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    );
+    await sb.from('app_config').upsert(
+      { key: 'cookie_renewal_failed', value: '', updated_at: new Date().toISOString() },
+      { onConflict: 'key' },
+    );
+  } catch { /* best-effort */ }
+
   return NextResponse.json({ ok: true });
 }
