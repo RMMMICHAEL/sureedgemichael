@@ -126,17 +126,20 @@ async function mergeCfClearance(cookie) {
 }
 
 // ── Validar cookie ────────────────────────────────────────────────────────────
+// NOTA: ajax.php?action=events_lite foi removido pelo SuperMonitor (retorna 404).
+// Usa proxy_nonce.php que retorna 200+nonce quando autenticado e 401 quando não.
 async function validateCookie(cookie) {
   try {
-    const res = await request('GET', `${BASE}/ajax.php?action=events_lite`, {
-      'User-Agent': UA, 'Cookie': cookie, 'Accept': 'application/json', 'Referer': `${BASE}/`,
+    const res = await request('GET', `${BASE}/api/proxy_nonce.php`, {
+      'User-Agent': UA, 'Cookie': cookie,
+      'Accept': 'application/json',
+      'X-Requested-With': 'XMLHttpRequest',
+      'Referer': `${BASE}/index.php?page=buscador`,
     });
     if (res.status !== 200) return false;
-    // Sessão expirada → servidor retorna HTML (redirecionamento para login)
-    // Verificações explícitas + genérica: qualquer HTML indica sessão inválida
-    if (res.body.includes('<title>Login') || res.body.includes('name="senha"')) return false;
-    if (res.body.trimStart().startsWith('<')) return false; // HTML = inválido
-    return true;
+    if (res.body.trimStart().startsWith('<')) return false; // HTML = sessão expirada
+    if (res.body.includes('"error"')) return false;        // {"error":"Não autenticado"}
+    return true; // 200 + JSON com nonce = sessão válida
   } catch { return false; }
 }
 
@@ -237,6 +240,7 @@ async function autoRenewCookie() {
   try {
     await execFileAsync(process.execPath, [resolve(__dir, 'renew-cookie.mjs')], {
       cwd: __dir, timeout: 300_000,
+      windowsHide: true, // evita janela CMD visível no Windows
     });
     const cookie = await readCookieFromSupabase();
     if (cookie) {
@@ -275,6 +279,7 @@ async function renewCookieBackground() {
   try {
     await execFileAsync(process.execPath, [resolve(__dir, 'renew-cookie.mjs')], {
       cwd: __dir, timeout: 300_000,
+      windowsHide: true, // evita janela CMD visível no Windows
     });
     const cookie = await readCookieFromSupabase();
     if (cookie) {
@@ -1440,6 +1445,12 @@ let   _firstScannerCycle    = true;
 let   _scannerConsecutiveFailures = 0;
 const SCANNER_FAILURE_LIMIT       = 3;
 
+// Backoff progressivo para falhas de renovação de cookie.
+// Evita loop infinito de tentativas que queima créditos 2captcha e causa ban.
+let _renewFailCount = 0;
+// Esperas em ms: 2min → 5min → 15min → 30min (cap)
+const RENEW_BACKOFF_MS = [2 * 60_000, 5 * 60_000, 15 * 60_000, 30 * 60_000];
+
 async function runScannerSse() {
   console.log('[Scanner] Loop iniciado (modo polling 15s).');
 
@@ -1460,10 +1471,19 @@ async function runScannerSse() {
 
     const cookie = await getCookie();
     if (!cookie) {
-      console.error('[Scanner] Sem cookie válido — aguardando 30s...');
-      await sleep(30_000);
+      _renewFailCount++;
+      const backoffMs = RENEW_BACKOFF_MS[Math.min(_renewFailCount - 1, RENEW_BACKOFF_MS.length - 1)];
+      const backoffMin = Math.round(backoffMs / 60_000);
+      console.error(
+        `[Scanner] Sem cookie válido (falha #${_renewFailCount}) — ` +
+        `aguardando ${backoffMin}min antes de tentar novamente. ` +
+        `Verifique se o login foi bloqueado e renove o cookie manualmente se necessário.`,
+      );
+      await sleep(backoffMs);
       continue;
     }
+    // Cookie obtido — reseta contador de backoff
+    _renewFailCount = 0;
 
     try {
       // Sessão ECDH scanner
@@ -1539,11 +1559,16 @@ async function runScannerSse() {
       console.error(`[Scanner] Erro no ciclo: ${err.message}`);
 
       const is401 = err.message.includes('401') || err.message.includes('needs_handshake') || err.message.includes('INVALID_SESSION');
+      // 403 = sessão ECDH expirou no servidor (rate-limit por session_token) → recria sessão, NÃO faz login
+      const is403 = err.message.includes('403');
+      // Erro de crypto do Windows (AES-CBC decrypt falhou) = sessão ECDH corrompida → recria sessão
+      const isCryptoErr = err.message.includes('operation failed') || err.message.includes('operation-specific');
+
       if (is401) {
         invalidateScannerSession();
         _scannerConsecutiveFailures++;
 
-        // Após N falhas consecutivas, o cookie base provavelmente expirou —
+        // Após N falhas 401 consecutivas, o cookie base provavelmente expirou —
         // renova antes de tentar criar mais sessões ECDH.
         if (_scannerConsecutiveFailures >= SCANNER_FAILURE_LIMIT) {
           console.log(`[Scanner] ${_scannerConsecutiveFailures} falhas 401 consecutivas — renovando cookie...`);
@@ -1558,6 +1583,12 @@ async function runScannerSse() {
           await sleep(5_000);
           continue;
         }
+      } else if (is403 || isCryptoErr) {
+        // 403 ou erro de crypto: session_token esgotado ou dados corrompidos.
+        // Recria a sessão ECDH — NÃO incrementa o contador de falha de cookie
+        // e NÃO aciona login. Apenas aguarda o próximo ciclo com sessão nova.
+        invalidateScannerSession();
+        _scannerConsecutiveFailures = 0; // reset: não é culpa do cookie
       }
 
       // Backoff em rate-limit (429) ou erro de servidor (5xx)

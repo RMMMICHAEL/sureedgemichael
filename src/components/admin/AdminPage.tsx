@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { wipeDB, EMPTY_DB } from '@/lib/storage/db';
 import { saveToSupabase } from '@/lib/supabase/sync';
 import { loadSeedData, clearSeedData } from '@/lib/dev/seedData';
-import { AlertTriangle, Trash2, X } from 'lucide-react';
+import { AlertTriangle, Trash2, X, KeyRound, CheckCircle2, Loader2 } from 'lucide-react';
 
 const ADMIN_EMAIL = 'michael.martins.trader@gmail.com';
 
@@ -100,6 +100,139 @@ function ResetModal({ onConfirm, onCancel }: { onConfirm: () => void; onCancel: 
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── Cookie injection panel ────────────────────────────────────────────────────
+
+function CookiePanel() {
+  const toastFn = useStore(s => s.toast);
+  const [value,   setValue]   = useState('');
+  const [status,  setStatus]  = useState<'idle' | 'loading' | 'ok' | 'error'>('idle');
+  const [errMsg,  setErrMsg]  = useState('');
+
+  async function handleSave() {
+    const trimmed = value.trim();
+    if (!trimmed) return;
+    setStatus('loading');
+    setErrMsg('');
+    try {
+      const res = await fetch('/api/sure/save-cookie', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ cookie: trimmed }),
+      });
+      const data = await res.json() as { ok: boolean; error?: string };
+      if (data.ok) {
+        setStatus('ok');
+        setValue('');
+        toastFn('Cookie salvo com sucesso! O daemon vai usá-lo em breve.', 'ok');
+        setTimeout(() => setStatus('idle'), 4000);
+      } else {
+        setStatus('error');
+        setErrMsg(data.error ?? 'Erro desconhecido');
+      }
+    } catch {
+      setStatus('error');
+      setErrMsg('Falha na requisição. Verifique sua conexão.');
+    }
+  }
+
+  const isLoading = status === 'loading';
+
+  return (
+    <div
+      className="rounded-2xl p-5 flex flex-col gap-4"
+      style={{ background: 'rgba(255,200,0,.04)', border: '1px solid rgba(255,200,0,.2)' }}
+    >
+      {/* Header */}
+      <div className="flex items-center gap-3">
+        <div
+          className="rounded-xl p-2.5 flex-shrink-0"
+          style={{ background: 'rgba(255,200,0,.12)', color: '#FFC800' }}
+        >
+          <KeyRound size={18} />
+        </div>
+        <div>
+          <div className="font-bold text-sm" style={{ color: '#FFC800' }}>Injetar Cookie SuperMonitor</div>
+          <p className="text-xs mt-0.5" style={{ color: 'var(--t3)' }}>
+            Cole o PHPSESSID do seu browser. O daemon vai validar e salvar automaticamente.
+          </p>
+        </div>
+      </div>
+
+      {/* Instructions */}
+      <div
+        className="rounded-xl px-4 py-3 text-xs flex flex-col gap-1.5"
+        style={{ background: 'rgba(255,255,255,.04)', border: '1px solid var(--b)' }}
+      >
+        <span className="font-semibold" style={{ color: 'var(--t2)' }}>Como obter o PHPSESSID:</span>
+        <ol className="flex flex-col gap-1 pl-1" style={{ color: 'var(--t3)' }}>
+          <li className="flex gap-2"><span style={{ color: '#FFC800' }}>1.</span> Abra <strong style={{ color: 'var(--t2)' }}>painel.supermonitor.pro</strong> no browser e faça login</li>
+          <li className="flex gap-2"><span style={{ color: '#FFC800' }}>2.</span> Abra DevTools → Application → Cookies</li>
+          <li className="flex gap-2"><span style={{ color: '#FFC800' }}>3.</span> Copie o valor de <strong style={{ color: 'var(--t2)' }}>PHPSESSID</strong> (só o valor, ex: <code>abc123...</code>)</li>
+          <li className="flex gap-2"><span style={{ color: '#FFC800' }}>4.</span> Cole abaixo e clique em Validar e Salvar</li>
+        </ol>
+      </div>
+
+      {/* Input */}
+      <div className="flex flex-col gap-2">
+        <input
+          type="text"
+          value={value}
+          onChange={e => { setValue(e.target.value); setStatus('idle'); setErrMsg(''); }}
+          onKeyDown={e => e.key === 'Enter' && !isLoading && handleSave()}
+          placeholder="PHPSESSID ou valor direto (ex: f8e661c7a0aea81a...)"
+          disabled={isLoading}
+          className="w-full rounded-xl px-4 py-3 text-sm font-mono outline-none transition-all"
+          style={{
+            background:  'var(--s)',
+            border:      `1px solid ${status === 'error' ? 'rgba(255,69,69,.5)' : status === 'ok' ? 'rgba(63,255,33,.4)' : 'var(--b)'}`,
+            color:       'var(--t)',
+            opacity:     isLoading ? 0.6 : 1,
+          }}
+        />
+
+        {/* Status messages */}
+        {status === 'error' && (
+          <p className="text-xs flex items-center gap-1.5" style={{ color: 'var(--r)' }}>
+            <AlertTriangle size={12} />
+            {errMsg}
+          </p>
+        )}
+        {status === 'ok' && (
+          <p className="text-xs flex items-center gap-1.5" style={{ color: 'var(--g)' }}>
+            <CheckCircle2 size={12} />
+            Cookie válido salvo com sucesso.
+          </p>
+        )}
+      </div>
+
+      {/* Action button */}
+      <button
+        type="button"
+        onClick={handleSave}
+        disabled={isLoading || !value.trim()}
+        className="self-start px-5 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 transition-all"
+        style={{
+          background: isLoading || !value.trim() ? 'rgba(255,200,0,.15)' : '#FFC800',
+          color:      isLoading || !value.trim() ? 'rgba(255,200,0,.5)' : '#111',
+          cursor:     isLoading || !value.trim() ? 'not-allowed' : 'pointer',
+        }}
+      >
+        {isLoading ? (
+          <>
+            <Loader2 size={14} className="animate-spin" />
+            Validando...
+          </>
+        ) : (
+          <>
+            <KeyRound size={14} />
+            Validar e Salvar
+          </>
+        )}
+      </button>
     </div>
   );
 }
@@ -206,6 +339,8 @@ export function AdminPage() {
             </div>
           </div>
         )}
+
+        {isAdmin && <CookiePanel />}
 
         <div className="rounded-2xl p-5" style={{ background: 'var(--rd)', border: '1px solid rgba(255,69,69,.25)' }}>
           <div className="font-bold mb-1" style={{ color: 'var(--r)' }}>Zona de Perigo</div>

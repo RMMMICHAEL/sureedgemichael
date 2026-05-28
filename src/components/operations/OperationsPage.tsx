@@ -1138,6 +1138,30 @@ function OpCard({
   const profitColor = profit > 0 ? '#3DFF8F' : profit < 0 ? '#FF4545' : '#6B7280';
   const profitBg    = profit > 0 ? 'rgba(61,255,143,.12)' : profit < 0 ? 'rgba(255,69,69,.12)' : 'rgba(107,114,128,.08)';
 
+  // Detecta pernas duplicadas (mesma casa + mercado na mesma op)
+  const hasDuplicates = useMemo(() => {
+    const seen = new Set<string>();
+    return op.legs.some(l => {
+      const key = `${l.ho}|${l.mk}`;
+      if (seen.has(key)) return true;
+      seen.add(key);
+      return false;
+    });
+  }, [op.legs]);
+
+  function removeDuplicateLegs() {
+    const seen = new Set<string>();
+    op.legs.forEach(l => {
+      const key = `${l.ho}|${l.mk}`;
+      if (seen.has(key)) {
+        deleteLeg(l.id);
+      } else {
+        seen.add(key);
+      }
+    });
+    toastFn('Pernas duplicadas removidas', 'ok');
+  }
+
   // Initialise draft state when entering edit mode
   useEffect(() => {
     if (isEditing) {
@@ -1376,6 +1400,17 @@ function OpCard({
             </>
           ) : (
             <>
+              {hasDuplicates && (
+                <button
+                  onClick={removeDuplicateLegs}
+                  className="flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-lg shrink-0 transition-all"
+                  style={{ color: '#FB923C', background: 'rgba(251,146,60,.1)', border: '1px solid rgba(251,146,60,.25)' }}
+                  title="Remover pernas duplicadas"
+                >
+                  <Trash2 size={10} />
+                  <span className="hidden sm:inline">Rem. duplicatas</span>
+                </button>
+              )}
               <button
                 onClick={() => onEnterEdit(op.id)}
                 className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-all"

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Gift, ChevronRight, ChevronLeft, ExternalLink, X,
@@ -498,6 +498,7 @@ function FreebetCalcModal({ result, freebetHouse, freebetValue, onClose }: {
   const addLeg  = useStore(s => s.addLeg);
   const toastFn = useStore(s => s.toast);
 
+  const submittingRef = useRef(false);
   const [showPanel, setShowPanel] = useState(false);
   const [evName,    setEvName]    = useState(result.event_name);
   const [evDate,    setEvDate]    = useState(() => {
@@ -541,14 +542,18 @@ function FreebetCalcModal({ result, freebetHouse, freebetValue, onClose }: {
   const convPct         = freebetValue > 0 ? (profit / freebetValue) * 100 : 0;
 
   function sendToPanel() {
+    if (submittingRef.current) return; // guard duplo clique
     if (!evName.trim()) { toastFn('Informe o nome do evento', 'wrn'); return; }
-    const oid = `op_fb_${Date.now()}`;
+    submittingRef.current = true;
+    // Usa um timestamp fixo para que todos os ids da mesma operação sejam consistentes
+    const ts  = Date.now();
+    const oid = `op_fb_${ts}`;
     calcBets.forEach((b, i) => {
       if (b.stake <= 0) return;
       const leg: Leg = {
-        id: `l_fb_${Date.now()}_${i}`, oid,
-        bd: evDate || new Date().toISOString().slice(0, 16).replace('T', 'T'),
-        ed: evDate || new Date().toISOString().slice(0, 16).replace('T', 'T'),
+        id: `l_fb_${ts}_${i}`, oid,
+        bd: evDate || new Date().toISOString().slice(0, 16),
+        ed: evDate || new Date().toISOString().slice(0, 16),
         sp: 'Futebol', ev: evName.trim(), ho: b.house, mk: b.outcome,
         od: b.odd, st: +b.stake.toFixed(2), re: 'Pendente',
         pc: 0, pr: 0, fl: [], source: 'manual', signal: 'pre', opType: 'freebet',

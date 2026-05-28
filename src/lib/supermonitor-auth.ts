@@ -251,15 +251,19 @@ async function doLogin(email: string, password: string): Promise<string> {
 
 export async function validateCookie(cookie: string): Promise<boolean> {
   try {
-    const res = await nodeRequest('GET', `${BASE}/ajax.php?action=events_lite`, {
-      'User-Agent': UA,
-      'Cookie':     cookie,
-      'Accept':     'application/json, text/plain, */*',
-      'Referer':    `${BASE}/`,
+    // NOTA: ajax.php?action=events_lite foi removido pelo SuperMonitor (retorna 404).
+    // proxy_nonce.php retorna 200+nonce quando autenticado e 401 quando não.
+    const res = await nodeRequest('GET', `${BASE}/api/proxy_nonce.php`, {
+      'User-Agent':        UA,
+      'Cookie':            cookie,
+      'Accept':            'application/json',
+      'X-Requested-With':  'XMLHttpRequest',
+      'Referer':           `${BASE}/index.php?page=buscador`,
     });
-    if (res.status >= 300 && res.status < 400) return false;
-    if (res.body.includes('<title>Login') || res.body.includes('name="senha"')) return false;
-    return res.status === 200;
+    if (res.status !== 200) return false;
+    if (res.body.trimStart().startsWith('<')) return false;
+    if (res.body.includes('"error"')) return false;
+    return true;
   } catch {
     return false;
   }

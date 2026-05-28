@@ -339,6 +339,8 @@ export const useStore = create<StoreState>()((set, get) => ({
 
   addLeg(leg) {
     set(s => {
+      // Deduplicação por id — evita pernas duplicadas por duplo clique ou chamada repetida
+      if (s.legs.some(l => l.id === leg.id)) return s;
       const now = new Date().toISOString();
       // Auto-apply BetBra 2.8% commission if not already set on the leg
       const legWithComm = (leg.ho === 'Betbra' && (leg.cm === undefined || leg.cm === 0))

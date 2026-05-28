@@ -113,23 +113,45 @@ async function readCookieFromSupabase() {
 
 // ── Salvar cookie no Supabase ─────────────────────────────────────────────────
 async function saveCookie(cookie) {
+  // 1. Salva PHPSESSID (cookie completo) na chave principal
   const res = await sbFetch('app_config', 'POST',
     { key: 'supermonitor_cookie', value: cookie, updated_at: new Date().toISOString() },
     { 'Prefer': 'resolution=merge-duplicates' }
   );
   if (!res.ok) throw new Error(`Supabase save failed: ${await res.text()}`);
+
+  // 2. Extrai e salva cf_clearance separado.
+  //    O process-queue.mjs lê essa chave SEPARADA e a adiciona ao cookie em cada request.
+  //    Se não for salvo aqui, o daemon para de usar cf_clearance em ~23h e Cloudflare
+  //    pode desafiar as requisições, causando logins desnecessários.
+  const cfMatch = cookie.match(/cf_clearance=([^;]+)/i);
+  if (cfMatch) {
+    const cfRes = await sbFetch('app_config', 'POST',
+      { key: 'cf_clearance', value: cfMatch[1], updated_at: new Date().toISOString() },
+      { 'Prefer': 'resolution=merge-duplicates' }
+    );
+    if (cfRes.ok) console.log('   💾  cf_clearance salvo separadamente (validade ~23h).');
+    else console.warn('   ⚠️  cf_clearance save falhou:', await cfRes.text());
+  } else {
+    console.log('   ℹ️  cf_clearance não presente no cookie — nenhuma atualização da chave CF.');
+  }
 }
 
 // ── Validar cookie ────────────────────────────────────────────────────────────
+// NOTA: ajax.php?action=events_lite foi removido pelo SuperMonitor (retorna 404).
+// Usa proxy_nonce.php que retorna 200+nonce quando autenticado e 401 quando não.
 async function validateCookie(cookie) {
   try {
-    const res = await request('GET', `${BASE}/ajax.php?action=events_lite`, {
+    const res = await request('GET', `${BASE}/api/proxy_nonce.php`, {
       'User-Agent': UA, 'Cookie': cookie,
-      'Accept': 'application/json', 'Referer': `${BASE}/`,
+      'Accept': 'application/json',
+      'X-Requested-With': 'XMLHttpRequest',
+      'Referer': `${BASE}/index.php?page=buscador`,
     });
     if (res.status !== 200) return false;
-    if (res.body.includes('<title>Login') || res.body.includes('name="senha"')) return false;
-    return true;
+    if (res.body.trimStart().startsWith('<')) return false; // HTML = sessão expirada
+    if (res.body.includes('"error"')) return false;        // {"error":"Não autenticado"}
+    return true; // 200 + JSON com nonce = sessão válida
   } catch { return false; }
 }
 
