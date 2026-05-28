@@ -49,9 +49,19 @@ export function RecentOps({ legs }: { legs: Leg[] }) {
                     <td className="font-mono text-xs whitespace-nowrap">
                       {(op.bet_date || '').slice(0, 16).replace('T', ' ')}
                     </td>
-                    <td className="max-w-xs truncate">
-                      <span className="mr-1.5 text-xs">{sportEmoji(op.sport)}</span>
-                      {op.event || '—'}
+                    <td className="max-w-xs">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="text-xs shrink-0">{sportEmoji(op.sport)}</span>
+                        {op.legs[0]?.opType === 'freebet' && (
+                          <span
+                            className="text-[10px] font-black px-1.5 py-0.5 rounded shrink-0"
+                            style={{ background: 'rgba(168,85,247,.15)', color: '#A855F7', border: '1px solid rgba(168,85,247,.25)' }}
+                          >
+                            FB
+                          </span>
+                        )}
+                        <span className="truncate">{op.event || '—'}</span>
+                      </div>
                     </td>
                     <td className="text-xs">{firstLeg?.ho || '—'}</td>
                     <td>
