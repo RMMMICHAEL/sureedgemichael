@@ -962,6 +962,7 @@ interface EditLegDraft {
   id: string; ho: string; mk: string;
   od: string; st: string; re: ResultType; ed: string;
   manualProfit?: number;
+  isFreebet?: boolean;       // freebet leg — Red = 0 custo
   reentrada?: ReentradaDraft; // only for DG legs with Green Antecipado
 }
 
@@ -1194,6 +1195,7 @@ function OpCard({
           st: l.st ? String(l.st) : '',
           re: l.re, ed: (l.ed || l.bd).slice(0, 16),
           manualProfit: l.manualProfit,
+          isFreebet: l.isFreebet,
         })));
         if (opType !== 'surebet') {
           const currentProfit = op.legs.reduce((s, l) => s + calcLegProfit(l), 0);
@@ -1283,6 +1285,7 @@ function OpCard({
           st: parseFloat(draft.st.replace(',', '.')) || 0,
           re: draft.re, pc: sbPc, pr: 0, fl: [],
           source: 'manual', signal: detectSignal(bd, edVal), opType,
+          isFreebet: draft.isFreebet,
         };
         leg.pr = calcLegProfit(leg);
         addLeg(leg);
@@ -1629,11 +1632,33 @@ function OpCard({
                 {/* Per-leg rows */}
                 {legDrafts.map((draft, i) => (
                   <div key={draft.id} className="rounded-xl p-3 flex flex-col gap-3"
-                    style={{ background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.06)' }}>
+                    style={{
+                      background: draft.isFreebet ? 'rgba(63,255,33,.04)' : 'rgba(255,255,255,.03)',
+                      border: `1px solid ${draft.isFreebet ? 'rgba(63,255,33,.2)' : 'rgba(255,255,255,.06)'}`,
+                    }}>
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold uppercase" style={{ color: '#4B5563' }}>
-                        Operação {i + 1}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold uppercase" style={{ color: '#4B5563' }}>
+                          Operação {i + 1}
+                        </span>
+                        {opType === 'freebet' && (
+                          <button
+                            type="button"
+                            onClick={() => setLegDrafts(prev => prev.map((d, idx) =>
+                              idx === i ? { ...d, isFreebet: !d.isFreebet } : { ...d, isFreebet: false }
+                            ))}
+                            className="text-[10px] font-black px-1.5 py-0.5 rounded transition-all"
+                            style={{
+                              background: draft.isFreebet ? 'rgba(63,255,33,.15)' : 'rgba(255,255,255,.05)',
+                              color: draft.isFreebet ? '#3DFF8F' : '#4B5563',
+                              border: `1px solid ${draft.isFreebet ? 'rgba(63,255,33,.3)' : 'rgba(255,255,255,.08)'}`,
+                            }}
+                            title="Marcar como a leg da freebet (stake gratuita)"
+                          >
+                            FB
+                          </button>
+                        )}
+                      </div>
                       <HouseBadge name={draft.ho || '—'} />
                     </div>
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
