@@ -44,9 +44,24 @@ const F: Record<string, (t: number, n: number, i: number) => Matrix> = {
 };
 
 export function getMatrix(formulaKey: string, odds: number[]): Matrix {
+  // N-way simple: each outcome covered in a different house (4-10 legs)
+  if (formulaKey === 'nway') {
+    return odds.map((o, i) => odds.map((_, j) => i === j ? o - 1 : -1));
+  }
   const fn = F[formulaKey];
   if (!fn) return [[1,-1],[-1,1]];
   return fn(odds[0] ?? 2, odds[1] ?? 2, odds[2] ?? 2);
+}
+
+/** Returns a single FormulaOption for N-way surebets (N >= 4). */
+export function getNWayFormulaOption(n: number): FormulaOption {
+  const labels = Array.from({ length: n }, (_, i) => String(i + 1));
+  return {
+    value:   100 + n,   // 104..110
+    formula: 'nway',
+    labels,
+    display: labels.join(' − '),
+  };
 }
 
 // ── Formula options ───────────────────────────────────────────────────────────

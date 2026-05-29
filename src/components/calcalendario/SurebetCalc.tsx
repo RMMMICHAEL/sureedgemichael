@@ -8,6 +8,7 @@ import {
   getMatrix,
   FORMULA_OPTIONS_2WAY,
   FORMULA_OPTIONS_3WAY,
+  getNWayFormulaOption,
   type FormulaOption,
 } from '@/lib/calc/surebetEngine';
 import { useStore } from '@/store/useStore';
@@ -167,7 +168,7 @@ function AddToPanelModal({ numOutcomes, formulaOpt, rawOdds, commissions, stakes
   const [sp,   setSp]   = useState('Futebol');
   const [opT,  setOpT]  = useState<OpType>('duplo_green');
   const [houses, setHouses] = useState<string[]>(() =>
-    Array.from({ length: numOutcomes }, (_, i) => initialHouses?.[i] ?? '')
+    Array.from({ length: Math.min(numOutcomes, MAX_OUTCOMES) }, (_, i) => initialHouses?.[i] ?? '')
   );
 
   function setHouse(i: number, val: string) {
@@ -310,6 +311,8 @@ function AddToPanelModal({ numOutcomes, formulaOpt, rawOdds, commissions, stakes
 
 // ── Main calculator ───────────────────────────────────────────────────────────
 
+const MAX_OUTCOMES = 10;
+
 interface SurebetCalcProps {
   selectedEvent?: { name: string; start_utc: string } | null;
   externalFill?: {
@@ -320,17 +323,19 @@ interface SurebetCalcProps {
     /** Optional favicon URLs for each house */
     favicons?: string[];
   } | null;
-  defaultNumOutcomes?: 2 | 3;
+  defaultNumOutcomes?: number;
 }
 
 export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 2 }: SurebetCalcProps = {}) {
-  const [numOutcomes, setNumOutcomes] = useState<2 | 3>(defaultNumOutcomes);
+  const [numOutcomes, setNumOutcomes] = useState<number>(defaultNumOutcomes);
   const [formulaVal,  setFormulaVal]  = useState(0);
-  const [odds,        setOdds]        = useState(['2.10', '1.95', '2.80']);
-  const [fixedMode,   setFixedMode]   = useState<'sum' | 0 | 1 | 2>('sum');
+  const [odds,        setOdds]        = useState(() =>
+    Array.from({ length: MAX_OUTCOMES }, (_, i) => (['2.10','1.95','2.80'][i] ?? ''))
+  );
+  const [fixedMode,   setFixedMode]   = useState<'sum' | number>('sum');
   const [anchor,      setAnchor]      = useState('200');
-  const [distribute,  setDistribute]  = useState([true, true, true]);
-  const [freebet,     setFreebet]     = useState([false, false, false]);
+  const [distribute,  setDistribute]  = useState(() => Array(MAX_OUTCOMES).fill(true));
+  const [freebet,     setFreebet]     = useState(() => Array(MAX_OUTCOMES).fill(false));
   const [roundEnabled, setRoundEnabled] = useState(false);
   const [roundToStr,  setRoundToStr]  = useState('5');
   const [showAdd,             setShowAdd]             = useState(false);
@@ -339,21 +344,21 @@ export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 
   const [injectedFavicons,   setInjectedFavicons]   = useState<string[]>([]);
 
   // Commission per leg (% on winning profit — ex: BetBra = 2.8)
-  const [commission, setCommission] = useState(['0', '0', '0']);
+  const [commission, setCommission] = useState(() => Array(MAX_OUTCOMES).fill('0'));
 
   // External fill from BuscarOddsPage / ScannerPage (odd-click or signal fill)
   useEffect(() => {
     if (!externalFill) return;
     // Determine num outcomes from non-empty odds, fallback to array length
     const nonEmpty = externalFill.odds.filter(o => o !== '');
-    const n = (nonEmpty.length <= 2 && externalFill.odds.length <= 2 ? 2 : 3) as 2 | 3;
+    const n = nonEmpty.length <= 2 && externalFill.odds.length <= 2 ? 2 : 3;
     setNumOutcomes(n);
     const opts = n === 2 ? FORMULA_OPTIONS_2WAY : FORMULA_OPTIONS_3WAY;
     setFormulaVal(opts[0].value);
     setOdds(prev => {
       const next = [...prev];
       externalFill.odds.forEach((o, i) => {
-        if (i < 3 && o !== '') next[i] = o; // skip empty — keep existing value
+        if (i < MAX_OUTCOMES && o !== '') next[i] = o;
       });
       return next;
     });
@@ -363,9 +368,11 @@ export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 
     setFixedMode('sum');
   }, [externalFill]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const formulaOptions: FormulaOption[] = numOutcomes === 2
-    ? FORMULA_OPTIONS_2WAY
-    : FORMULA_OPTIONS_3WAY;
+  const formulaOptions: FormulaOption[] = useMemo(() => {
+    if (numOutcomes === 2) return FORMULA_OPTIONS_2WAY;
+    if (numOutcomes === 3) return FORMULA_OPTIONS_3WAY;
+    return [getNWayFormulaOption(numOutcomes)];
+  }, [numOutcomes]);
 
   const safeFormulaVal = useMemo(() => {
     const vals = formulaOptions.map(o => o.value);
@@ -516,7 +523,7 @@ export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 
         // Auto-fix this leg so the user can type the freebet value directly
         const cur = result.stakes[i] ?? 0;
         if (cur > 0) setAnchor(cur.toFixed(2));
-        setFixedMode(i as 0 | 1 | 2);
+        setFixedMode(i);
       } else if (fixedMode === i) {
         // Return to total-anchor mode
         const tot = result.totalBet > 0 ? result.totalBet.toFixed(2) : anchor;
@@ -582,16 +589,16 @@ export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 
         display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: 14,
       }}>
 
-        {/* 2 Casas / 3 Casas toggle */}
+        {/* Nº de Casas: 2 | 3 | 4 ou mais */}
         <div>
           <span style={LABEL}>Nº de Casas</span>
-          <div style={{ display: 'flex', gap: 4 }}>
-            {([2, 3] as const).map(n => (
+          <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' }}>
+            {[2, 3].map(n => (
               <button key={n} onClick={() => {
                 setNumOutcomes(n);
                 const opts = n === 2 ? FORMULA_OPTIONS_2WAY : FORMULA_OPTIONS_3WAY;
                 setFormulaVal(opts[0].value);
-                if (fixedMode !== 'sum' && (fixedMode as number) >= n) setFixedMode('sum');
+                if (fixedMode !== 'sum' && typeof fixedMode === 'number' && fixedMode >= n) setFixedMode('sum');
               }}
                 style={{
                   padding: isMobile ? '4px 10px' : '5px 14px',
@@ -600,25 +607,59 @@ export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 
                   color: numOutcomes === n ? '#4DA6FF' : '#6B7280',
                   border: `1px solid ${numOutcomes === n ? 'rgba(77,166,255,.3)' : 'rgba(255,255,255,.08)'}`,
                 }}>
-                {n} Casas
+                {n}
               </button>
             ))}
+            {/* 4 ou mais — active when numOutcomes >= 4 */}
+            <button onClick={() => {
+              const n = numOutcomes >= 4 ? numOutcomes : 4;
+              setNumOutcomes(n);
+              setFormulaVal(getNWayFormulaOption(n).value);
+              if (fixedMode !== 'sum' && typeof fixedMode === 'number' && fixedMode >= n) setFixedMode('sum');
+            }}
+              style={{
+                padding: isMobile ? '4px 10px' : '5px 14px',
+                borderRadius: 7, fontSize: isMobile ? 11 : 12, fontWeight: 700, cursor: 'pointer',
+                background: numOutcomes >= 4 ? 'rgba(77,166,255,.18)' : 'rgba(255,255,255,.04)',
+                color: numOutcomes >= 4 ? '#4DA6FF' : '#6B7280',
+                border: `1px solid ${numOutcomes >= 4 ? 'rgba(77,166,255,.3)' : 'rgba(255,255,255,.08)'}`,
+              }}>
+              4+
+            </button>
+            {numOutcomes >= 4 && (
+              <select
+                value={numOutcomes}
+                onChange={e => {
+                  const n = Number(e.target.value);
+                  setNumOutcomes(n);
+                  setFormulaVal(getNWayFormulaOption(n).value);
+                  if (fixedMode !== 'sum' && typeof fixedMode === 'number' && fixedMode >= n) setFixedMode('sum');
+                }}
+                style={{ ...SELECT, width: 'auto', height: 30, padding: '0 28px 0 10px', fontSize: 12 }}
+              >
+                {[4,5,6,7,8,9,10].map(n => (
+                  <option key={n} value={n}>{n} casas ({Array.from({length:n},(_,i)=>i+1).join(' − ')})</option>
+                ))}
+              </select>
+            )}
           </div>
         </div>
 
-        {/* Formula selector */}
-        <div style={{ flex: 1, minWidth: 200 }}>
-          <span style={LABEL}>Tipo de Entrada</span>
-          <select
-            style={SELECT}
-            value={safeFormulaVal}
-            onChange={e => setFormulaVal(Number(e.target.value))}
-          >
-            {formulaOptions.map(opt => (
-              <option key={opt.value} value={opt.value}>{opt.display}</option>
-            ))}
-          </select>
-        </div>
+        {/* Formula selector — hidden for N>=4 (only one option) */}
+        {numOutcomes <= 3 && (
+          <div style={{ flex: 1, minWidth: 200 }}>
+            <span style={LABEL}>Tipo de Entrada</span>
+            <select
+              style={SELECT}
+              value={safeFormulaVal}
+              onChange={e => setFormulaVal(Number(e.target.value))}
+            >
+              {formulaOptions.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.display}</option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {/* Profit % badge */}
         <div style={{
@@ -938,7 +979,7 @@ export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 
             color: profitColor,
           }}>
             {result.totalBet > 0
-              ? fmtBRL(Math.min(...result.profits.filter((_, i) => i < numOutcomes)))
+              ? fmtBRL(Math.min(...result.profits.slice(0, numOutcomes)))
               : '—'}
           </span>
         </div>
