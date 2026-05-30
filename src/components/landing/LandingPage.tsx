@@ -813,7 +813,7 @@ export function LandingPage() {
                     style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '13px 20px', borderRadius: 999, fontFamily: 'Figtree, sans-serif', fontSize: 14, fontWeight: 700, textDecoration: 'none', transition: 'transform .2s, box-shadow .2s', ...(isFeatured ? { background: '#3FFF21', color: '#030507', boxShadow: '0 8px 24px -8px rgba(63,255,33,.55)' } : { background: 'rgba(255,255,255,.05)', color: '#F0F4F8', border: '1px solid rgba(255,255,255,.09)' }) }}
                     onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.transform = 'scale(1.02)'; if (!isFeatured) { el.style.background = 'rgba(63,255,33,.08)'; el.style.borderColor = 'rgba(63,255,33,.25)'; } }}
                     onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.transform = 'scale(1)'; if (!isFeatured) { el.style.background = 'rgba(255,255,255,.05)'; el.style.borderColor = 'rgba(255,255,255,.09)'; } }}>
-                    <Zap size={13} /> Assinar {PLAN_LABELS[plan.id]}
+                    <Zap size={13} /> ASSINAR AGORA
                   </a>
                 </div>
               );
