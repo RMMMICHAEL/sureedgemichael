@@ -318,8 +318,28 @@ export const useStore = create<StoreState>()((set, get) => ({
           return localTs > remoteTs;
         });
 
-        // Monta o merged base (remote + local wins)
-        let merged = { ...remoteDb, legs: mergedLegs };
+        // ── Monta o merged base ───────────────────────────────────────────────
+        // Regra: remote vence para configurações (profile, sheetSync, etc.)
+        // Para arrays de dados (bms, banks, expenses, etc.):
+        //   se o remoto tem dados → usa o remoto (editado em outro dispositivo)
+        //   se o remoto está vazio → usa o local (nunca foi sincronizado ainda)
+        // Isso evita que um remoteDb recém-criado (vazio) apague dados locais.
+        const safeMerge = <T extends unknown[]>(remote: T | undefined, local: T | undefined): T =>
+          (remote?.length ?? 0) > 0 ? remote! : (local ?? [] as unknown as T);
+
+        let merged = {
+          ...remoteDb,
+          legs:            mergedLegs,
+          bms:             safeMerge(remoteDb.bms,            localDb.bms),
+          banks:           safeMerge(remoteDb.banks,          localDb.banks),
+          expenses:        safeMerge(remoteDb.expenses,       localDb.expenses),
+          transfers:       safeMerge(remoteDb.transfers,      localDb.transfers),
+          partnerAccounts: safeMerge(remoteDb.partnerAccounts, localDb.partnerAccounts),
+          clients:         safeMerge(remoteDb.clients,        localDb.clients),
+          targetHouses:    safeMerge(remoteDb.targetHouses,   localDb.targetHouses),
+          notes:           safeMerge(remoteDb.notes,          localDb.notes),
+          operators:       safeMerge(remoteDb.operators,      localDb.operators),
+        };
 
         // ── Anti-race condition: inclui mutações feitas APÓS o init começar ──
         // Entre o applyDB(localDb) e agora, o usuário pode ter criado/editado
@@ -352,10 +372,13 @@ export const useStore = create<StoreState>()((set, get) => ({
         }
 
         // Salva de volta no Supabase se houver qualquer divergência
+        const remoteMissingBms   = (remoteDb.bms?.length   ?? 0) === 0 && (localDb.bms?.length   ?? 0) > 0;
+        const remoteMissingBanks = (remoteDb.banks?.length ?? 0) === 0 && (localDb.banks?.length ?? 0) > 0;
         const hasDivergence = localOnly.length > 0 || localWins.length > 0
-          || addedAfterInit.length > 0 || notesAfterInit.length > 0 || opsAfterInit.length > 0;
+          || addedAfterInit.length > 0 || notesAfterInit.length > 0 || opsAfterInit.length > 0
+          || remoteMissingBms || remoteMissingBanks;
         if (hasDivergence) {
-          console.log(`[sync] merge: +${localOnly.length} legs, ${localWins.length} atualizadas, ${addedAfterInit.length} pós-init, ${notesAfterInit.length} notas, ${opsAfterInit.length} operadores → re-sincronizando`);
+          console.log(`[sync] merge: +${localOnly.length} legs, ${localWins.length} atualizadas, ${addedAfterInit.length} pós-init, ${notesAfterInit.length} notas, ${opsAfterInit.length} operadores, bms-recovery:${remoteMissingBms}, banks-recovery:${remoteMissingBanks} → re-sincronizando`);
           saveToSupabase(merged);
         }
 
