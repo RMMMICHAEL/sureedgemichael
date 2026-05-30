@@ -485,6 +485,15 @@ export function LandingPage() {
     getSupabaseClient().auth.getUser().then(({ data }) => { if (data.user?.email) setEmail(data.user.email); });
     const onScroll = () => setScrolled(window.scrollY > 30);
     window.addEventListener('scroll', onScroll, { passive: true });
+
+    // UTMify pixel
+    (window as unknown as Record<string, unknown>).pixelId = '6a1a3c0e7518526a9771a57e';
+    const s = document.createElement('script');
+    s.async = true;
+    s.defer = true;
+    s.src   = 'https://cdn.utmify.com.br/scripts/pixel/pixel.js';
+    document.head.appendChild(s);
+
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
