@@ -932,10 +932,13 @@ export function DashboardPage() {
 
   const pendingLegs   = legs.filter(l => l.re === 'Pendente' && l.source !== 'import');
   const pendingStakes = +pendingLegs.reduce((s, l) => s + l.st, 0).toFixed(2);
+  // Capital = saldo em casas + saldo em bancos APENAS.
+  // NÃO soma pendingStakes: addLeg já deduz a stake do bm.balance,
+  // somar de volta criaria dupla contagem quando os saldos estão configurados.
   const totalCash = [
     ...bms.map(b => b.balance),
     ...banks.map(b => b.balance),
-  ].reduce((s, v) => s + v, 0) + pendingStakes;
+  ].reduce((s, v) => s + v, 0);
   const totalOps  = groupLegsIntoOps(legs).length;
 
   const monthName = new Date().toLocaleString('pt-BR', { month: 'long' });

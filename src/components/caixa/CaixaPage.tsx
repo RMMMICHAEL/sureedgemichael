@@ -222,7 +222,9 @@ export function CaixaPage() {
   const pendingStakes = +legs
     .filter(l => l.re === 'Pendente' && l.source !== 'import')
     .reduce((s, l) => s + l.st, 0).toFixed(2);
-  const totalCash     = totalBMs + totalBanks + pendingStakes;
+  // Capital = saldo em casas + saldo em bancos APENAS.
+  // pendingStakes é exibido como informativo — já está descontado do bm.balance.
+  const totalCash     = totalBMs + totalBanks;
 
   const month  = currentMonth();
   const mStart = month + '-01';
