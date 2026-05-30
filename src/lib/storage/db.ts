@@ -40,6 +40,9 @@ export const EMPTY_DB: AppDB = {
   import_log:       [],
   onboarding_done:  false,
   onboarding_step:  'bookmakers',
+  notes:            [],
+  operators:        [],
+  transfers:        [],
 };
 
 // ── Load entire DB from localStorage ────────────────────────────────────────
@@ -59,6 +62,8 @@ export function loadDB(): AppDB {
     sheetSync:           load('sheetSync',           undefined),
     excludedImportKeys:  load('excludedImportKeys',  [] as string[]),
     profile:             load('profile',             undefined),
+    notes:               load('notes',               []),
+    operators:           load('operators',           []),
     transfers:           load('transfers',           []),
     seedIds:             load('seedIds',             undefined),
   };
@@ -77,6 +82,9 @@ export function persistDB(db: AppDB): void {
   save('import_log',      db.import_log);
   save('onboarding_done', db.onboarding_done);
   save('onboarding_step', db.onboarding_step);
+  // Sempre persiste notes e operators — nunca devem ficar só no Supabase
+  save('notes',     db.notes     ?? []);
+  save('operators', db.operators ?? []);
   if (db.sheetSync) save('sheetSync', db.sheetSync);
   if (db.excludedImportKeys) save('excludedImportKeys', db.excludedImportKeys);
   if (db.profile    !== undefined) save('profile',    db.profile);
@@ -104,6 +112,6 @@ export function wipeDB(): void {
   if (typeof window === 'undefined') return;
   ['legs','bms','banks','expenses','partnerAccounts','clients','targetHouses',
    'import_log','onboarding_done','onboarding_step','sheetSync',
-   'excludedImportKeys','profile','notes','transfers','userId',
+   'excludedImportKeys','profile','notes','operators','transfers','userId','seedIds',
   ].forEach(k => localStorage.removeItem(VER + k));
 }

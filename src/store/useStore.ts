@@ -318,11 +318,44 @@ export const useStore = create<StoreState>()((set, get) => ({
           return localTs > remoteTs;
         });
 
-        const merged = { ...remoteDb, legs: mergedLegs };
+        // Monta o merged base (remote + local wins)
+        let merged = { ...remoteDb, legs: mergedLegs };
 
-        // Salva de volta no Supabase se houver divergência (novas locais ou locais mais recentes)
-        if (localOnly.length > 0 || localWins.length > 0) {
-          console.log(`[sync] merge: +${localOnly.length} legs novas, ${localWins.length} legs atualizadas localmente → re-sincronizando Supabase`);
+        // ── Anti-race condition: inclui mutações feitas APÓS o init começar ──
+        // Entre o applyDB(localDb) e agora, o usuário pode ter criado/editado
+        // dados que não estão em `merged` (construído de snapshots anteriores).
+        // Preserva essas mutações para não perdê-las silenciosamente.
+        const currentState = get();
+
+        // Legs adicionadas/editadas após o init
+        const mergedLegIds = new Set(merged.legs.map(l => l.id));
+        const addedAfterInit = currentState.legs.filter(l => !mergedLegIds.has(l.id));
+        if (addedAfterInit.length > 0) {
+          console.log(`[sync] preservando ${addedAfterInit.length} leg(s) adicionadas durante o carregamento`);
+          merged = { ...merged, legs: [...merged.legs, ...addedAfterInit] };
+        }
+
+        // Notes adicionadas após o init (preserva notas criadas enquanto Supabase carregava)
+        const mergedNoteIds = new Set((merged.notes ?? []).map(n => n.id));
+        const notesAfterInit = (currentState.notes ?? []).filter(n => !mergedNoteIds.has(n.id));
+        if (notesAfterInit.length > 0) {
+          console.log(`[sync] preservando ${notesAfterInit.length} nota(s) adicionadas durante o carregamento`);
+          merged = { ...merged, notes: [...(merged.notes ?? []), ...notesAfterInit] };
+        }
+
+        // Operators adicionados após o init
+        const mergedOpIds = new Set((merged.operators ?? []).map(o => o.id));
+        const opsAfterInit = (currentState.operators ?? []).filter(o => !mergedOpIds.has(o.id));
+        if (opsAfterInit.length > 0) {
+          console.log(`[sync] preservando ${opsAfterInit.length} operador(es) adicionados durante o carregamento`);
+          merged = { ...merged, operators: [...(merged.operators ?? []), ...opsAfterInit] };
+        }
+
+        // Salva de volta no Supabase se houver qualquer divergência
+        const hasDivergence = localOnly.length > 0 || localWins.length > 0
+          || addedAfterInit.length > 0 || notesAfterInit.length > 0 || opsAfterInit.length > 0;
+        if (hasDivergence) {
+          console.log(`[sync] merge: +${localOnly.length} legs, ${localWins.length} atualizadas, ${addedAfterInit.length} pós-init, ${notesAfterInit.length} notas, ${opsAfterInit.length} operadores → re-sincronizando`);
           saveToSupabase(merged);
         }
 
@@ -485,7 +518,13 @@ export const useStore = create<StoreState>()((set, get) => ({
   // ── commitImport ──────────────────────────────────────────────────────────
   commitImport(result) {
     set(s => {
-      const legs = [...s.legs, ...result.newLegs];
+      // Deduplicação por ID: evita legs duplicadas se o import for disparado duas vezes
+      const existingIds = new Set(s.legs.map(l => l.id));
+      const uniqueNewLegs = result.newLegs.filter(l => !existingIds.has(l.id));
+      if (uniqueNewLegs.length < result.newLegs.length) {
+        console.warn(`[commitImport] ${result.newLegs.length - uniqueNewLegs.length} leg(s) duplicada(s) ignoradas`);
+      }
+      const legs = [...s.legs, ...uniqueNewLegs];
 
       let bms = [...s.bms];
       result.newHouses.forEach(name => {
