@@ -486,17 +486,7 @@ export function LandingPage() {
     const onScroll = () => setScrolled(window.scrollY > 30);
     window.addEventListener('scroll', onScroll, { passive: true });
 
-    // Meta Pixel — injeta o script original via innerHTML num elemento temporário
-    const metaScript = document.createElement('script');
-    metaScript.text = `
-      !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?
-      n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;
-      n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;
-      t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}
-      (window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
-      fbq('init','2328015311363509');fbq('track','PageView');
-    `;
-    document.head.appendChild(metaScript);
+    // Meta Pixel carregado via layout.tsx no <head> estático
 
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
