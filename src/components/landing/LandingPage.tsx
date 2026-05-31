@@ -486,13 +486,24 @@ export function LandingPage() {
     const onScroll = () => setScrolled(window.scrollY > 30);
     window.addEventListener('scroll', onScroll, { passive: true });
 
-    // UTMify pixel
-    (window as unknown as Record<string, unknown>).pixelId = '6a1a3c0e7518526a9771a57e';
-    const s = document.createElement('script');
-    s.async = true;
-    s.defer = true;
-    s.src   = 'https://cdn.utmify.com.br/scripts/pixel/pixel.js';
-    document.head.appendChild(s);
+    // Meta Pixel
+    const fbq = function(...args: unknown[]) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const w = window as any;
+      if (w.fbq) { w.fbq.callMethod ? w.fbq.callMethod(...args) : w.fbq.queue.push(args); return; }
+      if (!w._fbq) w._fbq = w.fbq = Object.assign(function(...a: unknown[]) { w.fbq.callMethod ? w.fbq.callMethod(...a) : w.fbq.queue.push(a); }, { push: (...a: unknown[]) => w.fbq.queue.push(a), loaded: true, version: '2.0', queue: [] as unknown[] });
+      w.fbq = w._fbq;
+    };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (window as any).fbq = fbq;
+    const mp = document.createElement('script');
+    mp.async = true;
+    mp.src   = 'https://connect.facebook.net/en_US/fbevents.js';
+    document.head.appendChild(mp);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (window as any).fbq('init', '2328015311363509');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (window as any).fbq('track', 'PageView');
 
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
