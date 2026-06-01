@@ -82,6 +82,10 @@ async function sbFetch(path, method = 'GET', body = null, extra = {}) {
 // no próximo ciclo e lança um erro descritivo com o contexto da chamada.
 async function safeJson(res, context) {
   const text = await res.text();
+  // Body vazio = servidor retornou 200 sem conteúdo → erro descritivo
+  if (!text.trim()) {
+    throw new Error(`${context}: resposta vazia (body em branco) — status ${res.status ?? '?'}`);
+  }
   if (text.trimStart().startsWith('<')) {
     // Cookie expirado / desafio CF → invalida cache para renovação automática
     _cookie = null;
@@ -457,7 +461,13 @@ async function fetchDecrypted(session, qs) {
   if (enc.encrypted && enc.data) {
     const encBytes = base64ToBytes(enc.data);
     const plain    = await subtle.decrypt({ name: 'AES-CBC', iv: encBytes.slice(0, 16) }, session.aesKey, encBytes.slice(16));
-    return JSON.parse(new TextDecoder().decode(plain));
+    const decoded  = new TextDecoder().decode(plain);
+    if (!decoded.trim()) throw new Error('buscador: payload vazio após descriptografia — sessão ECDH corrompida');
+    try {
+      return JSON.parse(decoded);
+    } catch (_e) {
+      throw new Error(`buscador: JSON inválido após descriptografia — ${decoded.slice(0, 80)}`);
+    }
   }
   return enc;
 }
@@ -763,7 +773,7 @@ async function createFreebetSession(cookie) {
 
   // session_token é necessário — freebet_proxy-v2.php exige X-Session-Token
   const sessionToken = hs.session_token ?? null;
-  console.log('   Sessão ECDH freebet criada');
+  console.log(`   Sessão ECDH freebet criada | session_token: ${sessionToken ? sessionToken.slice(0,12)+'...' : 'AUSENTE'} | hs.success: ${hs.success}`);
 
   // 4. Deriva chave AES — info string: 'app-aes256-v1'
   const srvRaw = new Uint8Array(65);
@@ -843,6 +853,7 @@ async function fetchFreebetFromSuperMonitor(freebetSession, { bookmaker, value, 
   if (!res.ok) {
     const body = await res.text().catch(() => '');
     console.error(`   [freebet] proxy ${res.status}: ${body.slice(0, 300)}`);
+    console.error(`   [freebet-debug] nonce=${nonce?.slice(0,8)}... | session_token=${freebetSession.sessionToken ? 'presente' : 'AUSENTE'} | qs=${qs.slice(0,100)}`);
     throw new Error(`freebet_proxy falhou (${res.status})`);
   }
 
@@ -854,7 +865,15 @@ async function fetchFreebetFromSuperMonitor(freebetSession, { bookmaker, value, 
       freebetSession.aesKey,
       encBytes.slice(16),
     );
-    return JSON.parse(new TextDecoder().decode(plain));
+    const decoded = new TextDecoder().decode(plain);
+    if (!decoded.trim()) {
+      throw new Error('freebet: payload vazio após descriptografia — sessão ECDH corrompida, tente novamente');
+    }
+    try {
+      return JSON.parse(decoded);
+    } catch (_e) {
+      throw new Error(`freebet: JSON inválido após descriptografia — ${decoded.slice(0, 80)}`);
+    }
   }
   return enc;
 }
