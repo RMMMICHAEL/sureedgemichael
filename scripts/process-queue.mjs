@@ -714,7 +714,7 @@ const FREEBET_SESSION_TTL = 90_000; // 90s — conservador, servidor pode expira
 let _freebetConsecutiveFailures = 0;
 const FREEBET_FAILURE_LIMIT = 3;
 
-async function createFreebetSession(cookie) {
+async function createFreebetSession(cookie, _retries = 2) {
   const cookieWithCf = await mergeCfClearance(cookie);
 
   const hdrs = {
@@ -760,6 +760,12 @@ async function createFreebetSession(cookie) {
   });
   if (!hsRes.ok) {
     const body = await hsRes.text().catch(() => '');
+    // NONCE_INVALID: nonce expirou durante geração ECDH — busca nonce novo e retenta
+    if (body.includes('NONCE_INVALID') && _retries > 0) {
+      console.log(`   Freebet: NONCE_INVALID — retentando handshake (${_retries} tentativa(s) restante(s))...`);
+      await sleep(300);
+      return createFreebetSession(cookie, _retries - 1);
+    }
     throw new Error(`freebet: app_handshake falhou (${hsRes.status}) ${body.slice(0, 80)}`);
   }
   const hs = await safeJson(hsRes, 'freebet: app_handshake');
