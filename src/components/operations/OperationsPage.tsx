@@ -1140,26 +1140,33 @@ function OpCard({
   const profitBg    = profit > 0 ? 'rgba(61,255,143,.12)' : profit < 0 ? 'rgba(255,69,69,.12)' : 'rgba(107,114,128,.08)';
 
   // Detecta pernas duplicadas (mesma casa + mercado na mesma op)
+  // Reentradas (ev termina com "(Reentrada)") são SEMPRE ignoradas —
+  // elas compartilham ho+mk com a perna principal por design.
   const hasDuplicates = useMemo(() => {
     const seen = new Set<string>();
-    return op.legs.some(l => {
-      const key = `${l.ho}|${l.mk}`;
-      if (seen.has(key)) return true;
-      seen.add(key);
-      return false;
-    });
+    return op.legs
+      .filter(l => !l.ev?.endsWith('(Reentrada)'))
+      .some(l => {
+        const key = `${l.ho}|${l.mk}`;
+        if (seen.has(key)) return true;
+        seen.add(key);
+        return false;
+      });
   }, [op.legs]);
 
   function removeDuplicateLegs() {
     const seen = new Set<string>();
-    op.legs.forEach(l => {
-      const key = `${l.ho}|${l.mk}`;
-      if (seen.has(key)) {
-        deleteLeg(l.id);
-      } else {
-        seen.add(key);
-      }
-    });
+    // Nunca tocar em reentradas — elas nunca são duplicatas
+    op.legs
+      .filter(l => !l.ev?.endsWith('(Reentrada)'))
+      .forEach(l => {
+        const key = `${l.ho}|${l.mk}`;
+        if (seen.has(key)) {
+          deleteLeg(l.id);
+        } else {
+          seen.add(key);
+        }
+      });
     toastFn('Pernas duplicadas removidas', 'ok');
   }
 
