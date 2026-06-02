@@ -16,12 +16,30 @@ import { GastosPage }      from '@/components/gastos/GastosPage';
 import { ContasPage }      from '@/components/contas/ContasPage';
 import { AnalisePage }       from '@/components/analise/AnalisePage';
 import { CalculadoraPage }   from '@/components/calculadora/CalculadoraPage';
-import { BuscarOddsPage }   from '@/components/odds/BuscarOddsPage';
 import { AdminPage }         from '@/components/admin/AdminPage';
 import { PerfilPage }      from '@/components/perfil/PerfilPage';
 import { NotasPage }           from '@/components/notas/NotasPage';
-import { FreebetConverterPage } from '@/components/freebet/FreebetConverterPage';
-import { ScannerPage, SCANNER_NOTIF_KEY } from '@/components/scanner/ScannerPage';
+
+// ── Em Breve — páginas dependentes do SuperMonitor (temporariamente desativadas) ──
+function EmBreve({ title }: { title: string }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', gap: 16, textAlign: 'center', padding: 32 }}>
+      <div style={{ width: 56, height: 56, borderRadius: 16, background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24 }}>🔧</div>
+      <div>
+        <div style={{ fontFamily: 'Manrope', fontWeight: 800, fontSize: 18, letterSpacing: '-0.02em', marginBottom: 6 }}>{title}</div>
+        <div style={{ fontSize: 13, color: 'var(--t3)', maxWidth: 320, lineHeight: 1.6 }}>
+          Esta funcionalidade estará disponível em breve.<br />Em manutenção programada.
+        </div>
+      </div>
+      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 14px', borderRadius: 999, background: 'rgba(255,200,0,.08)', border: '1px solid rgba(255,200,0,.18)', fontSize: 11, fontWeight: 700, color: '#FFC800', fontFamily: 'JetBrains Mono', letterSpacing: '0.1em' }}>
+        EM BREVE
+      </div>
+    </div>
+  );
+}
+
+// Placeholder para SCANNER_NOTIF_KEY (usado no banner de notificação)
+const SCANNER_NOTIF_KEY = 'scanner_notif_enabled';
 import { ResumoPage }      from '@/components/resumo/ResumoPage';
 import { MetasPage }       from '@/components/metas/MetasPage';
 import { OperadoresPage }  from '@/components/operadores/OperadoresPage';
@@ -503,13 +521,13 @@ export function AppShell() {
             {view === 'contas'  && <ContasPage />}
             {view === 'analise'   && <AnalisePage />}
             {view === 'calc'      && <CalculadoraPage />}
-            {view === 'odds'      && <BuscarOddsPage />}
+            {view === 'odds'      && <EmBreve title="Buscar Odds" />}
             {view === 'notas'      && <NotasPage />}
-            {view === 'freebet'    && <FreebetConverterPage />}
+            {view === 'freebet'    && <EmBreve title="Converter Freebet" />}
             {view === 'resumo'     && <ResumoPage />}
             {view === 'metas'      && <MetasPage />}
             {view === 'operadores' && <OperadoresPage />}
-            {view === 'scanner'    && <ScannerPage />}
+            {view === 'scanner'    && <EmBreve title="Scanner de Alertas" />}
             {view === 'admin'      && <AdminPage />}
             {view === 'perfil'  && <PerfilPage />}
           </PageErrorBoundary>
