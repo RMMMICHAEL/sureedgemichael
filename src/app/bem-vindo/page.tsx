@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Zap, CheckCircle2, ArrowRight, Shield, BarChart2, TrendingUp } from 'lucide-react';
 
@@ -68,17 +68,19 @@ const PLAN_VALUES: Record<string, number> = {
   monthly: 97, quarterly: 247, annual: 797,
 };
 
-export default function BemVindoPage() {
-  const router     = useRouter();
-  const params     = useSearchParams();
-
+function PurchaseTracker() {
+  const params = useSearchParams();
   useEffect(() => {
-    // Aguarda o pixel.js da Utmify carregar (~500ms) e dispara Purchase
     const plan  = params.get('plan') ?? 'monthly';
     const value = parseFloat(params.get('value') ?? '') || PLAN_VALUES[plan] || 97;
     const timer = setTimeout(() => fireUtmifyPurchase(value), 800);
     return () => clearTimeout(timer);
   }, [params]);
+  return null;
+}
+
+export default function BemVindoPage() {
+  const router = useRouter();
 
   return (
     <div style={{
@@ -87,6 +89,7 @@ export default function BemVindoPage() {
       background: '#030507', position: 'relative', overflow: 'hidden',
       padding: '32px 20px',
     }}>
+      <Suspense fallback={null}><PurchaseTracker /></Suspense>
       <ParticlesBg />
       <div style={{ position: 'fixed', inset: 0, background: 'radial-gradient(ellipse 60% 50% at 50% 0%, rgba(63,255,33,.09) 0%, transparent 60%)', pointerEvents: 'none', zIndex: 0 }} />
 
