@@ -2,7 +2,7 @@
  * process-queue.mjs — v3.0 (daemon com auto-renovação e sessão cacheada)
  *
  * - Verifica fila a cada 8s (odds aparecem em ~8-10s)
- * - Cookie expirado → renova automaticamente (chama renew-cookie.mjs)
+ * - Cookie expirado → avisa para renovar manualmente (sem automação de login)
  * - Sessão ECDH mantida em memória entre ciclos (evita handshake repetido)
  * - Fila vazia → zero chamadas ao SuperMonitor
  * - Max 5 eventos por ciclo, delay 3-6s entre requests
@@ -10,14 +10,10 @@
 
 import https              from 'node:https';
 import http               from 'node:http';
-import { execFile }       from 'node:child_process';
-import { promisify }      from 'node:util';
 import { URL }            from 'node:url';
 import { readFileSync, existsSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath }  from 'node:url';
-
-const execFileAsync = promisify(execFile);
 
 // ── Carrega .env local ────────────────────────────────────────────────────────
 const __dir  = dirname(fileURLToPath(import.meta.url));
@@ -220,91 +216,27 @@ async function keepalive() {
 // setInterval garante disparos regulares independente do loop principal
 setInterval(() => { keepalive().catch(() => {}); }, 15_000);
 
-// ── Auto-renovação: chama renew-cookie.mjs ────────────────────────────────────
-// Mutex: evita que scanner e freebet renovem o cookie simultaneamente.
-// Se uma renovação já estiver em andamento, aguarda ela terminar e reutiliza
-// o resultado em vez de lançar um segundo processo renew-cookie.mjs.
-let _renewingCookie  = false;
-let _renewWaiters    = [];
-
+// ── Renovação manual — sem automação de login ─────────────────────────────────
+// Login automático removido para evitar detecção de bot pelo SuperMonitor.
+// Quando o cookie expira, o daemon para e avisa para renovar manualmente:
+//   1. Acesse painel.supermonitor.pro e faça login
+//   2. Copie o cookie via DevTools e salve no Supabase (app_config)
+//   3. Reinicie o daemon: node scripts/process-queue.mjs
 async function autoRenewCookie() {
-  // Se já está renovando, aguarda a renovação em curso e retorna o mesmo resultado
-  if (_renewingCookie) {
-    return new Promise(resolve => _renewWaiters.push(resolve));
-  }
-
-  _renewingCookie = true;
-  console.log('   Cookie expirado — renovando automaticamente...');
-  _session = null;
-  _freebetSession = null;
-  _freebetSessionCookieHash = '';
-  invalidateScannerSession();
-
-  let result = null;
-  try {
-    await execFileAsync(process.execPath, [resolve(__dir, 'renew-cookie.mjs')], {
-      cwd: __dir, timeout: 300_000,
-      windowsHide: true, // evita janela CMD visível no Windows
-    });
-    const cookie = await readCookieFromSupabase();
-    if (cookie) {
-      console.log('   Cookie renovado com sucesso.');
-      result = cookie;
-    }
-  } catch (err) {
-    console.error(`   Renovacao falhou: ${err.message}`);
-  } finally {
-    _renewingCookie = false;
-    // Notifica todos os waiters com o mesmo resultado
-    const waiters = _renewWaiters.splice(0);
-    for (const resolve of waiters) resolve(result);
-  }
-  return result;
+  console.error('');
+  console.error('══════════════════════════════════════════════════════');
+  console.error('  COOKIE EXPIRADO — renovação manual necessária');
+  console.error('  1. Acesse painel.supermonitor.pro e faça login');
+  console.error('  2. Salve o cookie no Supabase (app_config)');
+  console.error('  3. Reinicie: node scripts/process-queue.mjs');
+  console.error('══════════════════════════════════════════════════════');
+  console.error('');
+  return null;
 }
 
-// ── Renovação proativa (background, sem interromper operações em curso) ────────
-// Usada pelo scanner após 2 calls bem-sucedidos para trocar o PHPSESSID ANTES
-// de bater no limite de 3 calls por sessão. Diferença-chave vs autoRenewCookie:
-//   • NÃO nula _cookie nem sessões ECDH antes da renovação — operações em curso
-//     continuam com o cookie antigo enquanto o novo é gerado em background.
-//   • Aplica o novo cookie + invalida sessões de forma atômica SÓ ao concluir.
-// Se uma renovação (proativa ou reativa) já estiver em andamento, registra como
-// waiter no mesmo mutex — nenhum processo de login duplicado.
+// Alias mantido para compatibilidade — mesma lógica de aviso manual
 async function renewCookieBackground() {
-  if (_renewingCookie) {
-    // Já existe renovação em andamento — aguarda ela terminar
-    return new Promise(resolve => _renewWaiters.push(resolve));
-  }
-
-  _renewingCookie = true;
-  console.log('   [proativo] Renovando PHPSESSID antecipadamente...');
-
-  let result = null;
-  try {
-    await execFileAsync(process.execPath, [resolve(__dir, 'renew-cookie.mjs')], {
-      cwd: __dir, timeout: 300_000,
-      windowsHide: true, // evita janela CMD visível no Windows
-    });
-    const cookie = await readCookieFromSupabase();
-    if (cookie) {
-      // Aplica novo cookie e invalida sessões de forma atômica
-      _cookie = cookie;
-      _cookieValidatedAt = Date.now();
-      _session = null;
-      _freebetSession = null;
-      _freebetSessionCookieHash = '';
-      invalidateScannerSession();
-      console.log('   [proativo] PHPSESSID renovado — scanner usará novo cookie no próximo ciclo.');
-      result = cookie;
-    }
-  } catch (err) {
-    console.error(`   [proativo] Renovacao falhou: ${err.message}`);
-  } finally {
-    _renewingCookie = false;
-    const waiters = _renewWaiters.splice(0);
-    for (const resolve of waiters) resolve(result);
-  }
-  return result;
+  return autoRenewCookie();
 }
 
 // ── Cookie jar helper ─────────────────────────────────────────────────────────
