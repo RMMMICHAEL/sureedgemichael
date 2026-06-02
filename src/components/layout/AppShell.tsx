@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { PanelLeftOpen, Radio, X, TrendingUp } from 'lucide-react';
+import { PanelLeftOpen } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import { Sidebar, MobileDrawer } from './Sidebar';
 import { Topbar }          from './Topbar';
@@ -21,7 +21,9 @@ import { AdminPage }          from '@/components/admin/AdminPage';
 import { PerfilPage }         from '@/components/perfil/PerfilPage';
 import { NotasPage }          from '@/components/notas/NotasPage';
 import { FreebetConverterPage } from '@/components/freebet/FreebetConverterPage';
-import { ScannerPage, SCANNER_NOTIF_KEY } from '@/components/scanner/ScannerPage';
+
+// SCANNER_NOTIF_KEY mantido para evitar erros em outros componentes
+const SCANNER_NOTIF_KEY = 'scanner_notif_enabled';
 import { ResumoPage }      from '@/components/resumo/ResumoPage';
 import { MetasPage }       from '@/components/metas/MetasPage';
 import { OperadoresPage }  from '@/components/operadores/OperadoresPage';
@@ -32,250 +34,6 @@ import { commitRows }      from '@/lib/import/importEngine';
 import { getMySubscription, isSubscriptionActive } from '@/lib/supabase/subscription';
 import { getSupabaseClient } from '@/lib/supabase/client';
 
-// ── Scanner Global Notification Banner ────────────────────────────────────────
-interface ScanSignal { id: string; tipo: string | null; jogo: string | null; casa1: string | null; casa2: string | null; profit_margin: number; }
-
-// Chave estável para identificar um sinal pelo conteúdo, não pelo ID.
-// SuperMonitor rotaciona IDs a cada ciclo — comparar por ID causaria alertas
-// repetidos para o mesmo jogo.
-function signalKey(s: ScanSignal) {
-  return `${s.tipo ?? ''}|${s.jogo ?? ''}|${s.casa1 ?? ''}|${s.casa2 ?? ''}`;
-}
-
-const BANNER_CSS = `
-@keyframes bannerIn {
-  from { opacity: 0; transform: translateY(-18px) scale(.97); }
-  to   { opacity: 1; transform: translateY(0) scale(1); }
-}
-@keyframes bannerOut {
-  from { opacity: 1; transform: translateY(0) scale(1); }
-  to   { opacity: 0; transform: translateY(-14px) scale(.96); }
-}
-@keyframes bannerPulse {
-  0%,100% { box-shadow: 0 0 0 0 rgba(61,255,143,.25); }
-  50%      { box-shadow: 0 0 0 8px rgba(61,255,143,0); }
-}
-`;
-let bannerCssInjected = false;
-
-function ScannerNotifBanner() {
-  const view    = useStore(s => s.view);
-  const setView = useStore(s => s.setView);
-
-  const [visible,  setVisible]  = useState(false);
-  const [leaving,  setLeaving]  = useState(false);
-  const [signals,  setSignals]  = useState<ScanSignal[]>([]);
-  const [enabled,  setEnabled]  = useState(false);
-
-  // Snapshot of signal IDs from the previous poll — used to detect genuinely
-  // new signals without relying on the ephemeral is_new flag (which clears
-  // after 60 s and is skipped when the user is on the scanner view).
-  const prevSnapshot  = useRef<Set<string>>(new Set());
-  const isFirstPoll   = useRef(true);
-  const timerRef      = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Inject CSS once
-  useEffect(() => {
-    if (!bannerCssInjected && typeof document !== 'undefined') {
-      const s = document.createElement('style');
-      s.textContent = BANNER_CSS;
-      document.head.appendChild(s);
-      bannerCssInjected = true;
-    }
-  }, []);
-
-  // Read preference from localStorage (reactive to storage events from ScannerPage toggle)
-  useEffect(() => {
-    function readPref() {
-      try { setEnabled(localStorage.getItem(SCANNER_NOTIF_KEY) === '1'); } catch {}
-    }
-    readPref();
-    window.addEventListener('storage', readPref);
-    // Also poll the key every 2s in case it was set in the same tab (storage event
-    // only fires for cross-tab changes)
-    const id = setInterval(readPref, 2000);
-    return () => { window.removeEventListener('storage', readPref); clearInterval(id); };
-  }, []);
-
-  // Dismiss helper
-  const dismiss = useCallback(() => {
-    if (leaving) return;
-    setLeaving(true);
-    if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
-    setTimeout(() => { setVisible(false); setLeaving(false); setSignals([]); }, 260);
-  }, [leaving]);
-
-  // Poll for new signals — snapshot comparison, independent of is_new flag.
-  //
-  // Why NOT use onlyNew=true:
-  //   The is_new flag is cleared after 60 s by the daemon. If the user was on
-  //   the scanner view for >60 s before switching tabs, those signals are no
-  //   longer is_new=true and would never trigger the banner.
-  //
-  // Instead we fetch ALL profitable future signals, compare against the
-  // previous snapshot, and alert on genuinely new IDs — identical strategy
-  // to the daemon's _prevSignalIds / _firstScannerCycle fix.
-  useEffect(() => {
-    if (!enabled) return;
-
-    async function poll() {
-      try {
-        const res = await fetch('/api/sure/scanner?profitMin=0&limit=200');
-        if (!res.ok) return;
-        const json = await res.json() as { ok: boolean; signals: ScanSignal[] };
-        if (!json.ok) return;
-
-        const incoming = json.signals;
-        const currentKeys = new Set(incoming.map(signalKey));
-
-        if (isFirstPoll.current) {
-          // Seed snapshot without alerting — we don't know which signals are
-          // truly "new" vs already visible to the user.
-          prevSnapshot.current = currentKeys;
-          isFirstPoll.current  = false;
-          return;
-        }
-
-        // Genuinely new: present in current snapshot but absent from previous.
-        // Comparação por conteúdo (jogo+casas) — não por ID — para evitar
-        // alertas repetidos quando o SuperMonitor rotaciona os IDs dos sinais.
-        const fresh = incoming.filter(s => !prevSnapshot.current.has(signalKey(s)));
-        prevSnapshot.current = currentKeys;
-
-        // Always update snapshot (even on scanner view) so we don't
-        // retroactively show signals the user already saw there.
-        if (fresh.length === 0) return;
-
-        // Don't show banner while user is already watching scanner
-        if (useStore.getState().view === 'scanner') return;
-
-        setSignals(fresh);
-        setLeaving(false);
-        setVisible(true);
-
-        if (timerRef.current) clearTimeout(timerRef.current);
-        timerRef.current = setTimeout(dismiss, 8000);
-      } catch { /* silent */ }
-    }
-
-    poll(); // immediate first check
-    const id = setInterval(poll, 12_000);
-    return () => { clearInterval(id); if (timerRef.current) clearTimeout(timerRef.current); };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled]);
-
-  // Hide automatically when user navigates to scanner
-  useEffect(() => {
-    if (view === 'scanner' && visible) dismiss();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view]);
-
-  if (!visible || signals.length === 0) return null;
-
-  const preview = signals.slice(0, 3).map(s => s.jogo ?? 'Evento').join(' · ');
-  const extra   = signals.length > 3 ? ` +${signals.length - 3}` : '';
-
-  return (
-    <div
-      style={{
-        position:    'fixed',
-        top:         16,
-        left:        '50%',
-        transform:   'translateX(-50%)',
-        zIndex:      10000,
-        pointerEvents: 'none',
-      }}
-    >
-      <div
-        style={{
-          pointerEvents:  'auto',
-          display:        'flex',
-          alignItems:     'center',
-          gap:            10,
-          padding:        '11px 14px',
-          borderRadius:   12,
-          background:     'rgba(8, 22, 12, 0.92)',
-          border:         '1px solid rgba(61,255,143,.35)',
-          backdropFilter: 'blur(18px)',
-          boxShadow:      '0 8px 32px rgba(0,0,0,.55)',
-          maxWidth:       420,
-          cursor:         'pointer',
-          animation:      leaving
-            ? 'bannerOut .26s ease-out forwards'
-            : 'bannerIn .3s cubic-bezier(.2,.8,.4,1) both, bannerPulse 1.8s ease-in-out 0.3s 2',
-        }}
-        onClick={() => { setView('scanner'); dismiss(); }}
-        role="button"
-        tabIndex={0}
-        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { setView('scanner'); dismiss(); } }}
-      >
-        {/* Icon */}
-        <span style={{
-          flexShrink: 0,
-          width: 30, height: 30,
-          borderRadius: 8,
-          background: 'rgba(61,255,143,.12)',
-          border: '1px solid rgba(61,255,143,.2)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          color: '#3DFF8F',
-        }}>
-          <TrendingUp size={14} />
-        </span>
-
-        {/* Text */}
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: '#3DFF8F', letterSpacing: '.02em' }}>
-            {signals.length === 1
-              ? '1 nova oportunidade detectada'
-              : `${signals.length} novas oportunidades detectadas`}
-          </div>
-          <div style={{
-            fontSize: 11, color: 'rgba(148,163,184,.75)',
-            marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-          }}>
-            {preview}{extra}
-          </div>
-        </div>
-
-        {/* Scanner label */}
-        <span style={{
-          flexShrink: 0,
-          fontSize: 10, fontWeight: 600,
-          padding: '3px 8px',
-          borderRadius: 6,
-          background: 'rgba(61,255,143,.1)',
-          border: '1px solid rgba(61,255,143,.2)',
-          color: '#3DFF8F',
-          display: 'flex', alignItems: 'center', gap: 4,
-        }}>
-          <Radio size={9} />
-          Ver
-        </span>
-
-        {/* Close */}
-        <button
-          type="button"
-          onClick={e => { e.stopPropagation(); dismiss(); }}
-          aria-label="Fechar"
-          style={{
-            flexShrink: 0,
-            width: 24, height: 24,
-            borderRadius: 6, border: 'none',
-            background: 'transparent',
-            color: 'rgba(148,163,184,.55)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            cursor: 'pointer',
-            transition: 'color .12s',
-          }}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#F1F5F9'; }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'rgba(148,163,184,.55)'; }}
-        >
-          <X size={12} />
-        </button>
-      </div>
-    </div>
-  );
-}
 
 export function AppShell() {
   const view           = useStore(s => s.view);
@@ -509,7 +267,6 @@ export function AppShell() {
             {view === 'resumo'     && <ResumoPage />}
             {view === 'metas'      && <MetasPage />}
             {view === 'operadores' && <OperadoresPage />}
-            {view === 'scanner'    && <ScannerPage />}
             {view === 'admin'      && <AdminPage />}
             {view === 'perfil'  && <PerfilPage />}
           </PageErrorBoundary>
@@ -520,7 +277,6 @@ export function AppShell() {
       {initialized && !onboardingDone && <OnboardingModal />}
       {importBuffer    && <ImportPreview />}
       <ToastStack />
-      <ScannerNotifBanner />
     </div>
   );
 }

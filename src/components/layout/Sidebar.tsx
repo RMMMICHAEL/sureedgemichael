@@ -42,7 +42,6 @@ const NAV_GROUPS: NavGroup[] = [
       { id: 'ops',    label: 'Operações',        icon: <Activity   size={15} strokeWidth={2} /> },
       { id: 'odds',    label: 'Buscar Odds',       icon: <ScanSearch size={15} strokeWidth={2} /> },
       { id: 'freebet', label: 'Converter Freebet', icon: <Gift      size={15} strokeWidth={2} /> },
-      { id: 'scanner', label: 'Alertas Duplo Green', icon: <Radio     size={15} strokeWidth={2} /> },
     ],
   },
   {
