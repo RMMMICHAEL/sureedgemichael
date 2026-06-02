@@ -111,17 +111,18 @@ export interface UpsertSubscriptionPayload {
 export async function upsertSubscriptionByEmail(payload: UpsertSubscriptionPayload): Promise<void> {
   const admin = getAdminClient();
 
-  // Look up user_id by email
-  const { data: listData } = await admin.auth.admin.listUsers({ perPage: 1000 });
-  const user = listData?.users?.find(u => u.email?.toLowerCase() === payload.email.toLowerCase());
+  // Look up user_id by email — uses getUserByEmail (O(1)) instead of
+  // listUsers (O(n), hard-limited to 1000) so it works at any scale.
+  const { data: userData } = await admin.auth.admin.getUserByEmail(payload.email);
+  const userId = userData?.user?.id ?? null;
 
   const now = new Date().toISOString();
 
-  await admin
+  const { error } = await admin
     .from('subscriptions')
     .upsert(
       {
-        user_id:        user?.id ?? null,
+        user_id:        userId,
         email:          payload.email.toLowerCase(),
         plan:           payload.plan,
         status:         payload.status,
@@ -131,4 +132,9 @@ export async function upsertSubscriptionByEmail(payload: UpsertSubscriptionPaylo
       },
       { onConflict: 'email' },
     );
+
+  if (error) {
+    // Throw so the webhook returns 500 and Cakto retries automatically
+    throw new Error(`upsertSubscriptionByEmail failed: ${error.message} (code: ${error.code})`);
+  }
 }

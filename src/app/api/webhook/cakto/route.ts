@@ -122,27 +122,40 @@ export async function POST(req: NextRequest) {
   const plan = detectPlan(payload);
 
   if (ACTIVATE_EVENTS.has(event)) {
-    await upsertSubscriptionByEmail({
-      email,
-      plan,
-      status:         'active',
-      cakto_order_id: refId,
-      expires_at:     addDays(PLAN_DURATION_DAYS[plan]),
-    });
-    console.log(`[cakto-webhook] Activated ${plan} for ${email} (event: ${event})`);
-    return NextResponse.json({ ok: true });
+    try {
+      await upsertSubscriptionByEmail({
+        email,
+        plan,
+        status:         'active',
+        cakto_order_id: refId,
+        expires_at:     addDays(PLAN_DURATION_DAYS[plan]),
+      });
+      console.log(`[cakto-webhook] Activated ${plan} for ${email} (event: ${event})`);
+      return NextResponse.json({ ok: true });
+    } catch (err: unknown) {
+      // Return 500 so Cakto retries the webhook automatically
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`[cakto-webhook] FAILED to activate ${email}: ${msg}`);
+      return NextResponse.json({ error: 'Subscription activation failed' }, { status: 500 });
+    }
   }
 
   if (DEACTIVATE_EVENTS.has(event)) {
-    await upsertSubscriptionByEmail({
-      email,
-      plan,
-      status:         'cancelled',
-      cakto_order_id: refId,
-      expires_at:     null,
-    });
-    console.log(`[cakto-webhook] Cancelled for ${email} (event: ${event})`);
-    return NextResponse.json({ ok: true });
+    try {
+      await upsertSubscriptionByEmail({
+        email,
+        plan,
+        status:         'cancelled',
+        cakto_order_id: refId,
+        expires_at:     null,
+      });
+      console.log(`[cakto-webhook] Cancelled for ${email} (event: ${event})`);
+      return NextResponse.json({ ok: true });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`[cakto-webhook] FAILED to cancel ${email}: ${msg}`);
+      return NextResponse.json({ error: 'Subscription update failed' }, { status: 500 });
+    }
   }
 
   console.log(`[cakto-webhook] Unhandled event: ${event}`);
