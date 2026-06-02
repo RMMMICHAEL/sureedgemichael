@@ -1,8 +1,24 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Zap, CheckCircle2, ArrowRight, Shield, BarChart2, TrendingUp } from 'lucide-react';
+
+// Dispara evento Purchase no pixel da Utmify
+function fireUtmifyPurchase(value: number) {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const u = (window as any).utmify;
+    if (u?.track) {
+      u.track('Purchase', { revenue: value, currency: 'BRL' });
+    } else {
+      // Fallback: dispara via fbq diretamente caso o pixel ainda esteja carregando
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const fbq = (window as any).fbq;
+      if (fbq) fbq('track', 'Purchase', { value, currency: 'BRL' });
+    }
+  } catch { /* silencioso */ }
+}
 
 function ParticlesBg() {
   const ref = useRef<HTMLCanvasElement>(null);
@@ -48,8 +64,21 @@ function ParticlesBg() {
   return <canvas ref={ref} style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 0 }} />;
 }
 
+const PLAN_VALUES: Record<string, number> = {
+  monthly: 97, quarterly: 247, annual: 797,
+};
+
 export default function BemVindoPage() {
-  const router = useRouter();
+  const router     = useRouter();
+  const params     = useSearchParams();
+
+  useEffect(() => {
+    // Aguarda o pixel.js da Utmify carregar (~500ms) e dispara Purchase
+    const plan  = params.get('plan') ?? 'monthly';
+    const value = parseFloat(params.get('value') ?? '') || PLAN_VALUES[plan] || 97;
+    const timer = setTimeout(() => fireUtmifyPurchase(value), 800);
+    return () => clearTimeout(timer);
+  }, [params]);
 
   return (
     <div style={{
