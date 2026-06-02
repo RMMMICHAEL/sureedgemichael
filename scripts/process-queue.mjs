@@ -1074,7 +1074,7 @@ async function fetchScannerSnapshot(scannerSession) {
 // ── Scanner SSE token (sse_token_proxy.php) ───────────────────────────────────
 // Filtros completos — aceita todos os tipos/casas/ligas disponíveis na plataforma
 const SCANNER_FILTERS = {
-  tipos:    ['ML', 'DUO'],
+  tipos:    ['ML'],
   casas: [
     '7games','Alfabet','Apostaganha','Betbra','BetfairSB','BetssonSO','Tradeball',
     'Betnacional','BetmgmSO','Betao','BetanoSO','BetsulSO','BetesporteSO','Br4betSO',
