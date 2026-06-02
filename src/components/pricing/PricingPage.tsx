@@ -70,6 +70,8 @@ const PLANS: Plan[] = [
 
 // ── Checkout URLs (from env vars, set in Vercel) ──────────────────────────────
 
+const UTM_PARAMS = ['utm_source','utm_medium','utm_campaign','utm_content','utm_term','fbclid'];
+
 function checkoutUrl(planId: PlanId, email: string): string {
   const base =
     planId === 'monthly'   ? process.env.NEXT_PUBLIC_CAKTO_URL_MONTHLY   :
@@ -77,10 +79,17 @@ function checkoutUrl(planId: PlanId, email: string): string {
                              process.env.NEXT_PUBLIC_CAKTO_URL_ANNUAL;
 
   if (!base) return '#';
-  // Pre-fill customer email on Cakto checkout (optional but improves matching)
   try {
     const url = new URL(base);
     if (email) url.searchParams.set('email', email);
+    // Repassa UTMs e fbclid da URL atual para o checkout
+    if (typeof window !== 'undefined') {
+      const pageParams = new URLSearchParams(window.location.search);
+      UTM_PARAMS.forEach(p => {
+        const v = pageParams.get(p);
+        if (v) url.searchParams.set(p, v);
+      });
+    }
     return url.toString();
   } catch {
     return base;

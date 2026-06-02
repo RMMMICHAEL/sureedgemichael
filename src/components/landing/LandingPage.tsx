@@ -38,13 +38,27 @@ const LANDING_PLANS: LandingPlan[] = [
   },
 ];
 
+const UTM_PARAMS = ['utm_source','utm_medium','utm_campaign','utm_content','utm_term','fbclid'];
+
 function landingCheckoutUrl(planId: PlanId, email: string): string {
   const base =
     planId === 'monthly'   ? process.env.NEXT_PUBLIC_CAKTO_URL_MONTHLY   :
     planId === 'quarterly' ? process.env.NEXT_PUBLIC_CAKTO_URL_QUARTERLY :
                              process.env.NEXT_PUBLIC_CAKTO_URL_ANNUAL;
   if (!base) return '/pricing';
-  try { const u = new URL(base); if (email) u.searchParams.set('email', email); return u.toString(); }
+  try {
+    const u = new URL(base);
+    if (email) u.searchParams.set('email', email);
+    // Repassa UTMs e fbclid da URL atual para o checkout
+    if (typeof window !== 'undefined') {
+      const pageParams = new URLSearchParams(window.location.search);
+      UTM_PARAMS.forEach(p => {
+        const v = pageParams.get(p);
+        if (v) u.searchParams.set(p, v);
+      });
+    }
+    return u.toString();
+  }
   catch { return base; }
 }
 

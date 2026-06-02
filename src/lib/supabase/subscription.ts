@@ -110,19 +110,15 @@ export interface UpsertSubscriptionPayload {
 
 export async function upsertSubscriptionByEmail(payload: UpsertSubscriptionPayload): Promise<void> {
   const admin = getAdminClient();
+  const now   = new Date().toISOString();
 
-  // Look up user_id by email — uses getUserByEmail (O(1)) instead of
-  // listUsers (O(n), hard-limited to 1000) so it works at any scale.
-  const { data: userData } = await admin.auth.admin.getUserByEmail(payload.email);
-  const userId = userData?.user?.id ?? null;
-
-  const now = new Date().toISOString();
-
+  // user_id is intentionally omitted here so renewals never overwrite an
+  // already-linked user_id. The auto-link happens in /api/subscription on
+  // the user's first login (email fallback path).
   const { error } = await admin
     .from('subscriptions')
     .upsert(
       {
-        user_id:        userId,
         email:          payload.email.toLowerCase(),
         plan:           payload.plan,
         status:         payload.status,
