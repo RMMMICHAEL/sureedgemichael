@@ -70,12 +70,23 @@ const PLAN_VALUES: Record<string, number> = {
 
 function PurchaseTracker() {
   const params = useSearchParams();
+  const router = useRouter();
   useEffect(() => {
     const plan  = params.get('plan') ?? 'monthly';
+    const email = params.get('email') ?? '';
     const value = parseFloat(params.get('value') ?? '') || PLAN_VALUES[plan] || 97;
+
+    // 1. Dispara evento Purchase no pixel
     const timer = setTimeout(() => fireUtmifyPurchase(value), 800);
-    return () => clearTimeout(timer);
-  }, [params]);
+
+    // 2. Redireciona para criação de conta com email pré-preenchido
+    const dest = email
+      ? `/login?mode=signup&email=${encodeURIComponent(email)}`
+      : '/login?mode=signup';
+    const redirect = setTimeout(() => router.push(dest), 2500);
+
+    return () => { clearTimeout(timer); clearTimeout(redirect); };
+  }, [params, router]);
   return null;
 }
 

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { getSupabaseClient } from '@/lib/supabase/client';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Eye, EyeOff, Zap, Lock, Mail, AlertCircle, TrendingUp, BarChart2, Shield, Check, ArrowRight } from 'lucide-react';
 
 // ─── Canvas Particles (left panel) ───────────────────────────────────────────
@@ -128,14 +128,26 @@ function InputField({ icon: Icon, type, value, onChange, placeholder, autoComple
 // ─── Main form ────────────────────────────────────────────────────────────────
 
 export function LoginForm() {
-  const router = useRouter();
+  const router     = useRouter();
+  const params     = useSearchParams();
   const [email,    setEmail]    = useState('');
   const [password, setPassword] = useState('');
   const [showPw,   setShowPw]   = useState(false);
   const [loading,  setLoading]  = useState(false);
   const [error,    setError]    = useState('');
-  const [mode,     setMode]     = useState<'login' | 'reset'>('login');
+  const [mode,     setMode]     = useState<'login' | 'reset' | 'signup'>('login');
   const [done,     setDone]     = useState(false);
+  // Email travado quando vem do fluxo pós-compra
+  const [lockedEmail, setLockedEmail] = useState('');
+
+  useEffect(() => {
+    const urlMode  = params.get('mode');
+    const urlEmail = params.get('email') ?? '';
+    if (urlMode === 'signup') {
+      setMode('signup');
+      if (urlEmail) { setEmail(urlEmail); setLockedEmail(urlEmail); }
+    }
+  }, [params]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -151,14 +163,25 @@ export function LoginForm() {
         setDone(true);
         return;
       }
+      if (mode === 'signup') {
+        const { error } = await supabase.auth.signUp({ email, password });
+        if (error) throw error;
+        // Login automático após cadastro
+        const { error: loginErr } = await supabase.auth.signInWithPassword({ email, password });
+        if (loginErr) throw loginErr;
+        router.push('/');
+        router.refresh();
+        return;
+      }
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
       router.push('/');
       router.refresh();
     } catch (err: unknown) {
       const msg = (err as { message?: string }).message ?? 'Erro ao autenticar';
-      if (msg.includes('Invalid login')) setError('E-mail ou senha incorretos.');
+      if (msg.includes('Invalid login'))      setError('E-mail ou senha incorretos.');
       else if (msg.includes('Email not confirmed')) setError('Confirme seu e-mail antes de entrar.');
+      else if (msg.includes('already registered')) setError('Este e-mail já possui uma conta. Faça login normalmente.');
       else setError(msg);
     } finally {
       setLoading(false);
@@ -285,12 +308,14 @@ export function LoginForm() {
           {/* Header */}
           <div style={{ marginBottom: 32 }}>
             <h2 style={{ fontFamily: 'Manrope', fontWeight: 900, fontSize: 32, letterSpacing: '-0.04em', marginBottom: 8 }}>
-              {mode === 'reset' ? 'Redefinir senha' : 'Bem-vindo de volta'}
+              {mode === 'reset'  ? 'Redefinir senha'   :
+               mode === 'signup' ? 'Criar sua conta'   :
+               'Bem-vindo de volta'}
             </h2>
             <p style={{ color: 'var(--t3)', fontSize: 14 }}>
-              {mode === 'reset'
-                ? 'Informe seu e-mail para receber o link de redefinição.'
-                : 'Entre no seu dashboard profissional.'}
+              {mode === 'reset'  ? 'Informe seu e-mail para receber o link de redefinição.' :
+               mode === 'signup' ? 'Compra confirmada! Escolha uma senha para acessar seu dashboard.' :
+               'Entre no seu dashboard profissional.'}
             </p>
           </div>
 
@@ -326,12 +351,26 @@ export function LoginForm() {
 
               {/* Email */}
               <div>
-                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: 8 }}>E-mail</label>
-                <InputField
-                  icon={Mail} type="email" value={email}
-                  onChange={setEmail} placeholder="seu@email.com"
-                  autoComplete="email"
-                />
+                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: 8 }}>
+                  E-mail{lockedEmail && <span style={{ marginLeft: 8, color: '#3FFF21', fontWeight: 600 }}>✓ confirmado</span>}
+                </label>
+                {lockedEmail ? (
+                  <div style={{
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    padding: '12px 14px', borderRadius: 12, fontSize: 14,
+                    background: 'rgba(63,255,33,.06)', border: '1px solid rgba(63,255,33,.25)',
+                    color: 'var(--t)',
+                  }}>
+                    <Mail size={14} color="#3FFF21" />
+                    <span style={{ flex: 1 }}>{lockedEmail}</span>
+                  </div>
+                ) : (
+                  <InputField
+                    icon={Mail} type="email" value={email}
+                    onChange={setEmail} placeholder="seu@email.com"
+                    autoComplete="email"
+                  />
+                )}
               </div>
 
               {/* Password */}
@@ -394,6 +433,8 @@ export function LoginForm() {
                     }} />
                     Aguarde...
                   </>
+                ) : mode === 'signup' ? (
+                  <><ArrowRight size={16} /> Criar conta e acessar</>
                 ) : mode === 'login' ? (
                   <><ArrowRight size={16} /> Entrar no SureEdge</>
                 ) : (
@@ -409,10 +450,10 @@ export function LoginForm() {
                     Esqueci minha senha
                   </button>
                 )}
-                {mode === 'reset' && (
-                  <button type="button" onClick={() => { setMode('login'); setError(''); }}
+                {(mode === 'reset' || mode === 'signup') && (
+                  <button type="button" onClick={() => { setMode('login'); setLockedEmail(''); setError(''); }}
                     style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--t3)', fontSize: 13 }}>
-                    ← Voltar ao login
+                    ← Já tenho conta, fazer login
                   </button>
                 )}
               </div>
