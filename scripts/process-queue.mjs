@@ -1640,8 +1640,8 @@ async function guardScannerLoop() {
   }
 }
 
-// Inicia o guardião do scanner em background
-guardScannerLoop();
+// Scanner de Alertas Duplo Green removido da UI — loop desativado
+// guardScannerLoop();
 
 while (true) {
   await sleep(POLL_INTERVAL);
