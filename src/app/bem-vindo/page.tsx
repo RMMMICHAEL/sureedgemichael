@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, Suspense } from 'react';
+import { useEffect, useRef, Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Zap, CheckCircle2, ArrowRight, Shield, BarChart2, TrendingUp } from 'lucide-react';
 
@@ -78,30 +78,23 @@ const PLAN_VALUES: Record<string, number> = {
 
 function PurchaseTracker() {
   const params = useSearchParams();
-  const router = useRouter();
   useEffect(() => {
     const plan  = params.get('plan') ?? 'monthly';
-    const email = params.get('email') ?? '';
-    // Valor real do plano: lê da URL (?value=97) ou usa fallback por plano
     const value = parseFloat(params.get('value') ?? '') || PLAN_VALUES[plan] || 97;
-
-    // 1. Dispara Purchase imediatamente — fireUtmifyPurchase já faz polling
-    //    até o pixel Utmify estar disponível (sem timeout desnecessário)
     fireUtmifyPurchase(value);
-
-    // 2. Redireciona para criação de conta com email pré-preenchido
-    const dest = email
-      ? `/login?mode=signup&email=${encodeURIComponent(email)}`
-      : '/login?mode=signup';
-    const redirect = setTimeout(() => router.push(dest), 2500);
-
-    return () => { clearTimeout(redirect); };
-  }, [params, router]);
+  }, [params]);
   return null;
 }
 
 export default function BemVindoPage() {
   const router = useRouter();
+  const [email, setEmail] = useState('');
+
+  function handleAccess() {
+    const e = email.trim();
+    if (!e || !e.includes('@')) return;
+    router.push(`/login?mode=signup&email=${encodeURIComponent(e)}`);
+  }
 
   return (
     <div style={{
@@ -182,23 +175,38 @@ export default function BemVindoPage() {
             ))}
           </div>
 
-          {/* CTAs */}
+          {/* Email + acesso */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div>
+              <label style={{ fontSize: 11, fontWeight: 700, color: 'rgba(240,244,248,.4)', textTransform: 'uppercase', letterSpacing: '0.1em', display: 'block', marginBottom: 6 }}>
+                E-mail usado no pagamento
+              </label>
+              <input
+                type="email"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleAccess()}
+                placeholder="seu@email.com"
+                style={{
+                  width: '100%', padding: '12px 14px', borderRadius: 12, fontSize: 14,
+                  background: 'rgba(255,255,255,.05)', border: '1px solid rgba(63,255,33,.25)',
+                  color: '#F0F4F8', outline: 'none', boxSizing: 'border-box',
+                }}
+              />
+            </div>
             <button
               type="button"
-              onClick={() => router.push('/login')}
-              className="btn-cta"
+              onClick={handleAccess}
               style={{
                 width: '100%', padding: '15px', borderRadius: 14, fontSize: 15, fontWeight: 800,
                 border: 'none', cursor: 'pointer', background: '#3FFF21', color: '#030507',
                 boxShadow: '0 0 28px rgba(63,255,33,.4)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                fontFamily: 'Manrope',
+                fontFamily: 'Manrope', opacity: email.includes('@') ? 1 : 0.5,
               }}
             >
-              Acessar meu dashboard <ArrowRight size={16} />
+              Criar conta e acessar <ArrowRight size={16} />
             </button>
-
             <button
               type="button"
               onClick={() => router.push('/ativar')}
