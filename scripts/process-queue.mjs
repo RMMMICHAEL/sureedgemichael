@@ -383,24 +383,50 @@ async function createSession(cookie) {
 
 
 async function fetchDecrypted(session, qs) {
-  // Usa proxy_nonce.php — nonce genérico para buscador_proxy.php
-  const nonceRes = await fetch(`${BASE}/api/proxy_nonce.php`, { headers: session.hdrs });
-  if (!nonceRes.ok) throw new Error(`proxy_nonce falhou (${nonceRes.status})`);
-  const { nonce } = await safeJson(nonceRes, 'buscador: proxy_nonce');
+  // Fluxo correto conforme HAR do browser:
+  // 1. proxy_nonce_buscador.php (x-check-token-cache: 1) → nonce
+  // 2. sse_token_buscador_proxy.php (com nonce) → retorna proxy_nonce
+  // 3. buscador_proxy.php (com proxy_nonce do passo 2) → odds
 
-  const nonceCookies = extractSetCookies(nonceRes.headers);
-  const proxyHdrs = nonceCookies.length
-    ? { ...session.hdrs, 'Cookie': mergeCookies(session.hdrs['Cookie'], nonceCookies) }
-    : session.hdrs;
-
-  // Referer inclui a query — igual ao browser (server pode validar referer)
   const q = qs.includes('q=') ? qs.split('q=')[1]?.split('&')[0] ?? '' : '';
   const referer = q
     ? `${BASE}/index.php?page=buscador&q=${q}&type=event`
     : `${BASE}/index.php?page=buscador`;
 
+  const hdrsWithReferer = { ...session.hdrs, 'Referer': referer };
+
+  // Passo 1: nonce específico do buscador
+  const nonceRes = await fetch(`${BASE}/api/proxy_nonce_buscador.php`, {
+    headers: { ...hdrsWithReferer, 'X-Check-Token-Cache': '1' },
+  });
+  if (!nonceRes.ok) throw new Error(`proxy_nonce_buscador falhou (${nonceRes.status})`);
+  const { nonce: sseNonce } = await safeJson(nonceRes, 'buscador: proxy_nonce_buscador');
+  if (!sseNonce) throw new Error('buscador: nonce_buscador vazio');
+
+  let hdrs2 = hdrsWithReferer;
+  const nonceCookies = extractSetCookies(nonceRes.headers);
+  if (nonceCookies.length) hdrs2 = { ...hdrs2, 'Cookie': mergeCookies(hdrs2['Cookie'], nonceCookies) };
+
+  // Passo 2: SSE token — extrai proxy_nonce da resposta
+  const sseRes = await fetch(`${BASE}/api/sse_token_buscador_proxy.php`, {
+    headers: { ...hdrs2, 'Accept': 'application/json', 'X-Proxy-Nonce': sseNonce },
+  });
+  if (!sseRes.ok) throw new Error(`sse_token_buscador_proxy falhou (${sseRes.status})`);
+  const sseData = await safeJson(sseRes, 'buscador: sse_token_buscador_proxy');
+
+  const sseCookies = extractSetCookies(sseRes.headers);
+  if (sseCookies.length) hdrs2 = { ...hdrs2, 'Cookie': mergeCookies(hdrs2['Cookie'], sseCookies) };
+
+  // proxy_nonce pode vir como proxy_nonce ou nonce dentro da resposta SSE
+  const proxyNonce = sseData?.proxy_nonce ?? sseData?.nonce ?? null;
+  if (!proxyNonce) {
+    console.log(`   [debug-sse] resposta sse_token: ${JSON.stringify(sseData).slice(0,200)}`);
+    throw new Error('buscador: proxy_nonce ausente na resposta sse_token');
+  }
+
+  // Passo 3: busca odds com o proxy_nonce correto
   const res = await fetch(`${BASE}/api/buscador_proxy.php?${qs}`, {
-    headers: { ...proxyHdrs, 'X-Proxy-Nonce': nonce, 'Referer': referer },
+    headers: { ...hdrs2, 'X-Proxy-Nonce': proxyNonce },
   });
   if (!res.ok) {
     const body = await res.text().catch(() => '');
