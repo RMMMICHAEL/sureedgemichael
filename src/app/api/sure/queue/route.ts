@@ -111,21 +111,6 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Verifica se a fila já processou este evento (done/error) sem encontrar odds.
-    // Evita que o frontend re-enfileire indefinidamente para eventos sem odds.
-    const { data: processed } = await sb
-      .from('odds_queue')
-      .select('status')
-      .eq('event_id', event_id)
-      .in('status', ['done', 'error'])
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
-
-    if (processed) {
-      return NextResponse.json({ ok: true, ready: true, no_odds: true });
-    }
-
     return NextResponse.json({ ok: true, ready: false });
 
   } catch (err: unknown) {
