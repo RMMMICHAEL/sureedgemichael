@@ -376,9 +376,22 @@ async function fetchDecrypted(session, qs) {
   const res = await fetch(`${BASE}/api/buscador_proxy.php?${qs}`, {
     headers: { ...proxyHdrs, 'X-Proxy-Nonce': nonce },
   });
+  // 403 com body encriptado = servidor retornou erro via payload ECDH —
+  // tenta descriptografar antes de jogar fora a resposta.
   if (!res.ok) {
     const body = await res.text().catch(() => '');
     console.error(`   [debug] ${res.status} body: ${body.slice(0, 300)}`);
+    let parsed = null;
+    try { parsed = JSON.parse(body); } catch { /* não é JSON */ }
+    if (parsed?.encrypted && parsed?.data) {
+      // Tenta decriptar — se conseguir, usa o resultado normalmente
+      try {
+        const encBytes = base64ToBytes(parsed.data);
+        const plain    = await subtle.decrypt({ name: 'AES-CBC', iv: encBytes.slice(0, 16) }, session.aesKey, encBytes.slice(16));
+        const decoded  = new TextDecoder().decode(plain);
+        if (decoded.trim()) return JSON.parse(decoded);
+      } catch { /* descriptografia falhou — cai no throw abaixo */ }
+    }
     throw new Error(`proxy falhou (${res.status})`);
   }
 
