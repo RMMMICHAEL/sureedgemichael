@@ -19,7 +19,7 @@ const ADMIN_EMAIL = 'michael.martins.trader@gmail.com';
 
 export async function GET() {
   // Admin-only
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   const supabase = createSupabaseServerClient(cookieStore);
   const { data: { user } } = await supabase.auth.getUser();
   if (!user || user.email !== ADMIN_EMAIL) return NextResponse.json({ failed: false });

@@ -22,7 +22,7 @@ async function getSupabaseAdmin() {
 
 export async function GET() {
   // Admin-only
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   const supabase = createSupabaseServerClient(cookieStore);
   const { data: { user } } = await supabase.auth.getUser();
   if (!user || user.email !== ADMIN_EMAIL) {

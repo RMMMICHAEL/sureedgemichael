@@ -12,7 +12,7 @@ const ADMIN_EMAIL = 'michael.martins.trader@gmail.com';
 
 export async function POST(req: NextRequest) {
   // Apenas admin pode injetar cookies do SuperMonitor
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   const supabase = createSupabaseServerClient(cookieStore);
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
