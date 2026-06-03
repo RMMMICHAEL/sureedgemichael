@@ -37,6 +37,13 @@ export async function middleware(request: NextRequest) {
     },
   });
 
+  // /lp → / (landing page canônica é a raiz)
+  if (request.nextUrl.pathname === '/lp' || request.nextUrl.pathname.startsWith('/lp?')) {
+    const url = request.nextUrl.clone();
+    url.pathname = '/';
+    return NextResponse.redirect(url, 301);
+  }
+
   // Atualiza sessão (mantém auth ativa)
   const { data: { user } } = await supabase.auth.getUser();
 
@@ -49,6 +56,7 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/pricing') ||
     pathname.startsWith('/bem-vindo') ||
     pathname.startsWith('/ativar') ||
+    pathname.startsWith('/obrigado') ||
     pathname.startsWith('/api/webhook') ||
     pathname.startsWith('/api/subscription') ||
     pathname.startsWith('/api/ativar');
