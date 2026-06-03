@@ -181,6 +181,9 @@ export default function BemVindoPage() {
               <label style={{ fontSize: 11, fontWeight: 700, color: 'rgba(240,244,248,.4)', textTransform: 'uppercase', letterSpacing: '0.1em', display: 'block', marginBottom: 6 }}>
                 E-mail usado no pagamento
               </label>
+              <p style={{ fontSize: 11, color: '#FF8F3D', fontWeight: 600, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 4 }}>
+                ⚠ Obrigatório usar o e-mail com que foi realizada a compra
+              </p>
               <input
                 type="email"
                 value={email}
