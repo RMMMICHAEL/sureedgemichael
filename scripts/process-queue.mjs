@@ -378,15 +378,23 @@ async function fetchDecrypted(session, qs) {
   });
   if (!res.ok) {
     const body = await res.text().catch(() => '');
-    console.error(`   [debug] ${res.status} body: ${body.slice(0, 300)}`);
-    // 403 com body encriptado = sessão ECDH expirou no servidor.
-    // NÃO tenta decriptar — a chave AES já é inválida.
-    // Lança erro de sessão para o ciclo recriar a sessão ECDH.
     let parsed = null;
     try { parsed = JSON.parse(body); } catch { /* não é JSON */ }
+
+    // 403 com body encriptado = servidor não tem odds para este evento
+    // (liga não suportada, evento não indexado). Não é erro de sessão.
+    // Retorna array vazio para o ciclo marcar como "Sem odds" e seguir.
     if (res.status === 403 && parsed?.encrypted) {
-      throw new Error('401 needs_handshake — sessao ECDH expirou (403 encrypted)');
+      console.log(`   [403] Evento sem odds no SuperMonitor (não indexado)`);
+      return [];
     }
+
+    // 401 = sessão ECDH expirada — ciclo vai recriar sessão
+    if (res.status === 401) {
+      throw new Error('401 needs_handshake — sessao ECDH expirou');
+    }
+
+    console.error(`   [debug] ${res.status} body: ${body.slice(0, 300)}`);
     throw new Error(`proxy falhou (${res.status})`);
   }
 
