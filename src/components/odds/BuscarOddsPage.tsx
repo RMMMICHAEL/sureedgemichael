@@ -132,8 +132,12 @@ function normHouseForCalc(raw: string): string {
 function parseSearchResults(raw: unknown): ParsedSearch | null {
   if (!raw || typeof raw !== 'object') return null;
   const r = raw as Record<string, unknown>;
-  const results: Record<string, unknown>[] = Array.isArray(r.results) ? r.results
-    : Array.isArray(r.data) ? r.data : [];
+  const dBlock = r.d as Record<string, unknown> | undefined;
+  const results: Record<string, unknown>[] =
+    Array.isArray(r.results)      ? r.results      :
+    Array.isArray(r.data)         ? r.data          :
+    Array.isArray(dBlock?.results) ? dBlock!.results as Record<string, unknown>[] :
+    [];
   if (!results.length) return null;
 
   const first = results[0];
