@@ -395,15 +395,14 @@ async function fetchDecrypted(session, qs) {
 
   const hdrsWithReferer = { ...session.hdrs, 'Referer': referer };
 
-  // Passo 1: nonce específico do buscador
+  // Passo 1: nonce do buscador (sem X-Check-Token-Cache — isso retorna status, não nonce)
   const nonceRes = await fetch(`${BASE}/api/proxy_nonce_buscador.php`, {
-    headers: { ...hdrsWithReferer, 'X-Check-Token-Cache': '1' },
+    headers: hdrsWithReferer,
   });
   if (!nonceRes.ok) throw new Error(`proxy_nonce_buscador falhou (${nonceRes.status})`);
   const nonceData = await safeJson(nonceRes, 'buscador: proxy_nonce_buscador');
   console.log(`   [debug-nonce] proxy_nonce_buscador resp: ${JSON.stringify(nonceData).slice(0,150)}`);
-  // Tenta vários nomes de campo possíveis
-  const sseNonce = nonceData?.nonce ?? nonceData?.proxy_nonce ?? nonceData?.token ?? nonceData?.data ?? null;
+  const sseNonce = nonceData?.nonce ?? nonceData?.proxy_nonce ?? nonceData?.token ?? null;
   if (!sseNonce) throw new Error(`buscador: nonce_buscador vazio — resposta: ${JSON.stringify(nonceData)}`);
 
   let hdrs2 = hdrsWithReferer;
