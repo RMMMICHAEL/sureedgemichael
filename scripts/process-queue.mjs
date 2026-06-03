@@ -587,8 +587,18 @@ async function processOneCycle() {
     while (attempts < MAX_ATTEMPTS) {
       attempts++;
       try {
-        const data    = await fetchDecrypted(session, `action=search&q=${encodeURIComponent(ev.name)}&type=event`);
-        const results = Array.isArray(data) ? data : (data?.results ?? data?.data ?? []);
+        // Extrai nome do time da casa (antes do separador x/vs/×)
+        const homeTeam = ev.name.split(/\s+(?:x|vs|×|X)\s+/i)[0]?.trim() ?? ev.name;
+
+        // Tenta busca pelo nome completo primeiro, depois só pelo time da casa
+        let data = await fetchDecrypted(session, `action=search&q=${encodeURIComponent(ev.name)}&type=event`);
+        let results = Array.isArray(data) ? data : (data?.results ?? data?.data ?? []);
+
+        if (!results.length && homeTeam !== ev.name) {
+          console.log(`   Sem odds pelo nome completo, tentando: ${homeTeam}`);
+          data    = await fetchDecrypted(session, `action=search&q=${encodeURIComponent(homeTeam)}&type=event`);
+          results = Array.isArray(data) ? data : (data?.results ?? data?.data ?? []);
+        }
 
         if (!results.length) {
           await markQueueDone(ev.id);
