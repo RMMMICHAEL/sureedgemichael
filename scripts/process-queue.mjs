@@ -149,72 +149,6 @@ async function validateCookie(cookie) {
 // validateCookie) que faz uma leitura real e com certeza chama session_start()
 // com escrita, renovando o TTL.
 //
-// Intervalo: 45s. Sessão expira em ~90s; disparamos 45s antes do limite.
-// O setInterval garante que o keepalive dispare INDEPENDENTE do loop principal
-// (que pode estar preso numa operação de rede de 15-20s).
-const KEEPALIVE_INTERVAL = 8 * 60 * 1000; // 8 min — mantém sessão sem gerar tráfego excessivo
-let _lastKeepalive = Date.now();
-
-async function keepalive() {
-  if (!_cookie) return;
-  if (Date.now() - _lastKeepalive < KEEPALIVE_INTERVAL) return;
-  _lastKeepalive = Date.now(); // marca antes da chamada para evitar disparos duplos
-  try {
-    // proxy_nonce.php: endpoint leve usado em cada ciclo do scanner.
-    // Retorna {"nonce":"..."} quando a sessão é válida, HTML/401 quando expirou.
-    // Chamar session_start() via qualquer endpoint PHP renova o TTL da sessão.
-    const res = await request('GET', `${BASE}/api/proxy_nonce.php`, {
-      'User-Agent': UA, 'Cookie': _cookie,
-      'Accept': 'application/json',
-      'X-Requested-With': 'XMLHttpRequest',
-      'Referer': `${BASE}/index.php?page=buscador`,
-    });
-    const ok = res.status === 200
-      && !res.body.includes('name="senha"')
-      && !res.body.trimStart().startsWith('<');
-    if (ok) {
-      // Captura cookies do servidor (ex: PHPSESSID renovado) e aplica no _cookie.
-      // Se o servidor envia um novo PHPSESSID a cada proxy_nonce, isso efetivamente
-      // reseta o contador de rate-limit do scanner na sessão PHP.
-      const setCookieRaw = res.headers['set-cookie'];
-      if (setCookieRaw) {
-        const parts = (Array.isArray(setCookieRaw) ? setCookieRaw : [setCookieRaw])
-          .map(c => c.split(';')[0].trim()).filter(Boolean);
-        if (parts.length) {
-          _cookie = mergeCookies(_cookie, parts);
-          _cookieValidatedAt = Date.now();
-          // Invalida sessões em cache para que usem o cookie atualizado
-          invalidateSession();
-          invalidateFreebetSession();
-          invalidateScannerSession();
-        }
-      }
-      const t = new Date().toLocaleTimeString('pt-BR');
-      console.log(`   [keepalive ${t}] Sessao OK${setCookieRaw ? ' (cookie renovado)' : ''}`);
-    } else {
-      // Sessão expirou — renova cookie imediatamente
-      const preview = res.body.slice(0, 80).replace(/\s+/g, ' ');
-      console.log(`   [keepalive] Sessao expirada (${res.status}) — ${preview}`);
-      _cookie = null;
-      _cookieValidatedAt = 0;
-      invalidateSession();
-      invalidateFreebetSession();
-      invalidateScannerSession();
-      const renewed = await autoRenewCookie();
-      if (renewed) {
-        _cookie = renewed;
-        _cookieValidatedAt = Date.now();
-      }
-      // Reseta para evitar re-disparo imediato após renovação
-      _lastKeepalive = Date.now();
-    }
-  } catch (err) {
-    console.error(`   [keepalive] erro de rede: ${err.message}`);
-  }
-}
-
-// setInterval garante disparos regulares independente do loop principal
-setInterval(() => { keepalive().catch(() => {}); }, 15_000);
 
 // ── Renovação manual — sem automação de login ─────────────────────────────────
 // Login automático removido para evitar detecção de bot pelo SuperMonitor.
@@ -589,12 +523,10 @@ async function processOneCycle() {
       console.log('   Cookie rejeitado pelo servidor — renovando agora...');
       _cookie = null;
       _cookieValidatedAt = 0;
-      _lastKeepalive = 0;
       const renewed = await autoRenewCookie();
       if (!renewed) { for (const ev of batch) await markQueueError(ev.id); return; }
       _cookie = renewed;
       _cookieValidatedAt = Date.now();
-      _lastKeepalive = Date.now();
       try {
         session = await getSession(renewed);
       } catch (err2) {
@@ -1703,7 +1635,6 @@ while (true) {
   await sleep(POLL_INTERVAL);
 
   // Keepalive: pinga servidor a cada 8 min para manter sessão PHP viva
-  await keepalive();
 
   // Renova SSE token a cada 12 min (independente da fila)
   if (Date.now() - _lastSseTokenFetch > SSE_REFRESH_INTERVAL) {
