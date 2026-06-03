@@ -443,13 +443,11 @@ async function fetchDecrypted(session, qs) {
       const result = JSON.parse(decoded);
       // Log temporário para debug — mostra estrutura real do retorno
       const preview = JSON.stringify(result).slice(0, 200);
-      console.log(`   [debug-decrypt] resultado: ${preview}`);
       return result;
     } catch (_e) {
       throw new Error(`buscador: JSON inválido após descriptografia — ${decoded.slice(0, 80)}`);
     }
   }
-  console.log(`   [debug-decrypt] enc sem campo encrypted/data: ${JSON.stringify(enc).slice(0, 200)}`);
   return enc;
 }
 
