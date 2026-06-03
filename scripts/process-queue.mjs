@@ -383,52 +383,26 @@ async function createSession(cookie) {
 
 
 async function fetchDecrypted(session, qs) {
-  // Fluxo correto conforme HAR do browser:
-  // 1. proxy_nonce_buscador.php (x-check-token-cache: 1) → nonce
-  // 2. sse_token_buscador_proxy.php (com nonce) → retorna proxy_nonce
-  // 3. buscador_proxy.php (com proxy_nonce do passo 2) → odds
-
+  // Nonce genérico para buscador_proxy.php (proxy_nonce.php)
+  // Referer inclui a query igual ao browser
   const q = qs.includes('q=') ? qs.split('q=')[1]?.split('&')[0] ?? '' : '';
   const referer = q
-    ? `${BASE}/index.php?page=buscador&q=${q}&type=event`
+    ? `${BASE}/index.php?page=buscador&q=${q}&type=all`
     : `${BASE}/index.php?page=buscador`;
 
-  const hdrsWithReferer = { ...session.hdrs, 'Referer': referer };
-
-  // Passo 1: nonce do buscador (sem X-Check-Token-Cache — isso retorna status, não nonce)
-  const nonceRes = await fetch(`${BASE}/api/proxy_nonce_buscador.php`, {
-    headers: hdrsWithReferer,
+  const nonceRes = await fetch(`${BASE}/api/proxy_nonce.php`, {
+    headers: { ...session.hdrs, 'Referer': referer },
   });
-  if (!nonceRes.ok) throw new Error(`proxy_nonce_buscador falhou (${nonceRes.status})`);
-  const nonceData = await safeJson(nonceRes, 'buscador: proxy_nonce_buscador');
-  console.log(`   [debug-nonce] proxy_nonce_buscador resp: ${JSON.stringify(nonceData).slice(0,150)}`);
-  const sseNonce = nonceData?.nonce ?? nonceData?.proxy_nonce ?? nonceData?.token ?? null;
-  if (!sseNonce) throw new Error(`buscador: nonce_buscador vazio — resposta: ${JSON.stringify(nonceData)}`);
+  if (!nonceRes.ok) throw new Error(`proxy_nonce falhou (${nonceRes.status})`);
+  const { nonce } = await safeJson(nonceRes, 'buscador: proxy_nonce');
 
-  let hdrs2 = hdrsWithReferer;
   const nonceCookies = extractSetCookies(nonceRes.headers);
-  if (nonceCookies.length) hdrs2 = { ...hdrs2, 'Cookie': mergeCookies(hdrs2['Cookie'], nonceCookies) };
+  const proxyHdrs = nonceCookies.length
+    ? { ...session.hdrs, 'Cookie': mergeCookies(session.hdrs['Cookie'], nonceCookies), 'Referer': referer }
+    : { ...session.hdrs, 'Referer': referer };
 
-  // Passo 2: SSE token — extrai proxy_nonce da resposta
-  const sseRes = await fetch(`${BASE}/api/sse_token_buscador_proxy.php`, {
-    headers: { ...hdrs2, 'Accept': 'application/json', 'X-Proxy-Nonce': sseNonce },
-  });
-  if (!sseRes.ok) throw new Error(`sse_token_buscador_proxy falhou (${sseRes.status})`);
-  const sseData = await safeJson(sseRes, 'buscador: sse_token_buscador_proxy');
-
-  const sseCookies = extractSetCookies(sseRes.headers);
-  if (sseCookies.length) hdrs2 = { ...hdrs2, 'Cookie': mergeCookies(hdrs2['Cookie'], sseCookies) };
-
-  // proxy_nonce pode vir como proxy_nonce ou nonce dentro da resposta SSE
-  const proxyNonce = sseData?.proxy_nonce ?? sseData?.nonce ?? null;
-  if (!proxyNonce) {
-    console.log(`   [debug-sse] resposta sse_token: ${JSON.stringify(sseData).slice(0,200)}`);
-    throw new Error('buscador: proxy_nonce ausente na resposta sse_token');
-  }
-
-  // Passo 3: busca odds com o proxy_nonce correto
   const res = await fetch(`${BASE}/api/buscador_proxy.php?${qs}`, {
-    headers: { ...hdrs2, 'X-Proxy-Nonce': proxyNonce },
+    headers: { ...proxyHdrs, 'X-Proxy-Nonce': nonce },
   });
   if (!res.ok) {
     const body = await res.text().catch(() => '');
@@ -657,11 +631,11 @@ async function processOneCycle() {
         // Busca por nome completo, fallback pelo time da casa
         const homeTeam = ev.name.split(/\s+(?:x|vs|×|X)\s+/i)[0]?.trim() ?? ev.name;
 
-        let data    = await fetchDecrypted(session, `action=search&q=${encodeURIComponent(ev.name)}&type=event`);
+        let data    = await fetchDecrypted(session, `action=search&q=${encodeURIComponent(ev.name)}&type=all`);
         let results = Array.isArray(data) ? data : (data?.results ?? data?.data ?? []);
 
         if (!results.length && homeTeam !== ev.name) {
-          data    = await fetchDecrypted(session, `action=search&q=${encodeURIComponent(homeTeam)}&type=event`);
+          data    = await fetchDecrypted(session, `action=search&q=${encodeURIComponent(homeTeam)}&type=all`);
           results = Array.isArray(data) ? data : (data?.results ?? data?.data ?? []);
         }
 
