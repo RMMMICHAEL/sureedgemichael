@@ -146,6 +146,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
+        {/* Utmify — UTM lead ID enrichment (FB + Google) */}
+        <script dangerouslySetInnerHTML={{ __html: `(function(){const POLL_MS=500;function getStorageKey(){const url=new URL(window.location.href);const current=url.searchParams.get("utm_source");if(current==="FB")return"lead";if(current==="google")return"lead-google";return null;}function getLeadId(storageKey){if(!storageKey)return null;const raw=localStorage.getItem(storageKey);if(!raw)return null;try{const obj=JSON.parse(raw);return obj&&obj._id?String(obj._id):null;}catch{return null;}}function applyUtmIfNeeded(){const url=new URL(window.location.href);const current=url.searchParams.get("utm_source");const storageKey=getStorageKey();const id=getLeadId(storageKey);if(!id)return false;let desired=null;if(current==="FB"){desired="FBjLj"+id;}else if(current==="google"){desired="googlejLj"+id;}if(!desired)return false;url.searchParams.set("utm_source",desired);window.location.replace(url.toString());return true;}if(applyUtmIfNeeded())return;const interval=setInterval(()=>{if(applyUtmIfNeeded())clearInterval(interval);},POLL_MS);})();` }} />
         {/* Utmify — persiste UTMs entre páginas */}
         <script
           src="https://cdn.utmify.com.br/scripts/utms/latest.js"
