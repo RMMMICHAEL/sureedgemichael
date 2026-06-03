@@ -152,7 +152,7 @@ async function validateCookie(cookie) {
 // Intervalo: 45s. Sessão expira em ~90s; disparamos 45s antes do limite.
 // O setInterval garante que o keepalive dispare INDEPENDENTE do loop principal
 // (que pode estar preso numa operação de rede de 15-20s).
-const KEEPALIVE_INTERVAL = 45 * 1000; // 45s — dispara antes do TTL ~90s
+const KEEPALIVE_INTERVAL = 8 * 60 * 1000; // 8 min — mantém sessão sem gerar tráfego excessivo
 let _lastKeepalive = Date.now();
 
 async function keepalive() {
