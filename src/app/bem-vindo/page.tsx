@@ -4,20 +4,28 @@ import { useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Zap, CheckCircle2, ArrowRight, Shield, BarChart2, TrendingUp } from 'lucide-react';
 
-// Dispara evento Purchase no pixel da Utmify
+// Dispara evento Purchase via Utmify pixel
+// Aguarda o pixel.js carregar (polling até 10s) antes de disparar
 function fireUtmifyPurchase(value: number) {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const u = (window as any).utmify;
-    if (u?.track) {
-      u.track('Purchase', { revenue: value, currency: 'BRL' });
-    } else {
-      // Fallback: dispara via fbq diretamente caso o pixel ainda esteja carregando
+  const MAX_WAIT = 10_000;
+  const INTERVAL = 300;
+  let elapsed = 0;
+
+  const attempt = () => {
+    try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const fbq = (window as any).fbq;
-      if (fbq) fbq('track', 'Purchase', { value, currency: 'BRL' });
-    }
-  } catch { /* silencioso */ }
+      const u = (window as any).utmify;
+      if (u?.track) {
+        u.track('Purchase', { revenue: value, currency: 'BRL' });
+        return;
+      }
+    } catch { /* continua tentando */ }
+
+    elapsed += INTERVAL;
+    if (elapsed < MAX_WAIT) setTimeout(attempt, INTERVAL);
+  };
+
+  attempt();
 }
 
 function ParticlesBg() {
