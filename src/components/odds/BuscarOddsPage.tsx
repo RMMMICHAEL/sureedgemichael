@@ -1696,7 +1696,12 @@ export function BuscarOddsPage() {
             await new Promise(r => setTimeout(r, 300));
 
             const pollRes  = await fetch(`/api/sure/queue?event_id=${encodeURIComponent(event.id)}`);
-            const pollJson = await pollRes.json() as { ok: boolean; ready?: boolean; cached_at?: string };
+            const pollJson = await pollRes.json() as { ok: boolean; ready?: boolean; cached_at?: string; no_odds?: boolean };
+
+            // Evento processado mas sem odds — para de tentar
+            if (pollJson.ready && pollJson.no_odds) {
+              throw new Error('Nenhuma odd encontrada para este evento no SuperMonitor.');
+            }
 
             if (pollJson.ready) {
               // Dado pronto — busca o resultado final

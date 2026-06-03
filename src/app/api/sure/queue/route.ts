@@ -104,16 +104,29 @@ export async function GET(req: NextRequest) {
       .eq('event_id', event_id)
       .single();
 
-    if (!data?.updated_at) {
-      return NextResponse.json({ ok: true, ready: false });
+    if (data?.updated_at) {
+      const age = Date.now() - new Date(data.updated_at).getTime();
+      if (age < CACHE_TTL_MS) {
+        return NextResponse.json({ ok: true, ready: true, cached_at: data.updated_at });
+      }
     }
 
-    const age = Date.now() - new Date(data.updated_at).getTime();
-    if (age >= CACHE_TTL_MS) {
-      return NextResponse.json({ ok: true, ready: false });
+    // Verifica se a fila já processou este evento (done/error) sem encontrar odds.
+    // Evita que o frontend re-enfileire indefinidamente para eventos sem odds.
+    const { data: processed } = await sb
+      .from('odds_queue')
+      .select('status')
+      .eq('event_id', event_id)
+      .in('status', ['done', 'error'])
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (processed) {
+      return NextResponse.json({ ok: true, ready: true, no_odds: true });
     }
 
-    return NextResponse.json({ ok: true, ready: true, cached_at: data.updated_at });
+    return NextResponse.json({ ok: true, ready: false });
 
   } catch (err: unknown) {
     console.error('[queue GET] unexpected error:', err instanceof Error ? err.message : String(err));
