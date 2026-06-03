@@ -157,12 +157,14 @@ export default function ObrigadoPage() {
 
         {/* Aviso caixa de spam */}
         <p style={{ fontSize: 12, color: 'rgba(255,255,255,.25)', lineHeight: 1.6 }}>
-          Não encontrou o e-mail? Verifique a caixa de spam ou{' '}
+          Não encontrou o e-mail? Verifique a caixa de spam ou entre em contato pelo{' '}
           <a
-            href="mailto:suporte@sureedge.com.br"
+            href="https://wa.me/77999489307"
+            target="_blank"
+            rel="noopener noreferrer"
             style={{ color: 'rgba(63,255,33,.5)', textDecoration: 'none' }}
           >
-            fale com o suporte
+            WhatsApp
           </a>
           .
         </p>
