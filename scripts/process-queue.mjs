@@ -383,8 +383,8 @@ async function createSession(cookie) {
 
 
 async function fetchDecrypted(session, qs) {
-  // Usa proxy_nonce_buscador.php — endpoint específico do buscador (igual ao browser)
-  const nonceRes = await fetch(`${BASE}/api/proxy_nonce_buscador.php`, { headers: session.hdrs });
+  // Usa proxy_nonce.php — nonce genérico para buscador_proxy.php
+  const nonceRes = await fetch(`${BASE}/api/proxy_nonce.php`, { headers: session.hdrs });
   if (!nonceRes.ok) throw new Error(`proxy_nonce falhou (${nonceRes.status})`);
   const { nonce } = await safeJson(nonceRes, 'buscador: proxy_nonce');
 
@@ -615,24 +615,15 @@ async function processOneCycle() {
     while (attempts < MAX_ATTEMPTS) {
       attempts++;
       try {
-        // Estratégia de busca em cascata:
-        // 1. Por ID do evento (mais preciso — evita problema de nome diferente)
-        // 2. Por nome completo
-        // 3. Por nome do time da casa apenas
+        // Busca por nome completo, fallback pelo time da casa
         const homeTeam = ev.name.split(/\s+(?:x|vs|×|X)\s+/i)[0]?.trim() ?? ev.name;
-        const queries  = [
-          `action=search&q=${encodeURIComponent(ev.id)}&type=event`,
-          `action=search&q=${encodeURIComponent(ev.name)}&type=event`,
-          ...(homeTeam !== ev.name ? [`action=search&q=${encodeURIComponent(homeTeam)}&type=event`] : []),
-        ];
 
-        let data = null;
-        let results = [];
-        for (const qs of queries) {
-          data    = await fetchDecrypted(session, qs);
+        let data    = await fetchDecrypted(session, `action=search&q=${encodeURIComponent(ev.name)}&type=event`);
+        let results = Array.isArray(data) ? data : (data?.results ?? data?.data ?? []);
+
+        if (!results.length && homeTeam !== ev.name) {
+          data    = await fetchDecrypted(session, `action=search&q=${encodeURIComponent(homeTeam)}&type=event`);
           results = Array.isArray(data) ? data : (data?.results ?? data?.data ?? []);
-          if (results.length) break;
-          console.log(`   Sem resultado para: ${decodeURIComponent(qs.split('q=')[1]?.split('&')[0] ?? '')}`);
         }
 
         if (!results.length) {

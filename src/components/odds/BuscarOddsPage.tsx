@@ -1700,7 +1700,7 @@ export function BuscarOddsPage() {
 
             // Evento processado mas sem odds — para de tentar
             if (pollJson.ready && pollJson.no_odds) {
-              throw new Error('Nenhuma odd encontrada para este evento no SuperMonitor.');
+              throw new Error('Nenhuma odd disponível para este evento no momento.');
             }
 
             if (pollJson.ready) {
