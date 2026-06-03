@@ -328,11 +328,31 @@ async function createSession(cookie) {
   const client_pub_x = bytesToHex(pubRaw.slice(1, 33));
   const client_pub_y = bytesToHex(pubRaw.slice(33, 65));
 
-  const hsRes = await fetch(`${BASE}/api/buscador_handshake.php`, {
+  let hsRes = await fetch(`${BASE}/api/buscador_handshake.php`, {
     method: 'POST',
     headers: { ...hdrsAfterNonce, 'Content-Type': 'application/json', 'X-Handshake-Nonce': handshakeNonce },
     body: JSON.stringify({ client_pub_x, client_pub_y }),
   });
+
+  // Handshake retorna 403 na 1ª tentativa — comportamento normal do servidor.
+  // Browser busca novo nonce e retenta automaticamente. Fazemos o mesmo.
+  if (hsRes.status === 403) {
+    console.log('   Handshake 403 — buscando novo nonce e retentando...');
+    const r2 = await fetch(`${BASE}/api/proxy_nonce_handshake.php`, { headers: hdrsAfterNonce });
+    if (r2.ok) {
+      const { nonce: nonce2 } = await safeJson(r2, 'buscador: retry nonce').catch(() => ({ nonce: null }));
+      if (nonce2) {
+        const c2 = extractSetCookies(r2.headers);
+        if (c2.length) hdrsAfterNonce['Cookie'] = mergeCookies(hdrsAfterNonce['Cookie'], c2);
+        hsRes = await fetch(`${BASE}/api/buscador_handshake.php`, {
+          method: 'POST',
+          headers: { ...hdrsAfterNonce, 'Content-Type': 'application/json', 'X-Handshake-Nonce': nonce2 },
+          body: JSON.stringify({ client_pub_x, client_pub_y }),
+        });
+      }
+    }
+  }
+
   if (!hsRes.ok) throw new Error(`handshake falhou (${hsRes.status})`);
   const hs = await safeJson(hsRes, 'buscador: buscador_handshake');
   if (!hs.success) throw new Error('cookie invalido (handshake negado)');
@@ -363,8 +383,8 @@ async function createSession(cookie) {
 
 
 async function fetchDecrypted(session, qs) {
-  // Usa proxy_nonce.php — igual ao browser (sem endpoint buscador específico no proxy request)
-  const nonceRes = await fetch(`${BASE}/api/proxy_nonce.php`, { headers: session.hdrs });
+  // Usa proxy_nonce_buscador.php — endpoint específico do buscador (igual ao browser)
+  const nonceRes = await fetch(`${BASE}/api/proxy_nonce_buscador.php`, { headers: session.hdrs });
   if (!nonceRes.ok) throw new Error(`proxy_nonce falhou (${nonceRes.status})`);
   const { nonce } = await safeJson(nonceRes, 'buscador: proxy_nonce');
 
@@ -595,17 +615,24 @@ async function processOneCycle() {
     while (attempts < MAX_ATTEMPTS) {
       attempts++;
       try {
-        // Extrai nome do time da casa (antes do separador x/vs/×)
+        // Estratégia de busca em cascata:
+        // 1. Por ID do evento (mais preciso — evita problema de nome diferente)
+        // 2. Por nome completo
+        // 3. Por nome do time da casa apenas
         const homeTeam = ev.name.split(/\s+(?:x|vs|×|X)\s+/i)[0]?.trim() ?? ev.name;
+        const queries  = [
+          `action=search&q=${encodeURIComponent(ev.id)}&type=event`,
+          `action=search&q=${encodeURIComponent(ev.name)}&type=event`,
+          ...(homeTeam !== ev.name ? [`action=search&q=${encodeURIComponent(homeTeam)}&type=event`] : []),
+        ];
 
-        // Tenta busca pelo nome completo primeiro, depois só pelo time da casa
-        let data = await fetchDecrypted(session, `action=search&q=${encodeURIComponent(ev.name)}&type=event`);
-        let results = Array.isArray(data) ? data : (data?.results ?? data?.data ?? []);
-
-        if (!results.length && homeTeam !== ev.name) {
-          console.log(`   Sem odds pelo nome completo, tentando: ${homeTeam}`);
-          data    = await fetchDecrypted(session, `action=search&q=${encodeURIComponent(homeTeam)}&type=event`);
+        let data = null;
+        let results = [];
+        for (const qs of queries) {
+          data    = await fetchDecrypted(session, qs);
           results = Array.isArray(data) ? data : (data?.results ?? data?.data ?? []);
+          if (results.length) break;
+          console.log(`   Sem resultado para: ${decodeURIComponent(qs.split('q=')[1]?.split('&')[0] ?? '')}`);
         }
 
         if (!results.length) {
