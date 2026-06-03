@@ -82,10 +82,12 @@ function PurchaseTracker() {
   useEffect(() => {
     const plan  = params.get('plan') ?? 'monthly';
     const email = params.get('email') ?? '';
+    // Valor real do plano: lê da URL (?value=97) ou usa fallback por plano
     const value = parseFloat(params.get('value') ?? '') || PLAN_VALUES[plan] || 97;
 
-    // 1. Dispara evento Purchase no pixel
-    const timer = setTimeout(() => fireUtmifyPurchase(value), 800);
+    // 1. Dispara Purchase imediatamente — fireUtmifyPurchase já faz polling
+    //    até o pixel Utmify estar disponível (sem timeout desnecessário)
+    fireUtmifyPurchase(value);
 
     // 2. Redireciona para criação de conta com email pré-preenchido
     const dest = email
@@ -93,7 +95,7 @@ function PurchaseTracker() {
       : '/login?mode=signup';
     const redirect = setTimeout(() => router.push(dest), 2500);
 
-    return () => { clearTimeout(timer); clearTimeout(redirect); };
+    return () => { clearTimeout(redirect); };
   }, [params, router]);
   return null;
 }
