@@ -1278,9 +1278,11 @@ function TodayGamesGrid({
   dateTime:     string;
   onDateChange: (date: string) => void;
 }) {
-  // Sort events by start time
+  // Apenas eventos que ainda não começaram (pré-live)
   const sorted = useMemo(() =>
-    [...events].sort((a, b) => new Date(a.start_utc).getTime() - new Date(b.start_utc).getTime()),
+    [...events]
+      .filter(ev => new Date(ev.start_utc).getTime() > Date.now())
+      .sort((a, b) => new Date(a.start_utc).getTime() - new Date(b.start_utc).getTime()),
     [events],
   );
 
@@ -1742,6 +1744,13 @@ export function BuscarOddsPage() {
 
   // ── Handle event select ──────────────────────────────────────────────────────
   function handleSelect(ev: CachedEvent) {
+    const started = new Date(ev.start_utc).getTime() <= Date.now();
+    if (started) {
+      setOddsErr('Esse jogo já acabou ou está em andamento. Busca de odds funciona apenas para o pré-live.');
+      setDropOpen(false);
+      return;
+    }
+    setOddsErr('');
     setSelectedEvent(ev);
     setQuery(ev.name);
     setDropOpen(false);
@@ -1783,6 +1792,7 @@ export function BuscarOddsPage() {
   const top5        = useMemo(() => parsed ? getTop5PA(parsed.rows, disabledHouses) : [], [parsed, disabledHouses]);
   const semPaCount  = parsed?.rows.filter(r => !r.pa && !disabledHouses.has(r.house)).length ?? 0;
   const comPaCount  = parsed?.rows.filter(r =>  r.pa && !disabledHouses.has(r.house)).length ?? 0;
+  const [paView, setPaView] = useState<'all' | 'sem' | 'com'>('all');
 
   // ── Odd click → fill SurebetCalc ─────────────────────────────────────────────
   function handleCellClick(house: string, col: ColKey, val: number) {
