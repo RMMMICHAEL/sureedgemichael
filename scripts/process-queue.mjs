@@ -632,11 +632,11 @@ async function processOneCycle() {
         const homeTeam = ev.name.split(/\s+(?:x|vs|×|X)\s+/i)[0]?.trim() ?? ev.name;
 
         let data    = await fetchDecrypted(session, `action=search&q=${encodeURIComponent(ev.name)}&type=all`);
-        let results = Array.isArray(data) ? data : (data?.results ?? data?.data ?? []);
+        let results = Array.isArray(data) ? data : (data?.d?.results ?? data?.results ?? data?.data ?? []);
 
         if (!results.length && homeTeam !== ev.name) {
           data    = await fetchDecrypted(session, `action=search&q=${encodeURIComponent(homeTeam)}&type=all`);
-          results = Array.isArray(data) ? data : (data?.results ?? data?.data ?? []);
+          results = Array.isArray(data) ? data : (data?.d?.results ?? data?.results ?? data?.data ?? []);
         }
 
         if (!results.length) {
