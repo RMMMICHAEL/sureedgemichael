@@ -1669,7 +1669,7 @@ export function BuscarOddsPage() {
       if (json.ok) {
         // Cache hit — mostra imediatamente
         const p = parseSearchResults(json.data);
-        if (!p) throw new Error('Nenhuma odd encontrada para este evento');
+        if (!p) throw new Error('Nenhuma odd disponível para este evento no momento.');
         setParsed(p);
         setOddsLoading(false);
         return;
