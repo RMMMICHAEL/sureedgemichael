@@ -376,21 +376,16 @@ async function fetchDecrypted(session, qs) {
   const res = await fetch(`${BASE}/api/buscador_proxy.php?${qs}`, {
     headers: { ...proxyHdrs, 'X-Proxy-Nonce': nonce },
   });
-  // 403 com body encriptado = servidor retornou erro via payload ECDH —
-  // tenta descriptografar antes de jogar fora a resposta.
   if (!res.ok) {
     const body = await res.text().catch(() => '');
     console.error(`   [debug] ${res.status} body: ${body.slice(0, 300)}`);
+    // 403 com body encriptado = sessão ECDH expirou no servidor.
+    // NÃO tenta decriptar — a chave AES já é inválida.
+    // Lança erro de sessão para o ciclo recriar a sessão ECDH.
     let parsed = null;
     try { parsed = JSON.parse(body); } catch { /* não é JSON */ }
-    if (parsed?.encrypted && parsed?.data) {
-      // Tenta decriptar — se conseguir, usa o resultado normalmente
-      try {
-        const encBytes = base64ToBytes(parsed.data);
-        const plain    = await subtle.decrypt({ name: 'AES-CBC', iv: encBytes.slice(0, 16) }, session.aesKey, encBytes.slice(16));
-        const decoded  = new TextDecoder().decode(plain);
-        if (decoded.trim()) return JSON.parse(decoded);
-      } catch { /* descriptografia falhou — cai no throw abaixo */ }
+    if (res.status === 403 && parsed?.encrypted) {
+      throw new Error('401 needs_handshake — sessao ECDH expirou (403 encrypted)');
     }
     throw new Error(`proxy falhou (${res.status})`);
   }
@@ -613,14 +608,15 @@ async function processOneCycle() {
         break; // sucesso — sai do loop de tentativas
 
       } catch (err) {
-        const is401 = err.message.includes('401');
-        const isSessionErr = is401 || err.message.includes('nonce') || err.message.includes('proxy');
+        const is401      = err.message.includes('401');
+        const isCrypto   = err.message.includes('operation failed') || err.message.includes('operation-specific');
+        const isSessionErr = is401 || isCrypto || err.message.includes('nonce') || err.message.includes('proxy');
 
         if (isSessionErr) invalidateSession();
 
-        // 401 na primeira tentativa: recria sessão e retenta uma vez
-        if (is401 && attempts < MAX_ATTEMPTS) {
-          console.log(`   401 em ${ev.name} — recriando sessão e retentando...`);
+        // 401 ou erro de crypto na primeira tentativa: recria sessão e retenta
+        if ((is401 || isCrypto) && attempts < MAX_ATTEMPTS) {
+          console.log(`   Sessão expirada em ${ev.name} — recriando e retentando...`);
           try {
             session = await getSession(cookie);
           } catch (sessErr) {
