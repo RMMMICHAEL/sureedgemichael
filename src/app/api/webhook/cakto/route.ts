@@ -21,6 +21,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
   upsertSubscriptionByEmail,
+  getAdminClient,
   PLAN_DURATION_DAYS,
   type PlanId,
 } from '@/lib/supabase/subscription';
@@ -91,6 +92,37 @@ function addDays(days: number): string {
   return d.toISOString();
 }
 
+// ── Envia Magic Link de acesso ao novo cliente ────────────────────────────────
+// Usa inviteUserByEmail: cria a conta (se não existir) e envia e-mail com
+// link mágico que loga o usuário direto no app — sem senha necessária.
+// Para clientes que já têm conta (renovações), cai no catch silenciosamente.
+async function sendAccessEmail(email: string, name?: string): Promise<void> {
+  try {
+    const admin = getAdminClient();
+    const redirectTo = `${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://sureedge.com.br'}/auth/callback?next=/`;
+
+    const { error } = await admin.auth.admin.inviteUserByEmail(email, {
+      redirectTo,
+      data: { full_name: name ?? '' },
+    });
+
+    if (error) {
+      // Usuário já existe (conta criada anteriormente) — não é erro crítico.
+      // O acesso já foi ativado pela subscription. Ele pode logar normalmente.
+      if (error.message.includes('already') || error.message.includes('registered')) {
+        console.log(`[cakto-webhook] User already exists, skipping invite: ${email.slice(0, 4)}…`);
+        return;
+      }
+      // Qualquer outro erro: loga mas não retorna 500 (subscription já foi ativada)
+      console.error(`[cakto-webhook] inviteUserByEmail error for ${email.slice(0, 4)}…: ${error.message}`);
+    } else {
+      console.log(`[cakto-webhook] Invite sent to ${email.slice(0, 4)}…`);
+    }
+  } catch (err) {
+    console.error('[cakto-webhook] sendAccessEmail unexpected error:', err);
+  }
+}
+
 // ── Handler ───────────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
@@ -131,6 +163,14 @@ export async function POST(req: NextRequest) {
         expires_at:     addDays(PLAN_DURATION_DAYS[plan]),
       });
       console.log(`[cakto-webhook] Activated ${plan} for ${email} (event: ${event})`);
+
+      // Envia Magic Link apenas na primeira compra (não em renovações)
+      // subscription_renewed = cliente já tem conta, não precisa de invite
+      if (event === 'purchase_approved' || event === 'subscription_created') {
+        const name = payload.data?.customer?.name;
+        await sendAccessEmail(email, name);
+      }
+
       return NextResponse.json({ ok: true });
     } catch (err: unknown) {
       // Return 500 so Cakto retries the webhook automatically
