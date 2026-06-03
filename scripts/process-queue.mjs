@@ -393,8 +393,14 @@ async function fetchDecrypted(session, qs) {
     ? { ...session.hdrs, 'Cookie': mergeCookies(session.hdrs['Cookie'], nonceCookies) }
     : session.hdrs;
 
+  // Referer inclui a query — igual ao browser (server pode validar referer)
+  const q = qs.includes('q=') ? qs.split('q=')[1]?.split('&')[0] ?? '' : '';
+  const referer = q
+    ? `${BASE}/index.php?page=buscador&q=${q}&type=event`
+    : `${BASE}/index.php?page=buscador`;
+
   const res = await fetch(`${BASE}/api/buscador_proxy.php?${qs}`, {
-    headers: { ...proxyHdrs, 'X-Proxy-Nonce': nonce },
+    headers: { ...proxyHdrs, 'X-Proxy-Nonce': nonce, 'Referer': referer },
   });
   if (!res.ok) {
     const body = await res.text().catch(() => '');
