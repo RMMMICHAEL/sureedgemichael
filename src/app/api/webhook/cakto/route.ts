@@ -99,7 +99,7 @@ function addDays(days: number): string {
 async function sendAccessEmail(email: string, name?: string): Promise<void> {
   try {
     const admin = getAdminClient();
-    const redirectTo = `${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://sureedge.com.br'}/auth/callback?next=/`;
+    const redirectTo = `${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.sureedge.com.br'}/auth/callback?next=/`;
 
     const { error } = await admin.auth.admin.inviteUserByEmail(email, {
       redirectTo,
