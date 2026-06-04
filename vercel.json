@@ -1,0 +1,10 @@
+{
+  "redirects": [
+    {
+      "source": "/:path((?!api/).*)",
+      "has": [{ "type": "host", "value": "sureedge.com.br" }],
+      "destination": "https://www.sureedge.com.br/:path",
+      "permanent": false
+    }
+  ]
+}
