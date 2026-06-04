@@ -18,7 +18,7 @@
  *   refund, subscription_canceled, chargeback
  */
 
-import { NextRequest, NextResponse, after } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import {
   upsertSubscriptionByEmail,
   getAdminClient,
@@ -211,15 +211,12 @@ export async function POST(req: NextRequest) {
       });
       console.log(`[cakto-webhook] Activated ${plan} for ${email} (event: ${event})`);
 
-      // Envia Magic Link + WhatsApp em background (não bloqueia resposta ao Cakto)
+      // Envia Magic Link + WhatsApp em paralelo (fire-and-forget, não bloqueia)
       if (event === 'purchase_approved' || event === 'subscription_created') {
         const name  = payload.data?.customer?.name ?? '';
         const phone = payload.data?.customer?.phone ?? '';
-        // after() mantém a função viva após o 200 ser enviado ao Cakto
-        after(async () => {
-          await sendAccessEmail(email, name);
-          if (phone) await sendWhatsApp(phone, name, plan);
-        });
+        sendAccessEmail(email, name).catch(e => console.error('[webhook] email bg error:', e));
+        if (phone) sendWhatsApp(phone, name, plan).catch(e => console.error('[webhook] whatsapp bg error:', e));
       }
 
       return NextResponse.json({ ok: true });
