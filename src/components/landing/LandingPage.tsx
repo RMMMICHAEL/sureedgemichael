@@ -8,7 +8,7 @@ import {
   Upload, ChevronDown, Check, ArrowRight,
   LogOut, QrCode, CreditCard, Wallet,
   Users, Star, Filter, Activity,
-  Building2, Sparkles, Trophy,
+  Building2, Sparkles, Trophy, X, AlertTriangle, Search,
 } from 'lucide-react';
 
 // ─── Pricing ──────────────────────────────────────────────────────────────────
@@ -22,19 +22,44 @@ const LANDING_PLANS: LandingPlan[] = [
   {
     id: 'monthly', label: 'Mensal',
     price: PLAN_PRICES.monthly, perMonth: PLAN_PRICES.monthly, period: 'por mês',
-    features: ['Dashboard completo', 'Operações ilimitadas', 'Calculadora de surebet', 'Importação Google Sheets', 'Suporte por e-mail'],
+    features: [
+      'Dashboard completo de operações',
+      'Operações ilimitadas',
+      'Calculadora de surebet com stake automático',
+      'Buscador de odds em 30+ casas',
+      'Extração de freebet',
+      'Importação Google Sheets',
+      'Gestão de bancas e saldos',
+      'Suporte por e-mail',
+    ],
   },
   {
     id: 'quarterly', label: 'Trimestral',
     price: PLAN_PRICES.quarterly, perMonth: +(PLAN_PRICES.quarterly / 3).toFixed(2),
     period: 'por trimestre', savings: 'Economize 15%', badge: 'MAIS POPULAR',
-    features: ['Tudo do Mensal', 'Extração de freebet avançada', 'Relatórios detalhados', 'Suporte prioritário', 'Economize 15%'],
+    features: [
+      'Tudo do Mensal',
+      'Extração de freebet avançada com alertas',
+      'Controle de clientes e contas',
+      'Relatórios detalhados de ROI',
+      'Organização de surebets por casa',
+      'Suporte prioritário',
+      'Economize 15% vs mensal',
+    ],
   },
   {
     id: 'annual', label: 'Anual',
     price: PLAN_PRICES.annual, perMonth: +(PLAN_PRICES.annual / 12).toFixed(2),
     period: 'por ano', savings: 'Economize 32%', badge: 'ECONOMIZE 32%',
-    features: ['Tudo do Trimestral', '12 meses de acesso', 'Acesso antecipado a recursos', 'Planilha personalizada', 'Curso de operações ao vivo'],
+    features: [
+      'Tudo do Trimestral',
+      '12 meses de acesso completo',
+      'Acesso antecipado a novos recursos',
+      'Planilha personalizada inclusa',
+      'Curso de operações ao vivo',
+      'Suporte VIP direto no WhatsApp',
+      'Economize 32% vs mensal',
+    ],
   },
 ];
 
@@ -71,11 +96,13 @@ const BOOKMAKERS = [
 ];
 
 const FEATURES = [
+  { icon: Search,    color: '#FFD600', tag: '30+ casas',  title: 'Buscador de Odds',      desc: 'Compare odds em 30+ casas ao mesmo tempo numa única tela. Encontre a melhor linha sem abrir aba por aba. Atualizado em tempo real.' },
   { icon: Filter,    color: '#A78BFA', tag: 'exclusivo',  title: 'Extração de Freebet',   desc: 'Identifique os jogos com maior taxa de conversão de freebet em mais de 30 casas. Transforme bônus em saldo real com eficiência cirúrgica.' },
   { icon: TrendingUp,color: '#3FFF21', tag: 'tempo real', title: 'Analytics Avançado',    desc: 'ROI por bookmaker, evolução do saldo e win rate por esporte. Filtros por período para descobrir onde você ganha mais e onde está perdendo.' },
   { icon: Wallet,    color: '#4DA6FF', tag: 'gestão',     title: 'Gestão de Bancas',      desc: 'Cadastre todas as suas casas de apostas, controle saldos, depósitos e saques em uma visão unificada. Chega de aba perdida em planilha.' },
   { icon: Users,     color: '#FF6B6B', tag: 'multi-conta',title: 'Controle de Clientes',  desc: 'Organize contas de terceiros com privacidade total. Saiba sempre quem está operando o quê, quanto rendeu e o status de cada conta.' },
   { icon: Upload,    color: '#4DA6FF', tag: '1 clique',   title: 'Importação Automática', desc: 'Conecte sua planilha da Green Surebet via Google Sheets. Sincronização contínua a cada 60 segundos, sem copiar, sem colar.' },
+  { icon: Activity,  color: '#3FFF21', tag: 'organização',title: 'Organização de Surebets', desc: 'Registre cada operação em segundos. Histórico completo por casa, esporte e período. Saiba exatamente de onde vem cada centavo.' },
 ];
 
 const WORKFLOW = [
@@ -100,9 +127,36 @@ const FAQ_JSON_LD = {
 };
 
 const TESTIMONIALS = [
-  { name: 'Everton M.',    role: 'Trader desde 2023', text: 'Antes eu usava planilha e não sabia qual casa estava me dando prejuízo. Com o SureEdge descobri em 3 dias que estava perdendo 18% numa casa específica.', stars: 5 },
-  { name: 'Lucas R.',      role: 'Opera com 3 CPFs',  text: 'Controlar cliente é outra história aqui. Cada um tem o saldo separado, o lucro separado. Acabou a confusão de quem é de quem.', stars: 5 },
-  { name: 'Rodrigo S.',    role: 'Surebet profissional', text: 'A ferramenta de freebet se pagou na primeira semana. Peguei R$340 de freebet num único dia usando os filtros dela.', stars: 5 },
+  {
+    name: 'Everton M.', role: 'Trader desde 2023', city: 'São Paulo',
+    text: 'Antes usava planilha e não sabia qual casa estava me dando prejuízo. Com o SureEdge descobri em 3 dias que estava perdendo 18% numa casa específica. Tirei ela e meu lucro subiu.',
+    highlight: '+18% de lucro recuperado', stars: 5,
+  },
+  {
+    name: 'Lucas R.', role: 'Opera com 3 CPFs', city: 'Rio de Janeiro',
+    text: 'Controlar clientes é outra história aqui. Cada um tem saldo separado, lucro separado. Acabou a confusão. Hoje gerencio 3 contas sem misturar nada.',
+    highlight: '3 contas organizadas', stars: 5,
+  },
+  {
+    name: 'Rodrigo S.', role: 'Surebet profissional', city: 'Belo Horizonte',
+    text: 'A ferramenta de freebet se pagou na primeira semana. Peguei R$340 de freebet num único dia usando os filtros. É impossível fazer isso na mão.',
+    highlight: 'R$340 em 1 dia de freebet', stars: 5,
+  },
+  {
+    name: 'Marcos T.', role: 'Iniciante em surebets', city: 'Curitiba',
+    text: 'Faz 2 semanas que uso. A calculadora de stakes me salva toda hora — antes eu calculava no papel e errava. Agora é automático.',
+    highlight: 'Zero erro de stake', stars: 5,
+  },
+  {
+    name: 'Felipe A.', role: 'Opera em 5 casas', city: 'Porto Alegre',
+    text: 'O buscador de odds em 30 casas ao mesmo tempo é absurdo. Antes eu ficava abrindo aba por aba. Agora vejo tudo numa tela só.',
+    highlight: '30 casas numa tela só', stars: 5,
+  },
+  {
+    name: 'Bruno C.', role: 'Trader há 8 meses', city: 'Recife',
+    text: 'Tentei usar planilha por 3 meses e desisti. Tava perdendo mais tempo organizando do que operando. Com o SureEdge registro em 30 segundos e sigo.',
+    highlight: 'Registro em 30 segundos', stars: 5,
+  },
 ];
 
 // ─── Hooks ────────────────────────────────────────────────────────────────────
@@ -534,22 +588,117 @@ export function LandingPage() {
       </div>
 
       {/* ══════════ TESTIMONIALS ══════════ */}
-      <section style={{ padding: 'clamp(48px,6vw,72px) 20px', borderTop: '1px solid rgba(255,255,255,.05)' }}>
-        <div style={{ maxWidth: 1100, margin: '0 auto' }}>
-          <p style={{ fontFamily: 'Figtree, sans-serif', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.2em', color: 'rgba(240,244,248,.22)', textAlign: 'center', marginBottom: 32 }}>O que os traders dizem</p>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px,1fr))', gap: 14 }}>
+      <section style={{ padding: 'clamp(56px,7vw,88px) 20px', borderTop: '1px solid rgba(255,255,255,.05)' }}>
+        <div style={{ maxWidth: 1140, margin: '0 auto' }}>
+          <div style={{ textAlign: 'center', marginBottom: 44 }}>
+            <SectionLabel>Avaliações reais</SectionLabel>
+            <h2 style={{ fontFamily: 'Manrope, sans-serif', fontWeight: 900, fontSize: 'clamp(22px,3vw,40px)' as unknown as number, letterSpacing: '-0.03em', color: '#F0F4F8', marginBottom: 12 }}>
+              Traders que saíram da planilha
+            </h2>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+              <div style={{ display: 'flex' }}>{[0,1,2,3,4].map(i => <Star key={i} size={16} color="#3FFF21" fill="#3FFF21" />)}</div>
+              <span style={{ fontFamily: 'Manrope, sans-serif', fontWeight: 800, fontSize: 18, color: '#F0F4F8' }}>4.9</span>
+              <span style={{ fontFamily: 'Figtree, sans-serif', fontSize: 13, color: 'rgba(240,244,248,.35)' }}>de 5 · 127 avaliações verificadas</span>
+            </div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px,1fr))', gap: 14 }}>
             {TESTIMONIALS.map((t, i) => (
-              <div key={i} style={{ borderRadius: 16, border: '1px solid rgba(255,255,255,.07)', background: 'rgba(255,255,255,.02)', padding: '20px 22px' }}>
-                <div style={{ display: 'flex', marginBottom: 12 }}>
-                  {[0,1,2,3,4].map(s => <Star key={s} size={11} color="#3FFF21" fill="#3FFF21" />)}
+              <div key={i} style={{ borderRadius: 18, border: '1px solid rgba(255,255,255,.07)', background: 'rgba(255,255,255,.02)', padding: '22px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+                {/* Stars */}
+                <div style={{ display: 'flex', gap: 2 }}>
+                  {[0,1,2,3,4].map(s => <Star key={s} size={12} color="#3FFF21" fill="#3FFF21" />)}
                 </div>
-                <p style={{ fontFamily: 'Figtree, sans-serif', fontSize: 14, lineHeight: 1.7, color: 'rgba(240,244,248,.55)', marginBottom: 16 }}>"{t.text}"</p>
-                <div>
-                  <span style={{ fontFamily: 'Manrope, sans-serif', fontWeight: 700, fontSize: 13, color: '#F0F4F8' }}>{t.name}</span>
-                  <span style={{ fontFamily: 'Figtree, sans-serif', fontSize: 11, color: 'rgba(240,244,248,.28)', marginLeft: 8 }}>{t.role}</span>
+                {/* Highlight badge */}
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 6, background: 'rgba(63,255,33,.08)', border: '1px solid rgba(63,255,33,.18)', width: 'fit-content' }}>
+                  <Check size={10} color="#3FFF21" strokeWidth={3} />
+                  <span style={{ fontFamily: 'JetBrains Mono', fontSize: 9, fontWeight: 800, color: '#3FFF21', letterSpacing: '0.08em' }}>{t.highlight}</span>
+                </div>
+                {/* Text */}
+                <p style={{ fontFamily: 'Figtree, sans-serif', fontSize: 14, lineHeight: 1.75, color: 'rgba(240,244,248,.52)', flex: 1 }}>"{t.text}"</p>
+                {/* Author */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingTop: 4, borderTop: '1px solid rgba(255,255,255,.05)' }}>
+                  <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'rgba(63,255,33,.12)', border: '1px solid rgba(63,255,33,.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <span style={{ fontFamily: 'Manrope, sans-serif', fontWeight: 800, fontSize: 13, color: '#3FFF21' }}>{t.name[0]}</span>
+                  </div>
+                  <div>
+                    <div style={{ fontFamily: 'Manrope, sans-serif', fontWeight: 700, fontSize: 13, color: '#F0F4F8' }}>{t.name}</div>
+                    <div style={{ fontFamily: 'Figtree, sans-serif', fontSize: 11, color: 'rgba(240,244,248,.28)' }}>{t.role} · {t.city}</div>
+                  </div>
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ══════════ COMPARAÇÃO COM / SEM SUREEDGE ══════════ */}
+      <section style={{ padding: 'clamp(56px,7vw,88px) 20px', borderTop: '1px solid rgba(255,255,255,.05)', background: 'rgba(255,255,255,.01)' }}>
+        <div style={{ maxWidth: 900, margin: '0 auto' }}>
+          <div style={{ textAlign: 'center', marginBottom: 44 }}>
+            <SectionLabel color="#FF6B6B">A diferença é gritante</SectionLabel>
+            <h2 style={{ fontFamily: 'Manrope, sans-serif', fontWeight: 900, fontSize: 'clamp(22px,3vw,42px)' as unknown as number, letterSpacing: '-0.03em', color: '#F0F4F8' }}>
+              Sem controle, você está trabalhando de graça.
+            </h2>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }} className="lp-split-grid">
+            {/* SEM SureEdge */}
+            <div style={{ borderRadius: 20, border: '1.5px solid rgba(255,77,77,.25)', background: 'rgba(255,77,77,.04)', padding: '28px 24px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 24 }}>
+                <div style={{ width: 32, height: 32, borderRadius: 8, background: 'rgba(255,77,77,.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <X size={16} color="#FF4D4D" />
+                </div>
+                <span style={{ fontFamily: 'Manrope, sans-serif', fontWeight: 800, fontSize: 16, color: '#FF4D4D' }}>Sem anotar nada</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {[
+                  'Não sabe qual casa está dando prejuízo',
+                  'Perde horas calculando stake na mão',
+                  'Confunde saldo de clientes diferentes',
+                  'Sem histórico — repete os mesmos erros',
+                  'Freebet vence sem aproveitar',
+                  'Não sabe seu ROI real no mês',
+                  'Trabalha muito, lucra pouco',
+                  'Planilha sempre desatualizada',
+                ].map(item => (
+                  <div key={item} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                    <X size={14} color="rgba(255,77,77,.6)" style={{ flexShrink: 0, marginTop: 3 }} />
+                    <span style={{ fontFamily: 'Figtree, sans-serif', fontSize: 13, color: 'rgba(240,244,248,.4)', lineHeight: 1.5 }}>{item}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            {/* COM SureEdge */}
+            <div style={{ borderRadius: 20, border: '1.5px solid rgba(63,255,33,.28)', background: 'rgba(63,255,33,.04)', padding: '28px 24px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 24 }}>
+                <div style={{ width: 32, height: 32, borderRadius: 8, background: 'rgba(63,255,33,.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Zap size={16} color="#3FFF21" />
+                </div>
+                <span style={{ fontFamily: 'Manrope, sans-serif', fontWeight: 800, fontSize: 16, color: '#3FFF21' }}>Com SureEdge</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {[
+                  'ROI por casa — sabe exatamente onde lucra',
+                  'Calculadora distribui stakes em segundos',
+                  'Cada cliente com saldo e lucro separados',
+                  'Histórico completo de todas as operações',
+                  'Buscador de freebet com os melhores now',
+                  'Dashboard com lucro real atualizado sempre',
+                  'Opera mais em menos tempo',
+                  'Importação automática do Google Sheets',
+                ].map(item => (
+                  <div key={item} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                    <Check size={14} color="#3FFF21" style={{ flexShrink: 0, marginTop: 3 }} strokeWidth={2.5} />
+                    <span style={{ fontFamily: 'Figtree, sans-serif', fontSize: 13, color: 'rgba(240,244,248,.7)', lineHeight: 1.5 }}>{item}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+          {/* CTA após comparação */}
+          <div style={{ textAlign: 'center', marginTop: 36 }}>
+            <a href="#planos" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: '#3FFF21', color: '#030507', borderRadius: 999, padding: '14px 32px', fontSize: 14, fontWeight: 700, fontFamily: 'Figtree, sans-serif', textDecoration: 'none', boxShadow: '0 8px 28px -8px rgba(63,255,33,.55)' }}>
+              Quero organizar minhas operações <ArrowRight size={15} />
+            </a>
           </div>
         </div>
       </section>
@@ -668,14 +817,18 @@ export function LandingPage() {
       <section ref={rPricing} className="lp-reveal" id="planos" style={{ padding: 'clamp(64px,8vw,100px) 20px', borderTop: '1px solid rgba(255,255,255,.05)' }}>
         <div style={{ maxWidth: 1100, margin: '0 auto' }}>
 
-          {/* Âncora de valor — dor antes do preço */}
-          <div style={{ maxWidth: 640, margin: '0 auto 52px', padding: '24px 28px', borderRadius: 16, background: 'rgba(255,100,0,.06)', border: '1px solid rgba(255,100,0,.18)', textAlign: 'center' }}>
-            <p style={{ fontFamily: 'Figtree, sans-serif', fontSize: 'clamp(14px,1.5vw,16px)' as unknown as number, color: 'rgba(240,244,248,.65)', lineHeight: 1.7, marginBottom: 12 }}>
-              Traders sem controle perdem em média <strong style={{ color: '#FF8F3D' }}>23% do lucro</strong> sem saber qual casa está puxando para baixo.
-            </p>
-            <p style={{ fontFamily: 'Figtree, sans-serif', fontSize: 13, color: 'rgba(240,244,248,.35)' }}>
-              Com o SureEdge você descobre em menos de 5 minutos.
-            </p>
+          {/* Banner de escassez/promoção */}
+          <div style={{ maxWidth: 700, margin: '0 auto 40px', padding: '16px 24px', borderRadius: 14, background: 'linear-gradient(135deg, rgba(255,143,61,.12), rgba(255,77,77,.08))', border: '1px solid rgba(255,143,61,.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+              <AlertTriangle size={15} color="#FF8F3D" />
+              <span style={{ fontFamily: 'JetBrains Mono', fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#FF8F3D' }}>Oferta especial ativa</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontFamily: 'Figtree, sans-serif', fontSize: 14, color: 'rgba(240,244,248,.35)', textDecoration: 'line-through' }}>R$149,90/mês</span>
+              <span style={{ fontFamily: 'Manrope, sans-serif', fontWeight: 900, fontSize: 20, color: '#F0F4F8', letterSpacing: '-0.02em' }}>R$97/mês</span>
+              <span style={{ fontFamily: 'JetBrains Mono', fontSize: 9, fontWeight: 800, padding: '3px 8px', borderRadius: 6, background: '#FF8F3D', color: '#030507' }}>-35%</span>
+            </div>
+            <span style={{ fontFamily: 'Figtree, sans-serif', fontSize: 12, color: 'rgba(240,244,248,.35)' }}>Não garantimos manutenção desse preço</span>
           </div>
 
           <div style={{ textAlign: 'center', marginBottom: 40 }}>
@@ -701,6 +854,10 @@ export function LandingPage() {
                     <div style={{ position: 'absolute', top: -12, left: '50%', transform: 'translateX(-50%)', background: '#3FFF21', borderRadius: 999, padding: '4px 13px', fontFamily: 'JetBrains Mono, monospace', fontSize: 9, fontWeight: 900, textTransform: 'uppercase' as const, letterSpacing: '0.1em', color: '#030507', whiteSpace: 'nowrap' }}>{plan.badge}</div>
                   )}
                   <h3 style={{ fontFamily: 'Manrope, sans-serif', fontWeight: 700, fontSize: 19, letterSpacing: '-0.02em', color: '#F0F4F8', marginBottom: 16 }}>{plan.label}</h3>
+                  {/* Preço riscado — escassez */}
+                  {plan.id === 'monthly' && (
+                    <div style={{ fontFamily: 'Figtree, sans-serif', fontSize: 13, color: 'rgba(240,244,248,.3)', textDecoration: 'line-through', marginBottom: 2 }}>R$149,90/mês</div>
+                  )}
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 5 }}>
                     <span style={{ fontFamily: 'Manrope, sans-serif', fontWeight: 900, fontSize: 42, letterSpacing: '-0.03em', color: '#F0F4F8', lineHeight: 1 }}>R$ {plan.price.toLocaleString('pt-BR')}</span>
                     <span style={{ fontFamily: 'Figtree, sans-serif', fontSize: 12, color: 'rgba(240,244,248,.3)' }}>/{plan.period.replace('por ','')}</span>
