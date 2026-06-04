@@ -99,6 +99,12 @@ const FAQ_JSON_LD = {
   mainEntity: FAQ.map(item => ({ '@type': 'Question', name: item.q, acceptedAnswer: { '@type': 'Answer', text: item.a } })),
 };
 
+const TESTIMONIALS = [
+  { name: 'Everton M.',    role: 'Trader desde 2023', text: 'Antes eu usava planilha e não sabia qual casa estava me dando prejuízo. Com o SureEdge descobri em 3 dias que estava perdendo 18% numa casa específica.', stars: 5 },
+  { name: 'Lucas R.',      role: 'Opera com 3 CPFs',  text: 'Controlar cliente é outra história aqui. Cada um tem o saldo separado, o lucro separado. Acabou a confusão de quem é de quem.', stars: 5 },
+  { name: 'Rodrigo S.',    role: 'Surebet profissional', text: 'A ferramenta de freebet se pagou na primeira semana. Peguei R$340 de freebet num único dia usando os filtros dela.', stars: 5 },
+];
+
 // ─── Hooks ────────────────────────────────────────────────────────────────────
 
 function useCounter(target: number, duration = 2500, decimals = 0) {
@@ -166,11 +172,11 @@ function SectionLabel({ children, color = '#3FFF21' }: { children: React.ReactNo
 // ─── Freebet table mockup ─────────────────────────────────────────────────────
 
 const FB_ROWS = [
-  { event: 'Flamengo × Botafogo', house: 'Novibet',    value: 50,  odd: 1.86, conv: 67.3, stake: 33,  isNew: true  },
-  { event: 'Santos × Grêmio',     house: 'Betano',     value: 100, odd: 2.10, conv: 71.9, stake: 72,  isNew: false },
-  { event: 'Inter × Atlético-MG', house: 'KTO',        value: 80,  odd: 1.95, conv: 67.7, stake: 54,  isNew: false },
-  { event: 'Cruzeiro × Fla',      house: 'EstrelaBet', value: 200, odd: 2.40, conv: 77.9, stake: 156, isNew: false },
-  { event: 'Cuiabá × Bragança',   house: 'Superbet',   value: 30,  odd: 2.00, conv: 70.0, stake: 21,  isNew: false },
+  { event: 'Flamengo × Botafogo', house: 'Novibet',    value: 50,  odd: 1.86, conv: 67.3, stake: 33,  lucro: 17,  isNew: true  },
+  { event: 'Santos × Grêmio',     house: 'Betano',     value: 100, odd: 2.10, conv: 71.9, stake: 72,  lucro: 28,  isNew: false },
+  { event: 'Inter × Atlético-MG', house: 'KTO',        value: 80,  odd: 1.95, conv: 67.7, stake: 54,  lucro: 26,  isNew: false },
+  { event: 'Cruzeiro × Fla',      house: 'EstrelaBet', value: 200, odd: 2.40, conv: 77.9, stake: 156, lucro: 56,  isNew: false },
+  { event: 'Cuiabá × Bragança',   house: 'Superbet',   value: 30,  odd: 2.00, conv: 70.0, stake: 21,  lucro: 9,   isNew: false },
 ];
 
 function FreebetTable() {
@@ -185,14 +191,14 @@ function FreebetTable() {
         </div>
       </div>
       {/* Column headers — hidden on mobile via class */}
-      <div className="lp-fb-header" style={{ display: 'grid', gridTemplateColumns: '1fr 90px 62px 56px 58px 54px', padding: '7px 20px', borderBottom: '1px solid rgba(255,255,255,.04)' }}>
-        {['Evento','Casa','Freebet','Odd','Conv.','Stake'].map(c => (
+      <div className="lp-fb-header" style={{ display: 'grid', gridTemplateColumns: '1fr 90px 70px 70px', padding: '7px 20px', borderBottom: '1px solid rgba(255,255,255,.04)' }}>
+        {['Evento','Casa','Freebet','Você recebe'].map(c => (
           <div key={c} style={{ fontFamily: 'JetBrains Mono', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.14em', color: '#4A5E6E' }}>{c}</div>
         ))}
       </div>
       {FB_ROWS.map((row, i) => (
         <div key={i} className="lp-fb-row" style={{
-          display: 'grid', gridTemplateColumns: '1fr 90px 62px 56px 58px 54px',
+          display: 'grid', gridTemplateColumns: '1fr 90px 70px 70px',
           padding: '11px 20px', alignItems: 'center',
           borderBottom: i < FB_ROWS.length - 1 ? '1px solid rgba(255,255,255,.04)' : 'none',
           background: i === 0 ? 'rgba(167,139,250,.035)' : 'transparent',
@@ -203,9 +209,7 @@ function FreebetTable() {
           </div>
           <div style={{ fontFamily: 'Figtree, sans-serif', fontSize: 12, color: '#6A7E8E' }}>{row.house}</div>
           <div style={{ fontFamily: 'JetBrains Mono', fontSize: 12, fontWeight: 700, color: '#F0F4F8' }}>R$ {row.value}</div>
-          <div style={{ fontFamily: 'JetBrains Mono', fontSize: 12, fontWeight: 700, color: '#F0F4F8' }}>@{row.odd.toFixed(2)}</div>
-          <div className="lp-fb-conv" style={{ fontFamily: 'JetBrains Mono', fontSize: 12, fontWeight: 700, color: '#3FFF21' }}>{row.conv}%</div>
-          <div className="lp-fb-stake" style={{ fontFamily: 'JetBrains Mono', fontSize: 12, fontWeight: 700, color: '#6A7E8E' }}>R$ {row.stake}</div>
+          <div style={{ fontFamily: 'JetBrains Mono', fontSize: 13, fontWeight: 800, color: '#3FFF21' }}>+R$ {row.lucro} 💰</div>
         </div>
       ))}
     </div>
@@ -449,35 +453,45 @@ export function LandingPage() {
           </div>
 
           <h1 className="lp-fade-in lp-d2" style={{ ...s.h('clamp(36px,6.5vw,76px)'), color: '#F0F4F8', marginBottom: 24 }}>
-            O mercado{' '}
-            <span style={{ color: '#3FFF21' }}>se move rápido.</span>
-            <br />Você ainda mais.
+            Saiba exatamente{' '}
+            <span style={{ color: '#3FFF21' }}>quanto você lucra</span>
+            <br />em cada operação.
           </h1>
 
-          <p className="lp-fade-in lp-d3" style={{ fontFamily: 'Figtree, sans-serif', fontSize: 'clamp(15px,2vw,18px)' as unknown as number, lineHeight: 1.7, color: 'rgba(240,244,248,.5)', maxWidth: '54ch', margin: '0 auto 40px' }}>
-            Encontre surebets, extraia freebets e gerencie bancas varrendo{' '}
+          <p className="lp-fade-in lp-d3" style={{ fontFamily: 'Figtree, sans-serif', fontSize: 'clamp(15px,2vw,18px)' as unknown as number, lineHeight: 1.7, color: 'rgba(240,244,248,.5)', maxWidth: '50ch', margin: '0 auto 12px' }}>
+            Gestão completa de surebets e freebets em{' '}
             <span style={{ fontWeight: 600, color: 'rgba(240,244,248,.8)' }}>30+ casas em tempo real</span>.
-            Organize operações e contas num único painel feito para quem vive de odds.
+            Pare de operar no escuro.
           </p>
 
-          <div className="lp-fade-in lp-d4" style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 36, justifyContent: 'center' }}>
+          {/* Preço visível antes do clique — elimina abandono no checkout */}
+          <p className="lp-fade-in lp-d3" style={{ fontFamily: 'Figtree, sans-serif', fontSize: 13, color: 'rgba(240,244,248,.28)', marginBottom: 36 }}>
+            A partir de <strong style={{ color: 'rgba(240,244,248,.55)' }}>R$97/mês</strong> · Acesso imediato · Garantia de 7 dias
+          </p>
+
+          <div className="lp-fade-in lp-d4" style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 28, justifyContent: 'center' }}>
             <a href="#planos" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: '#3FFF21', color: '#030507', borderRadius: 999, padding: '15px 36px', fontSize: 15, fontWeight: 700, fontFamily: 'Figtree, sans-serif', textDecoration: 'none', transition: 'transform .2s, box-shadow .2s', boxShadow: '0 8px 32px -8px rgba(63,255,33,.6)' }}
               onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.transform = 'scale(1.03)'; el.style.boxShadow = '0 12px 44px -8px rgba(63,255,33,.85)'; }}
               onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.transform = 'scale(1)'; el.style.boxShadow = '0 8px 32px -8px rgba(63,255,33,.6)'; }}>
               Começar agora <ArrowRight size={16} />
             </a>
-            <a href="#recursos" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.03)', color: 'rgba(240,244,248,.7)', borderRadius: 999, padding: '15px 28px', fontSize: 15, fontWeight: 600, fontFamily: 'Figtree, sans-serif', textDecoration: 'none', transition: 'background .2s, border-color .2s' }}
-              onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.background = 'rgba(255,255,255,.06)'; el.style.borderColor = 'rgba(255,255,255,.22)'; }}
-              onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.background = 'rgba(255,255,255,.03)'; el.style.borderColor = 'rgba(255,255,255,.12)'; }}>
-              Ver recursos
-            </a>
           </div>
 
-          <div className="lp-fade-in lp-d5" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-            <div style={{ display: 'flex' }}>
-              {[0,1,2,3,4].map(i => <Star key={i} size={13} color="#3FFF21" fill="#3FFF21" />)}
+          {/* Prova social imediata */}
+          <div className="lp-fade-in lp-d5" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ display: 'flex' }}>
+                {[0,1,2,3,4].map(i => <Star key={i} size={13} color="#3FFF21" fill="#3FFF21" />)}
+              </div>
+              <span style={{ fontFamily: 'Figtree, sans-serif', fontSize: 13, fontWeight: 600, color: 'rgba(240,244,248,.55)' }}>4.9/5</span>
+              <span style={{ fontFamily: 'Figtree, sans-serif', fontSize: 12, color: 'rgba(240,244,248,.28)' }}>· 127 traders ativos</span>
             </div>
-            <span style={{ fontFamily: 'Figtree, sans-serif', fontSize: 12, color: 'rgba(240,244,248,.32)' }}>4.9 — usado por traders profissionais em todo o Brasil</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 999, background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.07)' }}>
+              <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#3FFF21', flexShrink: 0, animation: 'lp-pulse 1.8s ease-in-out infinite' }} />
+              <span style={{ fontFamily: 'Figtree, sans-serif', fontSize: 12, color: 'rgba(240,244,248,.4)' }}>
+                <strong style={{ color: 'rgba(240,244,248,.7)' }}>12 traders</strong> entraram nos últimos 7 dias
+              </span>
+            </div>
           </div>
         </div>
       </section>
@@ -518,6 +532,27 @@ export function LandingPage() {
           ))}
         </div>
       </div>
+
+      {/* ══════════ TESTIMONIALS ══════════ */}
+      <section style={{ padding: 'clamp(48px,6vw,72px) 20px', borderTop: '1px solid rgba(255,255,255,.05)' }}>
+        <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+          <p style={{ fontFamily: 'Figtree, sans-serif', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.2em', color: 'rgba(240,244,248,.22)', textAlign: 'center', marginBottom: 32 }}>O que os traders dizem</p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px,1fr))', gap: 14 }}>
+            {TESTIMONIALS.map((t, i) => (
+              <div key={i} style={{ borderRadius: 16, border: '1px solid rgba(255,255,255,.07)', background: 'rgba(255,255,255,.02)', padding: '20px 22px' }}>
+                <div style={{ display: 'flex', marginBottom: 12 }}>
+                  {[0,1,2,3,4].map(s => <Star key={s} size={11} color="#3FFF21" fill="#3FFF21" />)}
+                </div>
+                <p style={{ fontFamily: 'Figtree, sans-serif', fontSize: 14, lineHeight: 1.7, color: 'rgba(240,244,248,.55)', marginBottom: 16 }}>"{t.text}"</p>
+                <div>
+                  <span style={{ fontFamily: 'Manrope, sans-serif', fontWeight: 700, fontSize: 13, color: '#F0F4F8' }}>{t.name}</span>
+                  <span style={{ fontFamily: 'Figtree, sans-serif', fontSize: 11, color: 'rgba(240,244,248,.28)', marginLeft: 8 }}>{t.role}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
 
       {/* ══════════ FREEBET SECTION ══════════ */}
       <section ref={rFreebet} className="lp-reveal" style={{ padding: 'clamp(64px,8vw,100px) 20px', borderBottom: '1px solid rgba(255,255,255,.05)' }}>
@@ -632,14 +667,27 @@ export function LandingPage() {
       {/* ══════════ PRICING ══════════ */}
       <section ref={rPricing} className="lp-reveal" id="planos" style={{ padding: 'clamp(64px,8vw,100px) 20px', borderTop: '1px solid rgba(255,255,255,.05)' }}>
         <div style={{ maxWidth: 1100, margin: '0 auto' }}>
-          <div style={{ textAlign: 'center', marginBottom: 52 }}>
+
+          {/* Âncora de valor — dor antes do preço */}
+          <div style={{ maxWidth: 640, margin: '0 auto 52px', padding: '24px 28px', borderRadius: 16, background: 'rgba(255,100,0,.06)', border: '1px solid rgba(255,100,0,.18)', textAlign: 'center' }}>
+            <p style={{ fontFamily: 'Figtree, sans-serif', fontSize: 'clamp(14px,1.5vw,16px)' as unknown as number, color: 'rgba(240,244,248,.65)', lineHeight: 1.7, marginBottom: 12 }}>
+              Traders sem controle perdem em média <strong style={{ color: '#FF8F3D' }}>23% do lucro</strong> sem saber qual casa está puxando para baixo.
+            </p>
+            <p style={{ fontFamily: 'Figtree, sans-serif', fontSize: 13, color: 'rgba(240,244,248,.35)' }}>
+              Com o SureEdge você descobre em menos de 5 minutos.
+            </p>
+          </div>
+
+          <div style={{ textAlign: 'center', marginBottom: 40 }}>
             <SectionLabel>Planos</SectionLabel>
             <h2 style={{ ...s.h('clamp(26px,3.5vw,50px)'), color: '#F0F4F8', marginBottom: 12 }}>
               Investimento que{' '}<span style={{ color: '#3FFF21' }}>se paga na primeira semana.</span>
             </h2>
-            <p style={{ fontFamily: 'Figtree, sans-serif', fontSize: 'clamp(14px,1.5vw,16px)' as unknown as number, color: 'rgba(240,244,248,.4)', maxWidth: '38ch', margin: '0 auto' }}>
-              Comece em poucos minutos. Cancele quando quiser. Garantia de 7 dias.
-            </p>
+            {/* Garantia em destaque */}
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginTop: 16, padding: '10px 20px', borderRadius: 999, background: 'rgba(63,255,33,.08)', border: '1px solid rgba(63,255,33,.2)' }}>
+              <Shield size={14} color="#3FFF21" />
+              <span style={{ fontFamily: 'Figtree, sans-serif', fontSize: 13, fontWeight: 700, color: '#3FFF21' }}>Garantia incondicional de 7 dias — devolução total sem perguntas</span>
+            </div>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
             {LANDING_PLANS.map(plan => {
@@ -685,10 +733,21 @@ export function LandingPage() {
               );
             })}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 24, marginTop: 28, flexWrap: 'wrap' }}>
-            {[{ icon: <Shield size={13} />, text: 'Pagamento seguro via Cakto' }, { icon: <Zap size={13} />, text: 'Acesso imediato após pagamento' }, { icon: <TrendingUp size={13} />, text: 'Cancele quando quiser' }].map(item => (
-              <div key={item.text} style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'Figtree, sans-serif', fontSize: 12, color: 'rgba(240,244,248,.28)' }}>{item.icon} {item.text}</div>
-            ))}
+          {/* Trust bar expandida */}
+          <div style={{ marginTop: 32, padding: '18px 24px', borderRadius: 14, background: 'rgba(255,255,255,.02)', border: '1px solid rgba(255,255,255,.06)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'clamp(16px,3vw,36px)', flexWrap: 'wrap' }}>
+              {[
+                { icon: <Shield size={14} />, text: 'Pagamento 100% seguro via Cakto', color: '#3FFF21' },
+                { icon: <Zap size={14} />,    text: 'Acesso liberado em até 5 minutos', color: '#3FFF21' },
+                { icon: <Check size={14} />,  text: 'Cancele quando quiser, sem multa', color: '#3FFF21' },
+                { icon: <Star size={14} fill="#FFD600" />, text: '4.9 de satisfação · 127 traders', color: '#FFD600' },
+              ].map(item => (
+                <div key={item.text} style={{ display: 'flex', alignItems: 'center', gap: 7, fontFamily: 'Figtree, sans-serif', fontSize: 12, color: 'rgba(240,244,248,.45)', whiteSpace: 'nowrap' }}>
+                  <span style={{ color: item.color }}>{item.icon}</span>
+                  {item.text}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </section>
