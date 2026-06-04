@@ -123,6 +123,53 @@ async function sendAccessEmail(email: string, name?: string): Promise<void> {
   }
 }
 
+// ── Envia mensagem WhatsApp via Evolution API ─────────────────────────────────
+// Env vars necessárias na Vercel:
+//   EVOLUTION_API_URL    — ex: https://evolution-xxx.railway.app
+//   EVOLUTION_API_KEY    — apikey configurada na Evolution API
+//   EVOLUTION_INSTANCE   — nome da instância conectada (ex: suredge)
+async function sendWhatsApp(phone: string, name: string, plan: PlanId): Promise<void> {
+  const url      = process.env.EVOLUTION_API_URL;
+  const apiKey   = process.env.EVOLUTION_API_KEY;
+  const instance = process.env.EVOLUTION_INSTANCE;
+
+  if (!url || !apiKey || !instance) return; // não configurado — silencioso
+
+  // Normaliza número: remove tudo que não é dígito, garante código do Brasil
+  const digits = phone.replace(/\D/g, '');
+  if (!digits || digits.length < 10) return;
+  const number = digits.startsWith('55') ? digits : `55${digits}`;
+
+  const planLabel: Record<PlanId, string> = {
+    monthly:   'Mensal (30 dias)',
+    quarterly: 'Trimestral (90 dias)',
+    annual:    'Anual (365 dias)',
+  };
+
+  const firstName = name?.split(' ')[0] || 'pessoal';
+  const text =
+    `✅ *Olá, ${firstName}! Sua compra no SureEdge foi confirmada.*\n\n` +
+    `📦 Plano: *${planLabel[plan]}*\n\n` +
+    `📧 Acesse seu e-mail e clique no link para entrar no dashboard.\n\n` +
+    `Qualquer dúvida é só chamar aqui no WhatsApp. 🚀`;
+
+  try {
+    const res = await fetch(`${url}/message/sendText/${instance}`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': apiKey },
+      body:    JSON.stringify({ number, text }),
+    });
+    if (res.ok) {
+      console.log(`[cakto-webhook] WhatsApp enviado para ${number.slice(0, 6)}…`);
+    } else {
+      const body = await res.text().catch(() => '');
+      console.error(`[cakto-webhook] WhatsApp falhou (${res.status}): ${body.slice(0, 100)}`);
+    }
+  } catch (err) {
+    console.error('[cakto-webhook] WhatsApp erro de rede:', err);
+  }
+}
+
 // ── Handler ───────────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
@@ -164,11 +211,12 @@ export async function POST(req: NextRequest) {
       });
       console.log(`[cakto-webhook] Activated ${plan} for ${email} (event: ${event})`);
 
-      // Envia Magic Link apenas na primeira compra (não em renovações)
-      // subscription_renewed = cliente já tem conta, não precisa de invite
+      // Envia Magic Link + WhatsApp apenas na primeira compra (não em renovações)
       if (event === 'purchase_approved' || event === 'subscription_created') {
-        const name = payload.data?.customer?.name;
+        const name  = payload.data?.customer?.name ?? '';
+        const phone = payload.data?.customer?.phone ?? '';
         await sendAccessEmail(email, name);
+        if (phone) await sendWhatsApp(phone, name, plan);
       }
 
       return NextResponse.json({ ok: true });
