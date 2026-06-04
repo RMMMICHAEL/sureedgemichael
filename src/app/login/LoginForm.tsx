@@ -149,6 +149,24 @@ export function LoginForm() {
     }
   }, [params]);
 
+  // Trata implicit flow (invite link com #access_token no hash)
+  // O servidor não vê o hash — precisamos processar client-side
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const hash = window.location.hash;
+    if (!hash.includes('access_token')) return;
+
+    const supabase = getSupabaseClient();
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        // Limpa o hash da URL antes de redirecionar
+        window.history.replaceState(null, '', window.location.pathname + window.location.search);
+        router.push('/');
+        router.refresh();
+      }
+    });
+  }, [router]);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
