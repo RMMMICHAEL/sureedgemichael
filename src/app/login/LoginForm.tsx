@@ -161,11 +161,18 @@ export function LoginForm() {
     const refresh_token = params.get('refresh_token');
     if (!access_token || !refresh_token) return;
 
+    const type = params.get('type'); // 'invite' ou 'magiclink'
+
     const supabase = getSupabaseClient();
     supabase.auth.setSession({ access_token, refresh_token }).then(({ data, error }) => {
       if (data.session && !error) {
         window.history.replaceState(null, '', window.location.pathname);
-        router.push('/');
+        // Primeiro acesso via invite → pede para criar senha
+        if (type === 'invite') {
+          router.push('/criar-senha');
+        } else {
+          router.push('/');
+        }
         router.refresh();
       }
     });
