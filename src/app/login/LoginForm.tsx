@@ -149,18 +149,22 @@ export function LoginForm() {
     }
   }, [params]);
 
-  // Trata implicit flow (invite link com #access_token no hash)
-  // O servidor não vê o hash — precisamos processar client-side
+  // Trata implicit flow (invite/magic link com #access_token no hash)
+  // O servidor não vê o hash — precisamos processar client-side via setSession
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const hash = window.location.hash;
     if (!hash.includes('access_token')) return;
 
+    const params = new URLSearchParams(hash.replace(/^#/, ''));
+    const access_token  = params.get('access_token');
+    const refresh_token = params.get('refresh_token');
+    if (!access_token || !refresh_token) return;
+
     const supabase = getSupabaseClient();
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        // Limpa o hash da URL antes de redirecionar
-        window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    supabase.auth.setSession({ access_token, refresh_token }).then(({ data, error }) => {
+      if (data.session && !error) {
+        window.history.replaceState(null, '', window.location.pathname);
         router.push('/');
         router.refresh();
       }
