@@ -123,52 +123,6 @@ async function sendAccessEmail(email: string, name?: string): Promise<void> {
   }
 }
 
-// ── Envia mensagem WhatsApp via Evolution API ─────────────────────────────────
-// Env vars necessárias na Vercel:
-//   EVOLUTION_API_URL    — ex: https://evolution-xxx.railway.app
-//   EVOLUTION_API_KEY    — apikey configurada na Evolution API
-//   EVOLUTION_INSTANCE   — nome da instância conectada (ex: suredge)
-async function sendWhatsApp(phone: string, name: string, plan: PlanId): Promise<void> {
-  const url      = process.env.EVOLUTION_API_URL;
-  const apiKey   = process.env.EVOLUTION_API_KEY;
-  const instance = process.env.EVOLUTION_INSTANCE;
-
-  if (!url || !apiKey || !instance) return; // não configurado — silencioso
-
-  // Normaliza número: remove tudo que não é dígito, garante código do Brasil
-  const digits = phone.replace(/\D/g, '');
-  if (!digits || digits.length < 10) return;
-  const number = digits.startsWith('55') ? digits : `55${digits}`;
-
-  const planLabel: Record<PlanId, string> = {
-    monthly:   'Mensal (30 dias)',
-    quarterly: 'Trimestral (90 dias)',
-    annual:    'Anual (365 dias)',
-  };
-
-  const firstName = name?.split(' ')[0] || 'pessoal';
-  const text =
-    `✅ *Olá, ${firstName}! Sua compra no SureEdge foi confirmada.*\n\n` +
-    `📦 Plano: *${planLabel[plan]}*\n\n` +
-    `📧 Acesse seu e-mail e clique no link para entrar no dashboard.\n\n` +
-    `Qualquer dúvida é só chamar aqui no WhatsApp. 🚀`;
-
-  try {
-    const res = await fetch(`${url}/message/sendText/${instance}`, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json', 'apikey': apiKey },
-      body:    JSON.stringify({ number, text }),
-    });
-    if (res.ok) {
-      console.log(`[cakto-webhook] WhatsApp enviado para ${number.slice(0, 6)}…`);
-    } else {
-      const body = await res.text().catch(() => '');
-      console.error(`[cakto-webhook] WhatsApp falhou (${res.status}): ${body.slice(0, 100)}`);
-    }
-  } catch (err) {
-    console.error('[cakto-webhook] WhatsApp erro de rede:', err);
-  }
-}
 
 // ── Handler ───────────────────────────────────────────────────────────────────
 
@@ -214,9 +168,7 @@ export async function POST(req: NextRequest) {
       // Envia Magic Link + WhatsApp em paralelo (fire-and-forget, não bloqueia)
       if (event === 'purchase_approved' || event === 'subscription_created') {
         const name  = payload.data?.customer?.name ?? '';
-        const phone = payload.data?.customer?.phone ?? '';
         sendAccessEmail(email, name).catch(e => console.error('[webhook] email bg error:', e));
-        if (phone) sendWhatsApp(phone, name, plan).catch(e => console.error('[webhook] whatsapp bg error:', e));
       }
 
       return NextResponse.json({ ok: true });
