@@ -14,7 +14,7 @@ import { URL }            from 'node:url';
 import { readFileSync, existsSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath }  from 'node:url';
-import { exec, spawn }    from 'node:child_process';
+import { exec }           from 'node:child_process';
 
 // ── Carrega .env local ────────────────────────────────────────────────────────
 const __dir  = dirname(fileURLToPath(import.meta.url));
@@ -1594,45 +1594,170 @@ async function runScannerSse() {
 // executa renew-cookie.mjs como subprocesso — mesmo código que roda às 07:00,
 // garantindo o mesmo comportamento (ECDH, headers, parsing idênticos).
 
+// ── Sessão ECDH leve para busca de eventos (headers idênticos ao renew-cookie.mjs) ──
+// O buscador_proxy.php retorna 403 para events_lite com os headers "pesados" do
+// buscador (Sec-*, Origin, etc). Usa headers mínimos igual ao renew-cookie.mjs.
+async function createEventsSession(cookie) {
+  const cookieWithCf = await mergeCfClearance(cookie);
+  const hdrs = {
+    'User-Agent':      UA,
+    'Accept':          '*/*',
+    'Cache-Control':   'no-cache',
+    'Pragma':          'no-cache',
+    'Accept-Language': 'pt-BR,pt;q=0.9',
+    'Referer':         `${BASE}/index.php?page=buscador`,
+    'Cookie':          cookieWithCf,
+  };
+
+  const nonceRes = await fetch(`${BASE}/api/proxy_nonce_handshake.php`, { headers: hdrs });
+  if (!nonceRes.ok) throw new Error(`events: nonce handshake falhou (${nonceRes.status})`);
+  const { nonce: handshakeNonce } = await safeJson(nonceRes, 'events: proxy_nonce_handshake');
+
+  const keyPair    = await subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits']);
+  const pubRaw     = new Uint8Array(await subtle.exportKey('raw', keyPair.publicKey));
+  const client_pub_x = bytesToHex(pubRaw.slice(1, 33));
+  const client_pub_y = bytesToHex(pubRaw.slice(33, 65));
+
+  const hsRes = await fetch(`${BASE}/api/buscador_handshake.php`, {
+    method: 'POST',
+    headers: { ...hdrs, 'Content-Type': 'application/json', 'X-Handshake-Nonce': handshakeNonce },
+    body: JSON.stringify({ client_pub_x, client_pub_y }),
+  });
+  if (!hsRes.ok) throw new Error(`events: handshake falhou (${hsRes.status})`);
+  const hs = await safeJson(hsRes, 'events: buscador_handshake');
+  if (!hs.success) throw new Error('events: handshake negado (cookie inválido?)');
+
+  const srvRaw = new Uint8Array(65);
+  srvRaw[0] = 0x04;
+  srvRaw.set(hexToBytes(hs.server_pub_x ?? ''), 1);
+  srvRaw.set(hexToBytes(hs.server_pub_y ?? ''), 33);
+
+  const serverPub  = await subtle.importKey('raw', srvRaw, { name: 'ECDH', namedCurve: 'P-256' }, false, []);
+  const sharedBits = await subtle.deriveBits({ name: 'ECDH', public: serverPub }, keyPair.privateKey, 256);
+  const hkdfKey    = await subtle.importKey('raw', sharedBits, 'HKDF', false, ['deriveKey']);
+  const aesKey     = await subtle.deriveKey(
+    { name: 'HKDF', hash: 'SHA-256', salt: new Uint8Array(32), info: new TextEncoder().encode('buscador-aes256-v1') },
+    hkdfKey, { name: 'AES-CBC', length: 256 }, false, ['decrypt']
+  );
+  return { aesKey, hdrs };
+}
+
+function normaliseEvent(raw) {
+  const home  = String(raw.home ?? '');
+  const away  = String(raw.away ?? '');
+  const name  = home && away ? `${home} x ${away}` : home || away || 'Evento';
+  const id    = raw.id ? String(raw.id) : `${home}-${away}-${raw.date ?? ''}`.replace(/\s+/g, '-');
+  const league = typeof raw.league === 'string' ? raw.league : (raw.league?.name ?? raw.sport ?? 'Sport');
+  const sport  = String(raw.sport ?? league);
+  const start_utc = (() => {
+    const s = String(raw.date ?? '');
+    if (!s) return '';
+    const d = new Date(s.replace(' ', 'T') + '-03:00');
+    return isNaN(d.getTime()) ? s : d.toISOString();
+  })();
+  let house_count = 0;
+  if (typeof raw.bookmakers === 'number')      house_count = raw.bookmakers;
+  else if (Array.isArray(raw.bookmakers))      house_count = raw.bookmakers.length;
+  else if (typeof raw.odds_count === 'number') house_count = raw.odds_count;
+  else if (typeof raw.houses === 'number')     house_count = raw.houses;
+  return { id, name, sport, league, start_utc, house_count };
+}
+
 async function processEventRefreshCycle() {
   try {
-    // Verifica flag de refresh
     const flagRes  = await sbFetch('app_config?key=eq.refresh_events_requested&select=value');
     const flagRows = await flagRes.json();
     if (!flagRows?.length || flagRows[0].value !== 'true') return;
 
     const t = new Date().toLocaleTimeString('pt-BR');
-    console.log(`\n[${t}] Refresh de eventos solicitado — executando renew-cookie.mjs...`);
+    console.log(`\n[${t}] Refresh de eventos solicitado...`);
 
-    // Limpa a flag imediatamente para não processar duas vezes
+    // Limpa flag imediatamente
     await sbFetch('app_config', 'POST',
       { key: 'refresh_events_requested', value: 'false', updated_at: new Date().toISOString() },
       { 'Prefer': 'resolution=merge-duplicates' }
     );
 
-    // Executa renew-cookie.mjs como subprocesso (mesmo processo que roda às 07:00)
-    const renewScript = resolve(__dir, 'renew-cookie.mjs');
-    await new Promise((done) => {
-      const child = spawn(process.execPath, [renewScript], {
-        stdio: 'inherit',   // herda stdout/stderr do daemon → logs visíveis
-        env:   process.env, // herda as mesmas variáveis de ambiente
-      });
-      child.on('close', (code) => {
-        if (code !== 0) console.error(`   Refresh: renew-cookie.mjs saiu com código ${code}`);
-        done(undefined);
-      });
-      child.on('error', (err) => {
-        console.error(`   Refresh: erro ao spawnar renew-cookie.mjs: ${err.message}`);
-        done(undefined);
-      });
-    });
+    // Usa cookie já existente — NÃO faz login automático
+    const cookie = await getCookie();
+    if (!cookie) {
+      console.error('   Refresh: cookie inválido — faça login manualmente e tente novamente');
+      return;
+    }
 
-    // Sinaliza que o refresh foi concluído (lido pelo frontend via polling)
+    // Sessão ECDH leve (headers mínimos, sem Sec-* que causavam 403)
+    let session;
+    try {
+      session = await createEventsSession(cookie);
+      console.log('   Refresh: sessão ECDH OK');
+    } catch (err) {
+      console.error(`   Refresh: sessão falhou: ${err.message}`);
+      return;
+    }
+
+    // Data de hoje em BRT
+    const brtNow = new Date(Date.now() - 3 * 60 * 60 * 1000);
+    const _p     = x => String(x).padStart(2, '0');
+    const today  = `${brtNow.getUTCFullYear()}-${_p(brtNow.getUTCMonth() + 1)}-${_p(brtNow.getUTCDate())}`;
+
+    // Busca events_lite com nonce fresco
+    let events = [];
+    try {
+      const nonceRes = await fetch(`${BASE}/api/proxy_nonce.php`, { headers: session.hdrs });
+      if (!nonceRes.ok) throw new Error(`proxy_nonce falhou (${nonceRes.status})`);
+      const { nonce } = await safeJson(nonceRes, 'events: proxy_nonce');
+
+      const res = await fetch(`${BASE}/api/buscador_proxy.php?action=events_lite&date=${today}`, {
+        headers: { ...session.hdrs, 'Accept': 'application/json', 'X-Proxy-Nonce': nonce },
+      });
+
+      if (!res.ok) {
+        const body = await res.text().catch(() => '');
+        console.error(`   Refresh: buscador_proxy retornou ${res.status} — ${body.slice(0, 120)}`);
+        return;
+      }
+
+      const enc = await safeJson(res, 'events: buscador_proxy');
+      let parsed = enc;
+      if (enc.encrypted && enc.data) {
+        const encBytes = base64ToBytes(enc.data);
+        const plain    = await subtle.decrypt(
+          { name: 'AES-CBC', iv: encBytes.slice(0, 16) },
+          session.aesKey,
+          encBytes.slice(16)
+        );
+        parsed = JSON.parse(new TextDecoder().decode(plain));
+      }
+
+      const rawEvents = Array.isArray(parsed) ? parsed : (parsed.events ?? []);
+      events = rawEvents.map(normaliseEvent);
+      events.sort((a, b) => a.start_utc.localeCompare(b.start_utc));
+      console.log(`   Refresh: ${events.length} eventos encontrados para ${today}`);
+    } catch (err) {
+      console.error(`   Refresh: falha ao buscar eventos: ${err.message}`);
+      return;
+    }
+
+    if (!events.length) {
+      console.warn('   Refresh: 0 eventos — SuperMonitor pode não ter dados para hoje ainda');
+      return;
+    }
+
+    // Upsert em lotes de 50
+    const rows = events.map(e => ({ ...e, event_date: today, updated_at: new Date().toISOString() }));
+    let saved = 0;
+    for (let i = 0; i < rows.length; i += 50) {
+      const chunk = rows.slice(i, i + 50);
+      const r = await sbFetch('sm_events', 'POST', chunk, { 'Prefer': 'resolution=merge-duplicates' });
+      if (r.ok) saved += chunk.length;
+      else console.warn(`   Refresh: chunk falhou: ${await r.text()}`);
+    }
+    console.log(`   Refresh: ${saved}/${events.length} eventos salvos no Supabase`);
+
     await sbFetch('app_config', 'POST',
       { key: 'refresh_events_done', value: new Date().toISOString(), updated_at: new Date().toISOString() },
       { 'Prefer': 'resolution=merge-duplicates' }
     );
-    console.log(`   Refresh concluído.`);
 
   } catch (err) {
     console.error(`[EventRefresh] erro: ${err.message}`);
