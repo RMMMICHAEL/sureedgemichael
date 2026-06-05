@@ -880,13 +880,21 @@ async function processFreebetCycle() {
         // Sessão expirou ou foi invalidada → tenta UMA vez com nova sessão.
         // Não tenta uma terceira vez — INVALID_SESSION repetido indica problema
         // no cookie/servidor que não é resolvido criando mais sessões.
-        const is401 = err.message.includes('401') || err.message.includes('INVALID_SESSION') || err.message.includes('NEEDS_HANDSHAKE');
-        if (is401) {
-          // 401 no freebet = PHPSESSID esgotado (scanner compartilha o mesmo limite).
-          // Simplesmente recriar a sessão ECDH NÃO resolve — o PHPSESSID continua
-          // esgotado. É necessário um cookie novo (novo PHPSESSID).
-          // autoRenewCookie() é seguro: se o scanner já estiver renovando, entra na
-          // fila (mutex _renewWaiters) e reutiliza o resultado sem duplicar o login.
+        const is401    = err.message.includes('401') || err.message.includes('INVALID_SESSION') || err.message.includes('NEEDS_HANDSHAKE');
+        const isCrypto = err.message.includes('operation failed') || err.message.includes('operation-specific');
+
+        if (isCrypto) {
+          // Erro de crypto = sessão ECDH desincronizou (servidor regenerou chave).
+          // Recriar a sessão ECDH resolve — NÃO precisa renovar cookie.
+          console.log(`   Freebet: crypto error — recriando sessão ECDH e retentando...`);
+          invalidateFreebetSession();
+          freebetSession = await createFreebetSession(cookie);
+          _freebetSession = freebetSession;
+          _freebetSessionCookieHash = cookie.slice(0, 32);
+          _freebetSessionExpiresAt = Date.now() + FREEBET_SESSION_TTL;
+          result = await fetchFreebetFromSuperMonitor(freebetSession, req);
+        } else if (is401) {
+          // 401 no freebet = PHPSESSID esgotado — precisa de cookie novo.
           console.log(`   Freebet: PHPSESSID esgotado — renovando cookie e retentando...`);
           const renewed = await autoRenewCookie();
           if (renewed) {
@@ -899,7 +907,6 @@ async function processFreebetCycle() {
           _freebetSession = freebetSession;
           _freebetSessionCookieHash = cookie.slice(0, 32);
           _freebetSessionExpiresAt = Date.now() + FREEBET_SESSION_TTL;
-          // Se isso também falhar, a exceção propaga para o catch externo
           result = await fetchFreebetFromSuperMonitor(freebetSession, req);
         } else {
           throw err;
@@ -921,6 +928,9 @@ async function processFreebetCycle() {
       if (err.message.includes('401') || err.message.includes('INVALID_SESSION') || err.message.includes('NEEDS_HANDSHAKE')) {
         invalidateFreebetSession();
         _freebetConsecutiveFailures++;
+      } else if (err.message.includes('operation failed') || err.message.includes('operation-specific')) {
+        // Crypto error no catch externo = 2ª tentativa também falhou → invalida sessão
+        invalidateFreebetSession();
       } else if (err.message.includes('403') || err.message.includes('handshake')) {
         invalidateFreebetSession();
       }
