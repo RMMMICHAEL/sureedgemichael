@@ -766,9 +766,8 @@ async function fetchFreebetFromSuperMonitor(freebetSession, { bookmaker, value, 
         const bmHdrs = bmCookies.length
           ? { ...freebetHdrs, 'Cookie': mergeCookies(freebetHdrs['Cookie'], bmCookies) }
           : freebetHdrs;
-        const sessionHdrBm = freebetSession.sessionToken ? { 'X-Session-Token': freebetSession.sessionToken } : {};
         await fetch(`${BASE}/api/freebet_proxy-v2.php?endpoint=api%2Fv2%2Fbookmakers`, {
-          headers: { ...bmHdrs, 'X-Proxy-Nonce': bmNonce, ...sessionHdrBm },
+          headers: { ...bmHdrs, 'X-Proxy-Nonce': bmNonce },
         });
       }
     }
@@ -795,13 +794,10 @@ async function fetchFreebetFromSuperMonitor(freebetSession, { bookmaker, value, 
     pa_filter: String(pa_filter),
   }).toString();
 
-  // Envia session_token se o handshake retornou — freebet_proxy-v2.php pode exigi-lo
-  const sessionHdr = freebetSession.sessionToken
-    ? { 'X-Session-Token': freebetSession.sessionToken }
-    : {};
-
+  // NOTA: browser não envia X-Session-Token no freebet_proxy — apenas X-Proxy-Nonce
+  // Enviar o token pode limitar os resultados retornados pelo servidor
   const res = await fetch(`${BASE}/api/freebet_proxy-v2.php?${qs}`, {
-    headers: { ...proxyHdrs, 'X-Proxy-Nonce': nonce, ...sessionHdr },
+    headers: { ...proxyHdrs, 'X-Proxy-Nonce': nonce },
   });
 
   if (!res.ok) {
