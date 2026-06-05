@@ -14,7 +14,7 @@ import { URL }            from 'node:url';
 import { readFileSync, existsSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath }  from 'node:url';
-import { exec }           from 'node:child_process';
+import { exec, spawn }    from 'node:child_process';
 
 // ── Carrega .env local ────────────────────────────────────────────────────────
 const __dir  = dirname(fileURLToPath(import.meta.url));
@@ -1591,30 +1591,8 @@ async function runScannerSse() {
 
 // ── Refresh de eventos on-demand ─────────────────────────────────────────────
 // Quando o painel seta app_config.refresh_events_requested=true, o daemon
-// chama events_lite novamente e atualiza sm_events com os jogos do dia.
-// Isso resolve o caso onde renew-cookie.mjs rodou às 07:00 e novos jogos
-// foram adicionados ao Supermonitor ao longo do dia.
-
-function normaliseEvent(raw) {
-  const home  = String(raw.home ?? '');
-  const away  = String(raw.away ?? '');
-  const name  = home && away ? `${home} x ${away}` : home || away || 'Evento';
-  const id    = raw.id ? String(raw.id) : `${home}-${away}-${raw.date ?? ''}`.replace(/\s+/g, '-');
-  const league = typeof raw.league === 'string' ? raw.league : (raw.league?.name ?? raw.sport ?? 'Sport');
-  const sport  = String(raw.sport ?? league);
-  const start_utc = (() => {
-    const s = String(raw.date ?? '');
-    if (!s) return '';
-    const d = new Date(s.replace(' ', 'T') + '-03:00');
-    return isNaN(d.getTime()) ? s : d.toISOString();
-  })();
-  let house_count = 0;
-  if (typeof raw.bookmakers === 'number')      house_count = raw.bookmakers;
-  else if (Array.isArray(raw.bookmakers))      house_count = raw.bookmakers.length;
-  else if (typeof raw.odds_count === 'number') house_count = raw.odds_count;
-  else if (typeof raw.houses === 'number')     house_count = raw.houses;
-  return { id, name, sport, league, start_utc, house_count };
-}
+// executa renew-cookie.mjs como subprocesso — mesmo código que roda às 07:00,
+// garantindo o mesmo comportamento (ECDH, headers, parsing idênticos).
 
 async function processEventRefreshCycle() {
   try {
@@ -1624,7 +1602,7 @@ async function processEventRefreshCycle() {
     if (!flagRows?.length || flagRows[0].value !== 'true') return;
 
     const t = new Date().toLocaleTimeString('pt-BR');
-    console.log(`\n[${t}] Refresh de eventos solicitado — buscando events_lite...`);
+    console.log(`\n[${t}] Refresh de eventos solicitado — executando renew-cookie.mjs...`);
 
     // Limpa a flag imediatamente para não processar duas vezes
     await sbFetch('app_config', 'POST',
@@ -1632,50 +1610,29 @@ async function processEventRefreshCycle() {
       { 'Prefer': 'resolution=merge-duplicates' }
     );
 
-    const cookie = await getCookie();
-    if (!cookie) { console.error('   Refresh: sem cookie válido'); return; }
+    // Executa renew-cookie.mjs como subprocesso (mesmo processo que roda às 07:00)
+    const renewScript = resolve(__dir, 'renew-cookie.mjs');
+    await new Promise((done) => {
+      const child = spawn(process.execPath, [renewScript], {
+        stdio: 'inherit',   // herda stdout/stderr do daemon → logs visíveis
+        env:   process.env, // herda as mesmas variáveis de ambiente
+      });
+      child.on('close', (code) => {
+        if (code !== 0) console.error(`   Refresh: renew-cookie.mjs saiu com código ${code}`);
+        done(undefined);
+      });
+      child.on('error', (err) => {
+        console.error(`   Refresh: erro ao spawnar renew-cookie.mjs: ${err.message}`);
+        done(undefined);
+      });
+    });
 
-    let session;
-    try {
-      session = await getSession(cookie);
-    } catch (err) {
-      console.error(`   Refresh: sessão ECDH falhou: ${err.message}`);
-      return;
-    }
-
-    // Data de hoje em BRT
-    const brtNow = new Date(Date.now() - 3 * 60 * 60 * 1000);
-    const _p     = x => String(x).padStart(2, '0');
-    const today  = `${brtNow.getUTCFullYear()}-${_p(brtNow.getUTCMonth() + 1)}-${_p(brtNow.getUTCDate())}`;
-
-    let events;
-    try {
-      const parsed    = await fetchDecrypted(session, `action=events_lite&date=${today}`);
-      const rawEvents = Array.isArray(parsed) ? parsed : (parsed.events ?? []);
-      events = rawEvents.map(normaliseEvent);
-      events.sort((a, b) => a.start_utc.localeCompare(b.start_utc));
-      console.log(`   Refresh: ${events.length} eventos encontrados para ${today}`);
-    } catch (err) {
-      console.error(`   Refresh: falha ao buscar eventos: ${err.message}`);
-      return;
-    }
-
-    // Upsert em lotes de 50
-    const rows = events.map(e => ({ ...e, event_date: today, updated_at: new Date().toISOString() }));
-    let saved = 0;
-    for (let i = 0; i < rows.length; i += 50) {
-      const chunk = rows.slice(i, i + 50);
-      const r = await sbFetch('sm_events', 'POST', chunk, { 'Prefer': 'resolution=merge-duplicates' });
-      if (r.ok) saved += chunk.length;
-      else console.warn(`   Refresh: chunk falhou: ${await r.text()}`);
-    }
-    console.log(`   Refresh: ${saved}/${events.length} eventos salvos`);
-
-    // Sinaliza que o refresh foi concluído
+    // Sinaliza que o refresh foi concluído (lido pelo frontend via polling)
     await sbFetch('app_config', 'POST',
       { key: 'refresh_events_done', value: new Date().toISOString(), updated_at: new Date().toISOString() },
       { 'Prefer': 'resolution=merge-duplicates' }
     );
+    console.log(`   Refresh concluído.`);
 
   } catch (err) {
     console.error(`[EventRefresh] erro: ${err.message}`);
