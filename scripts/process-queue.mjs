@@ -1589,6 +1589,99 @@ async function runScannerSse() {
 // ── SSE Token refresh ─────────────────────────────────────────────────────────
 // Roda no startup e a cada 12 min (TTL do token é 840s = 14 min).
 
+// ── Refresh de eventos on-demand ─────────────────────────────────────────────
+// Quando o painel seta app_config.refresh_events_requested=true, o daemon
+// chama events_lite novamente e atualiza sm_events com os jogos do dia.
+// Isso resolve o caso onde renew-cookie.mjs rodou às 07:00 e novos jogos
+// foram adicionados ao Supermonitor ao longo do dia.
+
+function normaliseEvent(raw) {
+  const home  = String(raw.home ?? '');
+  const away  = String(raw.away ?? '');
+  const name  = home && away ? `${home} x ${away}` : home || away || 'Evento';
+  const id    = raw.id ? String(raw.id) : `${home}-${away}-${raw.date ?? ''}`.replace(/\s+/g, '-');
+  const league = typeof raw.league === 'string' ? raw.league : (raw.league?.name ?? raw.sport ?? 'Sport');
+  const sport  = String(raw.sport ?? league);
+  const start_utc = (() => {
+    const s = String(raw.date ?? '');
+    if (!s) return '';
+    const d = new Date(s.replace(' ', 'T') + '-03:00');
+    return isNaN(d.getTime()) ? s : d.toISOString();
+  })();
+  let house_count = 0;
+  if (typeof raw.bookmakers === 'number')      house_count = raw.bookmakers;
+  else if (Array.isArray(raw.bookmakers))      house_count = raw.bookmakers.length;
+  else if (typeof raw.odds_count === 'number') house_count = raw.odds_count;
+  else if (typeof raw.houses === 'number')     house_count = raw.houses;
+  return { id, name, sport, league, start_utc, house_count };
+}
+
+async function processEventRefreshCycle() {
+  try {
+    // Verifica flag de refresh
+    const flagRes  = await sbFetch('app_config?key=eq.refresh_events_requested&select=value');
+    const flagRows = await flagRes.json();
+    if (!flagRows?.length || flagRows[0].value !== 'true') return;
+
+    const t = new Date().toLocaleTimeString('pt-BR');
+    console.log(`\n[${t}] Refresh de eventos solicitado — buscando events_lite...`);
+
+    // Limpa a flag imediatamente para não processar duas vezes
+    await sbFetch('app_config', 'POST',
+      { key: 'refresh_events_requested', value: 'false', updated_at: new Date().toISOString() },
+      { 'Prefer': 'resolution=merge-duplicates' }
+    );
+
+    const cookie = await getCookie();
+    if (!cookie) { console.error('   Refresh: sem cookie válido'); return; }
+
+    let session;
+    try {
+      session = await getSession(cookie);
+    } catch (err) {
+      console.error(`   Refresh: sessão ECDH falhou: ${err.message}`);
+      return;
+    }
+
+    // Data de hoje em BRT
+    const brtNow = new Date(Date.now() - 3 * 60 * 60 * 1000);
+    const _p     = x => String(x).padStart(2, '0');
+    const today  = `${brtNow.getUTCFullYear()}-${_p(brtNow.getUTCMonth() + 1)}-${_p(brtNow.getUTCDate())}`;
+
+    let events;
+    try {
+      const parsed    = await fetchDecrypted(session, `action=events_lite&date=${today}`);
+      const rawEvents = Array.isArray(parsed) ? parsed : (parsed.events ?? []);
+      events = rawEvents.map(normaliseEvent);
+      events.sort((a, b) => a.start_utc.localeCompare(b.start_utc));
+      console.log(`   Refresh: ${events.length} eventos encontrados para ${today}`);
+    } catch (err) {
+      console.error(`   Refresh: falha ao buscar eventos: ${err.message}`);
+      return;
+    }
+
+    // Upsert em lotes de 50
+    const rows = events.map(e => ({ ...e, event_date: today, updated_at: new Date().toISOString() }));
+    let saved = 0;
+    for (let i = 0; i < rows.length; i += 50) {
+      const chunk = rows.slice(i, i + 50);
+      const r = await sbFetch('sm_events', 'POST', chunk, { 'Prefer': 'resolution=merge-duplicates' });
+      if (r.ok) saved += chunk.length;
+      else console.warn(`   Refresh: chunk falhou: ${await r.text()}`);
+    }
+    console.log(`   Refresh: ${saved}/${events.length} eventos salvos`);
+
+    // Sinaliza que o refresh foi concluído
+    await sbFetch('app_config', 'POST',
+      { key: 'refresh_events_done', value: new Date().toISOString(), updated_at: new Date().toISOString() },
+      { 'Prefer': 'resolution=merge-duplicates' }
+    );
+
+  } catch (err) {
+    console.error(`[EventRefresh] erro: ${err.message}`);
+  }
+}
+
 // ── Daemon loop ───────────────────────────────────────────────────────────────
 console.log('SureEdge Queue Daemon v3 iniciado');
 console.log(`Verificando fila a cada ${POLL_INTERVAL}ms (anti-ban: 3-6s entre requests SM) | Ctrl+C para parar\n`);
@@ -1615,6 +1708,12 @@ async function guardScannerLoop() {
 
 while (true) {
   await sleep(POLL_INTERVAL);
+
+  try {
+    await processEventRefreshCycle();
+  } catch (err) {
+    console.error(`Erro no ciclo event-refresh: ${err.message}`);
+  }
 
   try {
     await processOneCycle();

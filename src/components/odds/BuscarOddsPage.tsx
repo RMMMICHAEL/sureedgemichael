@@ -23,6 +23,10 @@ const LIVE_STYLES = `
   0%, 100% { opacity: 1; transform: scale(1); }
   50%       { opacity: .4; transform: scale(0.75); }
 }
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
 `;
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -1288,6 +1292,8 @@ function TodayGamesGrid({
   error:        string;
   onSelect:     (ev: CachedEvent) => void;
   onRetry:      () => void;
+  onRefresh:    () => void;
+  refreshing:   boolean;
   dateTime:     string;
   onDateChange: (date: string) => void;
 }) {
@@ -1394,6 +1400,28 @@ function TodayGamesGrid({
             {liveCount} AO VIVO
           </span>
         )}
+        {/* Botão Atualizar Jogos — rebusca events_lite no SuperMonitor via daemon */}
+        <button
+          type="button"
+          onClick={onRefresh}
+          disabled={refreshing}
+          title="Atualiza a lista de jogos buscando novamente no SuperMonitor"
+          style={{
+            display: 'flex', alignItems: 'center', gap: 5,
+            fontSize: 11, fontWeight: 700, padding: '5px 12px', height: 32,
+            borderRadius: 8, border: '1px solid rgba(63,255,33,.25)',
+            background: refreshing ? 'rgba(63,255,33,.04)' : 'rgba(63,255,33,.07)',
+            color: refreshing ? 'rgba(63,255,33,.4)' : '#3fff21',
+            cursor: refreshing ? 'default' : 'pointer', flexShrink: 0,
+            transition: 'all .15s',
+          }}
+          onMouseEnter={e => { if (!refreshing) (e.currentTarget as HTMLElement).style.background = 'rgba(63,255,33,.14)'; }}
+          onMouseLeave={e => { if (!refreshing) (e.currentTarget as HTMLElement).style.background = 'rgba(63,255,33,.07)'; }}
+        >
+          <RefreshCw size={11} style={{ animation: refreshing ? 'spin 1s linear infinite' : 'none' }} />
+          {refreshing ? 'Atualizando…' : 'Atualizar Jogos'}
+        </button>
+
         {/* Date picker — fica à direita do header */}
         <input
           type="date"
@@ -1430,12 +1458,13 @@ export function BuscarOddsPage() {
   const setOddsInitQuery = useStore(s => s.setOddsInitQuery);
 
   // ── Event search state ───────────────────────────────────────────────────────
-  const [query,       setQuery]       = useState('');
-  const [events,      setEvents]      = useState<CachedEvent[]>([]);
-  const [evLoading,   setEvLoading]   = useState(false);
-  const [evErr,       setEvErr]       = useState('');
-  const [fetchedDate, setFetchedDate] = useState('');
-  const [searchEvents,    setSearchEvents]    = useState<CachedEvent[]>([]);
+  const [query,        setQuery]        = useState('');
+  const [events,       setEvents]       = useState<CachedEvent[]>([]);
+  const [evLoading,    setEvLoading]    = useState(false);
+  const [evErr,        setEvErr]        = useState('');
+  const [fetchedDate,  setFetchedDate]  = useState('');
+  const [searchEvents, setSearchEvents] = useState<CachedEvent[]>([]);
+  const [refreshing,   setRefreshing]   = useState(false);
   const [dropOpen,    setDropOpen]    = useState(false);
   const [searchType,  setSearchType]  = useState<'all' | 'event' | 'league'>('all');
   const [dateTime,    setDateTime]    = useState(() => {
@@ -1519,6 +1548,32 @@ export function BuscarOddsPage() {
       setEvLoading(false);
     }
   }, []);
+
+  // ── Refresh on-demand (dispara daemon para rebuscar events_lite no SM) ────────
+  const refreshEvents = useCallback(async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    try {
+      // 1. Seta flag no Supabase — daemon processa em ≤0.5s
+      await fetch('/api/sure/refresh-events', { method: 'POST' });
+
+      // 2. Polling até daemon confirmar conclusão (máx 60s)
+      const deadline = Date.now() + 60_000;
+      while (Date.now() < deadline) {
+        await new Promise(r => setTimeout(r, 1_500));
+        const res  = await fetch('/api/sure/refresh-events');
+        const json = await res.json() as { ok: boolean; done: boolean };
+        if (json.done) break;
+      }
+
+      // 3. Recarrega lista com os novos eventos
+      await loadEvents(fetchedDate || undefined);
+    } catch {
+      // silent — loadEvents já tem fallback de erro
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refreshing, loadEvents, fetchedDate]);
 
   useEffect(() => { loadEvents(); loadSearchEvents(); }, [loadEvents, loadSearchEvents]);
 
@@ -2061,6 +2116,8 @@ export function BuscarOddsPage() {
           error={evErr}
           onSelect={handleSelect}
           onRetry={loadEvents}
+          onRefresh={refreshEvents}
+          refreshing={refreshing}
           dateTime={dateTime}
           onDateChange={(date) => {
             setDateTime(date);
