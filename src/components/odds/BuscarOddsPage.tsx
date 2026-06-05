@@ -1285,7 +1285,7 @@ function EventCard({ ev, onSelect }: { ev: CachedEvent; onSelect: (ev: CachedEve
 }
 
 function TodayGamesGrid({
-  events, loading, error, onSelect, onRetry, dateTime, onDateChange,
+  events, loading, error, onSelect, onRetry, onRefresh, refreshing, dateTime, onDateChange,
 }: {
   events:       CachedEvent[];
   loading:      boolean;
