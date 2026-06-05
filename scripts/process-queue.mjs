@@ -749,7 +749,7 @@ function invalidateFreebetSession() {
 
 // ── Freebet queue ─────────────────────────────────────────────────────────────
 
-async function fetchFreebetFromSuperMonitor(freebetSession, { bookmaker, value, min_odd, max_odd, pa_filter }) {
+async function fetchFreebetFromSuperMonitor(freebetSession, { bookmaker, value, min_odd, max_odd, pa_filter, days }) {
   const freebetHdrs = {
     ...freebetSession.hdrs,
     'Accept': 'application/json',
@@ -785,6 +785,9 @@ async function fetchFreebetFromSuperMonitor(freebetSession, { bookmaker, value, 
     ? { ...freebetHdrs, 'Cookie': mergeCookies(freebetHdrs['Cookie'], nonceCookies) }
     : freebetHdrs;
 
+  // 'days' controla a janela de eventos retornados pelo SuperMonitor.
+  // Padrão 7 = busca completa (7 dias). O frontend filtra a janela exata.
+  const daysParam = String(Math.min(30, Math.max(1, parseInt(String(days ?? 7), 10) || 7)));
   const qs = new URLSearchParams({
     endpoint:  'api/v2/freebet/convert',
     bookmaker: String(bookmaker),
@@ -792,6 +795,7 @@ async function fetchFreebetFromSuperMonitor(freebetSession, { bookmaker, value, 
     min_odd:   String(min_odd),
     max_odd:   String(max_odd),
     pa_filter: String(pa_filter),
+    days:      daysParam,
   }).toString();
 
   // NOTA: browser não envia X-Session-Token no freebet_proxy — apenas X-Proxy-Nonce

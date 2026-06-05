@@ -1141,9 +1141,21 @@ export function FreebetConverterPage() {
       const hours = fDate === '24h' ? 24 : fDate === '48h' ? 48 : fDate === '72h' ? 72 : 5 * 24;
       arr = arr.filter(r => {
         if (!r.event_date) return true;
-        const ms   = new Date(r.event_date).getTime();
+        // SuperMonitor retorna datas em horário BRT (UTC-3) sem timezone info,
+        // ex: "2026-06-06 21:00:00". new Date() sem timezone trata como local,
+        // mas pode divergir entre ambientes. Força interpretação BRT explícita.
+        let ms: number;
+        const raw = r.event_date;
+        if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}/.test(raw) && !raw.endsWith('Z') && !raw.includes('+') && !raw.match(/-\d{2}:\d{2}$/)) {
+          // Sem timezone explícito → trata como BRT (UTC-3)
+          ms = new Date(raw.replace(' ', 'T') + '-03:00').getTime();
+        } else {
+          ms = new Date(raw).getTime();
+        }
+        if (isNaN(ms)) return true;
+        // Inclui eventos que já começaram há até 30 min (ainda podem ter odds pré-live)
         const diff = (ms - now) / 3_600_000;
-        return diff >= 0 && diff <= hours;
+        return diff >= -0.5 && diff <= hours;
       });
     }
 
@@ -1211,6 +1223,7 @@ export function FreebetConverterPage() {
     setStep(4);
 
     try {
+      // Sempre busca 7 dias no SM para ter resultados completos; o frontend filtra depois.
       const postRes  = await fetch('/api/sure/freebet', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1220,6 +1233,7 @@ export function FreebetConverterPage() {
           min_odd:   parseFloat(minOdd),
           max_odd:   parseFloat(maxOdd),
           pa_filter: paFilter,
+          days:      7,
         }),
       });
       if (!postRes.ok) {

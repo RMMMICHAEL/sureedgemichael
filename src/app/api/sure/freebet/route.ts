@@ -28,7 +28,7 @@ async function getSupabaseAdmin() {
 // ── POST — enfileira requisição de freebet ────────────────────────────────────
 
 export async function POST(req: NextRequest) {
-  let bookmaker = '', value = 0, min_odd = 1.5, max_odd = 999, pa_filter = 'all';
+  let bookmaker = '', value = 0, min_odd = 1.5, max_odd = 999, pa_filter = 'all', days = 7;
   try {
     const body = await req.json() as Record<string, unknown>;
     bookmaker  = String(body.bookmaker  ?? '').trim();
@@ -36,6 +36,8 @@ export async function POST(req: NextRequest) {
     min_odd    = parseFloat(String(body.min_odd  ?? '1.5'));
     max_odd    = parseFloat(String(body.max_odd  ?? '999'));
     pa_filter  = String(body.pa_filter  ?? 'all').trim();
+    // days = janela de dias para o Supermonitor (1, 2, 7…). Padrão 7 = busca completa.
+    days       = Math.min(30, Math.max(1, parseInt(String(body.days ?? '7'), 10) || 7));
   } catch (_e) { /* json inválido */ }
 
   if (!bookmaker || !value || value <= 0) {
@@ -50,7 +52,7 @@ export async function POST(req: NextRequest) {
 
     const { data, error } = await sb
       .from('freebet_queue')
-      .insert({ bookmaker, value, min_odd, max_odd, pa_filter, status: 'pending' })
+      .insert({ bookmaker, value, min_odd, max_odd, pa_filter, days, status: 'pending' })
       .select('id')
       .single();
 
