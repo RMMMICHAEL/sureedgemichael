@@ -330,70 +330,97 @@ async function createSession(cookie) {
 
 
 async function fetchDecrypted(session, qs) {
-  // Nonce genérico para buscador_proxy.php (proxy_nonce.php)
-  // Referer inclui a query igual ao browser
-  const q = qs.includes('q=') ? qs.split('q=')[1]?.split('&')[0] ?? '' : '';
-  const referer = q
-    ? `${BASE}/index.php?page=buscador&q=${q}&type=all`
+  // SuperMonitor migrou de buscador_proxy.php (GET) para buscador_frame.php (POST iframe).
+  // Nova arquitetura: POST form → resposta HTML com postMessage contendo payload ECDH.
+  const params  = new URLSearchParams(qs);
+  const _a      = params.get('action') ?? 'search';
+  const _qRaw   = params.get('q') ?? '';
+  const _t      = params.get('type') ?? 'event';
+  const _fid    = '_' + Math.random().toString(36).slice(2, 18); // frame session ID aleatório
+  const referer = _qRaw
+    ? `${BASE}/index.php?page=buscador&q=${encodeURIComponent(_qRaw)}&type=${_t}`
     : `${BASE}/index.php?page=buscador`;
 
-  const nonceRes = await fetch(`${BASE}/api/proxy_nonce.php`, {
+  // Nonce inicial para buscador_frame.php — servidor sempre responde RENEW_NONCE
+  // no primeiro request e fornece o nonce correto (nn) no payload descriptografado.
+  const nonceRes = await fetch(`${BASE}/api/proxy_nonce_handshake.php`, {
     headers: { ...session.hdrs, 'Referer': referer },
   });
-  if (!nonceRes.ok) throw new Error(`proxy_nonce falhou (${nonceRes.status})`);
-  const { nonce } = await safeJson(nonceRes, 'buscador: proxy_nonce');
+  if (!nonceRes.ok) throw new Error(`proxy_nonce_handshake falhou (${nonceRes.status})`);
+  const { nonce: _n } = await safeJson(nonceRes, 'buscador_frame: nonce');
 
   const nonceCookies = extractSetCookies(nonceRes.headers);
-  const proxyHdrs = nonceCookies.length
-    ? { ...session.hdrs, 'Cookie': mergeCookies(session.hdrs['Cookie'], nonceCookies), 'Referer': referer }
-    : { ...session.hdrs, 'Referer': referer };
+  const frameHdrs = {
+    ...session.hdrs,
+    'Cookie':        nonceCookies.length ? mergeCookies(session.hdrs['Cookie'], nonceCookies) : session.hdrs['Cookie'],
+    'Content-Type':  'application/x-www-form-urlencoded',
+    'Origin':        BASE,
+    'Referer':       referer,
+    'Accept':        'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    'Sec-Fetch-Dest':'iframe',
+    'Sec-Fetch-Mode':'navigate',
+  };
 
-  const res = await fetch(`${BASE}/api/buscador_proxy.php?${qs}`, {
-    headers: { ...proxyHdrs, 'X-Proxy-Nonce': nonce },
+  // 2. POST para buscador_frame.php
+  const body = new URLSearchParams({ _a, _n, _fid, _q: _qRaw, _t }).toString();
+  const frameRes = await fetch(`${BASE}/api/buscador_frame.php`, {
+    method: 'POST', headers: frameHdrs, body,
   });
-  if (!res.ok) {
-    const body = await res.text().catch(() => '');
-    let parsed = null;
-    try { parsed = JSON.parse(body); } catch { /* não é JSON */ }
 
-    // 403 com body encriptado = servidor não tem odds para este evento
-    // (liga não suportada, evento não indexado). Não é erro de sessão.
-    // Retorna array vazio para o ciclo marcar como "Sem odds" e seguir.
-    if (res.status === 403 && parsed?.encrypted) {
-      console.log(`   [403] Evento sem odds no SuperMonitor (não indexado)`);
-      return [];
-    }
-
-    // 401 = sessão ECDH expirada — ciclo vai recriar sessão
-    if (res.status === 401) {
-      throw new Error('401 needs_handshake — sessao ECDH expirou');
-    }
-
-    console.error(`   [debug] ${res.status} body: ${body.slice(0, 300)}`);
-    throw new Error(`proxy falhou (${res.status})`);
+  if (!frameRes.ok) {
+    const text = await frameRes.text().catch(() => '');
+    throw new Error(`buscador_frame falhou (${frameRes.status}): ${text.slice(0, 120)}`);
   }
 
-  const enc = await safeJson(res, 'buscador: buscador_proxy');
+  const html = await frameRes.text();
 
-  // Servidor pode sinalizar needs_handshake no body mesmo com HTTP 200
-  // (espelha a lógica do buscador-sse.js: fetchEncrypted verifica res.needs_handshake)
-  if (enc.needs_handshake) {
-    throw new Error('401 needs_handshake — sessao ECDH expirou');
+  // 3. Extrai payload do postMessage no HTML retornado
+  // Formato: parent.postMessage({ _fid: "...", p: { "encrypted":true, "data":"...", "ts":..., "key_mode":"ecdh" } }, "...")
+  const pMatch = html.match(/\bp\s*:\s*(\{[^{}]*\})/s);
+  if (!pMatch) {
+    console.log(`   [buscador_frame] Sem postMessage na resposta. HTML (300 chars): ${html.slice(0, 300)}`);
+    return [];
   }
 
-  if (enc.encrypted && enc.data) {
-    const encBytes = base64ToBytes(enc.data);
+  let enc; // let para permitir reatribuição no RENEW_NONCE
+  try { enc = JSON.parse(pMatch[1]); }
+  catch { throw new Error('buscador_frame: JSON inválido no postMessage'); }
+
+  if (enc.needs_handshake) throw new Error('401 needs_handshake — sessao ECDH expirou');
+
+  // Função auxiliar para descriptografar e lidar com RENEW_NONCE no payload
+  async function decryptAndRetry(encObj, retryNonce, attempt) {
+    if (!encObj.encrypted || !encObj.data) return encObj;
+
+    const encBytes = base64ToBytes(encObj.data);
     const plain    = await subtle.decrypt({ name: 'AES-CBC', iv: encBytes.slice(0, 16) }, session.aesKey, encBytes.slice(16));
     const decoded  = new TextDecoder().decode(plain);
-    if (!decoded.trim()) throw new Error('buscador: payload vazio após descriptografia — sessão ECDH corrompida');
-    try {
-      const result = JSON.parse(decoded);
-      // Log temporário para debug — mostra estrutura real do retorno
-      const preview = JSON.stringify(result).slice(0, 200);
-      return result;
-    } catch (_e) {
-      throw new Error(`buscador: JSON inválido após descriptografia — ${decoded.slice(0, 80)}`);
+    if (!decoded.trim()) throw new Error('buscador: payload vazio após descriptografia');
+    let result;
+    try { result = JSON.parse(decoded); }
+    catch { throw new Error(`buscador: JSON inválido após descriptografia — ${decoded.slice(0, 80)}`); }
+
+    // RENEW_NONCE pode estar dentro do payload descriptografado
+    if (result?.code === 'RENEW_NONCE' && result?.nn && attempt < 3) {
+      console.log(`   [buscador_frame] RENEW_NONCE (attempt ${attempt}) — retentando com nn`);
+      // Tenta com nn direto
+      const body2 = new URLSearchParams({ _a, _n: result.nn, _fid, _q: _qRaw, _t }).toString();
+      const r2 = await fetch(`${BASE}/api/buscador_frame.php`, { method: 'POST', headers: frameHdrs, body: body2 });
+      if (!r2.ok) throw new Error(`buscador_frame retry falhou (${r2.status})`);
+      const html2 = await r2.text();
+      const m2 = html2.match(/\bp\s*:\s*(\{[^{}]*\})/s);
+      if (!m2) { console.log('   [buscador_frame] Sem dados após retry'); return []; }
+      let enc2;
+      try { enc2 = JSON.parse(m2[1]); } catch { throw new Error('JSON inválido após retry'); }
+      return decryptAndRetry(enc2, result.nn, attempt + 1);
     }
+
+    return result;
+  }
+
+  // 4. Descriptografa AES-CBC (com retry automático de RENEW_NONCE no payload)
+  if (enc.encrypted && enc.data) {
+    return await decryptAndRetry(enc, _n, 1);
   }
   return enc;
 }
@@ -577,12 +604,12 @@ async function processOneCycle() {
         // Busca por nome completo, fallback pelo time da casa
         const homeTeam = ev.name.split(/\s+(?:x|vs|×|X)\s+/i)[0]?.trim() ?? ev.name;
 
-        let data    = await fetchDecrypted(session, `action=search&q=${encodeURIComponent(ev.name)}&type=all`);
-        let results = Array.isArray(data) ? data : (data?.d?.results ?? data?.results ?? data?.data ?? []);
+        let data    = await fetchDecrypted(session, `action=search&q=${encodeURIComponent(ev.name)}&type=event`);
+        let results = Array.isArray(data) ? data : (data?.d?.results ?? data?.results ?? data?.data ?? data?.events ?? []);
 
         if (!results.length && homeTeam !== ev.name) {
-          data    = await fetchDecrypted(session, `action=search&q=${encodeURIComponent(homeTeam)}&type=all`);
-          results = Array.isArray(data) ? data : (data?.d?.results ?? data?.results ?? data?.data ?? []);
+          data    = await fetchDecrypted(session, `action=search&q=${encodeURIComponent(homeTeam)}&type=event`);
+          results = Array.isArray(data) ? data : (data?.d?.results ?? data?.results ?? data?.data ?? data?.events ?? []);
         }
 
         if (!results.length) {
