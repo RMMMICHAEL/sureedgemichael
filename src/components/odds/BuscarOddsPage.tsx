@@ -1180,30 +1180,39 @@ function fmtCardDate(utc: string): string {
 
 function EventCard({ ev, onSelect }: { ev: CachedEvent; onSelect: (ev: CachedEvent) => void }) {
   const [starred, setStarred] = useState(false);
-  const sport = getSportStyle(ev.sport);
-  const badge = getTimeBadge(ev.start_utc);
-  const meta  = getLeagueMeta(ev.league || '');
+  const sport   = getSportStyle(ev.sport);
+  const badge   = getTimeBadge(ev.start_utc);
+  const meta    = getLeagueMeta(ev.league || '');
+  const ms      = new Date(ev.start_utc).getTime() - Date.now();
+  const started = ms < 0;
+  const isLive  = ms < 0 && ms > -90 * 60_000;
+  const ended   = ms < -90 * 60_000;
 
   return (
     <button
       type="button"
       onClick={() => onSelect(ev)}
+      title={started ? (ended ? 'Jogo encerrado — odds pré-live indisponíveis' : 'Jogo ao vivo — odds pré-live indisponíveis') : undefined}
       style={{
         width: '100%', textAlign: 'left',
         padding: '12px 14px',
-        background: 'var(--bg2)', border: '1px solid rgba(255,255,255,.07)',
-        borderRadius: 12, cursor: 'pointer',
+        background: 'var(--bg2)',
+        border: `1px solid ${ended ? 'rgba(255,255,255,.04)' : 'rgba(255,255,255,.07)'}`,
+        borderRadius: 12, cursor: started ? 'default' : 'pointer',
         display: 'flex', flexDirection: 'column', gap: 8,
         transition: 'border-color .15s, background .15s',
+        opacity: ended ? 0.45 : 1,
       }}
       onMouseEnter={e => {
+        if (started) return;
         const el = e.currentTarget as HTMLElement;
         el.style.borderColor = 'rgba(255,255,255,.18)';
         el.style.background = 'oklch(0.115 0.007 260)';
       }}
       onMouseLeave={e => {
+        if (started) return;
         const el = e.currentTarget as HTMLElement;
-        el.style.borderColor = 'rgba(255,255,255,.07)';
+        el.style.borderColor = ended ? 'rgba(255,255,255,.04)' : 'rgba(255,255,255,.07)';
         el.style.background = 'var(--bg2)';
       }}
     >
@@ -1282,10 +1291,9 @@ function TodayGamesGrid({
   dateTime:     string;
   onDateChange: (date: string) => void;
 }) {
-  // Apenas eventos que ainda não começaram (pré-live)
+  // Todos os eventos do dia, ordenados por horário (passados, live e futuros)
   const sorted = useMemo(() =>
     [...events]
-      .filter(ev => new Date(ev.start_utc).getTime() > Date.now())
       .sort((a, b) => new Date(a.start_utc).getTime() - new Date(b.start_utc).getTime()),
     [events],
   );
@@ -1753,9 +1761,13 @@ export function BuscarOddsPage() {
 
   // ── Handle event select ──────────────────────────────────────────────────────
   function handleSelect(ev: CachedEvent) {
-    const started = new Date(ev.start_utc).getTime() <= Date.now();
+    const ms      = new Date(ev.start_utc).getTime() - Date.now();
+    const started = ms < 0;
     if (started) {
-      setOddsErr('Esse jogo já acabou ou está em andamento. Busca de odds funciona apenas para o pré-live.');
+      const isLive = ms > -90 * 60_000;
+      setOddsErr(isLive
+        ? 'Jogo ao vivo — busca de odds funciona apenas para o pré-live.'
+        : 'Jogo encerrado — busca de odds funciona apenas para o pré-live.');
       setDropOpen(false);
       return;
     }
