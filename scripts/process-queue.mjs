@@ -755,6 +755,25 @@ async function fetchFreebetFromSuperMonitor(freebetSession, { bookmaker, value, 
     'Accept': 'application/json',
   };
 
+  // Passo 0: chama bookmakers primeiro — igual ao browser, inicializa contexto da sessão
+  // Sem essa chamada o servidor retorna resultados incompletos no freebet/convert
+  try {
+    const bmNonceR = await fetch(`${BASE}/api/proxy_nonce.php`, { headers: freebetHdrs });
+    if (bmNonceR.ok) {
+      const { nonce: bmNonce } = await safeJson(bmNonceR, 'freebet: bookmakers nonce').catch(() => ({ nonce: null }));
+      if (bmNonce) {
+        const bmCookies = extractSetCookies(bmNonceR.headers);
+        const bmHdrs = bmCookies.length
+          ? { ...freebetHdrs, 'Cookie': mergeCookies(freebetHdrs['Cookie'], bmCookies) }
+          : freebetHdrs;
+        const sessionHdrBm = freebetSession.sessionToken ? { 'X-Session-Token': freebetSession.sessionToken } : {};
+        await fetch(`${BASE}/api/freebet_proxy-v2.php?endpoint=api%2Fv2%2Fbookmakers`, {
+          headers: { ...bmHdrs, 'X-Proxy-Nonce': bmNonce, ...sessionHdrBm },
+        });
+      }
+    }
+  } catch { /* best-effort — não bloqueia o convert */ }
+
   // Nonce para a requisição freebet — proxy_nonce_freebet.php retorna 404, usa o genérico
   const nonceR = await fetch(`${BASE}/api/proxy_nonce.php`, { headers: freebetHdrs });
   if (!nonceR.ok) throw new Error(`freebet: proxy_nonce falhou (${nonceR.status})`);
