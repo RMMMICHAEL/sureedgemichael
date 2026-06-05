@@ -167,6 +167,10 @@ async function autoRenewCookie() {
   console.error('══════════════════════════════════════════════════════');
   console.error('');
 
+  // Grava status no Supabase para o frontend exibir o alerta
+  sbFetch('app_config', 'POST', { key: 'cookie_status', value: 'expired', updated_at: new Date().toISOString() },
+    { 'Prefer': 'resolution=merge-duplicates' }).catch(() => {});
+
   // Alerta visual no Windows
   const msg = 'Cookie SuperMonitor expirado!\\n\\nPegue o novo PHPSESSID no supermonitor.pro e cole no painel admin do SureEdge.\\n\\nDepois reinicie: node scripts/process-queue.mjs';
   exec(
@@ -433,6 +437,9 @@ async function getCookie() {
     if (valid) {
       _cookie = stored;
       _cookieValidatedAt = Date.now();
+      // Marca cookie como válido no Supabase (limpa alerta no frontend)
+      sbFetch('app_config', 'POST', { key: 'cookie_status', value: 'valid', updated_at: new Date().toISOString() },
+        { 'Prefer': 'resolution=merge-duplicates' }).catch(() => {});
       return _cookie;
     }
   }

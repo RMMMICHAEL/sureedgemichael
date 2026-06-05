@@ -1,8 +1,52 @@
 'use client';
 
 import { useStore }       from '@/store/useStore';
-import { Menu, RefreshCw, Link2, X, Zap } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { Menu, RefreshCw, Link2, X, Zap, AlertTriangle } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+
+const TRADER_EMAIL = 'michael.martins.trader@gmail.com';
+
+function CookieStatusBadge() {
+  const authEmail = useStore(s => s.authEmail);
+  const [status, setStatus] = useState<'valid' | 'expired' | 'unknown'>('unknown');
+
+  const check = useCallback(async () => {
+    try {
+      const res = await fetch('/api/sure/cookie-status');
+      const json = await res.json();
+      setStatus(json.status ?? 'unknown');
+    } catch { /* silencioso */ }
+  }, []);
+
+  useEffect(() => {
+    if (authEmail !== TRADER_EMAIL) return;
+    check();
+    const id = setInterval(check, 5 * 60 * 1000); // checa a cada 5 min
+    return () => clearInterval(id);
+  }, [authEmail, check]);
+
+  if (authEmail !== TRADER_EMAIL) return null;
+  if (status !== 'expired') return null;
+
+  return (
+    <a
+      href="https://painel.supermonitor.pro"
+      target="_blank"
+      rel="noopener noreferrer"
+      title="Cookie SuperMonitor expirado — clique para renovar"
+      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold animate-pulse"
+      style={{
+        background: 'rgba(239,68,68,.12)',
+        border: '1px solid rgba(239,68,68,.35)',
+        color: '#f87171',
+        textDecoration: 'none',
+      }}
+    >
+      <AlertTriangle size={12} />
+      <span className="hidden sm:inline">Cookie expirado</span>
+    </a>
+  );
+}
 import { parseSheetUrl, syncFromSheet } from '@/lib/import/sheetsSync';
 import { commitRows } from '@/lib/import/importEngine';
 
@@ -172,6 +216,9 @@ export function Topbar({ onMenuClick }: TopbarProps) {
 
       {/* Right side actions */}
       <div className="flex items-center gap-2 flex-shrink-0">
+
+        {/* Cookie status — visível só para trader */}
+        <CookieStatusBadge />
 
         {/* Live clock */}
         <LiveClock />
