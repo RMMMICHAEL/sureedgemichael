@@ -50,9 +50,11 @@ export async function POST(req: NextRequest) {
   try {
     const sb = await getSupabaseAdmin();
 
+    // 'days' não é persistido na tabela — o daemon usa days=7 fixo por padrão.
+    void days;
     const { data, error } = await sb
       .from('freebet_queue')
-      .insert({ bookmaker, value, min_odd, max_odd, pa_filter, days, status: 'pending' })
+      .insert({ bookmaker, value, min_odd, max_odd, pa_filter, status: 'pending' })
       .select('id')
       .single();
 
