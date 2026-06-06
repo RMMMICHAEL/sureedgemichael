@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { PanelLeftOpen } from 'lucide-react';
+import { PanelLeftOpen, WrenchIcon, RotateCcw } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import { Sidebar, MobileDrawer } from './Sidebar';
 import { Topbar }          from './Topbar';
@@ -24,6 +24,92 @@ import { FreebetConverterPage } from '@/components/freebet/FreebetConverterPage'
 
 // SCANNER_NOTIF_KEY mantido para evitar erros em outros componentes
 const SCANNER_NOTIF_KEY = 'scanner_notif_enabled';
+
+const TRADER_EMAIL = 'michael.martins.trader@gmail.com';
+
+function MaintenanceBanner() {
+  const authEmail = useStore(s => s.authEmail);
+  const [status, setStatus]     = useState<'ok' | 'maintenance'>('ok');
+  const [retrying, setRetrying] = useState(false);
+  const [visible, setVisible]   = useState(false);
+
+  const poll = useCallback(async () => {
+    try {
+      const res  = await fetch('/api/sure/supermonitor-status');
+      const json = await res.json();
+      const next = json.status === 'maintenance' ? 'maintenance' : 'ok';
+      setStatus(next);
+      setVisible(next === 'maintenance');
+    } catch { /* silencioso */ }
+  }, []);
+
+  useEffect(() => {
+    if (authEmail !== TRADER_EMAIL) return;
+    poll();
+    const id = setInterval(poll, 30_000);
+    return () => clearInterval(id);
+  }, [authEmail, poll]);
+
+  async function handleRetry() {
+    setRetrying(true);
+    try {
+      await fetch('/api/sure/supermonitor-status', { method: 'POST' });
+      // Aguarda 3s e verifica se voltou
+      await new Promise(r => setTimeout(r, 3000));
+      await poll();
+    } finally {
+      setRetrying(false);
+    }
+  }
+
+  if (authEmail !== TRADER_EMAIL || !visible) return null;
+
+  return (
+    <div
+      role="alert"
+      style={{
+        background:   'rgba(251,191,36,.07)',
+        borderBottom: '1px solid rgba(251,191,36,.18)',
+        padding:      '9px 20px',
+        display:      'flex',
+        alignItems:   'center',
+        gap:          12,
+        flexShrink:   0,
+      }}
+    >
+      <WrenchIcon size={13} style={{ color: '#fbbf24', flexShrink: 0 }} />
+      <span style={{ fontSize: 12, color: '#fcd34d', fontWeight: 600, flex: 1, lineHeight: 1.4 }}>
+        Perdão, essa sessão está em manutenção no momento. As odds serão retomadas em breve.
+      </span>
+      <button
+        type="button"
+        onClick={handleRetry}
+        disabled={retrying}
+        style={{
+          display:      'flex',
+          alignItems:   'center',
+          gap:          6,
+          padding:      '5px 12px',
+          borderRadius: 8,
+          border:       '1px solid rgba(251,191,36,.35)',
+          background:   'rgba(251,191,36,.1)',
+          color:        '#fbbf24',
+          fontSize:     11,
+          fontWeight:   700,
+          cursor:       retrying ? 'wait' : 'pointer',
+          whiteSpace:   'nowrap',
+          opacity:      retrying ? 0.6 : 1,
+          transition:   'opacity 150ms, background 150ms',
+        }}
+        onMouseEnter={e => { if (!retrying) (e.currentTarget as HTMLElement).style.background = 'rgba(251,191,36,.18)'; }}
+        onMouseLeave={e => { if (!retrying) (e.currentTarget as HTMLElement).style.background = 'rgba(251,191,36,.1)'; }}
+      >
+        <RotateCcw size={11} className={retrying ? 'animate-spin' : ''} />
+        {retrying ? 'Tentando...' : 'Tentar de novo'}
+      </button>
+    </div>
+  );
+}
 import { ResumoPage }      from '@/components/resumo/ResumoPage';
 import { MetasPage }       from '@/components/metas/MetasPage';
 import { OperadoresPage }  from '@/components/operadores/OperadoresPage';
@@ -250,6 +336,7 @@ export function AppShell() {
 
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
         <Topbar onMenuClick={() => setMobileOpen(v => !v)} />
+        <MaintenanceBanner />
 
         <main className="flex-1 overflow-y-auto p-3 md:p-5 dot-grid">
           <PageErrorBoundary>

@@ -623,6 +623,11 @@ async function processOneCycle() {
           if (r.ok) {
             await markQueueDone(ev.id);
             console.log(`   OK: ${ev.name} (${results.length} resultados)`);
+            // Limpa flag de manutenção se estava ativa
+            sbFetch('app_config', 'POST',
+              { key: 'supermonitor_status', value: 'ok', updated_at: new Date().toISOString() },
+              { 'Prefer': 'resolution=merge-duplicates' }
+            ).catch(() => {});
           } else {
             await markQueueError(ev.id);
           }
@@ -632,9 +637,25 @@ async function processOneCycle() {
       } catch (err) {
         const is401      = err.message.includes('401');
         const isCrypto   = err.message.includes('operation failed') || err.message.includes('operation-specific');
-        const isSessionErr = is401 || isCrypto || err.message.includes('nonce') || err.message.includes('proxy');
+        // 404 no buscador_frame = PHPSESSID expirou no servidor (sessão PHP encerrada)
+        const is404Frame = err.message.includes('404') && err.message.includes('buscador_frame');
+        const isSessionErr = is401 || isCrypto || is404Frame || err.message.includes('nonce') || err.message.includes('proxy');
 
         if (isSessionErr) invalidateSession();
+
+        // 404 no buscador_frame = rate-limit ou sessão server-side esgotada
+        // Para o batch, grava status manutenção e aguarda 90s para o servidor liberar
+        if (is404Frame) {
+          invalidateSession();
+          await markQueueError(ev.id);
+          sbFetch('app_config', 'POST',
+            { key: 'supermonitor_status', value: 'maintenance', updated_at: new Date().toISOString() },
+            { 'Prefer': 'resolution=merge-duplicates' }
+          ).catch(() => {});
+          console.log(`   buscador_frame 404 — servidor bloqueou temporariamente. Aguardando 90s...`);
+          await sleep(90_000);
+          return; // para o ciclo inteiro, próximo ciclo tenta novamente
+        }
 
         // 401 ou erro de crypto na primeira tentativa: recria sessão e retenta
         if ((is401 || isCrypto) && attempts < MAX_ATTEMPTS) {

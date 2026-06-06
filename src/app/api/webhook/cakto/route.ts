@@ -3,19 +3,10 @@
  *
  * Receives payment events from Cakto and updates subscription records.
  *
- * Required env vars:
- *   CAKTO_WEBHOOK_SECRET      — the "secret" value from the Cakto webhook config
- *                               (shown in fields.secret after webhook creation)
- *   SUPABASE_SERVICE_ROLE_KEY — service role key (never expose to client)
- *   CAKTO_OFFER_ID_ANNUAL     — Cakto offer ID for the annual plan
- *   CAKTO_OFFER_ID_QUARTERLY  — Cakto offer ID for the quarterly plan
- *
- * Register the webhook in the Cakto dashboard pointing to:
- *   https://yourdomain.vercel.app/api/webhook/cakto
- *
- * Subscribe to events:
- *   purchase_approved, subscription_created, subscription_renewed,
- *   refund, subscription_canceled, chargeback
+ * Proteções implementadas:
+ *   1. Logging de todos os eventos em webhook_events (auditoria completa)
+ *   2. Período de graça: não cancela se subscription foi ativada nos últimos 15 min
+ *   3. Validação de secret obrigatória (falha segura se env var não configurada)
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -26,7 +17,7 @@ import {
   type PlanId,
 } from '@/lib/supabase/subscription';
 
-// ── Cakto event names (custom_id from API docs) ───────────────────────────────
+// ── Cakto event names ─────────────────────────────────────────────────────────
 
 const ACTIVATE_EVENTS = new Set([
   'purchase_approved',
@@ -40,7 +31,7 @@ const DEACTIVATE_EVENTS = new Set([
   'chargeback',
 ]);
 
-// ── Payload structure (per official Cakto API docs) ───────────────────────────
+// ── Payload structure ─────────────────────────────────────────────────────────
 
 interface CaktoPayload {
   event:  string;
@@ -80,9 +71,9 @@ function detectPlan(payload: CaktoPayload): PlanId {
   const productId = payload.data?.product?.id ?? '';
   const offerName = (payload.data?.offer?.name ?? payload.data?.product?.name ?? '').toLowerCase();
 
-  if (productId === process.env.CAKTO_PRODUCT_ID_ANNUAL   || offerName.includes('anual'))    return 'annual';
+  if (productId === process.env.CAKTO_PRODUCT_ID_ANNUAL    || offerName.includes('anual'))    return 'annual';
   if (productId === process.env.CAKTO_PRODUCT_ID_QUARTERLY || offerName.includes('trimest')) return 'quarterly';
-  if (productId === process.env.CAKTO_PRODUCT_ID_MONTHLY)                                    return 'monthly';
+  if (productId === process.env.CAKTO_PRODUCT_ID_MONTHLY)                                     return 'monthly';
   return 'monthly';
 }
 
@@ -92,13 +83,60 @@ function addDays(days: number): string {
   return d.toISOString();
 }
 
-// ── Envia Magic Link de acesso ao novo cliente ────────────────────────────────
-// Usa inviteUserByEmail: cria a conta (se não existir) e envia e-mail com
-// link mágico que loga o usuário direto no app — sem senha necessária.
-// Para clientes que já têm conta (renovações), cai no catch silenciosamente.
-async function sendAccessEmail(email: string, name?: string): Promise<void> {
+// ── Log de eventos (auditoria) ────────────────────────────────────────────────
+// Falha silenciosamente — logging nunca deve derrubar o webhook principal.
+async function logWebhookEvent(
+  event: string,
+  email: string | null,
+  refId: string | null,
+  payload: unknown,
+  note?: string,
+): Promise<void> {
   try {
     const admin = getAdminClient();
+    await admin.from('webhook_events').insert({
+      provider:  'cakto',
+      event,
+      email:     email?.toLowerCase() ?? null,
+      ref_id:    refId ?? null,
+      payload:   payload as Record<string, unknown>,
+      processed: true,
+      note:      note ?? null,
+    });
+  } catch {
+    // Silencioso: tabela pode não existir ainda; não bloqueia o webhook
+  }
+}
+
+// ── Período de graça anti-cancelamento imediato ───────────────────────────────
+// Cakto às vezes dispara subscription_canceled ou refund segundos após
+// purchase_approved (bug deles em PIX/checkout duplicado). Essa proteção
+// impede o cancelamento se a subscription foi ativada nos últimos 15 minutos.
+const GRACE_PERIOD_MS = 15 * 60 * 1000; // 15 minutos
+
+async function isInGracePeriod(email: string): Promise<boolean> {
+  try {
+    const admin = getAdminClient();
+    const { data } = await admin
+      .from('subscriptions')
+      .select('status, updated_at')
+      .eq('email', email.toLowerCase())
+      .single();
+
+    if (!data || data.status !== 'active') return false;
+
+    const updatedMs = new Date(data.updated_at).getTime();
+    const ageMs     = Date.now() - updatedMs;
+    return ageMs < GRACE_PERIOD_MS;
+  } catch {
+    return false; // em caso de erro, não bloqueia o cancelamento
+  }
+}
+
+// ── Magic link para novos clientes ───────────────────────────────────────────
+async function sendAccessEmail(email: string, name?: string): Promise<void> {
+  try {
+    const admin      = getAdminClient();
     const redirectTo = `${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.sureedge.com.br'}/login`;
 
     const { error } = await admin.auth.admin.inviteUserByEmail(email, {
@@ -107,13 +145,10 @@ async function sendAccessEmail(email: string, name?: string): Promise<void> {
     });
 
     if (error) {
-      // Usuário já existe (conta criada anteriormente) — não é erro crítico.
-      // O acesso já foi ativado pela subscription. Ele pode logar normalmente.
       if (error.message.includes('already') || error.message.includes('registered')) {
         console.log(`[cakto-webhook] User already exists, skipping invite: ${email.slice(0, 4)}…`);
         return;
       }
-      // Qualquer outro erro: loga mas não retorna 500 (subscription já foi ativada)
       console.error(`[cakto-webhook] inviteUserByEmail error for ${email.slice(0, 4)}…: ${error.message}`);
     } else {
       console.log(`[cakto-webhook] Invite sent to ${email.slice(0, 4)}…`);
@@ -122,7 +157,6 @@ async function sendAccessEmail(email: string, name?: string): Promise<void> {
     console.error('[cakto-webhook] sendAccessEmail unexpected error:', err);
   }
 }
-
 
 // ── Handler ───────────────────────────────────────────────────────────────────
 
@@ -134,70 +168,104 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
 
-  // Cakto includes the webhook secret in every payload body for verification
-  if (payload.secret !== process.env.CAKTO_WEBHOOK_SECRET) {
-    console.error('[cakto-webhook] Invalid secret');
+  // Validação do secret — falha segura se env var não configurada
+  const expectedSecret = process.env.CAKTO_WEBHOOK_SECRET;
+  if (!expectedSecret) {
+    console.error('[cakto-webhook] CAKTO_WEBHOOK_SECRET não configurado — bloqueando todos os eventos');
+    return NextResponse.json({ error: 'Webhook not configured' }, { status: 500 });
+  }
+  if (payload.secret !== expectedSecret) {
+    console.error('[cakto-webhook] Secret inválido');
+    // Loga tentativa inválida para auditoria
+    await logWebhookEvent(
+      payload.event ?? 'unknown',
+      payload.data?.customer?.email ?? null,
+      payload.data?.refId ?? null,
+      payload,
+      'BLOCKED: invalid secret',
+    );
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   const event = payload.event;
   const email = payload.data?.customer?.email;
-  const refId = payload.data?.refId;
+  const refId = payload.data?.refId ?? null;
 
-  // Log mínimo — não loga email nem dados do cliente (LGPD)
-  console.log('[cakto-webhook] Received:', JSON.stringify({ event, refId, offer: payload.data?.offer?.id, product: payload.data?.product?.id }));
+  console.log('[cakto-webhook] Received:', JSON.stringify({
+    event,
+    refId,
+    offer:   payload.data?.offer?.id,
+    product: payload.data?.product?.id,
+  }));
 
   if (!email) {
     console.error('[cakto-webhook] Missing customer email', { event });
+    await logWebhookEvent(event, null, refId, payload, 'ERROR: missing email');
     return NextResponse.json({ error: 'Missing email' }, { status: 400 });
   }
 
   const plan = detectPlan(payload);
 
+  // ── Ativação ──────────────────────────────────────────────────────────────
   if (ACTIVATE_EVENTS.has(event)) {
     try {
       await upsertSubscriptionByEmail({
         email,
         plan,
         status:         'active',
-        cakto_order_id: refId,
+        cakto_order_id: refId ?? undefined,
         expires_at:     addDays(PLAN_DURATION_DAYS[plan]),
       });
-      console.log(`[cakto-webhook] Activated ${plan} for ${email} (event: ${event})`);
+      console.log(`[cakto-webhook] Activated ${plan} for ${email.slice(0,4)}… (event: ${event})`);
 
-      // Envia Magic Link + WhatsApp em paralelo (fire-and-forget, não bloqueia)
+      await logWebhookEvent(event, email, refId, payload, `activated:${plan}`);
+
       if (event === 'purchase_approved' || event === 'subscription_created') {
-        const name  = payload.data?.customer?.name ?? '';
+        const name = payload.data?.customer?.name ?? '';
         sendAccessEmail(email, name).catch(e => console.error('[webhook] email bg error:', e));
       }
 
       return NextResponse.json({ ok: true });
     } catch (err: unknown) {
-      // Return 500 so Cakto retries the webhook automatically
       const msg = err instanceof Error ? err.message : String(err);
-      console.error(`[cakto-webhook] FAILED to activate ${email}: ${msg}`);
+      console.error(`[cakto-webhook] FAILED to activate ${email.slice(0,4)}…: ${msg}`);
+      await logWebhookEvent(event, email, refId, payload, `ERROR: ${msg}`);
       return NextResponse.json({ error: 'Subscription activation failed' }, { status: 500 });
     }
   }
 
+  // ── Cancelamento ──────────────────────────────────────────────────────────
   if (DEACTIVATE_EVENTS.has(event)) {
+    // Período de graça: protege contra cancelamento imediato após compra (bug Cakto)
+    const grace = await isInGracePeriod(email);
+    if (grace) {
+      const msg = `SKIPPED: grace period ativo — subscription ativada há menos de 15 min`;
+      console.warn(`[cakto-webhook] ${msg} | email: ${email.slice(0,4)}… | event: ${event}`);
+      await logWebhookEvent(event, email, refId, payload, msg);
+      // Retorna 200 para Cakto não retentar
+      return NextResponse.json({ ok: true, note: 'grace period — cancellation skipped' });
+    }
+
     try {
       await upsertSubscriptionByEmail({
         email,
         plan,
         status:         'cancelled',
-        cakto_order_id: refId,
+        cakto_order_id: refId ?? undefined,
         expires_at:     null,
       });
-      console.log(`[cakto-webhook] Cancelled for ${email} (event: ${event})`);
+      console.log(`[cakto-webhook] Cancelled for ${email.slice(0,4)}… (event: ${event})`);
+      await logWebhookEvent(event, email, refId, payload, 'cancelled');
       return NextResponse.json({ ok: true });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.error(`[cakto-webhook] FAILED to cancel ${email}: ${msg}`);
+      console.error(`[cakto-webhook] FAILED to cancel ${email.slice(0,4)}…: ${msg}`);
+      await logWebhookEvent(event, email, refId, payload, `ERROR: ${msg}`);
       return NextResponse.json({ error: 'Subscription update failed' }, { status: 500 });
     }
   }
 
   console.log(`[cakto-webhook] Unhandled event: ${event}`);
+  await logWebhookEvent(event, email, refId, payload, 'unhandled event');
   return NextResponse.json({ ok: true, note: 'event not handled' });
 }
