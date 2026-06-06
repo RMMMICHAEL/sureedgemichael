@@ -23,11 +23,30 @@ export async function POST(req: NextRequest) {
   }
 
   let rawCookie = '';
+  let cfClearance = '';
   try {
-    const body = await req.json() as { cookie?: string };
-    rawCookie = (body.cookie ?? '').trim();
+    const body = await req.json() as { cookie?: string; cf_clearance?: string };
+    rawCookie    = (body.cookie        ?? '').trim();
+    cfClearance  = (body.cf_clearance  ?? '').trim();
   } catch {
     return NextResponse.json({ ok: false, error: 'Corpo inválido' }, { status: 400 });
+  }
+
+  // Salva cf_clearance separado (se fornecido), sem bloquear o fluxo principal
+  if (cfClearance) {
+    try {
+      const { createClient } = await import('@supabase/supabase-js');
+      const sb = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      );
+      // Extrai só o valor se vier no formato "cf_clearance=valor"
+      const cfVal = cfClearance.replace(/^cf_clearance=/i, '');
+      await sb.from('app_config').upsert(
+        { key: 'cf_clearance', value: cfVal, updated_at: new Date().toISOString() },
+        { onConflict: 'key' },
+      );
+    } catch { /* best-effort */ }
   }
 
   if (!rawCookie) {

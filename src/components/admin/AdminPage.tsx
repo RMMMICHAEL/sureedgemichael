@@ -114,10 +114,11 @@ interface RenewalFailure {
 
 function CookiePanel() {
   const toastFn = useStore(s => s.toast);
-  const [value,   setValue]   = useState('');
-  const [status,  setStatus]  = useState<'idle' | 'loading' | 'ok' | 'error'>('idle');
-  const [errMsg,  setErrMsg]  = useState('');
-  const [failure, setFailure] = useState<RenewalFailure | null>(null);
+  const [value,      setValue]      = useState('');
+  const [cfValue,    setCfValue]    = useState('');
+  const [status,     setStatus]     = useState<'idle' | 'loading' | 'ok' | 'error'>('idle');
+  const [errMsg,     setErrMsg]     = useState('');
+  const [failure,    setFailure]    = useState<RenewalFailure | null>(null);
 
   useEffect(() => {
     fetch('/api/sure/renewal-failed')
@@ -135,12 +136,13 @@ function CookiePanel() {
       const res = await fetch('/api/sure/save-cookie', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ cookie: trimmed }),
+        body:    JSON.stringify({ cookie: trimmed, cf_clearance: cfValue.trim() || undefined }),
       });
       const data = await res.json() as { ok: boolean; error?: string };
       if (data.ok) {
         setStatus('ok');
         setValue('');
+        setCfValue('');
         setFailure(null);   // limpa alerta de falha
         toastFn('Cookie salvo com sucesso! O daemon vai usá-lo em breve.', 'ok');
         setTimeout(() => setStatus('idle'), 4000);
@@ -220,21 +222,23 @@ function CookiePanel() {
       >
         <span className="font-semibold" style={{ color: 'var(--t2)' }}>Como obter o PHPSESSID:</span>
         <ol className="flex flex-col gap-1 pl-1" style={{ color: 'var(--t3)' }}>
-          <li className="flex gap-2"><span style={{ color: '#FFC800' }}>1.</span> Abra <strong style={{ color: 'var(--t2)' }}>painel.supermonitor.pro</strong> no browser e faça login</li>
-          <li className="flex gap-2"><span style={{ color: '#FFC800' }}>2.</span> Abra DevTools → Application → Cookies</li>
-          <li className="flex gap-2"><span style={{ color: '#FFC800' }}>3.</span> Copie o valor de <strong style={{ color: 'var(--t2)' }}>PHPSESSID</strong> (só o valor, ex: <code>abc123...</code>)</li>
-          <li className="flex gap-2"><span style={{ color: '#FFC800' }}>4.</span> Cole abaixo e clique em Validar e Salvar</li>
+          <li className="flex gap-2"><span style={{ color: '#FFC800' }}>1.</span> Abra <strong style={{ color: 'var(--t2)' }}>painel.supermonitor.pro</strong> no <strong style={{ color: 'var(--t2)' }}>PC Windows</strong> (não celular) e faça login</li>
+          <li className="flex gap-2"><span style={{ color: '#FFC800' }}>2.</span> Abra DevTools (F12) → Application → Cookies</li>
+          <li className="flex gap-2"><span style={{ color: '#FFC800' }}>3.</span> Copie o valor de <strong style={{ color: 'var(--t2)' }}>PHPSESSID</strong> e cole abaixo</li>
+          <li className="flex gap-2"><span style={{ color: '#FFC800' }}>4.</span> Copie também o valor de <strong style={{ color: 'var(--t2)' }}>cf_clearance</strong> e cole no segundo campo</li>
+          <li className="flex gap-2"><span style={{ color: '#FFC800' }}>5.</span> Clique em Validar e Salvar</li>
         </ol>
       </div>
 
       {/* Input */}
       <div className="flex flex-col gap-2">
+        <label className="text-xs font-semibold" style={{ color: 'var(--t2)' }}>PHPSESSID</label>
         <input
           type="text"
           value={value}
           onChange={e => { setValue(e.target.value); setStatus('idle'); setErrMsg(''); }}
           onKeyDown={e => e.key === 'Enter' && !isLoading && handleSave()}
-          placeholder="PHPSESSID ou valor direto (ex: f8e661c7a0aea81a...)"
+          placeholder="ex: f8e661c7a0aea81a..."
           disabled={isLoading}
           className="w-full rounded-xl px-4 py-3 text-sm font-mono outline-none transition-all"
           style={{
@@ -242,6 +246,24 @@ function CookiePanel() {
             border:      `1px solid ${status === 'error' ? 'rgba(255,69,69,.5)' : status === 'ok' ? 'rgba(63,255,33,.4)' : 'var(--b)'}`,
             color:       'var(--t)',
             opacity:     isLoading ? 0.6 : 1,
+          }}
+        />
+        <label className="text-xs font-semibold mt-1" style={{ color: 'var(--t2)' }}>
+          cf_clearance <span style={{ color: 'var(--t3)', fontWeight: 400 }}>(obrigatório — do PC Windows)</span>
+        </label>
+        <input
+          type="text"
+          value={cfValue}
+          onChange={e => { setCfValue(e.target.value); setStatus('idle'); setErrMsg(''); }}
+          onKeyDown={e => e.key === 'Enter' && !isLoading && handleSave()}
+          placeholder="ex: qMPXQWI7O3sSHvn5_oWtyYmKuMPhKM..."
+          disabled={isLoading}
+          className="w-full rounded-xl px-4 py-3 text-sm font-mono outline-none transition-all"
+          style={{
+            background: 'var(--s)',
+            border:     `1px solid ${status === 'ok' ? 'rgba(63,255,33,.4)' : 'var(--b)'}`,
+            color:      'var(--t)',
+            opacity:    isLoading ? 0.6 : 1,
           }}
         />
 
