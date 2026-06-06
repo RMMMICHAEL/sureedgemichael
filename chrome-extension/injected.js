@@ -130,9 +130,9 @@
             resolved = true;
             clearTimeout(timeout);
             window.displayResults = origDisplay;
-            // Aplica filtro de data (pa_filter já foi aplicado server-side)
-            const filtered = applyDateFilter(recommendations, date_range ?? 'all');
-            resolve({ recommendations: filtered, count: filtered.length });
+            // Retorna todos os dados — filtro de data é feito no frontend SureEdge (Step 4)
+            // pa_filter já foi aplicado server-side via paFilterSelect
+            resolve({ recommendations, count: Array.isArray(recommendations) ? recommendations.length : 0 });
           }
           return origDisplay?.call(this, recommendations);
         };

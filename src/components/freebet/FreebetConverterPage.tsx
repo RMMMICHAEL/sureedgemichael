@@ -1238,9 +1238,9 @@ export function FreebetConverterPage() {
     setLoading(true);
     setError('');
     setResults([]);
-    // Sincroniza o filtro de PA do step 4 com o valor configurado no step 3,
-    // para que os resultados já apareçam filtrados corretamente ao carregar.
+    // Sincroniza filtros do Step 4 com os valores configurados no Step 3
     setFPA(paFilter as typeof fPA);
+    setFDate(dateRange as typeof fDate);
     setStep(4);
 
     try {
