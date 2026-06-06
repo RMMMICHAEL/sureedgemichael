@@ -112,30 +112,44 @@
       if (paSelect)   paSelect.value   = pa_filter   ?? 'all';
       if (dateSelect) dateSelect.value = date_range  ?? 'all';
 
-      // ── Captura via hook em displayResults ──────────────────────────────────
-      // loadResults() → fetchEncrypted() → decryptSignals() → displayResults(recommendations)
-      // Hookeamos displayResults para capturar o array completo e aplicar filtro de data.
-      let resolved = false;
+      // ── Captura via sinal do AppCrypto.decrypt (mais confiável que hook em displayResults) ──
+      // AppCrypto.decrypt dispara antes de displayResults e já tem os dados completos.
+      // Usamos debounce de 1.5s: quando o sinal para de chegar, resolvemos com o último payload.
       const resultPromise = new Promise((resolve, reject) => {
-        const origDisplay = window.displayResults;
-        const timeout = setTimeout(() => {
-          if (!resolved) {
-            window.displayResults = origDisplay;
-            reject(new Error('Timeout aguardando resultado do freebet (20s)'));
-          }
-        }, 20_000);
+        let lastPayload = null;
+        let debounceTimer = null;
 
-        window.displayResults = function (recommendations) {
-          if (!resolved) {
-            resolved = true;
-            clearTimeout(timeout);
-            window.displayResults = origDisplay;
-            // Retorna todos os dados — filtro de data é feito no frontend SureEdge (Step 4)
-            // pa_filter já foi aplicado server-side via paFilterSelect
-            resolve({ recommendations, count: Array.isArray(recommendations) ? recommendations.length : 0 });
+        const overallTimeout = setTimeout(() => {
+          window.removeEventListener('message', signalHandler);
+          if (debounceTimer) clearTimeout(debounceTimer);
+          if (lastPayload) {
+            // Temos dados mesmo com timeout — usa o que tiver
+            const recs = applyDateFilter(lastPayload.recommendations ?? [], date_range);
+            resolve({ recommendations: recs, count: recs.length });
+          } else {
+            reject(new Error('Timeout aguardando resultado do freebet (30s)'));
           }
-          return origDisplay?.call(this, recommendations);
-        };
+        }, 30_000);
+
+        function signalHandler(e) {
+          if (e.source !== window || !e.data?.__sureedge__) return;
+          if (e.data.source !== 'freebet') return;
+          const payload = e.data.payload;
+          if (!payload) return;
+
+          lastPayload = payload;
+
+          // Debounce: aguarda 1.5s sem novos sinais antes de resolver
+          if (debounceTimer) clearTimeout(debounceTimer);
+          debounceTimer = setTimeout(() => {
+            clearTimeout(overallTimeout);
+            window.removeEventListener('message', signalHandler);
+            const recs = applyDateFilter(lastPayload.recommendations ?? [], date_range);
+            resolve({ recommendations: recs, count: recs.length });
+          }, 1500);
+        }
+
+        window.addEventListener('message', signalHandler);
       });
 
       // Dispara a busca
