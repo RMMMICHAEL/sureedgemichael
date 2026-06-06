@@ -173,6 +173,12 @@ async function pollSearchQueue() {
       await new Promise(r => setTimeout(r, 2000)); // aguarda content-script injetar
     }
 
+    // Injeta content-script proativamente (guard interno evita dupla injeção)
+    try {
+      await chrome.scripting.executeScript({ target: { tabId }, files: ['content-script.js'] });
+      await new Promise(r => setTimeout(r, 500));
+    } catch { /* já injetado ou sem permissão — sendMessageSafe fará o fallback */ }
+
     const result = await sendMessageSafe(tabId, {
       type: 'search',
       query: row.query,
@@ -220,6 +226,12 @@ async function pollFreebetQueue() {
       tabId = await getOrCreateTab(URL_FB);
       await new Promise(r => setTimeout(r, 4000)); // aguarda content-script injetar
     }
+
+    // Injeta content-script proativamente (guard interno evita dupla injeção)
+    try {
+      await chrome.scripting.executeScript({ target: { tabId }, files: ['content-script.js'] });
+      await new Promise(r => setTimeout(r, 500));
+    } catch { /* já injetado ou sem permissão — sendMessageSafe fará o fallback */ }
 
     const reqId = row.id;
     const msg = {
