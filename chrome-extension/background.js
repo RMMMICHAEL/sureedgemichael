@@ -258,6 +258,8 @@ setInterval(pollFreebetQueue, 600); // offset leve para não colidir
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg.type === 'signal') {
     const { source, payload } = msg.data ?? {};
+    // Filtra ruído: RENEW_NONCE e INVALID_SESSION são ciclos internos normais
+    if (payload?.code === 'RENEW_NONCE' || payload?.code === 'INVALID_SESSION') return false;
     console.log(`[SureEdge BG] Sinal (${source}):`, JSON.stringify(payload)?.slice(0, 200));
   }
   return false;
