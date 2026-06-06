@@ -18,8 +18,10 @@ export const dynamic = 'force-dynamic';
 export const preferredRegion = ['gru1']; // São Paulo — evita bloqueio IP no SuperMonitor
 
 import { NextRequest, NextResponse } from 'next/server';
+import { cookies }                   from 'next/headers';
+import { createSupabaseServerClient } from '@/lib/supabase/server';
 
-const CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutos
+const CACHE_TTL_MS = 15 * 60 * 1000;
 
 async function getSupabaseAdmin() {
   const { createClient } = await import('@supabase/supabase-js');
@@ -29,7 +31,21 @@ async function getSupabaseAdmin() {
   );
 }
 
+async function requireUser() {
+  try {
+    const cookieStore = await cookies();
+    const supabase = createSupabaseServerClient(cookieStore);
+    const { data: { user } } = await supabase.auth.getUser();
+    return user ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function POST(req: NextRequest) {
+  if (!(await requireUser())) {
+    return NextResponse.json({ ok: false, error: 'Não autenticado' }, { status: 401 });
+  }
   let query = '', eventId = '';
   try {
     const body  = await req.json() as { query?: string; eventId?: string };

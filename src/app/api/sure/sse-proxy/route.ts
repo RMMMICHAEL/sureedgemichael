@@ -11,8 +11,11 @@
  *  - Token transparente: frontend não precisa saber o sse_url nem o token
  */
 export const dynamic = 'force-dynamic';
-export const preferredRegion = ['gru1']; // São Paulo — evita bloqueio IP no SuperMonitor
+export const preferredRegion = ['gru1'];
 export const runtime = 'nodejs';
+
+import { cookies } from 'next/headers';
+import { createSupabaseServerClient } from '@/lib/supabase/server';
 
 async function getSupabaseAdmin() {
   const { createClient } = await import('@supabase/supabase-js');
@@ -22,7 +25,32 @@ async function getSupabaseAdmin() {
   );
 }
 
+async function isAuthenticated(): Promise<boolean> {
+  try {
+    const cookieStore = await cookies();
+    const supabase = createSupabaseServerClient(cookieStore);
+    const { data: { user } } = await supabase.auth.getUser();
+    return !!user;
+  } catch {
+    return false;
+  }
+}
+
+function unauthorizedStream() {
+  const s = new ReadableStream({
+    start(ctrl) {
+      ctrl.enqueue(new TextEncoder().encode('data: {"type":"unauthorized"}\n\n'));
+      ctrl.close();
+    },
+  });
+  return new Response(s, {
+    status: 401,
+    headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' },
+  });
+}
+
 export async function GET() {
+  if (!(await isAuthenticated())) return unauthorizedStream();
   try {
     const sb = await getSupabaseAdmin();
 
@@ -103,10 +131,10 @@ export async function GET() {
     });
 
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
+    console.error('[sse-proxy]', e instanceof Error ? e.message : String(e));
     const errStream = new ReadableStream({
       start(ctrl) {
-        ctrl.enqueue(new TextEncoder().encode(`data: {"type":"proxy_error","msg":${JSON.stringify(msg)}}\n\n`));
+        ctrl.enqueue(new TextEncoder().encode('data: {"type":"proxy_error"}\n\n'));
         ctrl.close();
       },
     });

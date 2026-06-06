@@ -16,6 +16,19 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 import { NextRequest, NextResponse } from 'next/server';
+import { cookies }                   from 'next/headers';
+import { createSupabaseServerClient } from '@/lib/supabase/server';
+
+async function requireUser() {
+  try {
+    const cookieStore = await cookies();
+    const supabase = createSupabaseServerClient(cookieStore);
+    const { data: { user } } = await supabase.auth.getUser();
+    return user ?? null;
+  } catch {
+    return null;
+  }
+}
 
 async function getSupabaseAdmin() {
   const { createClient } = await import('@supabase/supabase-js');
@@ -28,6 +41,9 @@ async function getSupabaseAdmin() {
 // ── POST — enfileira requisição de freebet ────────────────────────────────────
 
 export async function POST(req: NextRequest) {
+  if (!(await requireUser())) {
+    return NextResponse.json({ ok: false, error: 'Não autenticado' }, { status: 401 });
+  }
   let bookmaker = '', value = 0, min_odd = 1.5, max_odd = 999, pa_filter = 'all', date_range = 'all';
   try {
     const body = await req.json() as Record<string, unknown>;
@@ -67,6 +83,10 @@ export async function POST(req: NextRequest) {
 // ── GET — polling do resultado ────────────────────────────────────────────────
 
 export async function GET(req: NextRequest) {
+  if (!(await requireUser())) {
+    return NextResponse.json({ ok: false, error: 'Não autenticado' }, { status: 401 });
+  }
+
   const request_id = req.nextUrl.searchParams.get('request_id')?.trim() ?? '';
 
   if (!request_id) {
@@ -93,7 +113,7 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({
           ok: false,
           status: 'timeout',
-          error: 'Daemon não respondeu. Verifique se o process-queue.mjs está rodando.',
+          error: 'Processamento não iniciado. Verifique se o sistema está ativo.',
         }, { status: 504 });
       }
     }

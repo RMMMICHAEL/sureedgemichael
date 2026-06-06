@@ -1,15 +1,9 @@
-/**
- * GET /api/sure/sse-token
- * Retorna o temp_token SSE e sse_url salvos pelo process-queue.mjs no Supabase.
- * O frontend usa esses valores para abrir EventSource: {sse_url}/events?temp_token=...
- *
- * TTL do token: 840s (~14 min). O daemon renova a cada 12 min.
- * Aqui rejeitamos tokens com mais de 15 min.
- */
 export const dynamic = 'force-dynamic';
-export const preferredRegion = ['gru1']; // São Paulo — evita bloqueio IP no SuperMonitor
+export const preferredRegion = ['gru1'];
 
 import { NextResponse } from 'next/server';
+import { cookies }      from 'next/headers';
+import { createSupabaseServerClient } from '@/lib/supabase/server';
 
 async function getSupabaseAdmin() {
   const { createClient } = await import('@supabase/supabase-js');
@@ -19,11 +13,26 @@ async function getSupabaseAdmin() {
   );
 }
 
+async function requireUser() {
+  try {
+    const cookieStore = await cookies();
+    const supabase = createSupabaseServerClient(cookieStore);
+    const { data: { user } } = await supabase.auth.getUser();
+    return user ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** GET /api/sure/sse-token — requer usuário autenticado */
 export async function GET() {
+  if (!(await requireUser())) {
+    return NextResponse.json({ ok: false, error: 'Não autenticado' }, { status: 401 });
+  }
+
   try {
     const sb = await getSupabaseAdmin();
 
-    // Busca token e URL em paralelo
     const [tokenRow, urlRow] = await Promise.all([
       sb.from('app_config').select('value, updated_at').eq('key', 'sse_temp_token').single(),
       sb.from('app_config').select('value').eq('key', 'sse_url').single(),
@@ -33,7 +42,6 @@ export async function GET() {
       return NextResponse.json({ ok: false, error: 'token_indisponivel' });
     }
 
-    // Rejeita tokens com mais de 15 min (TTL = 840s; daemon renova a cada 720s)
     const age = Date.now() - new Date(tokenRow.data.updated_at).getTime();
     if (age > 15 * 60 * 1000) {
       return NextResponse.json({ ok: false, error: 'token_expirado' });

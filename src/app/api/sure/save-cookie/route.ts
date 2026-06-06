@@ -8,7 +8,7 @@ import { cookies } from 'next/headers';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { storeCookieInSupabase, validateCookie } from '@/lib/supermonitor-auth';
 
-const ADMIN_EMAIL = 'michael.martins.trader@gmail.com';
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? '';
 
 export async function POST(req: NextRequest) {
   // Apenas admin pode injetar cookies do SuperMonitor

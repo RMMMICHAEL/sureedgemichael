@@ -1,22 +1,14 @@
 /**
- * /api/sure/scanner
+ * GET /api/sure/scanner — requer usuário autenticado
  *
- * GET ?profitMin=-2.5&tipo=ML,DUO&limit=200&onlyNew=false
- *   → retorna lista de sinais de scanner_signals (populada pelo daemon)
- *
- * Filtros opcionais via query string:
- *   profitMin  — float, default -2.5
- *   tipo       — "ML", "DUO" ou "ML,DUO"
- *   limit      — int, default 200, max 500
- *   onlyNew    — "true" → só is_new=true
- *
- * Sinais com data_evento já passada são automaticamente excluídos da resposta
- * (margem de 5 min para pequenas diferenças de relógio).
+ * Parâmetros: profitMin, tipo, limit, onlyNew
  */
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 import { NextRequest, NextResponse } from 'next/server';
+import { cookies }                   from 'next/headers';
+import { createSupabaseServerClient } from '@/lib/supabase/server';
 
 async function getSupabaseAdmin() {
   const { createClient } = await import('@supabase/supabase-js');
@@ -26,7 +18,22 @@ async function getSupabaseAdmin() {
   );
 }
 
+async function requireUser() {
+  try {
+    const cookieStore = await cookies();
+    const supabase = createSupabaseServerClient(cookieStore);
+    const { data: { user } } = await supabase.auth.getUser();
+    return user ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function GET(req: NextRequest) {
+  if (!(await requireUser())) {
+    return NextResponse.json({ ok: false, error: 'Não autenticado' }, { status: 401 });
+  }
+
   const sp = req.nextUrl.searchParams;
 
   const profitMin = parseFloat(sp.get('profitMin') ?? '-2.5');
@@ -38,8 +45,6 @@ export async function GET(req: NextRequest) {
   try {
     const sb = await getSupabaseAdmin();
 
-    // Exclude events that have already started (5-min grace window).
-    // Signals with null data_evento are kept — we don't know their start time.
     const cutoff = new Date(Date.now() - 5 * 60 * 1000).toISOString();
 
     let q = sb
@@ -67,8 +72,7 @@ export async function GET(req: NextRequest) {
       count:   data?.length ?? 0,
       signals: data ?? [],
     });
-  } catch (e: unknown) {
-    console.error('[scanner GET]', e instanceof Error ? e.message : String(e));
+  } catch {
     return NextResponse.json({ ok: false, error: 'Erro interno' }, { status: 500 });
   }
 }

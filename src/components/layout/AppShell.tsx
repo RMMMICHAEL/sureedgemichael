@@ -25,7 +25,7 @@ import { FreebetConverterPage } from '@/components/freebet/FreebetConverterPage'
 // SCANNER_NOTIF_KEY mantido para evitar erros em outros componentes
 const SCANNER_NOTIF_KEY = 'scanner_notif_enabled';
 
-const TRADER_EMAIL = 'michael.martins.trader@gmail.com';
+const TRADER_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL ?? 'michael.martins.trader@gmail.com';
 
 function MaintenanceBanner() {
   const authEmail = useStore(s => s.authEmail);
@@ -35,7 +35,7 @@ function MaintenanceBanner() {
 
   const poll = useCallback(async () => {
     try {
-      const res  = await fetch('/api/sure/supermonitor-status');
+      const res  = await fetch('/api/sure/proxy-status');
       const json = await res.json();
       const next = json.status === 'maintenance' ? 'maintenance' : 'ok';
       setStatus(next);
@@ -53,7 +53,7 @@ function MaintenanceBanner() {
   async function handleRetry() {
     setRetrying(true);
     try {
-      await fetch('/api/sure/supermonitor-status', { method: 'POST' });
+      await fetch('/api/sure/proxy-status', { method: 'POST' });
       // Aguarda 3s e verifica se voltou
       await new Promise(r => setTimeout(r, 3000));
       await poll();

@@ -1,10 +1,9 @@
 /**
- * /api/sure/queue
+ * /api/sure/queue — requer usuário autenticado com subscription ativa
  *
  * POST { event_id, event_name }
  *   → verifica cache fresco (< 15 min) em sm_odds
- *   → verifica se já existe entrada pending/processing em odds_queue
- *   → insere nova entrada pending se necessário
+ *   → insere entrada pending se necessário
  *   → retorna { ok, status: 'cached' | 'queued' }
  *
  * GET ?event_id=...
@@ -12,11 +11,13 @@
  *   → retorna { ok, ready, cached_at? }
  */
 export const dynamic = 'force-dynamic';
-export const preferredRegion = ['gru1']; // São Paulo — evita bloqueio IP no SuperMonitor
+export const preferredRegion = ['gru1'];
 
 import { NextRequest, NextResponse } from 'next/server';
+import { cookies }                   from 'next/headers';
+import { createSupabaseServerClient } from '@/lib/supabase/server';
 
-const CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutos
+const CACHE_TTL_MS = 15 * 60 * 1000;
 
 async function getSupabaseAdmin() {
   const { createClient } = await import('@supabase/supabase-js');
@@ -26,14 +27,29 @@ async function getSupabaseAdmin() {
   );
 }
 
-// ── POST — enfileira evento para busca de odds ────────────────────────────────
+async function requireUser() {
+  try {
+    const cookieStore = await cookies();
+    const supabase = createSupabaseServerClient(cookieStore);
+    const { data: { user } } = await supabase.auth.getUser();
+    return user ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function POST(req: NextRequest) {
+  const user = await requireUser();
+  if (!user) {
+    return NextResponse.json({ ok: false, error: 'Não autenticado' }, { status: 401 });
+  }
+
   let event_id = '', event_name = '';
   try {
     const body = await req.json() as { event_id?: string; event_name?: string };
     event_id   = (body.event_id   ?? '').trim();
     event_name = (body.event_name ?? '').trim();
-  } catch (_e) { /* vazio */ }
+  } catch { /* vazio */ }
 
   if (!event_id || !event_name) {
     return NextResponse.json({ ok: false, error: 'event_id e event_name são obrigatórios' }, { status: 400 });
@@ -42,7 +58,6 @@ export async function POST(req: NextRequest) {
   try {
     const sb = await getSupabaseAdmin();
 
-    // 1. Verifica se já há dados frescos em sm_odds (< 15 min)
     const { data: existing } = await sb
       .from('sm_odds')
       .select('updated_at')
@@ -56,7 +71,6 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 2. Verifica se já existe entrada pending ou processing na fila
     const { data: queued } = await sb
       .from('odds_queue')
       .select('id, status')
@@ -69,26 +83,27 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, status: 'queued' });
     }
 
-    // 3. Insere nova entrada pending
     const { error: insertErr } = await sb
       .from('odds_queue')
       .insert({ event_id, event_name, status: 'pending' });
 
     if (insertErr) {
-      console.error('[queue POST] insert error:', insertErr.message);
-      return NextResponse.json({ ok: false, error: insertErr.message }, { status: 500 });
+      return NextResponse.json({ ok: false, error: 'Erro interno' }, { status: 500 });
     }
 
     return NextResponse.json({ ok: true, status: 'queued' });
 
-  } catch (err: unknown) {
-    console.error('[queue POST] unexpected error:', err instanceof Error ? err.message : String(err));
+  } catch {
     return NextResponse.json({ ok: false, error: 'Erro interno' }, { status: 500 });
   }
 }
 
-// ── GET — verifica se odds já estão prontas ───────────────────────────────────
 export async function GET(req: NextRequest) {
+  const user = await requireUser();
+  if (!user) {
+    return NextResponse.json({ ok: false, error: 'Não autenticado' }, { status: 401 });
+  }
+
   const event_id = (req.nextUrl.searchParams.get('event_id') ?? '').trim();
 
   if (!event_id) {
@@ -113,8 +128,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ ok: true, ready: false });
 
-  } catch (err: unknown) {
-    console.error('[queue GET] unexpected error:', err instanceof Error ? err.message : String(err));
+  } catch {
     return NextResponse.json({ ok: false, error: 'Erro interno' }, { status: 500 });
   }
 }

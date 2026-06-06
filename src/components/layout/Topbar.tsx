@@ -4,7 +4,7 @@ import { useStore }       from '@/store/useStore';
 import { Menu, RefreshCw, Link2, X, Zap, AlertTriangle } from 'lucide-react';
 import { useState, useEffect, useCallback } from 'react';
 
-const TRADER_EMAIL = 'michael.martins.trader@gmail.com';
+const TRADER_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL ?? 'michael.martins.trader@gmail.com';
 
 function CookieStatusBadge() {
   const authEmail = useStore(s => s.authEmail);
@@ -33,7 +33,7 @@ function CookieStatusBadge() {
       href="https://painel.supermonitor.pro"
       target="_blank"
       rel="noopener noreferrer"
-      title="Cookie SuperMonitor expirado — clique para renovar"
+      title="Sessão expirada — clique para renovar"
       className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold animate-pulse"
       style={{
         background: 'rgba(239,68,68,.12)',

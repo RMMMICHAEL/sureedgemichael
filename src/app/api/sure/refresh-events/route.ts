@@ -1,15 +1,15 @@
 /**
- * POST /api/sure/refresh-events
- * Seta a flag refresh_events_requested=true no Supabase.
- * O daemon (process-queue.mjs) detecta a flag no próximo ciclo (≤0.5s),
- * chama events_lite no SuperMonitor e atualiza sm_events.
+ * POST /api/sure/refresh-events — requer usuário autenticado
+ * Seta a flag refresh_events_requested no Supabase para o daemon processar.
  *
- * GET /api/sure/refresh-events
+ * GET /api/sure/refresh-events — requer usuário autenticado
  * Retorna { done: bool, at: string|null } — usado pelo frontend para polling.
  */
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
+import { cookies }      from 'next/headers';
+import { createSupabaseServerClient } from '@/lib/supabase/server';
 
 async function getSupabaseAdmin() {
   const { createClient } = await import('@supabase/supabase-js');
@@ -19,18 +19,30 @@ async function getSupabaseAdmin() {
   );
 }
 
-// POST — dispara o refresh
+async function requireUser() {
+  try {
+    const cookieStore = await cookies();
+    const supabase = createSupabaseServerClient(cookieStore);
+    const { data: { user } } = await supabase.auth.getUser();
+    return user ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function POST() {
+  if (!(await requireUser())) {
+    return NextResponse.json({ ok: false, error: 'Não autenticado' }, { status: 401 });
+  }
+
   try {
     const sb = await getSupabaseAdmin();
 
-    // Limpa qualquer "done" anterior para não confundir o polling
     await sb.from('app_config').upsert(
       { key: 'refresh_events_done', value: '', updated_at: new Date().toISOString() },
       { onConflict: 'key' },
     );
 
-    // Seta a flag de solicitação
     const { error } = await sb.from('app_config').upsert(
       { key: 'refresh_events_requested', value: 'true', updated_at: new Date().toISOString() },
       { onConflict: 'key' },
@@ -39,14 +51,16 @@ export async function POST() {
     if (error) throw new Error(error.message);
 
     return NextResponse.json({ ok: true });
-  } catch (e: unknown) {
-    console.error('[refresh-events POST]', e instanceof Error ? e.message : String(e));
+  } catch {
     return NextResponse.json({ ok: false, error: 'Erro interno' }, { status: 500 });
   }
 }
 
-// GET — polling do status (done?)
 export async function GET() {
+  if (!(await requireUser())) {
+    return NextResponse.json({ ok: false, error: 'Não autenticado' }, { status: 401 });
+  }
+
   try {
     const sb = await getSupabaseAdmin();
 

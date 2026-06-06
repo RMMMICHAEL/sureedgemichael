@@ -10,7 +10,7 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 
-const ADMIN_EMAIL = 'michael.martins.trader@gmail.com';
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? '';
 
 async function getSupabaseAdmin() {
   const { createClient } = await import('@supabase/supabase-js');

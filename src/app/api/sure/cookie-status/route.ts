@@ -1,11 +1,8 @@
-/**
- * GET /api/sure/cookie-status
- * Retorna se o cookie do SuperMonitor está válido ou expirado.
- * Lê app_config.supermonitor_cookie_status salvo pelo daemon.
- */
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
+import { cookies }      from 'next/headers';
+import { createSupabaseServerClient } from '@/lib/supabase/server';
 
 async function getSupabaseAdmin() {
   const { createClient } = await import('@supabase/supabase-js');
@@ -15,7 +12,20 @@ async function getSupabaseAdmin() {
   );
 }
 
+/** GET /api/sure/cookie-status — requer admin */
 export async function GET() {
+  try {
+    const cookieStore = await cookies();
+    const supabase = createSupabaseServerClient(cookieStore);
+    const { data: { user } } = await supabase.auth.getUser();
+    const adminEmail = process.env.ADMIN_EMAIL ?? '';
+    if (!user || !adminEmail || user.email !== adminEmail) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+  } catch {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
   try {
     const sb = await getSupabaseAdmin();
 
@@ -25,12 +35,11 @@ export async function GET() {
       .eq('key', 'cookie_status')
       .single();
 
-    // Se não existe a chave ainda, assume válido (daemon ainda não rodou)
     if (!data) return NextResponse.json({ ok: true, status: 'unknown' });
 
     return NextResponse.json({
       ok: true,
-      status: data.value ?? 'unknown',   // 'valid' | 'expired' | 'unknown'
+      status: data.value ?? 'unknown',
       updatedAt: data.updated_at ?? null,
     });
   } catch {

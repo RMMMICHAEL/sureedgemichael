@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
   // Timeout — limpa e retorna erro
   sb.from('search_queue').delete().eq('id', id).then(() => {});
   return NextResponse.json(
-    { ok: false, error: 'Timeout — extensão não respondeu. Verifique se o Brave está aberto com o SuperMonitor.' },
+    { ok: false, error: 'Timeout — extensão não respondeu. Verifique se o navegador está aberto com a extensão ativa.' },
     { status: 504 },
   );
 }
