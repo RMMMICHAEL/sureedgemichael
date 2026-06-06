@@ -1,0 +1,27 @@
+{
+  "manifest_version": 3,
+  "name": "SureEdge Capture",
+  "version": "1.0",
+  "description": "Captura sinais do SuperMonitor em tempo real",
+  "permissions": ["tabs"],
+  "host_permissions": [
+    "https://painel.supermonitor.pro/*",
+    "https://www.sureedge.com.br/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["https://painel.supermonitor.pro/*"],
+      "js": ["content-script.js"],
+      "run_at": "document_start"
+    }
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["injected.js"],
+      "matches": ["https://painel.supermonitor.pro/*"]
+    }
+  ]
+}

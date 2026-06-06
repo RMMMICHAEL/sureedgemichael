@@ -645,7 +645,7 @@ function SignalCard({ signal, onClick, onOpenInOdds }: {
 function TipoFilter({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
     <div style={{ display: 'flex', gap: 4 }}>
-      {[{ id: '', label: 'Todos' }, { id: 'ML', label: 'ML' }, { id: 'DUO', label: 'DUO' }].map(o => (
+      {[{ id: '', label: 'Todos' }, { id: 'ML', label: 'ML' }].map(o => (
         <button
           key={o.id} type="button"
           onClick={() => onChange(o.id)}
@@ -1180,7 +1180,6 @@ export function ScannerPage() {
               { label: 'Novos',    value: newCount,                color: '#3DFF8F' },
               { label: 'Lucro ≥0', value: positiveCount,          color: '#3DFF8F' },
               { label: 'ML',       value: visibleSignals.filter(s => s.tipo === 'ML').length,  color: '#38BDF8' },
-              { label: 'DUO',      value: visibleSignals.filter(s => s.tipo === 'DUO').length, color: '#A78BFA' },
             ].map(stat => (
               <div key={stat.label} style={{
                 padding: '5px 12px', borderRadius: 6, fontSize: 12,

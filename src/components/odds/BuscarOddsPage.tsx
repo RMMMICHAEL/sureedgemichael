@@ -1742,64 +1742,29 @@ export function BuscarOddsPage() {
         return;
       }
 
-      // 2. Cache miss ou dado velho — enfileira com auto-retry (até 3 tentativas)
+      // 2. Cache miss — busca via extensão Chrome (Brave com SuperMonitor aberto)
       if (json.reason === 'stale' || json.reason === 'not_found') {
-        const MAX_ATTEMPTS = 3;
+        setOddsLoadingMsg('Coletando odds em tempo real...');
 
-        for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-          setOddsLoadingMsg('Coletando odds...');
+        const extRes  = await fetch('/api/sure/search-odds', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query: event.name }),
+        });
+        const extJson = await extRes.json() as { ok: boolean; results?: unknown; error?: string };
 
-          await fetch('/api/sure/queue', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ event_id: event.id, event_name: event.name }),
-          });
-
-          // Polling até ficar pronto (máx 90s por tentativa)
-          const start = Date.now();
-          let ready = false;
-
-          while (Date.now() - start < 90_000) {
-            await new Promise(r => setTimeout(r, 300));
-
-            const pollRes  = await fetch(`/api/sure/queue?event_id=${encodeURIComponent(event.id)}`);
-            const pollJson = await pollRes.json() as { ok: boolean; ready?: boolean; cached_at?: string; no_odds?: boolean };
-
-            // Evento processado mas sem odds — para de tentar
-            if (pollJson.ready && pollJson.no_odds) {
-              throw new Error('Nenhuma odd disponível para este evento no momento.');
-            }
-
-            if (pollJson.ready) {
-              // Dado pronto — busca o resultado final
-              const finalRes  = await fetch('/api/sure/search', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ query: event.name, eventId: event.id }),
-              });
-              const finalJson = await finalRes.json() as { ok: boolean; data?: unknown };
-              if (finalJson.ok) {
-                const p = parseSearchResults(finalJson.data);
-                if (p) { setParsed(p); setOddsLoading(false); return; }
-              }
-              ready = true;
-              break;
-            }
-
-            setOddsLoadingMsg('Pode demorar alguns segundos...');
-          }
-
-          if (ready) break;
-
-          // Tentativa falhou — re-enfileira se ainda há tentativas
-          if (attempt < MAX_ATTEMPTS) {
-            setOddsLoadingMsg('Pode demorar alguns segundos...');
-            await new Promise(r => setTimeout(r, 500));
-          }
+        if (extJson.ok && extJson.results) {
+          const p = parseSearchResults(extJson.results);
+          if (p) { setParsed(p); setOddsLoading(false); return; }
+          throw new Error('Nenhuma odd disponível para este evento no momento.');
         }
 
-        // Todas as tentativas falharam
-        throw new Error('Não foi possível coletar as odds agora. Tente novamente em instantes.');
+        // Extensão offline ou timeout — mensagem clara
+        if (extRes.status === 504) {
+          throw new Error('Não foi possível coletar as odds agora — verifique se o Brave está aberto na página do Buscador de Odds do SuperMonitor.');
+        }
+
+        throw new Error(extJson.error ?? 'Erro ao coletar odds.');
       }
 
       throw new Error(json.hint ?? json.error ?? 'Erro desconhecido');

@@ -335,18 +335,18 @@ async function fetchDecrypted(session, qs) {
   const params  = new URLSearchParams(qs);
   const _a      = params.get('action') ?? 'search';
   const _qRaw   = params.get('q') ?? '';
-  const _t      = params.get('type') ?? 'event';
+  const _t      = 'all'; // browser usa type=all no referer
   const _fid    = '_' + Math.random().toString(36).slice(2, 18); // frame session ID aleatório
   const referer = _qRaw
-    ? `${BASE}/index.php?page=buscador&q=${encodeURIComponent(_qRaw)}&type=${_t}`
+    ? `${BASE}/index.php?page=buscador&q=${encodeURIComponent(_qRaw)}&type=all`
     : `${BASE}/index.php?page=buscador`;
 
-  // Nonce inicial para buscador_frame.php — servidor sempre responde RENEW_NONCE
-  // no primeiro request e fornece o nonce correto (nn) no payload descriptografado.
-  const nonceRes = await fetch(`${BASE}/api/proxy_nonce_handshake.php`, {
-    headers: { ...session.hdrs, 'Referer': referer },
+  // Nonce para buscador_frame.php — usa proxy_nonce.php (nonce de API, não de handshake)
+  // proxy_nonce_handshake.php é apenas para o handshake ECDH inicial.
+  const nonceRes = await fetch(`${BASE}/api/proxy_nonce.php`, {
+    headers: { ...session.hdrs, 'Referer': referer, 'X-Requested-With': 'XMLHttpRequest' },
   });
-  if (!nonceRes.ok) throw new Error(`proxy_nonce_handshake falhou (${nonceRes.status})`);
+  if (!nonceRes.ok) throw new Error(`proxy_nonce falhou (${nonceRes.status})`);
   const { nonce: _n } = await safeJson(nonceRes, 'buscador_frame: nonce');
 
   const nonceCookies = extractSetCookies(nonceRes.headers);
@@ -354,12 +354,16 @@ async function fetchDecrypted(session, qs) {
     ...session.hdrs,
     'Cookie':        nonceCookies.length ? mergeCookies(session.hdrs['Cookie'], nonceCookies) : session.hdrs['Cookie'],
     'Content-Type':  'application/x-www-form-urlencoded',
-    'Origin':        BASE,
     'Referer':       referer,
     'Accept':        'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
     'Sec-Fetch-Dest':'iframe',
     'Sec-Fetch-Mode':'navigate',
+    // Iframes de mesma origem não enviam Origin — remove para imitar browser
+    // Inclui session token se disponível (mesmo padrão do scanner)
+    ...(session.sessionToken ? { 'X-Session-Token': session.sessionToken } : {}),
   };
+  // Remove Origin — navegação iframe same-origin não envia esse header
+  delete frameHdrs['Origin'];
 
   // 2. POST para buscador_frame.php
   const body = new URLSearchParams({ _a, _n, _fid, _q: _qRaw, _t }).toString();
@@ -429,6 +433,13 @@ async function fetchDecrypted(session, qs) {
 let _session = null;
 let _sessionCookieHash = '';
 let _sessionExpiresAt = 0;
+// Contador de 404 consecutivos no buscador_frame.
+// Quando atinge o limite, aumenta o backoff drasticamente
+// para não ficar criando sessão ECDH à toa.
+let _buscador404Count = 0;
+let _buscador404BackoffUntil = 0;
+const BUSCADOR_404_LIMIT = 3;
+const BUSCADOR_404_BACKOFF_MS = 10 * 60 * 1000; // 10 minutos
 const SESSION_TTL = 1_740_000; // 29 min — igual ao JS do servidor (_ttl=1740000)
 
 async function getSession(cookie) {
@@ -519,6 +530,13 @@ async function processOneCycle() {
 
   if (!pending.length) return; // fila vazia — silencioso
 
+  // Backoff ativo: endpoint buscador_frame pode ter mudado — aguarda sem criar sessão
+  if (_buscador404BackoffUntil > Date.now()) {
+    const remainMin = Math.ceil((_buscador404BackoffUntil - Date.now()) / 60_000);
+    console.log(`   [buscador] backoff ativo — aguardando mais ${remainMin} min (endpoint pode ter mudado)`);
+    return;
+  }
+
   const t = new Date().toLocaleTimeString('pt-BR');
   console.log(`\n[${t}] ${pending.length} item(ns) na fila`);
 
@@ -604,11 +622,11 @@ async function processOneCycle() {
         // Busca por nome completo, fallback pelo time da casa
         const homeTeam = ev.name.split(/\s+(?:x|vs|×|X)\s+/i)[0]?.trim() ?? ev.name;
 
-        let data    = await fetchDecrypted(session, `action=search&q=${encodeURIComponent(ev.name)}&type=event`);
+        let data    = await fetchDecrypted(session, `action=search&q=${encodeURIComponent(ev.name)}&type=all`);
         let results = Array.isArray(data) ? data : (data?.d?.results ?? data?.results ?? data?.data ?? data?.events ?? []);
 
         if (!results.length && homeTeam !== ev.name) {
-          data    = await fetchDecrypted(session, `action=search&q=${encodeURIComponent(homeTeam)}&type=event`);
+          data    = await fetchDecrypted(session, `action=search&q=${encodeURIComponent(homeTeam)}&type=all`);
           results = Array.isArray(data) ? data : (data?.d?.results ?? data?.results ?? data?.data ?? data?.events ?? []);
         }
 
@@ -623,7 +641,9 @@ async function processOneCycle() {
           if (r.ok) {
             await markQueueDone(ev.id);
             console.log(`   OK: ${ev.name} (${results.length} resultados)`);
-            // Limpa flag de manutenção se estava ativa
+            // Reseta contador de 404 e limpa flag de manutenção
+            _buscador404Count = 0;
+            _buscador404BackoffUntil = 0;
             sbFetch('app_config', 'POST',
               { key: 'supermonitor_status', value: 'ok', updated_at: new Date().toISOString() },
               { 'Prefer': 'resolution=merge-duplicates' }
@@ -643,18 +663,25 @@ async function processOneCycle() {
 
         if (isSessionErr) invalidateSession();
 
-        // 404 no buscador_frame = rate-limit ou sessão server-side esgotada
-        // Para o batch, grava status manutenção e aguarda 90s para o servidor liberar
+        // 404 no buscador_frame = endpoint removido ou rate-limit
         if (is404Frame) {
           invalidateSession();
           await markQueueError(ev.id);
+          _buscador404Count++;
           sbFetch('app_config', 'POST',
             { key: 'supermonitor_status', value: 'maintenance', updated_at: new Date().toISOString() },
             { 'Prefer': 'resolution=merge-duplicates' }
           ).catch(() => {});
-          console.log(`   buscador_frame 404 — servidor bloqueou temporariamente. Aguardando 90s...`);
-          await sleep(90_000);
-          return; // para o ciclo inteiro, próximo ciclo tenta novamente
+
+          // Após 3 falhas consecutivas → backoff de 10 min (endpoint pode ter mudado)
+          if (_buscador404Count >= BUSCADOR_404_LIMIT) {
+            _buscador404BackoffUntil = Date.now() + BUSCADOR_404_BACKOFF_MS;
+            console.log(`   buscador_frame 404 (${_buscador404Count}x consecutivo) — endpoint pode ter mudado. Backoff 10 min.`);
+          } else {
+            console.log(`   buscador_frame 404 (${_buscador404Count}/${BUSCADOR_404_LIMIT}) — aguardando 90s...`);
+            await sleep(90_000);
+          }
+          return;
         }
 
         // 401 ou erro de crypto na primeira tentativa: recria sessão e retenta
