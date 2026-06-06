@@ -87,7 +87,8 @@
       "WebSearch",
       "WebFetch(domain:supermonitor.pro)",
       "WebFetch(domain:www.crazystack.com.br)",
-      "WebFetch(domain:oddspapi.io)"
+      "WebFetch(domain:oddspapi.io)",
+      "mcp__code-review-graph__semantic_search_nodes_tool"
     ]
   },
   "enableAllProjectMcpServers": true,

@@ -28,6 +28,14 @@ const PA_OPTIONS = [
   { value: 'two',  label: 'PA em 2 lados'},
 ];
 
+const DATE_RANGE_OPTIONS = [
+  { value: 'all', label: 'Todos os dias' },
+  { value: '24h', label: '24 horas'      },
+  { value: '48h', label: '48 horas'      },
+  { value: '72h', label: '72 horas'      },
+  { value: '5d',  label: '5 dias'        },
+];
+
 const QUICK_VALUES = [25, 50, 100, 200, 500];
 const QUICK_MIN    = [1.5, 2.0, 2.5, 3.0, 3.5];
 const QUICK_MAX    = [5.0, 7.0, 10.0, 15.0, 50.0, 999.99];
@@ -395,9 +403,9 @@ function Step2({ value, onChange, onBack, onNext }: {
 
 // ── Step 3: Faixa de odds ─────────────────────────────────────────────────────
 
-function Step3({ minOdd, maxOdd, paFilter, onChangeMin, onChangeMax, onChangePa, onBack, onSearch }: {
-  minOdd: string; maxOdd: string; paFilter: string;
-  onChangeMin: (v: string) => void; onChangeMax: (v: string) => void; onChangePa: (v: string) => void;
+function Step3({ minOdd, maxOdd, paFilter, dateRange, onChangeMin, onChangeMax, onChangePa, onChangeDateRange, onBack, onSearch }: {
+  minOdd: string; maxOdd: string; paFilter: string; dateRange: string;
+  onChangeMin: (v: string) => void; onChangeMax: (v: string) => void; onChangePa: (v: string) => void; onChangeDateRange: (v: string) => void;
   onBack: () => void; onSearch: () => void;
 }) {
   const validMin = parseFloat(minOdd) >= 1;
@@ -460,6 +468,20 @@ function Step3({ minOdd, maxOdd, paFilter, onChangeMin, onChangeMax, onChangePa,
                 background: paFilter === opt.value ? 'rgba(255,159,10,.12)' : 'rgba(255,255,255,.05)',
                 border: `1px solid ${paFilter === opt.value ? 'rgba(255,159,10,.4)' : 'rgba(255,255,255,.08)'}`,
                 color: paFilter === opt.value ? '#FF9F0A' : 'var(--t3)',
+              }}>{opt.label}</button>
+          ))}
+        </div>
+      </div>
+      <div className="rounded-xl p-4 flex flex-col gap-3" style={{ background: 'rgba(255,255,255,.03)', border: '1px solid var(--b)' }}>
+        <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: 'var(--t3)' }}>Janela de tempo</span>
+        <div className="flex flex-wrap gap-2">
+          {DATE_RANGE_OPTIONS.map(opt => (
+            <button key={opt.value} type="button" onClick={() => onChangeDateRange(opt.value)}
+              className="px-4 py-2 rounded-lg text-xs font-bold transition-all"
+              style={{
+                background: dateRange === opt.value ? 'rgba(0,187,255,.12)' : 'rgba(255,255,255,.05)',
+                border: `1px solid ${dateRange === opt.value ? 'rgba(0,187,255,.4)' : 'rgba(255,255,255,.08)'}`,
+                color: dateRange === opt.value ? '#00BBFF' : 'var(--t3)',
               }}>{opt.label}</button>
           ))}
         </div>
@@ -1079,6 +1101,7 @@ export function FreebetConverterPage() {
   const [minOdd,      setMinOdd]      = useState('1.50');
   const [maxOdd,      setMaxOdd]      = useState('10.00');
   const [paFilter,    setPaFilter]    = useState('all');
+  const [dateRange,   setDateRange]   = useState('all');
   const [results,     setResults]     = useState<FreebetResult[]>([]);
   const [loading,     setLoading]     = useState(false);
   const [error,       setError]       = useState('');
@@ -1228,12 +1251,12 @@ export function FreebetConverterPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          bookmaker: house,
-          value:     parseFloat(value),
-          min_odd:   parseFloat(minOdd),
-          max_odd:   parseFloat(maxOdd),
-          pa_filter: paFilter,
-          days:      7,
+          bookmaker:  house,
+          value:      parseFloat(value),
+          min_odd:    parseFloat(minOdd),
+          max_odd:    parseFloat(maxOdd),
+          pa_filter:  paFilter,
+          date_range: dateRange,
         }),
       });
       if (!postRes.ok) {
@@ -1303,8 +1326,8 @@ export function FreebetConverterPage() {
         {step === 2 && <Step2 value={value} onChange={setValue} onBack={() => setStep(1)} onNext={() => setStep(3)} />}
         {step === 3 && (
           <Step3
-            minOdd={minOdd} maxOdd={maxOdd} paFilter={paFilter}
-            onChangeMin={setMinOdd} onChangeMax={setMaxOdd} onChangePa={setPaFilter}
+            minOdd={minOdd} maxOdd={maxOdd} paFilter={paFilter} dateRange={dateRange}
+            onChangeMin={setMinOdd} onChangeMax={setMaxOdd} onChangePa={setPaFilter} onChangeDateRange={setDateRange}
             onBack={() => setStep(2)} onSearch={search}
           />
         )}

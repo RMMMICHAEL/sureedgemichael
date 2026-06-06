@@ -10,27 +10,51 @@ window.addEventListener('message', (e) => {
   chrome.runtime.sendMessage({ type: 'signal', data: e.data });
 });
 
-// Recebe comando de busca do background e executa via injected.js
+// Recebe comandos do background e executa via injected.js
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
-  if (msg.type !== 'search') return false;
 
-  // Pede ao injected.js para fazer a busca
-  window.postMessage({ __sureedge_search__: true, query: msg.query }, '*');
+  // ── Busca de odds ──────────────────────────────────────────────────────────
+  if (msg.type === 'search') {
+    window.postMessage({ __sureedge_search__: true, query: msg.query }, '*');
 
-  // Aguarda resposta do injected.js via postMessage
-  const timeout = setTimeout(() => {
-    window.removeEventListener('message', handler);
-    sendResponse({ ok: false, error: 'Timeout na busca' });
-  }, 12_000);
+    const timeout = setTimeout(() => {
+      window.removeEventListener('message', handler);
+      sendResponse({ ok: false, error: 'Timeout na busca de odds' });
+    }, 12_000);
 
-  function handler(e) {
-    if (e.source !== window || !e.data?.__sureedge_result__) return;
-    if (e.data.query !== msg.query) return;
-    clearTimeout(timeout);
-    window.removeEventListener('message', handler);
-    sendResponse({ ok: e.data.ok, data: e.data.data, error: e.data.error });
+    function handler(e) {
+      if (e.source !== window || !e.data?.__sureedge_result__) return;
+      if (e.data.query !== msg.query) return;
+      clearTimeout(timeout);
+      window.removeEventListener('message', handler);
+      sendResponse({ ok: e.data.ok, data: e.data.data, error: e.data.error });
+    }
+
+    window.addEventListener('message', handler);
+    return true;
   }
 
-  window.addEventListener('message', handler);
-  return true; // mantém sendResponse aberto (async)
+  // ── Busca de freebet ───────────────────────────────────────────────────────
+  if (msg.type === 'freebet') {
+    const reqId = msg.reqId;
+    window.postMessage({ __sureedge_freebet__: true, ...msg }, '*');
+
+    const timeout = setTimeout(() => {
+      window.removeEventListener('message', fbHandler);
+      sendResponse({ ok: false, error: 'Timeout na busca de freebet' });
+    }, 25_000);
+
+    function fbHandler(e) {
+      if (e.source !== window || !e.data?.__sureedge_freebet_result__) return;
+      if (e.data.reqId !== reqId) return;
+      clearTimeout(timeout);
+      window.removeEventListener('message', fbHandler);
+      sendResponse({ ok: e.data.ok, data: e.data.data, error: e.data.error });
+    }
+
+    window.addEventListener('message', fbHandler);
+    return true;
+  }
+
+  return false;
 });
