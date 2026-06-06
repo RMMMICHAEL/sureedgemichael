@@ -167,16 +167,9 @@ async function autoRenewCookie() {
   console.error('══════════════════════════════════════════════════════');
   console.error('');
 
-  // Grava status no Supabase para o frontend exibir o alerta
+  // Grava status no Supabase (informativo apenas — sem popup)
   sbFetch('app_config', 'POST', { key: 'cookie_status', value: 'expired', updated_at: new Date().toISOString() },
     { 'Prefer': 'resolution=merge-duplicates' }).catch(() => {});
-
-  // Alerta visual no Windows
-  const msg = 'Sessão expirada!\\n\\nAcesse o painel, copie o PHPSESSID e cole no painel admin do SureEdge.\\n\\nDepois reinicie o daemon.';
-  exec(
-    `powershell -WindowStyle Hidden -Command "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.MessageBox]::Show('${msg}', 'SureEdge — Cookie Expirado', 'OK', 'Warning') | Out-Null"`,
-    () => {} // ignora resultado
-  );
 
   return null;
 }
