@@ -1405,7 +1405,7 @@ function TodayGamesGrid({
           type="button"
           onClick={onRefresh}
           disabled={refreshing}
-          title="Atualiza a lista de jogos buscando novamente no SuperMonitor"
+          title="Atualizar lista de jogos"
           style={{
             display: 'flex', alignItems: 'center', gap: 5,
             fontSize: 11, fontWeight: 700, padding: '5px 12px', height: 32,
@@ -1761,7 +1761,7 @@ export function BuscarOddsPage() {
 
         // Extensão offline ou timeout — mensagem clara
         if (extRes.status === 504) {
-          throw new Error('Não foi possível coletar as odds agora — verifique se o Brave está aberto na página do Buscador de Odds do SuperMonitor.');
+          throw new Error('Sistema de coleta de odds offline no momento. Aguarde alguns instantes e tente novamente.');
         }
 
         throw new Error(extJson.error ?? 'Erro ao coletar odds.');
