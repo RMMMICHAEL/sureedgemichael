@@ -1289,7 +1289,7 @@ export function FreebetConverterPage() {
           return;
         }
         if (pollJson.status === 'error')   throw new Error(pollJson.error_msg ?? 'Daemon retornou erro ao processar');
-        if (pollJson.status === 'timeout') throw new Error('Daemon não respondeu. Verifique se o process-queue.mjs está rodando.');
+        if (pollJson.status === 'timeout') throw new Error('Sistema offline no momento. Aguarde e tente novamente.');
       }
 
       throw new Error('Tempo esgotado. Verifique se o daemon está ativo e tente novamente.');

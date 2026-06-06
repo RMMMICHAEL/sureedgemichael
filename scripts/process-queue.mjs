@@ -161,9 +161,9 @@ async function autoRenewCookie() {
   console.error('');
   console.error('══════════════════════════════════════════════════════');
   console.error('  COOKIE EXPIRADO — renovação manual necessária');
-  console.error('  1. Acesse painel.supermonitor.pro e copie o PHPSESSID');
+  console.error('  1. Acesse o painel e copie o PHPSESSID');
   console.error('  2. Cole no painel admin do SureEdge (app_config)');
-  console.error('  3. Reinicie: node scripts/process-queue.mjs');
+  console.error('  3. Reinicie o daemon');
   console.error('══════════════════════════════════════════════════════');
   console.error('');
 
@@ -172,7 +172,7 @@ async function autoRenewCookie() {
     { 'Prefer': 'resolution=merge-duplicates' }).catch(() => {});
 
   // Alerta visual no Windows
-  const msg = 'Cookie SuperMonitor expirado!\\n\\nPegue o novo PHPSESSID no supermonitor.pro e cole no painel admin do SureEdge.\\n\\nDepois reinicie: node scripts/process-queue.mjs';
+  const msg = 'Sessão expirada!\\n\\nAcesse o painel, copie o PHPSESSID e cole no painel admin do SureEdge.\\n\\nDepois reinicie o daemon.';
   exec(
     `powershell -WindowStyle Hidden -Command "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.MessageBox]::Show('${msg}', 'SureEdge — Cookie Expirado', 'OK', 'Warning') | Out-Null"`,
     () => {} // ignora resultado

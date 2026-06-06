@@ -8,9 +8,7 @@
  * GET ?request_id=<uuid>
  *   → retorna { ok, status: 'pending'|'done'|'error', data?, error_msg? }
  *
- * O handshake ECDH e chamada ao SuperMonitor são feitos pelo daemon local
- * (process-queue.mjs) via IP residencial brasileiro, evitando bloqueio de
- * datacenter estrangeiro.
+ * O processamento é feito pelo daemon local via IP residencial.
  */
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';

@@ -1211,7 +1211,7 @@ export function ScannerPage() {
             <span style={{ fontSize: 16 }}>⚠️</span>
             <span>
               <strong>Daemon inativo</strong> — os sinais não são atualizados há mais de 3 minutos.
-              Reinicie o processo <code style={{ background: 'rgba(255,255,255,.07)', padding: '1px 6px', borderRadius: 4 }}>process-queue.mjs</code> no servidor.
+              Os sinais voltarão automaticamente quando o sistema reconectar.
             </span>
           </div>
         )}
