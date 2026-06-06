@@ -203,7 +203,7 @@ function parseApiResponse(data: unknown): FreebetResult[] {
           odd:        Number(hedge.odd ?? 0),
           stake:      hedgeStakes[i] ?? 0,
           is_freebet: false,
-          is_pa:      Boolean(hedge.pa ?? false),
+          is_pa:      Boolean(hedge.pa ?? hedge.is_pa ?? hedge.pa_available ?? false),
         });
       });
 
@@ -1190,10 +1190,8 @@ export function FreebetConverterPage() {
         if (fPA === 'none') return n === 0;
         if (fPA === 'one')  return n === 1;
         if (fPA === 'two') {
-          // PA em 2 lados = Casa + Fora com PA (não Casa + Empate)
-          if (n < 2) return false;
-          const paOutcomes = new Set(paBets.map(b => b.outcome));
-          return paOutcomes.has('Casa') && paOutcomes.has('Fora');
+          // PA em 2 lados = pelo menos 2 bets de cobertura com PA
+          return n >= 2;
         }
         return true;
       });

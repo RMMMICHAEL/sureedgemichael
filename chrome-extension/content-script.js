@@ -1,3 +1,10 @@
+// Guard: evita dupla injeção se content-script.js for executado mais de uma vez
+// (acontece quando sendMessageSafe usa chrome.scripting.executeScript)
+if (window.__sureedge_cs__) {
+  // já está ativo — não faz nada
+} else {
+  window.__sureedge_cs__ = true;
+
 // Injeta o script no contexto da página
 const script = document.createElement('script');
 script.src = chrome.runtime.getURL('injected.js');
@@ -58,3 +65,5 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
   return false;
 });
+
+} // fim do guard __sureedge_cs__
