@@ -3,7 +3,7 @@
   "name": "SureEdge Capture",
   "version": "1.0",
   "description": "Captura sinais do SuperMonitor em tempo real",
-  "permissions": ["tabs", "scripting"],
+  "permissions": ["tabs", "scripting", "alarms"],
   "host_permissions": [
     "https://painel.supermonitor.pro/*",
     "https://www.sureedge.com.br/*"

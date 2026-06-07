@@ -62,7 +62,6 @@ async function getOrCreateTab(targetUrl) {
   if (exact) return exact.id;
 
   // Tem alguma aba do SM que não está sendo usada para a OUTRA função?
-  // Lógica: se a aba não está na página alvo nem na outra página específica, redireciona ela.
   const otherPage = targetUrl.includes('buscador') ? 'converter-freebet' : 'buscador';
   const free = allSm.find(t => !t.url?.includes(otherPage));
   if (free) {
@@ -81,7 +80,7 @@ async function getOrCreateTab(targetUrl) {
  * Envia mensagem para uma aba com injeção automática do content-script como fallback.
  * Se "Receiving end does not exist" → injeta content-script programaticamente e tenta de novo.
  */
-async function sendMessageSafe(tabId, msg, retries = 2) {
+async function sendMessageSafe(tabId, msg, retries = 3) {
   for (let i = 0; i < retries; i++) {
     try {
       return await chrome.tabs.sendMessage(tabId, msg);
@@ -89,7 +88,7 @@ async function sendMessageSafe(tabId, msg, retries = 2) {
       if (!err.message?.includes('Receiving end does not exist')) throw err;
       if (i === retries - 1) throw err;
 
-      console.log(`[SureEdge BG] Content-script ausente na aba ${tabId} — injetando...`);
+      console.log(`[SureEdge BG] Content-script ausente na aba ${tabId} — injetando (tentativa ${i + 1})...`);
       try {
         await chrome.scripting.executeScript({ target: { tabId }, files: ['content-script.js'] });
       } catch (injectErr) {
@@ -113,6 +112,15 @@ function waitTabLoad(tabId, timeout = 8000) {
     chrome.tabs.onUpdated.addListener(listener);
   });
 }
+
+// FIX 4: keepalive via chrome.alarms — evita que o service worker MV3 durma e pare o polling
+chrome.alarms.create('keepalive', { periodInMinutes: 0.4 }); // ~24s
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === 'keepalive') {
+    // Acorda o service worker — o setInterval continua rodando
+    console.log('[SureEdge BG] keepalive ✓');
+  }
+});
 
 // ── Freebet queue helpers ─────────────────────────────────────────────────────
 
@@ -139,6 +147,15 @@ async function updateFreebet(id, status, result = null, error = null) {
   });
 }
 
+// ── Detecta erro de nonce/sessão recuperável ──────────────────────────────────
+
+function isNonceError(msg) {
+  if (!msg) return false;
+  const s = String(msg).toLowerCase();
+  return s.includes('nonce') || s.includes('session') || s.includes('invalid') ||
+         s.includes('retry') || s.includes('token') || s.includes('auth');
+}
+
 // ── Polling das filas ─────────────────────────────────────────────────────────
 
 let _processingSearch  = false;
@@ -158,37 +175,44 @@ async function pollSearchQueue() {
   try {
     const allSm = await chrome.tabs.query({ url: `${SM_BASE}/*` });
     if (!allSm.length) {
-      await updateSearch(row.id, 'error', null, 'Brave com SuperMonitor não está aberto');
+      await updateSearch(row.id, 'error', null, 'Brave com o painel não está aberto');
       _processingSearch = false;
       return;
     }
 
-    // Tenta usar aba que já está no buscador; se não, usa getOrCreateTab
+    // Tenta usar aba que já está no buscador; se não, cria/redireciona
     let tabId;
     const buscadorTab = allSm.find(t => t.url?.includes('page=buscador'));
     if (buscadorTab) {
       tabId = buscadorTab.id;
     } else {
       tabId = await getOrCreateTab(URL_BUSCA);
-      await new Promise(r => setTimeout(r, 2000)); // aguarda content-script injetar
+      await new Promise(r => setTimeout(r, 2000)); // aguarda página carregar
     }
 
     // Injeta content-script proativamente (guard interno evita dupla injeção)
     try {
       await chrome.scripting.executeScript({ target: { tabId }, files: ['content-script.js'] });
-      await new Promise(r => setTimeout(r, 500));
-    } catch { /* já injetado ou sem permissão — sendMessageSafe fará o fallback */ }
+      await new Promise(r => setTimeout(r, 600));
+    } catch { /* já injetado — ok */ }
 
-    const result = await sendMessageSafe(tabId, {
-      type: 'search',
-      query: row.query,
-    });
+    // FIX 3: auto-retry em erros de nonce no nível do background
+    let result = await sendMessageSafe(tabId, { type: 'search', query: row.query });
+
+    // Se injected.js retornou erro de nonce, espera 2s e tenta mais uma vez
+    if (!result?.ok && isNonceError(result?.error)) {
+      console.log(`[SureEdge BG] Nonce error detectado — retry em 2s...`);
+      await new Promise(r => setTimeout(r, 2000));
+      result = await sendMessageSafe(tabId, { type: 'search', query: row.query });
+    }
 
     if (result?.ok) {
       await updateSearch(row.id, 'done', result.data, null);
       console.log(`[SureEdge BG] ✅ Odds salvas: "${row.query}"`);
     } else {
-      await updateSearch(row.id, 'error', null, result?.error ?? 'Erro desconhecido');
+      const errMsg = result?.error ?? 'Erro desconhecido na busca';
+      console.warn(`[SureEdge BG] ❌ Busca falhou: ${errMsg}`);
+      await updateSearch(row.id, 'error', null, errMsg);
     }
   } catch (e) {
     console.error('[SureEdge BG] Erro odds:', e.message);
@@ -212,7 +236,7 @@ async function pollFreebetQueue() {
   try {
     const allSm = await chrome.tabs.query({ url: `${SM_BASE}/*` });
     if (!allSm.length) {
-      await updateFreebet(row.id, 'error', null, 'Brave com SuperMonitor não está aberto');
+      await updateFreebet(row.id, 'error', null, 'Brave com o painel não está aberto');
       _processingFreebet = false;
       return;
     }
@@ -224,14 +248,14 @@ async function pollFreebetQueue() {
       tabId = fbTab.id;
     } else {
       tabId = await getOrCreateTab(URL_FB);
-      await new Promise(r => setTimeout(r, 4000)); // aguarda content-script injetar
+      await new Promise(r => setTimeout(r, 4000)); // aguarda página carregar
     }
 
     // Injeta content-script proativamente (guard interno evita dupla injeção)
     try {
       await chrome.scripting.executeScript({ target: { tabId }, files: ['content-script.js'] });
-      await new Promise(r => setTimeout(r, 500));
-    } catch { /* já injetado ou sem permissão — sendMessageSafe fará o fallback */ }
+      await new Promise(r => setTimeout(r, 600));
+    } catch { /* já injetado — ok */ }
 
     const reqId = row.id;
     const msg = {
@@ -251,7 +275,9 @@ async function pollFreebetQueue() {
       await updateFreebet(row.id, 'done', result.data, null);
       console.log(`[SureEdge BG] ✅ Freebet salvo: ${row.bookmaker}`);
     } else {
-      await updateFreebet(row.id, 'error', null, result?.error ?? 'Erro desconhecido');
+      const errMsg = result?.error ?? 'Erro desconhecido no freebet';
+      console.warn(`[SureEdge BG] ❌ Freebet falhou: ${errMsg}`);
+      await updateFreebet(row.id, 'error', null, errMsg);
     }
   } catch (e) {
     console.error('[SureEdge BG] Erro freebet:', e.message);
@@ -270,7 +296,7 @@ setInterval(pollFreebetQueue, 600); // offset leve para não colidir
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg.type === 'signal') {
     const { source, payload } = msg.data ?? {};
-    // Filtra ruído: RENEW_NONCE e INVALID_SESSION são ciclos internos normais
+    // Filtra ruído: RENEW_NONCE e INVALID_SESSION são ciclos internos normais do painel
     if (payload?.code === 'RENEW_NONCE' || payload?.code === 'INVALID_SESSION') return false;
     console.log(`[SureEdge BG] Sinal (${source}):`, JSON.stringify(payload)?.slice(0, 200));
   }
