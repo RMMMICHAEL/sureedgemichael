@@ -123,20 +123,22 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
   }
 
   if (alarm.name === 'session-keepalive') {
-    // Envia scroll suave para todas as abas do SM abertas
+    // Ping silencioso: faz um fetch leve no SM sem interagir com o DOM
+    // Isso renova o cookie de sessão sem acionar eventos na página
     const allSm = await chrome.tabs.query({ url: `${SM_BASE}/*` });
-    for (const tab of allSm) {
-      try {
-        await chrome.tabs.sendMessage(tab.id, { type: 'keepalive' });
-        console.log(`[SureEdge BG] 🔄 Session keepalive → aba ${tab.id}`);
-      } catch {
-        // Aba sem content-script — injeta e tenta
-        try {
-          await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['content-script.js'] });
-          await new Promise(r => setTimeout(r, 500));
-          await chrome.tabs.sendMessage(tab.id, { type: 'keepalive' });
-        } catch { /* silencioso */ }
-      }
+    if (!allSm.length) return; // SM não está aberto — nada a fazer
+
+    try {
+      // Busca a página principal do SM com credenciais (cookies) — mantém sessão viva
+      await fetch(`${SM_BASE}/index.php`, {
+        method: 'GET',
+        credentials: 'include',
+        cache: 'no-store',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      });
+      console.log('[SureEdge BG] 🔄 Session ping OK');
+    } catch {
+      /* silencioso — falha de rede não é crítica */
     }
   }
 });
