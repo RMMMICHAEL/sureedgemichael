@@ -4,3 +4,66 @@
    [debug] 404 body: No input file specified.
 
    Erro: Operario x Juventude: proxy falhou (404)
+
+══════════════════════════════════════════════════════
+  COOKIE EXPIRADO — renovação manual necessária
+  1. Acesse painel.supermonitor.pro e copie o PHPSESSID
+  2. Cole no painel admin do SureEdge (app_config)
+  3. Reinicie: node scripts/process-queue.mjs
+══════════════════════════════════════════════════════
+
+   Nao foi possivel obter cookie valido.
+
+══════════════════════════════════════════════════════
+  COOKIE EXPIRADO — renovação manual necessária
+  1. Acesse painel.supermonitor.pro e copie o PHPSESSID
+  2. Cole no painel admin do SureEdge (app_config)
+  3. Reinicie: node scripts/process-queue.mjs
+══════════════════════════════════════════════════════
+
+   Freebet: sem cookie válido
+
+══════════════════════════════════════════════════════
+  COOKIE EXPIRADO — renovação manual necessária
+  1. Acesse painel.supermonitor.pro e copie o PHPSESSID
+  2. Cole no painel admin do SureEdge (app_config)
+  3. Reinicie: node scripts/process-queue.mjs
+══════════════════════════════════════════════════════
+
+   Freebet: sem cookie válido
+
+══════════════════════════════════════════════════════
+  COOKIE EXPIRADO — renovação manual necessária
+  1. Acesse painel.supermonitor.pro e copie o PHPSESSID
+  2. Cole no painel admin do SureEdge (app_config)
+  3. Reinicie: node scripts/process-queue.mjs
+══════════════════════════════════════════════════════
+
+   Freebet: sem cookie válido
+
+══════════════════════════════════════════════════════
+  COOKIE EXPIRADO — renovação manual necessária
+  1. Acesse painel.supermonitor.pro e copie o PHPSESSID
+  2. Cole no painel admin do SureEdge (app_config)
+  3. Reinicie: node scripts/process-queue.mjs
+══════════════════════════════════════════════════════
+
+   Freebet: sem cookie válido
+
+══════════════════════════════════════════════════════
+  COOKIE EXPIRADO — renovação manual necessária
+  1. Acesse painel.supermonitor.pro e copie o PHPSESSID
+  2. Cole no painel admin do SureEdge (app_config)
+  3. Reinicie: node scripts/process-queue.mjs
+══════════════════════════════════════════════════════
+
+   Freebet: sem cookie válido
+
+══════════════════════════════════════════════════════
+  COOKIE EXPIRADO — renovação manual necessária
+  1. Acesse painel.supermonitor.pro e copie o PHPSESSID
+  2. Cole no painel admin do SureEdge (app_config)
+  3. Reinicie: node scripts/process-queue.mjs
+══════════════════════════════════════════════════════
+
+   Freebet: sem cookie válido

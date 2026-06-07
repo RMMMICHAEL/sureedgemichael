@@ -7,3 +7,33 @@ Verificando fila a cada 500ms (anti-ban: 3-6s entre requests SM) | Ctrl+C para p
 
 [14:51:48] 1 item(ns) na fila
    Sessao ECDH criada
+SureEdge Queue Daemon v3 iniciado
+Verificando fila a cada 500ms (anti-ban: 3-6s entre requests SM) | Ctrl+C para parar
+
+
+[06:54:13] 2 item(ns) na fila
+
+[07:24:43] 1 freebet(s) na fila
+
+[07:24:45] 1 freebet(s) na fila
+
+[07:24:46] 1 freebet(s) na fila
+
+[07:24:47] 1 freebet(s) na fila
+
+[07:24:49] 1 freebet(s) na fila
+
+[07:24:50] 1 freebet(s) na fila
+=====================================
+ SureEdge Daemon — Reiniciando...
+=====================================
+
+[OK] Daemon iniciado em segundo plano!
+
+=====================================
+ Logs em tempo real (Ctrl+C para sair)
+=====================================
+
+SureEdge Queue Daemon v4 iniciado
+Extensão gerencia todas as buscas | Ctrl+C para parar
+

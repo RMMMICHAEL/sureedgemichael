@@ -19,6 +19,7 @@ import { CalculadoraPage }   from '@/components/calculadora/CalculadoraPage';
 import { AdminPage }          from '@/components/admin/AdminPage';
 import { PerfilPage }         from '@/components/perfil/PerfilPage';
 import { NotasPage }          from '@/components/notas/NotasPage';
+import { BuscarOddsPage }     from '@/components/odds/BuscarOddsPage';
 
 function ComingSoonPage({ title }: { title: string }) {
   return (
@@ -373,7 +374,7 @@ export function AppShell() {
             {view === 'contas'  && <ContasPage />}
             {view === 'analise'   && <AnalisePage />}
             {view === 'calc'      && <CalculadoraPage />}
-            {view === 'odds'      && <ComingSoonPage title="Buscar Odds" />}
+            {view === 'odds'      && <BuscarOddsPage />}
             {view === 'notas'      && <NotasPage />}
             {view === 'freebet'    && <ComingSoonPage title="Converter Free Bet" />}
             {view === 'resumo'     && <ResumoPage />}
