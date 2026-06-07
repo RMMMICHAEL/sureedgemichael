@@ -114,11 +114,30 @@ function waitTabLoad(tabId, timeout = 8000) {
 }
 
 // FIX 4: keepalive via chrome.alarms — evita que o service worker MV3 durma e pare o polling
-chrome.alarms.create('keepalive', { periodInMinutes: 0.4 }); // ~24s
-chrome.alarms.onAlarm.addListener((alarm) => {
+chrome.alarms.create('keepalive',         { periodInMinutes: 0.4 }); // ~24s — mantém SW vivo
+chrome.alarms.create('session-keepalive', { periodInMinutes: 10  }); // 10min — simula atividade no SM
+
+chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name === 'keepalive') {
     // Acorda o service worker — o setInterval continua rodando
-    console.log('[SureEdge BG] keepalive ✓');
+  }
+
+  if (alarm.name === 'session-keepalive') {
+    // Envia scroll suave para todas as abas do SM abertas
+    const allSm = await chrome.tabs.query({ url: `${SM_BASE}/*` });
+    for (const tab of allSm) {
+      try {
+        await chrome.tabs.sendMessage(tab.id, { type: 'keepalive' });
+        console.log(`[SureEdge BG] 🔄 Session keepalive → aba ${tab.id}`);
+      } catch {
+        // Aba sem content-script — injeta e tenta
+        try {
+          await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['content-script.js'] });
+          await new Promise(r => setTimeout(r, 500));
+          await chrome.tabs.sendMessage(tab.id, { type: 'keepalive' });
+        } catch { /* silencioso */ }
+      }
+    }
   }
 });
 

@@ -63,6 +63,16 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     return true;
   }
 
+  // ── Keepalive de sessão ────────────────────────────────────────────────────
+  if (msg.type === 'keepalive') {
+    // Scroll suave pra cima e volta — simula presença sem acionar nada suspeito
+    const y = window.scrollY;
+    window.scrollBy({ top: 80, behavior: 'smooth' });
+    setTimeout(() => window.scrollTo({ top: y, behavior: 'smooth' }), 800);
+    sendResponse({ ok: true });
+    return false;
+  }
+
   return false;
 });
 
