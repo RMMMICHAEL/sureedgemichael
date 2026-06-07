@@ -114,33 +114,10 @@ function waitTabLoad(tabId, timeout = 8000) {
 }
 
 // FIX 4: keepalive via chrome.alarms — evita que o service worker MV3 durma e pare o polling
-chrome.alarms.create('keepalive',         { periodInMinutes: 0.4 }); // ~24s — mantém SW vivo
-chrome.alarms.create('session-keepalive', { periodInMinutes: 10  }); // 10min — simula atividade no SM
-
-chrome.alarms.onAlarm.addListener(async (alarm) => {
-  if (alarm.name === 'keepalive') {
-    // Acorda o service worker — o setInterval continua rodando
-  }
-
-  if (alarm.name === 'session-keepalive') {
-    // Ping silencioso: faz um fetch leve no SM sem interagir com o DOM
-    // Isso renova o cookie de sessão sem acionar eventos na página
-    const allSm = await chrome.tabs.query({ url: `${SM_BASE}/*` });
-    if (!allSm.length) return; // SM não está aberto — nada a fazer
-
-    try {
-      // Busca a página principal do SM com credenciais (cookies) — mantém sessão viva
-      await fetch(`${SM_BASE}/index.php`, {
-        method: 'GET',
-        credentials: 'include',
-        cache: 'no-store',
-        headers: { 'X-Requested-With': 'XMLHttpRequest' },
-      });
-      console.log('[SureEdge BG] 🔄 Session ping OK');
-    } catch {
-      /* silencioso — falha de rede não é crítica */
-    }
-  }
+// Keepalive do service worker MV3 — apenas acorda o SW, sem contato com o SM
+chrome.alarms.create('keepalive', { periodInMinutes: 0.4 }); // ~24s
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === 'keepalive') { /* mantém SW vivo */ }
 });
 
 // ── Freebet queue helpers ─────────────────────────────────────────────────────
