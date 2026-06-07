@@ -16,11 +16,36 @@ import { GastosPage }      from '@/components/gastos/GastosPage';
 import { ContasPage }      from '@/components/contas/ContasPage';
 import { AnalisePage }       from '@/components/analise/AnalisePage';
 import { CalculadoraPage }   from '@/components/calculadora/CalculadoraPage';
-import { BuscarOddsPage }    from '@/components/odds/BuscarOddsPage';
 import { AdminPage }          from '@/components/admin/AdminPage';
 import { PerfilPage }         from '@/components/perfil/PerfilPage';
 import { NotasPage }          from '@/components/notas/NotasPage';
-import { FreebetConverterPage } from '@/components/freebet/FreebetConverterPage';
+
+function ComingSoonPage({ title }: { title: string }) {
+  return (
+    <div style={{
+      flex: 1, display: 'flex', flexDirection: 'column',
+      alignItems: 'center', justifyContent: 'center', gap: 16,
+      padding: 40, textAlign: 'center',
+    }}>
+      <div style={{
+        width: 56, height: 56, borderRadius: 16,
+        background: 'rgba(63,255,33,.07)',
+        border: '1px solid rgba(63,255,33,.15)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: 26,
+      }}>🔧</div>
+      <div>
+        <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--t)', marginBottom: 8 }}>
+          {title}
+        </div>
+        <div style={{ fontSize: 13, color: 'var(--t3)', maxWidth: 320, lineHeight: 1.6 }}>
+          Esta funcionalidade está temporariamente indisponível.<br />
+          Em breve estará de volta com melhorias.
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // SCANNER_NOTIF_KEY mantido para evitar erros em outros componentes
 const SCANNER_NOTIF_KEY = 'scanner_notif_enabled';
@@ -348,9 +373,9 @@ export function AppShell() {
             {view === 'contas'  && <ContasPage />}
             {view === 'analise'   && <AnalisePage />}
             {view === 'calc'      && <CalculadoraPage />}
-            {view === 'odds'      && <BuscarOddsPage />}
+            {view === 'odds'      && <ComingSoonPage title="Buscar Odds" />}
             {view === 'notas'      && <NotasPage />}
-            {view === 'freebet'    && <FreebetConverterPage />}
+            {view === 'freebet'    && <ComingSoonPage title="Converter Free Bet" />}
             {view === 'resumo'     && <ResumoPage />}
             {view === 'metas'      && <MetasPage />}
             {view === 'operadores' && <OperadoresPage />}
