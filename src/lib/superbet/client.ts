@@ -1,49 +1,49 @@
 /**
- * Cliente Superbet — API pública via Fastly CDN.
- * Fluxo:
- *   1. GET getBetbuilderEvents → lista de eventIds (string[])
- *   2. GET /v2/pt-BR/events/{eventId} → dados + odds[]
+ * Cliente Superbet — API pública.
  *
- * Odds relevantes: odds[].marketName === 'Resultado Final'
- *   code '1' | 'X' | '2', price decimal, status 'active'
+ * Estratégia (em ordem de prioridade):
+ *   1. POST api-gw/events/produce  → retorna lista de eventos com odds (domínio betler, não Fastly)
+ *   2. Static sportTournamentMap   → busca por torneio via offer API
+ *   3. getBetbuilderEvents + fetch individual (fallback legado, lento no Vercel)
+ *
+ * is_pa: true (Superbet opera com Pagamento Antecipado)
  */
 
 import type { OddsSummary } from '@/lib/altenar/client';
 
-const OFFER_BASE = 'https://production-superbet-offer-br.freetls.fastly.net';
-const BMB_BASE   = 'https://production-superbet-bmb.freetls.fastly.net';
+const BETLER_BASE = 'https://api.web.production.betler.superbet.bet.br';
+const OFFER_BASE  = 'https://production-superbet-offer-br.freetls.fastly.net';
+const BMB_BASE    = 'https://production-superbet-bmb.freetls.fastly.net';
+const STATIC_BASE = 'https://superbet.bet.br';
 
 const HEADERS = {
-  Accept:       'application/json',
-  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-  Origin:       'https://superbet.bet.br',
-  Referer:      'https://superbet.bet.br/',
+  Accept:         'application/json',
+  'Content-Type': 'application/json',
+  'User-Agent':   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+  Origin:         'https://superbet.bet.br',
+  Referer:        'https://superbet.bet.br/',
 };
 
-// A lista betbuilder tem ~2200 IDs. Os eventos de hoje ficam nos últimos
-// ~600 IDs. Pegamos os últimos 250: suficiente para hoje com margem,
-// e ~3s de fetch paralelo no Vercel (testado: 200 IDs = 3s).
+const FOOTBALL_SPORT_ID = 5;
 const SLICE_START = -250;
-const SLICE_END   = undefined; // até o fim
+
+// ─── interfaces ────────────────────────────────────────────────────────────
 
 interface SuperbetOdd {
-  code:        string;   // '1' | 'X' | '2'
-  price:       number;
-  status:      string;   // 'active'
-  marketName:  string;
-  marketId:    number;
+  code:       string;  // '1' | 'X' | '2'
+  price:      number;
+  status:     string;  // 'active'
+  marketName: string;
+  marketId:   number;
 }
 
 interface SuperbetEvent {
-  eventId:      number;
-  matchDate:    string;  // 'YYYY-MM-DD HH:MM:SS'
-  matchName?:   string;
-  homeTeamId?:  string;
-  awayTeamId?:  string;
+  eventId:       number;
+  matchDate:     string;  // 'YYYY-MM-DD HH:MM:SS'
+  matchName?:    string;
   tournamentId?: number;
-  sportId?:     number;
-  odds:         SuperbetOdd[];
-  oddsResults?: unknown;
+  sportId?:      number;
+  odds:          SuperbetOdd[];
 }
 
 interface SuperbetEventResponse {
@@ -55,6 +55,150 @@ interface BetbuilderEventsResponse {
   events: string[];
 }
 
+// ─── helpers ───────────────────────────────────────────────────────────────
+
+function extract1X2(odds: SuperbetOdd[]): { home: number; draw: number; away: number } | null {
+  const market = odds.filter(o => o.status === 'active' && o.marketName === 'Resultado Final');
+  const o1 = market.find(o => o.code === '1');
+  const oX = market.find(o => o.code === 'X');
+  const o2 = market.find(o => o.code === '2');
+  if (!o1 || !oX || !o2) return null;
+  if (o1.price <= 1 || o2.price <= 1) return null;
+  return { home: o1.price, draw: oX.price, away: o2.price };
+}
+
+function parseMatchName(ev: SuperbetEvent): { home: string; away: string } {
+  const name = ev.matchName ?? '';
+  if (name.includes('(')) return { home: '', away: '' };
+  const sep = name.includes('·') ? '·' : ' x ';
+  const parts = name.split(sep);
+  return { home: parts[0]?.trim() ?? '', away: parts[1]?.trim() ?? '' };
+}
+
+function toSlug(s: string): string {
+  return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+}
+
+function eventsToSummary(events: SuperbetEvent[]): OddsSummary[] {
+  const results: OddsSummary[] = [];
+  for (const ev of events) {
+    if (ev.sportId && ev.sportId !== FOOTBALL_SPORT_ID) continue;
+    const odds = extract1X2(ev.odds ?? []);
+    if (!odds) continue;
+    const { home, away } = parseMatchName(ev);
+    if (!home || !away) continue;
+    const startTime = ev.matchDate
+      ? new Date(ev.matchDate.replace(' ', 'T') + 'Z').toISOString()
+      : new Date().toISOString();
+    results.push({
+      match_id:    String(ev.eventId),
+      home_team:   home,
+      away_team:   away,
+      start_time:  startTime,
+      league_name: '',
+      league_id:   ev.tournamentId ?? 0,
+      bookmakers: [{
+        slug:  'superbet',
+        name:  'Superbet',
+        home:  odds.home,
+        draw:  odds.draw,
+        away:  odds.away,
+        url:   `https://superbet.bet.br/odds/futebol/${toSlug(home)}-x-${toSlug(away)}-${ev.eventId}`,
+        is_pa: true,
+      }],
+    });
+  }
+  return results;
+}
+
+// ─── estratégia 1: betler api-gw/events/produce ────────────────────────────
+
+async function tryBetlerEventsApi(): Promise<OddsSummary[]> {
+  // Tenta variações do payload para o endpoint events/produce
+  const payloads = [
+    { sportId: FOOTBALL_SPORT_ID, isLive: false, lang: 'pt-BR' },
+    { sport: FOOTBALL_SPORT_ID, live: false },
+    { sportIds: [FOOTBALL_SPORT_ID], isLive: false },
+    { filters: { sportId: FOOTBALL_SPORT_ID, isLive: false } },
+    {},  // sem filtro — pode retornar tudo
+  ];
+
+  for (const body of payloads) {
+    try {
+      const res = await fetch(`${BETLER_BASE}/api-gw/events/produce`, {
+        method:  'POST',
+        headers: HEADERS,
+        body:    JSON.stringify(body),
+        cache:   'no-store',
+      });
+      if (!res.ok) continue;
+      const ct = res.headers.get('content-type') ?? '';
+      if (!ct.includes('json')) continue;
+      const json = await res.json() as { data?: SuperbetEvent[]; events?: SuperbetEvent[]; items?: SuperbetEvent[] } | SuperbetEvent[];
+      const events: SuperbetEvent[] = Array.isArray(json)
+        ? json
+        : (json as { data?: SuperbetEvent[]; events?: SuperbetEvent[]; items?: SuperbetEvent[] }).data
+          ?? (json as { data?: SuperbetEvent[]; events?: SuperbetEvent[]; items?: SuperbetEvent[] }).events
+          ?? (json as { data?: SuperbetEvent[]; events?: SuperbetEvent[]; items?: SuperbetEvent[] }).items
+          ?? [];
+      if (events.length > 0) return eventsToSummary(events);
+    } catch { /* tenta próximo payload */ }
+  }
+  return [];
+}
+
+// ─── estratégia 2: static sportTournamentMap + offer por torneio ────────────
+
+async function tryTournamentMap(): Promise<OddsSummary[]> {
+  try {
+    const res = await fetch(`${STATIC_BASE}/static/offerMappings/sportTournamentMap_pt-BR.json`, {
+      headers: { ...HEADERS, 'Content-Type': '' },
+      cache:   'no-store',
+    });
+    if (!res.ok) return [];
+    const ct = res.headers.get('content-type') ?? '';
+    if (!ct.includes('json')) return [];
+
+    // Estrutura esperada: { [sportId]: { tournaments: number[] } }
+    // ou { sports: [{ id, tournaments: [...] }] }
+    const map = await res.json() as Record<string, unknown>;
+
+    // Tenta extrair IDs de torneio para futebol (sportId=5)
+    let tournamentIds: number[] = [];
+    if (map[String(FOOTBALL_SPORT_ID)]) {
+      const sport = map[String(FOOTBALL_SPORT_ID)] as { tournaments?: number[] };
+      tournamentIds = sport.tournaments ?? [];
+    } else if (Array.isArray(map)) {
+      const football = (map as Array<{ id?: number; sportId?: number; tournaments?: number[] }>)
+        .find(s => s.id === FOOTBALL_SPORT_ID || s.sportId === FOOTBALL_SPORT_ID);
+      tournamentIds = football?.tournaments ?? [];
+    }
+
+    if (!tournamentIds.length) return [];
+
+    // Busca eventos por torneio (pega os primeiros 20 torneios para não timeout)
+    const topTournaments = tournamentIds.slice(0, 20);
+    const fetched = await Promise.allSettled(topTournaments.map(tid =>
+      fetch(`${OFFER_BASE}/v2/pt-BR/tournaments/${tid}/events?lang=pt-BR&status=0`, {
+        headers: HEADERS,
+        cache:   'no-store',
+      }).then(r => r.ok ? r.json() as Promise<SuperbetEventResponse> : null)
+    ));
+
+    const all: SuperbetEvent[] = [];
+    for (const r of fetched) {
+      if (r.status !== 'fulfilled' || !r.value) continue;
+      const data = (r.value as SuperbetEventResponse).data ?? [];
+      all.push(...data);
+    }
+    return eventsToSummary(all);
+  } catch {
+    return [];
+  }
+}
+
+// ─── estratégia 3: fallback legado (betbuilder + individual fetches) ─────────
+
 async function fetchEventIds(): Promise<string[]> {
   try {
     const res = await fetch(`${BMB_BASE}/betbuilder/v2/getBetbuilderEvents?target=SB_BR`, {
@@ -63,9 +207,7 @@ async function fetchEventIds(): Promise<string[]> {
     });
     if (!res.ok) return [];
     const json: BetbuilderEventsResponse = await res.json();
-    // Os jogos de hoje ficam no range SLICE_START..SLICE_END da lista
-    const all = json.events ?? [];
-    return all.slice(SLICE_START, SLICE_END);
+    return (json.events ?? []).slice(SLICE_START);
   } catch {
     return [];
   }
@@ -74,11 +216,11 @@ async function fetchEventIds(): Promise<string[]> {
 async function fetchEvent(eventId: string): Promise<SuperbetEvent | null> {
   try {
     const ac = new AbortController();
-    const timer = setTimeout(() => ac.abort(), 6000); // timeout 6s por evento
+    const timer = setTimeout(() => ac.abort(), 5000);
     const res = await fetch(`${OFFER_BASE}/v2/pt-BR/events/${eventId}`, {
       headers: HEADERS,
-      cache: 'no-store',
-      signal: ac.signal,
+      cache:   'no-store',
+      signal:  ac.signal,
     });
     clearTimeout(timer);
     if (!res.ok) return null;
@@ -90,90 +232,25 @@ async function fetchEvent(eventId: string): Promise<SuperbetEvent | null> {
   }
 }
 
-function extract1X2(odds: SuperbetOdd[]): { home: number; draw: number; away: number } | null {
-  const market = odds.filter(
-    o => o.status === 'active' && o.marketName === 'Resultado Final'
-  );
-
-  const o1 = market.find(o => o.code === '1');
-  const oX = market.find(o => o.code === 'X');
-  const o2 = market.find(o => o.code === '2');
-
-  if (!o1 || !oX || !o2) return null;
-  if (o1.price <= 1 || o2.price <= 1) return null;
-
-  return { home: o1.price, draw: oX.price, away: o2.price };
-}
-
-// Superbet usa '·' como separador de times na maioria dos eventos.
-// Esports tem nomes no formato "Time (playerNick)·Time2 (nick2)" — excluídos abaixo.
-function parseMatchName(ev: SuperbetEvent): { home: string; away: string } {
-  const name = ev.matchName ?? '';
-  // Exclui esports (nomes com parentheses de jogador)
-  if (name.includes('(')) return { home: '', away: '' };
-  // Tenta separador '·' primeiro, depois ' x '
-  const sep = name.includes('·') ? '·' : ' x ';
-  const parts = name.split(sep);
-  return {
-    home: parts[0]?.trim() ?? '',
-    away: parts[1]?.trim() ?? '',
-  };
-}
-
-function toSlug(s: string): string {
-  return s
-    .toLowerCase()
-    .normalize('NFD').replace(/[̀-ͯ]/g, '')
-    .replace(/\s+/g, '-')
-    .replace(/[^a-z0-9\-]/g, '');
-}
-
-export async function getSuperbetOdds(): Promise<OddsSummary[]> {
+async function tryBetbuilderFallback(): Promise<OddsSummary[]> {
   const eventIds = await fetchEventIds();
   if (!eventIds.length) return [];
-
-  // Todos em paralelo (~500 requests, ~5-8s no Vercel)
-  const results: OddsSummary[] = [];
   const fetched = await Promise.allSettled(eventIds.map(fetchEvent));
+  const events: SuperbetEvent[] = fetched
+    .filter((r): r is PromiseFulfilledResult<SuperbetEvent> => r.status === 'fulfilled' && r.value !== null)
+    .map(r => r.value);
+  return eventsToSummary(events);
+}
 
-  for (const r of fetched) {
-      if (r.status !== 'fulfilled' || !r.value) continue;
-      const ev = r.value;
+// ─── export principal ──────────────────────────────────────────────────────
 
-      // Filtra apenas futebol (sportId=5 na Superbet)
-      if (ev.sportId && ev.sportId !== 5) continue;
+export async function getSuperbetOdds(): Promise<OddsSummary[]> {
+  // Tenta estratégias em ordem: betler API → tournament map → fallback legado
+  let results = await tryBetlerEventsApi();
+  if (results.length > 0) return results;
 
-      const odds = extract1X2(ev.odds ?? []);
-      if (!odds) continue;
+  results = await tryTournamentMap();
+  if (results.length > 0) return results;
 
-      const { home, away } = parseMatchName(ev);
-      if (!home || !away) continue;
-
-      const startTime = ev.matchDate
-        ? new Date(ev.matchDate.replace(' ', 'T') + 'Z').toISOString()
-        : new Date().toISOString();
-
-      // URL: /odds/futebol/{home-slug}-x-{away-slug}-{eventId}
-      const eventUrl = `https://superbet.bet.br/odds/futebol/${toSlug(home)}-x-${toSlug(away)}-${ev.eventId}`;
-
-      results.push({
-        match_id:    String(ev.eventId),
-        home_team:   home,
-        away_team:   away,
-        start_time:  startTime,
-        league_name: '',
-        league_id:   ev.tournamentId ?? 0,
-        bookmakers: [{
-          slug:  'superbet',
-          name:  'Superbet',
-          home:  odds.home,
-          draw:  odds.draw,
-          away:  odds.away,
-          url:   eventUrl,
-          is_pa: true,
-        }],
-      });
-  }
-
-  return results;
+  return tryBetbuilderFallback();
 }
