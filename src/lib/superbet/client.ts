@@ -131,18 +131,30 @@ async function tryBetlerEventsApi(): Promise<OddsSummary[]> {
         headers: HEADERS,
         body:    JSON.stringify(body),
       });
-      if (!res.ok) continue;
+      console.log(`[superbet] betler status=${res.status} payload=${JSON.stringify(body)}`);
+      if (!res.ok) {
+        const errText = await res.text().catch(() => '');
+        console.log(`[superbet] betler error body:`, errText.slice(0, 200));
+        continue;
+      }
       const ct = res.headers.get('content-type') ?? '';
-      if (!ct.includes('json')) continue;
+      if (!ct.includes('json')) {
+        console.log(`[superbet] betler non-json content-type:`, ct);
+        continue;
+      }
       const json = await res.json() as { data?: SuperbetEvent[]; events?: SuperbetEvent[]; items?: SuperbetEvent[] } | SuperbetEvent[];
+      console.log(`[superbet] betler keys:`, Array.isArray(json) ? 'array' : Object.keys(json as object));
       const events: SuperbetEvent[] = Array.isArray(json)
         ? json
         : (json as { data?: SuperbetEvent[]; events?: SuperbetEvent[]; items?: SuperbetEvent[] }).data
           ?? (json as { data?: SuperbetEvent[]; events?: SuperbetEvent[]; items?: SuperbetEvent[] }).events
           ?? (json as { data?: SuperbetEvent[]; events?: SuperbetEvent[]; items?: SuperbetEvent[] }).items
           ?? [];
+      console.log(`[superbet] betler events count:`, events.length);
       if (events.length > 0) return eventsToSummary(events);
-    } catch { /* tenta próximo payload */ }
+    } catch (e) {
+      console.log(`[superbet] betler exception:`, String(e));
+    }
   }
   return [];
 }
