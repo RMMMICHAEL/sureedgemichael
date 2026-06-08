@@ -58,6 +58,8 @@ export async function GET(req: NextRequest) {
   }
 
   const champId = req.nextUrl.searchParams.get('champ_id');
+  // ?all=1 retorna todos os dias; padrão = só hoje (horário de Brasília)
+  const showAll = req.nextUrl.searchParams.get('all') === '1';
 
   try {
     const [altenarOdds, kambiOdds] = await Promise.allSettled([
@@ -68,7 +70,26 @@ export async function GET(req: NextRequest) {
     const altenar = altenarOdds.status === 'fulfilled' ? altenarOdds.value : [];
     const kambi   = kambiOdds.status   === 'fulfilled' ? kambiOdds.value   : [];
 
-    const odds = mergeOdds(altenar, kambi);
+    let odds = mergeOdds(altenar, kambi);
+
+    // Filtra por dia (Brasília = UTC-3)
+    if (!showAll) {
+      const nowBR  = new Date(Date.now() - 3 * 60 * 60 * 1000);
+      const todayY = nowBR.getUTCFullYear();
+      const todayM = nowBR.getUTCMonth();
+      const todayD = nowBR.getUTCDate();
+
+      odds = odds.filter(ev => {
+        const d = new Date(ev.start_time);
+        // converte para Brasília
+        const dBR = new Date(d.getTime() - 3 * 60 * 60 * 1000);
+        return (
+          dBR.getUTCFullYear() === todayY &&
+          dBR.getUTCMonth()    === todayM &&
+          dBR.getUTCDate()     === todayD
+        );
+      });
+    }
 
     const sources: string[] = [];
     if (altenar.length > 0) sources.push('altenar');

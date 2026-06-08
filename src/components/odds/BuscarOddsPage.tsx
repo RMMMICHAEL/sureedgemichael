@@ -66,13 +66,15 @@ export function BuscarOddsPage() {
   const [league,   setLeague]   = useState('all');
   const [sort,     setSort]     = useState<'time' | 'margin' | 'bkm'>('time');
   const [lastUpd,  setLastUpd]  = useState('');
+  const [showAll,  setShowAll]  = useState(false);
 
   // ── Carrega ───────────────────────────────────────────────────────────────
-  const load = useCallback(async () => {
+  const load = useCallback(async (all = false) => {
     setLoading(true);
     setError('');
     try {
-      const res  = await fetch('/api/dg/odds');
+      const url  = all ? '/api/dg/odds?all=1' : '/api/dg/odds';
+      const res  = await fetch(url);
       const data = await res.json() as {
         ok: boolean; error?: string; odds?: OddsSummary[]; source?: string;
       };
@@ -86,7 +88,7 @@ export function BuscarOddsPage() {
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(showAll); }, [load, showAll]);
 
   // ── Filtra + ordena ───────────────────────────────────────────────────────
   useEffect(() => {
@@ -134,7 +136,7 @@ export function BuscarOddsPage() {
           <div style={{ fontSize: 12, color: 'var(--t3)' }}>
             {loading
               ? 'Carregando…'
-              : `${filtered.length} jogos · EstrelaBet · Br4bet · EsportivaBet · Jogo de Ouro · ${lastUpd}`}
+              : `${filtered.length} jogos${showAll ? '' : ' hoje'} · EstrelaBet · Br4bet · EsportivaBet · Jogo de Ouro · ${lastUpd}`}
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -147,7 +149,26 @@ export function BuscarOddsPage() {
               🎯 {surebetCount} surebet{surebetCount > 1 ? 's' : ''}
             </div>
           )}
-          <button onClick={load} disabled={loading} style={{
+          {/* Toggle Hoje / Todos */}
+          <div style={{ display: 'flex', borderRadius: 8, overflow: 'hidden', border: '1px solid var(--b)' }}>
+            {(['hoje', 'todos'] as const).map(opt => {
+              const active = opt === 'todos' ? showAll : !showAll;
+              return (
+                <button
+                  key={opt}
+                  onClick={() => setShowAll(opt === 'todos')}
+                  style={{
+                    padding: '5px 12px', fontSize: 12, fontWeight: 600, border: 'none',
+                    background: active ? 'var(--accent, #818cf8)' : 'var(--bg2)',
+                    color: active ? '#fff' : 'var(--t3)', cursor: 'pointer',
+                  }}
+                >
+                  {opt === 'hoje' ? 'Hoje' : 'Todos'}
+                </button>
+              );
+            })}
+          </div>
+          <button onClick={() => load(showAll)} disabled={loading} style={{
             padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600,
             background: 'var(--bg2)', border: '1px solid var(--b)',
             color: 'var(--t2)', cursor: loading ? 'wait' : 'pointer', opacity: loading ? 0.6 : 1,
