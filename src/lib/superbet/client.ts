@@ -21,10 +21,10 @@ const HEADERS = {
 };
 
 // A lista betbuilder tem ~2200 IDs. Os eventos de hoje ficam nos últimos
-// ~600 IDs e o range muda conforme novos eventos são adicionados.
-// Estratégia: pegar os últimos 700 e filtrar por data no momento do fetch.
-const SLICE_START = -700;   // últimos 700 IDs cobrem hoje + próximos dias
-const SLICE_END   = undefined; // até o fim da lista
+// ~600 IDs e o range varia conforme novos eventos são adicionados.
+// Pegamos os últimos 500 em paralelo (~5-8s), que cobrem hoje + amanhã.
+const SLICE_START = -500;
+const SLICE_END   = undefined; // até o fim
 
 interface SuperbetOdd {
   code:        string;   // '1' | 'X' | '2'
@@ -73,10 +73,14 @@ async function fetchEventIds(): Promise<string[]> {
 
 async function fetchEvent(eventId: string): Promise<SuperbetEvent | null> {
   try {
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), 6000); // timeout 6s por evento
     const res = await fetch(`${OFFER_BASE}/v2/pt-BR/events/${eventId}`, {
       headers: HEADERS,
       cache: 'no-store',
+      signal: ac.signal,
     });
+    clearTimeout(timer);
     if (!res.ok) return null;
     const json: SuperbetEventResponse = await res.json();
     if (json.error || !json.data?.length) return null;
@@ -128,16 +132,9 @@ export async function getSuperbetOdds(): Promise<OddsSummary[]> {
   const eventIds = await fetchEventIds();
   if (!eventIds.length) return [];
 
-  // Busca em paralelo em lotes de 100 para não sobrecarregar o Vercel
+  // Todos em paralelo (~500 requests, ~5-8s no Vercel)
   const results: OddsSummary[] = [];
-  const allFetched: Array<SuperbetEvent | null> = [];
-  const BATCH = 100;
-  for (let i = 0; i < eventIds.length; i += BATCH) {
-    const batch = eventIds.slice(i, i + BATCH);
-    const settled = await Promise.allSettled(batch.map(fetchEvent));
-    for (const r of settled) allFetched.push(r.status === 'fulfilled' ? r.value : null);
-  }
-  const fetched = allFetched.map(v => ({ status: 'fulfilled' as const, value: v }));
+  const fetched = await Promise.allSettled(eventIds.map(fetchEvent));
 
   for (const r of fetched) {
       if (r.status !== 'fulfilled' || !r.value) continue;

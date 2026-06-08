@@ -7,7 +7,8 @@
  * Query params:
  *   ?champ_id=11318  → filtra por liga Altenar (Kambi sempre retorna tudo)
  */
-export const dynamic = 'force-dynamic';
+export const dynamic    = 'force-dynamic';
+export const maxDuration = 30; // segundos — Vercel Pro/hobby suporta até 60s
 
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies }                   from 'next/headers';
