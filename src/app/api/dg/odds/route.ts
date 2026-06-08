@@ -106,18 +106,13 @@ export async function GET(req: NextRequest) {
       const filterD = refBR.getUTCDate();
 
       odds = odds.filter(ev => {
-        const d = new Date(ev.start_time);
-        // Bet365/algumas APIs usam 00:00:00Z como placeholder de horário.
-        // Nesse caso comparamos a data UTC diretamente (sem shift BRT),
-        // pois o dia no Brasil é o mesmo da data UTC quando horário é meia-noite.
-        const isMidnightPlaceholder =
-          d.getUTCHours() === 0 && d.getUTCMinutes() === 0 && d.getUTCSeconds() === 0;
-
-        const evY = isMidnightPlaceholder ? d.getUTCFullYear() : new Date(d.getTime() - 3 * 60 * 60 * 1000).getUTCFullYear();
-        const evM = isMidnightPlaceholder ? d.getUTCMonth()    : new Date(d.getTime() - 3 * 60 * 60 * 1000).getUTCMonth();
-        const evD = isMidnightPlaceholder ? d.getUTCDate()     : new Date(d.getTime() - 3 * 60 * 60 * 1000).getUTCDate();
-
-        return evY === filterY && evM === filterM && evD === filterD;
+        const d   = new Date(ev.start_time);
+        // Converte UTC → BRT (UTC-3) para comparar o dia correto.
+        // Exemplos: 21:00 BRT = 00:00 UTC próximo dia → subtrai 3h = 21:00 UTC = dia BRT correto.
+        const brt = new Date(d.getTime() - 3 * 60 * 60 * 1000);
+        return brt.getUTCFullYear() === filterY &&
+               brt.getUTCMonth()    === filterM &&
+               brt.getUTCDate()     === filterD;
       });
     }
 
