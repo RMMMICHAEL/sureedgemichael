@@ -20,6 +20,7 @@ import { AdminPage }          from '@/components/admin/AdminPage';
 import { PerfilPage }         from '@/components/perfil/PerfilPage';
 import { NotasPage }          from '@/components/notas/NotasPage';
 import { BuscarOddsPage }     from '@/components/odds/BuscarOddsPage';
+import { FifaPage }           from '@/components/fifa/FifaPage';
 
 function ComingSoonPage({ title }: { title: string }) {
   return (
@@ -375,6 +376,7 @@ export function AppShell() {
             {view === 'analise'   && <AnalisePage />}
             {view === 'calc'      && <CalculadoraPage />}
             {view === 'odds'      && <BuscarOddsPage />}
+            {view === 'fifa'      && <FifaPage />}
             {view === 'notas'      && <NotasPage />}
             {view === 'freebet'    && <ComingSoonPage title="Converter Free Bet" />}
             {view === 'resumo'     && <ResumoPage />}
