@@ -7,12 +7,14 @@ import { SurebetCalc } from '@/components/calcalendario/SurebetCalc';
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
 interface BookmakerOdds {
-  slug: string;
-  name: string;
-  home: number;
-  draw: number;
-  away: number;
-  url:  string;
+  slug:  string;
+  name:  string;
+  home:  number;
+  draw:  number;
+  away:  number;
+  url:   string;
+  /** true = Pagamento Antecipado; false/undefined = pagamento normal */
+  is_pa?: boolean;
 }
 
 interface OddsSummary {
@@ -131,8 +133,9 @@ function EventOddsPanel({
     return slots.findIndex(s => s?.bk.slug === slug && s?.type === type);
   }
 
-  const semPa = event.bookmakers.filter(b => !isPa(b.slug));
-  const comPa = event.bookmakers.filter(b =>  isPa(b.slug));
+  // is_pa do backend (preciso) > heurística de slug (fallback para dados antigos)
+  const semPa = event.bookmakers.filter(b => !(b.is_pa ?? isPa(b.slug)));
+  const comPa = event.bookmakers.filter(b =>  (b.is_pa ?? isPa(b.slug)));
 
   function bestOf(bks: BookmakerOdds[], key: keyof BookmakerOdds): number {
     const vals = bks.map(b => b[key] as number).filter(v => v > 1);

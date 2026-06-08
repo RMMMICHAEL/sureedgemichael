@@ -134,12 +134,13 @@ export async function getKambiOdds(): Promise<OddsSummary[]> {
       }
 
       eventMap.get(key)!.bookmakers.push({
-        slug: client.id,
-        name: client.name,
-        home: odds.home,
-        draw: odds.draw,
-        away: odds.away,
-        url:  client.url(ev.id),
+        slug:  client.id,
+        name:  client.name,
+        home:  odds.home,
+        draw:  odds.draw,
+        away:  odds.away,
+        url:   client.url(ev.id),
+        is_pa: true, // casas Kambi (Sportingbet, KTO) operam com PA
       });
     }
   }

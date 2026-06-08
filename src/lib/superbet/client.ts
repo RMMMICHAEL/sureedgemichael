@@ -164,12 +164,13 @@ export async function getSuperbetOdds(): Promise<OddsSummary[]> {
         league_name: '',
         league_id:   ev.tournamentId ?? 0,
         bookmakers: [{
-          slug: 'superbet',
-          name: 'Superbet',
-          home: odds.home,
-          draw: odds.draw,
-          away: odds.away,
-          url:  eventUrl,
+          slug:  'superbet',
+          name:  'Superbet',
+          home:  odds.home,
+          draw:  odds.draw,
+          away:  odds.away,
+          url:   eventUrl,
+          is_pa: true,
         }],
       });
   }

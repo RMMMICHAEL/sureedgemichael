@@ -151,12 +151,13 @@ export async function getBetanoOdds(): Promise<OddsSummary[]> {
       const existing = eventMap.get(key)!;
       if (!existing.bookmakers.find(b => b.slug === 'betano')) {
         existing.bookmakers.push({
-          slug: 'betano',
-          name: 'Betano',
-          home: odds.home,
-          draw: odds.draw,
-          away: odds.away,
-          url:  `https://www.betano.bet.br${ev.url ?? ''}`,
+          slug:  'betano',
+          name:  'Betano',
+          home:  odds.home,
+          draw:  odds.draw,
+          away:  odds.away,
+          url:   `https://www.betano.bet.br${ev.url ?? ''}`,
+          is_pa: false, // Betano NÃO tem PA
         });
       }
     }

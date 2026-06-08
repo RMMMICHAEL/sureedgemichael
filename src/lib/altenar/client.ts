@@ -51,6 +51,8 @@ export interface BookmakerOdds {
   draw:  number;
   away:  number;
   url:   string;
+  /** true = Pagamento Antecipado (PA); false = pagamento normal pós-jogo */
+  is_pa: boolean;
 }
 
 // ── Raw API types ─────────────────────────────────────────────────────────────
@@ -239,12 +241,13 @@ function buildOddsSummary(
         : `https://${intg}.bet.br/sports/futebol/e-${ev.id}`;
 
       eventMap.get(ev.id)!.bookmakers.push({
-        slug: intg,
+        slug:  intg,
         name,
-        home: ev.odds1,
-        draw: ev.oddsX,
-        away: ev.odds2,
-        url:  baseUrl,
+        home:  ev.odds1,
+        draw:  ev.oddsX,
+        away:  ev.odds2,
+        url:   baseUrl,
+        is_pa: true, // todas as casas Altenar operam com Pagamento Antecipado
       });
     }
   }

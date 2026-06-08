@@ -175,12 +175,13 @@ export async function getBwinOdds(): Promise<OddsSummary[]> {
       league_name: leagueName,
       league_id:   Number(leagueId),
       bookmakers: [{
-        slug: 'sportingbet',
-        name: 'Sportingbet',
-        home: homeOdds,
-        draw: drawOdds,
-        away: awayOdds,
-        url:  fixtureUrl,
+        slug:  'sportingbet',
+        name:  'Sportingbet',
+        home:  homeOdds,
+        draw:  drawOdds,
+        away:  awayOdds,
+        url:   fixtureUrl,
+        is_pa: true, // Sportingbet opera com Pagamento Antecipado
       }],
     });
   }

@@ -136,12 +136,13 @@ export async function getBet365Odds(): Promise<OddsSummary[]> {
         league_name: leagueName,
         league_id:   0,
         bookmakers: [{
-          slug: 'bet365',
-          name: 'Bet365',
-          home: odds.home,
-          draw: odds.draw,
-          away: odds.away,
-          url:  eventUrl,
+          slug:  'bet365',
+          name:  'Bet365',
+          home:  odds.home,
+          draw:  odds.draw,
+          away:  odds.away,
+          url:   eventUrl,
+          is_pa: false, // Bet365 NÃO tem Pagamento Antecipado
         }],
       });
     }

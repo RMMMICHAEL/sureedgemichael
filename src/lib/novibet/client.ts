@@ -134,12 +134,13 @@ export async function getNovibetOdds(): Promise<OddsSummary[]> {
           const existing = eventMap.get(key)!;
           if (!existing.bookmakers.find(b => b.slug === 'novibet')) {
             existing.bookmakers.push({
-              slug: 'novibet',
-              name: 'Novibet',
-              home: odds.home,
-              draw: odds.draw,
-              away: odds.away,
-              url:  `https://www.novibet.bet.br/apostas/${ev.path ?? ''}`,
+              slug:  'novibet',
+              name:  'Novibet',
+              home:  odds.home,
+              draw:  odds.draw,
+              away:  odds.away,
+              url:   `https://www.novibet.bet.br/apostas/${ev.path ?? ''}`,
+              is_pa: false, // Novibet NÃO tem PA
             });
           }
         }
