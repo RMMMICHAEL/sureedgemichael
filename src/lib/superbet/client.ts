@@ -20,8 +20,14 @@ const HEADERS = {
   Referer:      'https://superbet.bet.br/',
 };
 
-// Máximo de eventos para buscar individualmente (cada um ~3MB)
-const MAX_EVENTS = 40;
+// Estrutura da lista betbuilder (2194 total):
+//   0-500:    eventos com empty data (passado)
+//   500-1500: futebol futuro (próximas semanas)
+//   1500-1900: FUTEBOL DE HOJE E AMANHÃ ← range útil
+//   1900-2194: esports e outros esportes
+// Pegamos 700 IDs a partir de -1000 (antes dos esports) para cobrir o range certo.
+const SLICE_START = -1000;  // do fim: começa aqui
+const SLICE_END   = -300;   // vai até aqui (exclui esports no final)
 
 interface SuperbetOdd {
   code:        string;   // '1' | 'X' | '2'
@@ -56,11 +62,13 @@ async function fetchEventIds(): Promise<string[]> {
   try {
     const res = await fetch(`${BMB_BASE}/betbuilder/v2/getBetbuilderEvents?target=SB_BR`, {
       headers: HEADERS,
-      next: { revalidate: 120 },
+      cache: 'no-store',
     });
     if (!res.ok) return [];
     const json: BetbuilderEventsResponse = await res.json();
-    return (json.events ?? []).slice(0, MAX_EVENTS);
+    // Os jogos de hoje ficam no range SLICE_START..SLICE_END da lista
+    const all = json.events ?? [];
+    return all.slice(SLICE_START, SLICE_END);
   } catch {
     return [];
   }
@@ -70,7 +78,7 @@ async function fetchEvent(eventId: string): Promise<SuperbetEvent | null> {
   try {
     const res = await fetch(`${OFFER_BASE}/v2/pt-BR/events/${eventId}`, {
       headers: HEADERS,
-      next: { revalidate: 60 },
+      cache: 'no-store',
     });
     if (!res.ok) return null;
     const json: SuperbetEventResponse = await res.json();
@@ -96,12 +104,18 @@ function extract1X2(odds: SuperbetOdd[]): { home: number; draw: number; away: nu
   return { home: o1.price, draw: oX.price, away: o2.price };
 }
 
-// Superbet stores team names in matchName ("Time A x Time B")
+// Superbet usa '·' como separador de times na maioria dos eventos.
+// Esports tem nomes no formato "Time (playerNick)·Time2 (nick2)" — excluídos abaixo.
 function parseMatchName(ev: SuperbetEvent): { home: string; away: string } {
-  const parts = (ev.matchName ?? '').split(' x ');
+  const name = ev.matchName ?? '';
+  // Exclui esports (nomes com parentheses de jogador)
+  if (name.includes('(')) return { home: '', away: '' };
+  // Tenta separador '·' primeiro, depois ' x '
+  const sep = name.includes('·') ? '·' : ' x ';
+  const parts = name.split(sep);
   return {
-    home: parts[0]?.trim() ?? String(ev.homeTeamId ?? ''),
-    away: parts[1]?.trim() ?? String(ev.awayTeamId ?? ''),
+    home: parts[0]?.trim() ?? '',
+    away: parts[1]?.trim() ?? '',
   };
 }
 
@@ -117,15 +131,11 @@ export async function getSuperbetOdds(): Promise<OddsSummary[]> {
   const eventIds = await fetchEventIds();
   if (!eventIds.length) return [];
 
-  // Busca em lotes de 10 para não sobrecarregar
-  const BATCH = 10;
+  // Busca todos em paralelo (~700 IDs no range de hoje+amanhã)
   const results: OddsSummary[] = [];
+  const fetched = await Promise.allSettled(eventIds.map(fetchEvent));
 
-  for (let i = 0; i < eventIds.length; i += BATCH) {
-    const batch = eventIds.slice(i, i + BATCH);
-    const events = await Promise.allSettled(batch.map(fetchEvent));
-
-    for (const r of events) {
+  for (const r of fetched) {
       if (r.status !== 'fulfilled' || !r.value) continue;
       const ev = r.value;
 
@@ -161,7 +171,6 @@ export async function getSuperbetOdds(): Promise<OddsSummary[]> {
           url:  eventUrl,
         }],
       });
-    }
   }
 
   return results;
