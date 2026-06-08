@@ -32,7 +32,8 @@ interface PulseSelection {
 }
 
 interface PulseMarket {
-  canonicalMarket: string;  // 'MATCH_RESULT' | 'OVER_UNDER' | ...
+  canonicalMarket: string;  // 'MATCH_RESULT' | 'OTHER' | ...
+  rawName?:        string;  // nome real quando canonicalMarket = 'OTHER'
   isActive:        boolean;
   selections:      PulseSelection[];
 }
@@ -72,12 +73,16 @@ async function fetchPage(page: number): Promise<PulseResponse | null> {
 
 // ── Odds extraction ───────────────────────────────────────────────────────────
 
+function isMatchResultMarket(m: PulseMarket): boolean {
+  if (m.canonicalMarket === 'MATCH_RESULT') return true;
+  const raw = (m.rawName ?? '').toLowerCase();
+  return raw === 'match result' || raw === '1x2' || raw === 'match betting' || raw === 'full time result';
+}
+
 function extract1X2(
   markets: PulseMarket[],
 ): { home: number; draw: number; away: number } | null {
-  const mkt = markets.find(
-    m => m.canonicalMarket === 'MATCH_RESULT' && m.isActive,
-  );
+  const mkt = markets.find(m => m.isActive && isMatchResultMarket(m));
   if (!mkt) return null;
 
   const sel = mkt.selections.filter(s => s.isActive);
@@ -85,7 +90,7 @@ function extract1X2(
   const sX  = sel.find(s => s.canonicalOutcome === 'DRAW');
   const s2  = sel.find(s => s.canonicalOutcome === 'AWAY');
 
-  if (!s1 || !sX || !s2)     return null;
+  if (!s1 || !sX || !s2)            return null;
   if (s1.odds <= 1 || s2.odds <= 1) return null;
 
   return { home: s1.odds, draw: sX.odds, away: s2.odds };

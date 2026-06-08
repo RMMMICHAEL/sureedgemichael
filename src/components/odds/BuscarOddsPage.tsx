@@ -29,12 +29,15 @@ interface OddsSummary {
 
 // ─── Casas com Pagamento Antecipado ──────────────────────────────────────────
 
+// PA = Pagamento Antecipado: casas que pagam antes do fim do jogo (plataforma Altenar) + Superbet.
+// NÃO inclui: Bet365, Betano, Sportingbet — essas pagam apenas ao fim do jogo.
 const PA_SET = new Set([
-  'betano','novibet','betvip','betsul','betesporte','brasilbet','betsson','bet365',
-  'lotogreen','kto','vivasorte','sportingbet','superbet','apostabet','br4bet',
-  'esportivabet','esportesdasorte','sortenabet','betmgm','estrelabet','bet7k',
-  'jogodeouro','mcgames','meridianbet','versusbet','vupibet','vaidebet',
-  'ktobr','f12','betpix365','vupi',
+  // Altenar (todas são PA)
+  'estrelabet','br4bet','esportivabet','jogodeouro','vaidebet',
+  'sortenabet','lotogreen','betpix365','f12','vupibet','vupibr',
+  'bet7k','esportesdasorte','apostabet','brasilbet',
+  // Superbet
+  'superbet',
 ]);
 
 function isPa(slug: string): boolean {
