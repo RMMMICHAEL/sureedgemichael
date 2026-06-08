@@ -406,6 +406,59 @@ function EventOddsPanel({ event, onBack }: { event: CachedEvent; onBack: () => v
         </div>
       )}
 
+      {/* ── Calculadora integrada (TOPO) ──────────────────────────────────── */}
+      {!loading && odds && (
+        <div style={{
+          borderRadius: 14, overflow: 'hidden',
+          border: `1px solid ${activeSlots.length > 0 ? 'rgba(61,255,143,.25)' : 'var(--b)'}`,
+          background: activeSlots.length > 0 ? 'rgba(61,255,143,.025)' : 'var(--bg2)',
+          transition: 'border-color .2s, background .2s',
+        }}>
+          {/* Header da calculadora */}
+          <div style={{
+            padding: '10px 16px', borderBottom: '1px solid rgba(255,255,255,.06)',
+            display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+          }}>
+            <span style={{ fontSize: 10, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '.12em', color: 'var(--t3)' }}>
+              🧮 Calculadora
+            </span>
+            <div style={{ display: 'flex', gap: 6, flex: 1, flexWrap: 'wrap' }}>
+              {slots.map((slot, i) => (
+                <div key={i} style={{
+                  display: 'flex', alignItems: 'center', gap: 5,
+                  padding: '3px 8px', borderRadius: 7,
+                  background: slot ? `${SLOT_COLORS[i]}15` : 'rgba(255,255,255,.04)',
+                  border: `1px solid ${slot ? SLOT_COLORS[i] + '40' : 'rgba(255,255,255,.08)'}`,
+                  fontSize: 10, fontWeight: 700, transition: 'all .15s',
+                }}>
+                  <span style={{ color: SLOT_COLORS[i], opacity: slot ? 1 : .3, fontSize: 9 }}>{SLOT_LABELS[i]}</span>
+                  {slot ? (
+                    <>
+                      <span style={{ color: 'var(--t2)' }}>{slot.bk.name}</span>
+                      <span style={{ color: SLOT_COLORS[i], fontWeight: 900 }}>{slot.value.toFixed(2)}</span>
+                      <span style={{ color: 'rgba(255,255,255,.3)', fontSize: 9 }}>
+                        ({slot.type === 'home' ? '1' : slot.type === 'draw' ? 'X' : '2'})
+                      </span>
+                      <button onClick={() => { setSlots(prev => { const n = [...prev]; n[i] = null; return n; }); }}
+                        style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,.3)', cursor: 'pointer', fontSize: 11, lineHeight: 1, padding: 0, marginLeft: 2 }}>×</button>
+                    </>
+                  ) : (
+                    <span style={{ color: 'rgba(255,255,255,.2)', fontSize: 9 }}>vazio</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+          <div style={{ padding: 16 }}>
+            <SurebetCalc
+              selectedEvent={{ name: event.name, start_utc: event.start_utc }}
+              externalFill={calcFill}
+              defaultNumOutcomes={3}
+            />
+          </div>
+        </div>
+      )}
+
       {/* Tabela de odds */}
       {!loading && odds && (
         <div style={{ borderRadius: 14, overflow: 'hidden', border: '1px solid var(--b)' }}>
@@ -509,68 +562,6 @@ function EventOddsPanel({ event, onBack }: { event: CachedEvent; onBack: () => v
         </div>
       )}
 
-      {/* ── Calculadora integrada ──────────────────────────────────────────── */}
-      {!loading && odds && (
-        <div style={{
-          borderRadius: 14, overflow: 'hidden',
-          border: `1px solid ${activeSlots.length > 0 ? 'rgba(61,255,143,.25)' : 'var(--b)'}`,
-          background: activeSlots.length > 0 ? 'rgba(61,255,143,.025)' : 'var(--bg2)',
-          transition: 'border-color .2s, background .2s',
-        }}>
-          {/* Header da calculadora */}
-          <div style={{
-            padding: '10px 16px', borderBottom: '1px solid rgba(255,255,255,.06)',
-            display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
-          }}>
-            <span style={{ fontSize: 10, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '.12em', color: 'var(--t3)' }}>
-              🧮 Calculadora
-            </span>
-
-            {/* Slots selecionados */}
-            <div style={{ display: 'flex', gap: 6, flex: 1, flexWrap: 'wrap' }}>
-              {slots.map((slot, i) => (
-                <div key={i} style={{
-                  display: 'flex', alignItems: 'center', gap: 5,
-                  padding: '3px 8px', borderRadius: 7,
-                  background: slot ? `${SLOT_COLORS[i]}15` : 'rgba(255,255,255,.04)',
-                  border: `1px solid ${slot ? SLOT_COLORS[i] + '40' : 'rgba(255,255,255,.08)'}`,
-                  fontSize: 10, fontWeight: 700, transition: 'all .15s',
-                }}>
-                  <span style={{ color: SLOT_COLORS[i], opacity: slot ? 1 : .3, fontSize: 9 }}>
-                    {SLOT_LABELS[i]}
-                  </span>
-                  {slot ? (
-                    <>
-                      <span style={{ color: 'var(--t2)' }}>{slot.bk.name}</span>
-                      <span style={{ color: SLOT_COLORS[i], fontWeight: 900 }}>{slot.value.toFixed(2)}</span>
-                      <span style={{ color: 'rgba(255,255,255,.3)', fontSize: 9 }}>
-                        ({slot.type === 'home' ? '1' : slot.type === 'draw' ? 'X' : '2'})
-                      </span>
-                      <button onClick={() => {
-                        setSlots(prev => { const n = [...prev]; n[i] = null; return n; });
-                      }} style={{
-                        background: 'none', border: 'none', color: 'rgba(255,255,255,.3)',
-                        cursor: 'pointer', fontSize: 11, lineHeight: 1, padding: 0, marginLeft: 2,
-                      }}>×</button>
-                    </>
-                  ) : (
-                    <span style={{ color: 'rgba(255,255,255,.2)', fontSize: 9 }}>vazio</span>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Calculadora propriamente dita */}
-          <div style={{ padding: 16 }}>
-            <SurebetCalc
-              selectedEvent={{ name: event.name, start_utc: event.start_utc }}
-              externalFill={calcFill}
-              defaultNumOutcomes={activeSlots.length >= 3 ? 3 : 2}
-            />
-          </div>
-        </div>
-      )}
     </div>
   );
 }
