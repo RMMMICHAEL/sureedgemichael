@@ -10,6 +10,7 @@
  */
 
 import type { OddsSummary } from '@/lib/altenar/client';
+import { proxyFetch } from '@/lib/proxy/fetch';
 
 const BETLER_BASE = 'https://api.web.production.betler.superbet.bet.br';
 const OFFER_BASE  = 'https://production-superbet-offer-br.freetls.fastly.net';
@@ -125,11 +126,10 @@ async function tryBetlerEventsApi(): Promise<OddsSummary[]> {
 
   for (const body of payloads) {
     try {
-      const res = await fetch(`${BETLER_BASE}/api-gw/events/produce`, {
+      const res = await proxyFetch(`${BETLER_BASE}/api-gw/events/produce`, {
         method:  'POST',
         headers: HEADERS,
         body:    JSON.stringify(body),
-        cache:   'no-store',
       });
       if (!res.ok) continue;
       const ct = res.headers.get('content-type') ?? '';
@@ -151,9 +151,8 @@ async function tryBetlerEventsApi(): Promise<OddsSummary[]> {
 
 async function tryTournamentMap(): Promise<OddsSummary[]> {
   try {
-    const res = await fetch(`${STATIC_BASE}/static/offerMappings/sportTournamentMap_pt-BR.json`, {
+    const res = await proxyFetch(`${STATIC_BASE}/static/offerMappings/sportTournamentMap_pt-BR.json`, {
       headers: { ...HEADERS, 'Content-Type': '' },
-      cache:   'no-store',
     });
     if (!res.ok) return [];
     const ct = res.headers.get('content-type') ?? '';
@@ -179,9 +178,8 @@ async function tryTournamentMap(): Promise<OddsSummary[]> {
     // Busca eventos por torneio (pega os primeiros 20 torneios para não timeout)
     const topTournaments = tournamentIds.slice(0, 20);
     const fetched = await Promise.allSettled(topTournaments.map(tid =>
-      fetch(`${OFFER_BASE}/v2/pt-BR/tournaments/${tid}/events?lang=pt-BR&status=0`, {
+      proxyFetch(`${OFFER_BASE}/v2/pt-BR/tournaments/${tid}/events?lang=pt-BR&status=0`, {
         headers: HEADERS,
-        cache:   'no-store',
       }).then(r => r.ok ? r.json() as Promise<SuperbetEventResponse> : null)
     ));
 
@@ -201,9 +199,8 @@ async function tryTournamentMap(): Promise<OddsSummary[]> {
 
 async function fetchEventIds(): Promise<string[]> {
   try {
-    const res = await fetch(`${BMB_BASE}/betbuilder/v2/getBetbuilderEvents?target=SB_BR`, {
+    const res = await proxyFetch(`${BMB_BASE}/betbuilder/v2/getBetbuilderEvents?target=SB_BR`, {
       headers: HEADERS,
-      cache: 'no-store',
     });
     if (!res.ok) return [];
     const json: BetbuilderEventsResponse = await res.json();
@@ -217,9 +214,8 @@ async function fetchEvent(eventId: string): Promise<SuperbetEvent | null> {
   try {
     const ac = new AbortController();
     const timer = setTimeout(() => ac.abort(), 5000);
-    const res = await fetch(`${OFFER_BASE}/v2/pt-BR/events/${eventId}`, {
+    const res = await proxyFetch(`${OFFER_BASE}/v2/pt-BR/events/${eventId}`, {
       headers: HEADERS,
-      cache:   'no-store',
       signal:  ac.signal,
     });
     clearTimeout(timer);

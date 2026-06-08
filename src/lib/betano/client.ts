@@ -8,6 +8,7 @@
  */
 
 import type { OddsSummary } from '@/lib/altenar/client';
+import { proxyFetch } from '@/lib/proxy/fetch';
 
 const BASE = 'https://www.betano.bet.br/api';
 
@@ -75,13 +76,12 @@ async function fetchLeague(
   const url = `${BASE}/sport/futebol/${regionSlug}/${leagueSlug}/${leagueId}r/?req=s,stnf,c`;
 
   try {
-    const res = await fetch(url, {
+    const res = await proxyFetch(url, {
       headers: {
         Accept:       'application/json',
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
         Referer:      'https://www.betano.bet.br/',
       },
-      next: { revalidate: 60 },
     });
 
     if (!res.ok) return [];
