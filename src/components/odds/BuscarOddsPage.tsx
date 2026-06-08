@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Search, X, Building2, ScanSearch, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
+import { SurebetCalc } from '@/components/calcalendario/SurebetCalc';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -101,6 +102,14 @@ function fmtTime(utc: string): string {
   catch { return utc; }
 }
 
+// ─── Slot de calculadora ─────────────────────────────────────────────────────
+
+type OddType = 'home' | 'draw' | 'away';
+interface CalcSlot { bk: BookmakerOdds; type: OddType; value: number }
+
+const SLOT_COLORS = ['#3DFF8F', '#4DA6FF', '#FF9F0A'];
+const SLOT_LABELS = ['1ª', '2ª', '3ª'];
+
 // ─── Painel de odds ───────────────────────────────────────────────────────────
 
 function EventOddsPanel({ event, onBack }: { event: CachedEvent; onBack: () => void }) {
@@ -108,16 +117,61 @@ function EventOddsPanel({ event, onBack }: { event: CachedEvent; onBack: () => v
   const [odds,     setOdds]     = useState<OddsSummary | null>(null);
   const [fetchErr, setFetchErr] = useState('');
 
+  // ── Calculadora integrada ────────────────────────────────────────────────
+  const [slots, setSlots] = useState<(CalcSlot | null)[]>([null, null, null]);
+
+  // externalFill derivado dos slots — nova referência só quando slots mudam
+  const [calcFill, setCalcFill] = useState<{
+    odds: string[]; houses: string[]; urls: string[];
+  } | null>(null);
+
+  useEffect(() => {
+    const active = slots.filter(Boolean) as CalcSlot[];
+    if (!active.length) { setCalcFill(null); return; }
+    setCalcFill({
+      odds:   active.map(s => String(s.value)),
+      houses: active.map(s => s.bk.name),
+      urls:   active.map(s => s.bk.url ?? ''),
+    });
+  }, [slots]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function handleOddClick(bk: BookmakerOdds, type: OddType, value: number) {
+    if (value <= 1) return;
+    setSlots(prev => {
+      const existingIdx = prev.findIndex(s => s?.bk.slug === bk.slug && s?.type === type);
+      if (existingIdx >= 0) {
+        // Desseleciona
+        const next = [...prev];
+        next[existingIdx] = null;
+        return next;
+      }
+      // Primeiro slot vazio
+      const emptyIdx = prev.findIndex(s => s === null);
+      if (emptyIdx >= 0) {
+        const next = [...prev];
+        next[emptyIdx] = { bk, type, value };
+        return next;
+      }
+      // Todos cheios → substitui o último
+      return [prev[1], prev[2], { bk, type, value }];
+    });
+  }
+
+  function slotOf(slug: string, type: OddType): number {
+    return slots.findIndex(s => s?.bk.slug === slug && s?.type === type);
+  }
+
+  // ── Fetch ────────────────────────────────────────────────────────────────
   async function load() {
     setLoading(true);
     setFetchErr('');
     setOdds(null);
+    setSlots([null, null, null]);
     try {
       const res  = await fetch('/api/dg/odds?all=1');
       const data = await res.json() as { ok: boolean; odds?: OddsSummary[]; error?: string };
       if (!data.ok) throw new Error(data.error ?? 'Erro ao carregar odds');
 
-      // Extrai times do nome do evento (padrão: "Time A x Time B")
       const [rawHome, rawAway] = event.name.split(/\s+x\s+/i);
       const home = rawHome?.trim() ?? '';
       const away = rawAway?.trim() ?? '';
@@ -145,7 +199,6 @@ function EventOddsPanel({ event, onBack }: { event: CachedEvent; onBack: () => v
     catch { return utc; }
   }
 
-  // Separa casas em sem PA / com PA e calcula melhores
   const semPa = (odds?.bookmakers ?? []).filter(b => !isPa(b.slug));
   const comPa = (odds?.bookmakers ?? []).filter(b =>  isPa(b.slug));
 
@@ -160,26 +213,74 @@ function EventOddsPanel({ event, onBack }: { event: CachedEvent; onBack: () => v
     return (1/h + 1/d + 1/a - 1) * 100;
   }
 
+  // Célula de odd clicável
+  function OddCell({ bk, type, value, isBest }: {
+    bk: BookmakerOdds; type: OddType; value: number; isBest: boolean;
+  }) {
+    const slotIdx = slotOf(bk.slug, type);
+    const selected = slotIdx >= 0;
+    const color = selected ? SLOT_COLORS[slotIdx] : isBest ? 'var(--g)' : 'var(--t2)';
+
+    return (
+      <td style={{ padding: '4px 6px', textAlign: 'center', position: 'relative' }}>
+        {value > 1 ? (
+          <button
+            onClick={() => handleOddClick(bk, type, value)}
+            title={selected ? `Remover da calculadora (slot ${slotIdx + 1})` : 'Adicionar à calculadora'}
+            style={{
+              width: '100%', minWidth: 52, padding: '5px 4px',
+              borderRadius: 7, cursor: 'pointer',
+              fontSize: 12, fontWeight: selected ? 900 : isBest ? 800 : 500,
+              fontVariantNumeric: 'tabular-nums',
+              color,
+              background: selected
+                ? `rgba(${SLOT_COLORS[slotIdx].slice(1).match(/../g)!.map(h=>parseInt(h,16)).join(',')}, .13)`
+                : isBest ? 'rgba(63,255,33,.07)' : 'transparent',
+              border: selected
+                ? `1px solid ${SLOT_COLORS[slotIdx]}55`
+                : isBest ? '1px solid rgba(63,255,33,.2)' : '1px solid transparent',
+              transition: 'all .12s',
+              position: 'relative',
+            }}
+          >
+            {value.toFixed(2)}
+            {selected && (
+              <span style={{
+                position: 'absolute', top: -5, right: -5,
+                width: 14, height: 14, borderRadius: '50%',
+                background: SLOT_COLORS[slotIdx],
+                color: '#0D1117', fontSize: 8, fontWeight: 900,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                lineHeight: 1,
+              }}>
+                {slotIdx + 1}
+              </span>
+            )}
+          </button>
+        ) : (
+          <span style={{ color: 'rgba(255,255,255,.15)', fontSize: 12 }}>—</span>
+        )}
+      </td>
+    );
+  }
+
   function BkRow({ bk, bests }: { bk: BookmakerOdds; bests: { h: number; d: number; a: number } }) {
     const isH = bk.home === bests.h && bk.home > 1;
     const isD = bk.draw === bests.d && bk.draw > 1;
     const isA = bk.away === bests.a && bk.away > 1;
-    const cell = (val: number, best: boolean) => (
-      <td style={{
-        textAlign: 'center', padding: '6px 8px', fontSize: 12,
-        fontWeight: best ? 800 : 500,
-        color: best ? 'var(--g)' : 'var(--t2)',
-        background: best ? 'rgba(63,255,33,.09)' : undefined,
-        fontVariantNumeric: 'tabular-nums',
-      }}>
-        {val > 1 ? val.toFixed(2) : <span style={{ color: 'rgba(255,255,255,.2)' }}>—</span>}
-      </td>
-    );
+
+    // Linha destacada se qualquer odd desta casa está selecionada
+    const anySelected = slots.some(s => s?.bk.slug === bk.slug);
+
     return (
-      <tr style={{ borderBottom: '1px solid rgba(255,255,255,.03)', transition: 'background .1s' }}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,.03)'; }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = ''; }}>
-        <td style={{ padding: '6px 12px', fontSize: 11, fontWeight: 700, color: 'var(--t2)', whiteSpace: 'nowrap' }}>
+      <tr style={{
+        borderBottom: '1px solid rgba(255,255,255,.03)',
+        background: anySelected ? 'rgba(255,255,255,.025)' : undefined,
+        transition: 'background .1s',
+      }}
+        onMouseEnter={e => { if (!anySelected) (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,.02)'; }}
+        onMouseLeave={e => { if (!anySelected) (e.currentTarget as HTMLElement).style.background = ''; }}>
+        <td style={{ padding: '5px 10px', fontSize: 11, fontWeight: 700, color: anySelected ? 'var(--t)' : 'var(--t2)', whiteSpace: 'nowrap' }}>
           {bk.url ? (
             <a href={bk.url} target="_blank" rel="noopener noreferrer"
               style={{ color: 'inherit', textDecoration: 'none' }}
@@ -189,9 +290,9 @@ function EventOddsPanel({ event, onBack }: { event: CachedEvent; onBack: () => v
             </a>
           ) : bk.name}
         </td>
-        {cell(bk.home, isH)}
-        {cell(bk.draw, isD)}
-        {cell(bk.away, isA)}
+        <OddCell bk={bk} type="home" value={bk.home} isBest={isH} />
+        <OddCell bk={bk} type="draw" value={bk.draw} isBest={isD} />
+        <OddCell bk={bk} type="away" value={bk.away} isBest={isA} />
       </tr>
     );
   }
@@ -212,7 +313,7 @@ function EventOddsPanel({ event, onBack }: { event: CachedEvent; onBack: () => v
       <>
         <tr>
           <td colSpan={4} style={{
-            padding: '6px 12px', fontSize: 9, fontWeight: 900,
+            padding: '5px 10px', fontSize: 9, fontWeight: 900,
             textTransform: 'uppercase', letterSpacing: '.12em',
             color: accent, background: bg, borderTop: '1px solid var(--b)',
           }}>
@@ -237,6 +338,8 @@ function EventOddsPanel({ event, onBack }: { event: CachedEvent; onBack: () => v
     d: bestOf(odds?.bookmakers ?? [], 'draw'),
     a: bestOf(odds?.bookmakers ?? [], 'away'),
   };
+
+  const activeSlots = slots.filter(Boolean) as CalcSlot[];
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -322,19 +425,48 @@ function EventOddsPanel({ event, onBack }: { event: CachedEvent; onBack: () => v
             </div>
           </div>
 
+          {/* Dica de interação */}
+          <div style={{
+            padding: '6px 14px', fontSize: 10, color: 'rgba(255,255,255,.3)',
+            background: 'rgba(77,166,255,.03)', borderBottom: '1px solid rgba(255,255,255,.04)',
+            display: 'flex', alignItems: 'center', gap: 6,
+          }}>
+            <span style={{ fontSize: 12 }}>👆</span>
+            <span>Clique em uma odd para fixar na calculadora · até 3 slots</span>
+            {activeSlots.length > 0 && (
+              <button
+                onClick={() => setSlots([null, null, null])}
+                style={{
+                  marginLeft: 'auto', fontSize: 9, fontWeight: 700,
+                  color: 'rgba(255,255,255,.4)', background: 'none',
+                  border: '1px solid rgba(255,255,255,.12)', borderRadius: 5,
+                  padding: '2px 7px', cursor: 'pointer',
+                }}>
+                Limpar slots
+              </button>
+            )}
+          </div>
+
           {/* Tabela */}
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 320 }}>
               <thead>
                 <tr style={{ background: 'rgba(255,255,255,.025)' }}>
-                  <th style={{ padding: '6px 12px', textAlign: 'left', fontSize: 10, fontWeight: 800,
-                    textTransform: 'uppercase', letterSpacing: '.1em', color: 'var(--t3)', minWidth: 120 }}>
+                  <th style={{ padding: '6px 10px', textAlign: 'left', fontSize: 10, fontWeight: 800,
+                    textTransform: 'uppercase', letterSpacing: '.1em', color: 'var(--t3)', minWidth: 110 }}>
                     Casa
                   </th>
-                  {['1','X','2'].map(l => (
-                    <th key={l} style={{ padding: '6px 8px', textAlign: 'center', fontSize: 10, fontWeight: 800,
-                      textTransform: 'uppercase', letterSpacing: '.1em', color: 'var(--t3)', minWidth: 52 }}>
-                      {l}
+                  {[
+                    { label: '1', sub: event.name.split(/\s+x\s+/i)[0]?.trim().split(' ')[0] ?? '1' },
+                    { label: 'X', sub: 'Empate' },
+                    { label: '2', sub: event.name.split(/\s+x\s+/i)[1]?.trim().split(' ')[0] ?? '2' },
+                  ].map(({ label, sub }) => (
+                    <th key={label} style={{ padding: '6px 6px', textAlign: 'center', fontSize: 10, fontWeight: 800,
+                      textTransform: 'uppercase', letterSpacing: '.1em', color: 'var(--t3)', minWidth: 56 }}>
+                      <div>{label}</div>
+                      <div style={{ fontSize: 8, fontWeight: 600, opacity: .5, textTransform: 'none', letterSpacing: 0, marginTop: 1 }}>
+                        {sub.slice(0, 8)}
+                      </div>
                     </th>
                   ))}
                 </tr>
@@ -373,6 +505,69 @@ function EventOddsPanel({ event, onBack }: { event: CachedEvent; onBack: () => v
                 </span>
               ) : null
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Calculadora integrada ──────────────────────────────────────────── */}
+      {!loading && odds && (
+        <div style={{
+          borderRadius: 14, overflow: 'hidden',
+          border: `1px solid ${activeSlots.length > 0 ? 'rgba(61,255,143,.25)' : 'var(--b)'}`,
+          background: activeSlots.length > 0 ? 'rgba(61,255,143,.025)' : 'var(--bg2)',
+          transition: 'border-color .2s, background .2s',
+        }}>
+          {/* Header da calculadora */}
+          <div style={{
+            padding: '10px 16px', borderBottom: '1px solid rgba(255,255,255,.06)',
+            display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+          }}>
+            <span style={{ fontSize: 10, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '.12em', color: 'var(--t3)' }}>
+              🧮 Calculadora
+            </span>
+
+            {/* Slots selecionados */}
+            <div style={{ display: 'flex', gap: 6, flex: 1, flexWrap: 'wrap' }}>
+              {slots.map((slot, i) => (
+                <div key={i} style={{
+                  display: 'flex', alignItems: 'center', gap: 5,
+                  padding: '3px 8px', borderRadius: 7,
+                  background: slot ? `${SLOT_COLORS[i]}15` : 'rgba(255,255,255,.04)',
+                  border: `1px solid ${slot ? SLOT_COLORS[i] + '40' : 'rgba(255,255,255,.08)'}`,
+                  fontSize: 10, fontWeight: 700, transition: 'all .15s',
+                }}>
+                  <span style={{ color: SLOT_COLORS[i], opacity: slot ? 1 : .3, fontSize: 9 }}>
+                    {SLOT_LABELS[i]}
+                  </span>
+                  {slot ? (
+                    <>
+                      <span style={{ color: 'var(--t2)' }}>{slot.bk.name}</span>
+                      <span style={{ color: SLOT_COLORS[i], fontWeight: 900 }}>{slot.value.toFixed(2)}</span>
+                      <span style={{ color: 'rgba(255,255,255,.3)', fontSize: 9 }}>
+                        ({slot.type === 'home' ? '1' : slot.type === 'draw' ? 'X' : '2'})
+                      </span>
+                      <button onClick={() => {
+                        setSlots(prev => { const n = [...prev]; n[i] = null; return n; });
+                      }} style={{
+                        background: 'none', border: 'none', color: 'rgba(255,255,255,.3)',
+                        cursor: 'pointer', fontSize: 11, lineHeight: 1, padding: 0, marginLeft: 2,
+                      }}>×</button>
+                    </>
+                  ) : (
+                    <span style={{ color: 'rgba(255,255,255,.2)', fontSize: 9 }}>vazio</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Calculadora propriamente dita */}
+          <div style={{ padding: 16 }}>
+            <SurebetCalc
+              selectedEvent={{ name: event.name, start_utc: event.start_utc }}
+              externalFill={calcFill}
+              defaultNumOutcomes={activeSlots.length >= 3 ? 3 : 2}
+            />
           </div>
         </div>
       )}
