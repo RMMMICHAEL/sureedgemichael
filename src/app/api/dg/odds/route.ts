@@ -13,36 +13,48 @@ import { NextRequest, NextResponse } from 'next/server';
 import { cookies }                   from 'next/headers';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { getAllFootballOdds, getOddsByLeague, type OddsSummary } from '@/lib/altenar/client';
-import { getKambiOdds }              from '@/lib/kambi/client';
+import { getKambiOdds }    from '@/lib/kambi/client';
+import { getBetanoOdds }   from '@/lib/betano/client';
+import { getSuperbetOdds } from '@/lib/superbet/client';
+import { getNovibetOdds }  from '@/lib/novibet/client';
+import { getBwinOdds }     from '@/lib/bwin/client';
+
+function normalize(s: string) {
+  return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+}
+
+function fuzzyMatch(a: string, b: string): boolean {
+  const an = normalize(a);
+  const bn = normalize(b);
+  const short = Math.min(an.length, bn.length, 5);
+  return an.slice(0, short) === bn.slice(0, short) ||
+         an.includes(bn.slice(0, short)) ||
+         bn.includes(an.slice(0, short));
+}
 
 /**
- * Merge Kambi events into Altenar events by fuzzy team name match.
- * When a Kambi event matches an existing Altenar event, its bookmakers
- * are added to that event. Unmatched Kambi events are appended separately.
+ * Merge multiple odds sources into base (Altenar) by fuzzy team name match.
+ * Matching events get their bookmakers merged; unmatched events are appended.
  */
-function mergeOdds(altenar: OddsSummary[], kambi: OddsSummary[]): OddsSummary[] {
-  const normalize = (s: string) =>
-    s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+function mergeOdds(base: OddsSummary[], ...others: OddsSummary[][]): OddsSummary[] {
+  const merged = base.map(ev => ({ ...ev, bookmakers: [...ev.bookmakers] }));
 
-  const merged = altenar.map(ev => ({ ...ev, bookmakers: [...ev.bookmakers] }));
-
-  for (const kev of kambi) {
-    const kHome = normalize(kev.home_team);
-    const kAway = normalize(kev.away_team);
-
-    const match = merged.find(aev => {
-      const aHome = normalize(aev.home_team);
-      const aAway = normalize(aev.away_team);
-      return (
-        (aHome.includes(kHome.slice(0, 5)) || kHome.includes(aHome.slice(0, 5))) &&
-        (aAway.includes(kAway.slice(0, 5)) || kAway.includes(aAway.slice(0, 5)))
+  for (const source of others) {
+    for (const sev of source) {
+      const match = merged.find(aev =>
+        fuzzyMatch(aev.home_team, sev.home_team) &&
+        fuzzyMatch(aev.away_team, sev.away_team)
       );
-    });
 
-    if (match) {
-      match.bookmakers.push(...kev.bookmakers);
-    } else {
-      merged.push(kev);
+      if (match) {
+        for (const bk of sev.bookmakers) {
+          if (!match.bookmakers.find(b => b.slug === bk.slug)) {
+            match.bookmakers.push(bk);
+          }
+        }
+      } else {
+        merged.push(sev);
+      }
     }
   }
 
@@ -62,15 +74,24 @@ export async function GET(req: NextRequest) {
   const showAll = req.nextUrl.searchParams.get('all') === '1';
 
   try {
-    const [altenarOdds, kambiOdds] = await Promise.allSettled([
-      champId ? getOddsByLeague(Number(champId)) : getAllFootballOdds(),
-      getKambiOdds(),
-    ]);
+    const [altenarOdds, kambiOdds, betanoOdds, superbetOdds, novibetOdds, bwinOdds] =
+      await Promise.allSettled([
+        champId ? getOddsByLeague(Number(champId)) : getAllFootballOdds(),
+        getKambiOdds(),
+        getBetanoOdds(),
+        getSuperbetOdds(),
+        getNovibetOdds(),
+        getBwinOdds(),
+      ]);
 
-    const altenar = altenarOdds.status === 'fulfilled' ? altenarOdds.value : [];
-    const kambi   = kambiOdds.status   === 'fulfilled' ? kambiOdds.value   : [];
+    const altenar  = altenarOdds.status  === 'fulfilled' ? altenarOdds.value  : [];
+    const kambi    = kambiOdds.status    === 'fulfilled' ? kambiOdds.value    : [];
+    const betano   = betanoOdds.status   === 'fulfilled' ? betanoOdds.value   : [];
+    const superbet = superbetOdds.status === 'fulfilled' ? superbetOdds.value : [];
+    const novibet  = novibetOdds.status  === 'fulfilled' ? novibetOdds.value  : [];
+    const bwin     = bwinOdds.status     === 'fulfilled' ? bwinOdds.value     : [];
 
-    let odds = mergeOdds(altenar, kambi);
+    let odds = mergeOdds(altenar, kambi, betano, superbet, novibet, bwin);
 
     // Filtra por dia (Brasília = UTC-3)
     if (!showAll) {
@@ -81,7 +102,6 @@ export async function GET(req: NextRequest) {
 
       odds = odds.filter(ev => {
         const d = new Date(ev.start_time);
-        // converte para Brasília
         const dBR = new Date(d.getTime() - 3 * 60 * 60 * 1000);
         return (
           dBR.getUTCFullYear() === todayY &&
@@ -92,8 +112,12 @@ export async function GET(req: NextRequest) {
     }
 
     const sources: string[] = [];
-    if (altenar.length > 0) sources.push('altenar');
-    if (kambi.length > 0)   sources.push('kambi');
+    if (altenar.length  > 0) sources.push('altenar');
+    if (kambi.length    > 0) sources.push('kambi');
+    if (betano.length   > 0) sources.push('betano');
+    if (superbet.length > 0) sources.push('superbet');
+    if (novibet.length  > 0) sources.push('novibet');
+    if (bwin.length     > 0) sources.push('bwin');
 
     return NextResponse.json({
       ok:      true,

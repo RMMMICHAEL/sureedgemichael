@@ -1,16 +1,30 @@
 /**
  * Cliente Kambi — API pública, sem autenticação.
- * Cobre: Sportingbet (mesmo servidor Kambi usado por várias casas globais).
- * Endpoint padrão: eu-offering-api.kambicdn.com/offering/v2018/{client}/listView/football.json
+ * Cobre: KTO (ktobr) — usa servidor us.offering-api.kambicdn.com
+ * Endpoint: /offering/v2018/{clientId}/listView/football.json
  */
 
 import type { OddsSummary } from '@/lib/altenar/client';
 
-const BASE = 'https://eu-offering-api.kambicdn.com/offering/v2018';
+// KTO usa servidor US (confirmado no HAR)
+const BASE_US = 'https://us.offering-api.kambicdn.com/offering/v2018';
+const BASE_EU = 'https://eu-offering-api.kambicdn.com/offering/v2018';
 
-const CLIENTS: Record<string, string> = {
-  sportingbet: 'Sportingbet',
-};
+interface KambiClientDef {
+  id:   string;
+  name: string;
+  base: string;
+  url:  (id: number) => string;
+}
+
+const CLIENTS: KambiClientDef[] = [
+  {
+    id:   'ktobr',
+    name: 'KTO',
+    base: BASE_US,
+    url:  (id) => `https://www.kto.bet.br/sports/futebol/evento/${id}`,
+  },
+];
 
 interface KambiEvent {
   id:          number;
@@ -37,28 +51,32 @@ function decimalOdds(raw: number): number {
   return raw > 100 ? raw / 1000 : raw;
 }
 
-async function fetchKambiFootball(clientId: string): Promise<KambiEvent[]> {
-  const url = `${BASE}/${clientId}/listView/football.json?lang=pt_BR&market=BR&useCombined=true&ncid=${Date.now()}`;
+async function fetchKambiFootball(client: KambiClientDef): Promise<KambiEvent[]> {
+  const url = `${client.base}/${client.id}/listView/football.json?lang=pt_BR&market=BR&client_id=200&channel_id=3&useCombined=true&ncid=${Date.now()}`;
 
-  const res = await fetch(url, {
-    headers: {
-      'Accept':     'application/json',
-      'User-Agent': 'Mozilla/5.0 (compatible)',
-    },
-    next: { revalidate: 60 },
-  });
+  try {
+    const res = await fetch(url, {
+      headers: {
+        Accept:       'application/json',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        Origin:       'https://www.kto.bet.br',
+      },
+      next: { revalidate: 60 },
+    });
 
-  if (!res.ok) return [];
+    if (!res.ok) return [];
 
-  const data: KambiListResponse = await res.json();
-  return (data.events ?? []).map(e => ({
-    ...e.event,
-    betOffers: e.betOffers ?? e.event.betOffers ?? [],
-  }));
+    const data: KambiListResponse = await res.json();
+    return (data.events ?? []).map(e => ({
+      ...e.event,
+      betOffers: e.betOffers ?? e.event.betOffers ?? [],
+    }));
+  } catch {
+    return [];
+  }
 }
 
 function extractMatchOdds(betOffers: KambiBetOffer[]): { home: number; draw: number; away: number } | null {
-  // Kambi bet offer type for 1X2 is "Match" or "Match Result"
   const matchOffer = betOffers.find(bo =>
     !bo.suspended &&
     (bo.betOfferType.name === 'Match' ||
@@ -79,15 +97,15 @@ function extractMatchOdds(betOffers: KambiBetOffer[]): { home: number; draw: num
 
 export async function getKambiOdds(): Promise<OddsSummary[]> {
   const results = await Promise.all(
-    Object.entries(CLIENTS).map(async ([clientId, name]) => {
-      const events = await fetchKambiFootball(clientId);
-      return { clientId, name, events };
+    CLIENTS.map(async (client) => {
+      const events = await fetchKambiFootball(client);
+      return { client, events };
     })
   );
 
   const eventMap = new Map<string, OddsSummary>();
 
-  for (const { clientId, name, events } of results) {
+  for (const { client, events } of results) {
     for (const ev of events) {
       const odds = extractMatchOdds(ev.betOffers);
       if (!odds) continue;
@@ -107,12 +125,12 @@ export async function getKambiOdds(): Promise<OddsSummary[]> {
       }
 
       eventMap.get(key)!.bookmakers.push({
-        slug: clientId,
-        name,
+        slug: client.id,
+        name: client.name,
         home: odds.home,
         draw: odds.draw,
         away: odds.away,
-        url:  `https://sports.sportingbet.com/sports/futebol/evento/${ev.id}`,
+        url:  client.url(ev.id),
       });
     }
   }
