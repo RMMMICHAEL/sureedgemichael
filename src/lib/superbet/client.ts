@@ -143,12 +143,20 @@ async function tryBetlerEventsApi(): Promise<OddsSummary[]> {
         continue;
       }
       const json = await res.json() as { data?: SuperbetEvent[]; events?: SuperbetEvent[]; items?: SuperbetEvent[] } | SuperbetEvent[];
-      console.log(`[superbet] betler keys:`, Array.isArray(json) ? 'array' : Object.keys(json as object));
+      const allKeys = Array.isArray(json) ? 'array' : Object.keys(json as object);
+      console.log(`[superbet] betler keys:`, allKeys);
+      // Log o conteúdo do campo message para diagnóstico
+      if (!Array.isArray(json) && (json as Record<string, unknown>).message !== undefined) {
+        const msg = (json as Record<string, unknown>).message;
+        console.log(`[superbet] betler message type:`, typeof msg, Array.isArray(msg) ? `array[${(msg as unknown[]).length}]` : JSON.stringify(msg).slice(0, 300));
+      }
+      const raw = json as Record<string, unknown>;
       const events: SuperbetEvent[] = Array.isArray(json)
-        ? json
-        : (json as { data?: SuperbetEvent[]; events?: SuperbetEvent[]; items?: SuperbetEvent[] }).data
-          ?? (json as { data?: SuperbetEvent[]; events?: SuperbetEvent[]; items?: SuperbetEvent[] }).events
-          ?? (json as { data?: SuperbetEvent[]; events?: SuperbetEvent[]; items?: SuperbetEvent[] }).items
+        ? (json as SuperbetEvent[])
+        : (raw.data as SuperbetEvent[] | undefined)
+          ?? (raw.events as SuperbetEvent[] | undefined)
+          ?? (raw.items as SuperbetEvent[] | undefined)
+          ?? (Array.isArray(raw.message) ? (raw.message as SuperbetEvent[]) : undefined)
           ?? [];
       console.log(`[superbet] betler events count:`, events.length);
       if (events.length > 0) return eventsToSummary(events);
