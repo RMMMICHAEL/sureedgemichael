@@ -33,6 +33,7 @@ import { getBetfairOdds }     from '@/lib/betfair/client';
 import { getPinnacleOdds }    from '@/lib/pinnacle/client';
 import { getBetNacionalOdds } from '@/lib/betnacional/client';
 import { getVivaSorteOdds }   from '@/lib/vivasorte/client';
+import { getBetanoOdds }      from '@/lib/betano/client';
 
 // ── Merge helpers ─────────────────────────────────────────────────────────────
 
@@ -98,7 +99,7 @@ export async function GET(req: NextRequest) {
   try {
     const [
       altenarOdds, kambiOdds, superbetOdds, bwinOdds,
-      bet365Odds, betfairOdds, pinnacleOdds, betNacionalOdds, vivaSorteOdds,
+      bet365Odds, betfairOdds, pinnacleOdds, betNacionalOdds, vivaSorteOdds, betanoOdds,
     ] = await Promise.allSettled([
       champId ? getOddsByLeague(Number(champId)) : getAllFootballOdds(),
       getKambiOdds(),
@@ -109,6 +110,7 @@ export async function GET(req: NextRequest) {
       getPinnacleOdds(),
       getBetNacionalOdds(),
       getVivaSorteOdds(),
+      getBetanoOdds(),
     ]);
 
     const altenar    = altenarOdds.status     === 'fulfilled' ? altenarOdds.value     : [];
@@ -120,8 +122,18 @@ export async function GET(req: NextRequest) {
     const pinnacle   = pinnacleOdds.status    === 'fulfilled' ? pinnacleOdds.value    : [];
     const betnac     = betNacionalOdds.status === 'fulfilled' ? betNacionalOdds.value : [];
     const vivasorte  = vivaSorteOdds.status   === 'fulfilled' ? vivaSorteOdds.value   : [];
+    const betano     = betanoOdds.status      === 'fulfilled' ? betanoOdds.value      : [];
 
-    let odds = mergeOdds(altenar, kambi, superbet, bwin, bet365, betfair, pinnacle, betnac, vivasorte);
+    // Debug: log contagem de cada fonte
+    console.log('[odds] fontes:', {
+      altenar: altenar.length, kambi: kambi.length, superbet: superbet.length,
+      bwin: bwin.length, bet365: bet365.length, betano: betano.length,
+      betfair: betfair.length, pinnacle: pinnacle.length, betnac: betnac.length, vivasorte: vivasorte.length,
+      superbetError: superbetOdds.status === 'rejected' ? String(superbetOdds.reason) : null,
+      betanoError:   betanoOdds.status   === 'rejected' ? String(betanoOdds.reason)   : null,
+    });
+
+    let odds = mergeOdds(altenar, kambi, superbet, bwin, bet365, betfair, pinnacle, betnac, vivasorte, betano);
 
     // ── Filtro de data (BRT = UTC-3) ────────────────────────────────────────
     if (!showAll) {
@@ -151,6 +163,7 @@ export async function GET(req: NextRequest) {
     if (pinnacle.length  > 0) sources.push('pinnacle');
     if (betnac.length    > 0) sources.push('betnacional');
     if (vivasorte.length > 0) sources.push('vivasorte');
+    if (betano.length    > 0) sources.push('betano');
 
     return NextResponse.json({
       ok:     true,
