@@ -29,18 +29,22 @@ const LIMIT     = 50;
 
 interface PulseSelection {
   canonicalOutcome: string;
+  rawName?:         string;
   name?:            string;
   odds:             number;
   isActive:         boolean;
   line?:            number;  // para over/under
+  moreInfo?:        Record<string, string>;
 }
 
 interface PulseMarket {
   canonicalMarket: string;
+  rawName?:        string;
   name?:           string;
   isActive:        boolean;
   selections:      PulseSelection[];
   line?:           number;
+  period?:         string;
 }
 
 interface PulseEvent {
@@ -146,52 +150,98 @@ function detectCategory(sport: string, league: string): string {
   return 'E-Sports';
 }
 
+// Classifica o tipo de mercado pelo canonicalMarket ou rawName
+function classifyMarket(cm: string, rawName: string): 'match_result' | 'double_chance' | 'over_under' | null {
+  const raw = (rawName ?? '').toLowerCase();
+  const canon = cm.toUpperCase();
+
+  if (canon === 'MATCH_RESULT' || raw === 'match result' || raw === '1x2' || raw === 'match betting')
+    return 'match_result';
+  if (canon === 'DOUBLE_CHANCE' || raw === 'double chance' || raw.includes('double chance'))
+    return 'double_chance';
+  if (canon === 'OVER_UNDER' || canon === 'TOTAL_GOALS' ||
+      raw === 'goals over/under' || raw.includes('total goals') ||
+      raw.includes('over/under') || raw === 'asian handicap goals' ||
+      raw.includes('match total'))
+    return 'over_under';
+
+  return null;
+}
+
+// Extrai a linha (handicap) de over/under da seleção ou do moreInfo
+function extractLine(s: PulseSelection, mkt: PulseMarket): number {
+  if (s.line) return s.line;
+  if (mkt.line) return mkt.line;
+  // tenta extrair do HD no moreInfo (ex: "+2.5" ou "2.5")
+  const hd = s.moreInfo?.HD ?? '';
+  if (hd) {
+    const n = parseFloat(hd.replace('+', ''));
+    if (!isNaN(n) && n > 0) return n;
+  }
+  // tenta extrair do rawName da seleção (ex: "Over 2.5")
+  const raw = (s.rawName ?? s.name ?? '').toLowerCase();
+  const m = raw.match(/(\d+\.?\d*)/);
+  if (m) return parseFloat(m[1]);
+  return 0;
+}
+
 function extractMarkets(ev: PulseEvent, bk: BookmakerOdds): MarketOdds[] {
   const result: MarketOdds[] = [];
 
+  // Só processa mercados de tempo completo
   for (const mkt of ev.markets) {
     if (!mkt.isActive) continue;
-    const cm = mkt.canonicalMarket;
+    if (mkt.period && mkt.period !== 'FULL_TIME' && mkt.period !== '') continue;
+
+    const marketType = classifyMarket(mkt.canonicalMarket, mkt.rawName ?? '');
+    if (!marketType) continue;
+
     const sels = mkt.selections.filter(s => s.isActive && s.odds > 1);
 
-    // 1X2
-    if (cm === 'MATCH_RESULT') {
+    // ── 1X2 ──
+    if (marketType === 'match_result') {
       for (const s of sels) {
-        const co = s.canonicalOutcome;
-        const outcome = co === 'HOME' ? '1' : co === 'DRAW' ? 'X' : co === 'AWAY' ? '2' : null;
+        const co = s.canonicalOutcome?.toUpperCase();
+        const raw = (s.rawName ?? s.name ?? '').toLowerCase();
+        const outcome = (co === 'HOME' || raw.includes('home') || raw === '1') ? '1'
+          : (co === 'DRAW' || raw.includes('draw') || raw === 'x')             ? 'X'
+          : (co === 'AWAY' || raw.includes('away') || raw === '2')             ? '2'
+          : null;
         if (!outcome) continue;
+        // Evita duplicata (mesmo outcome, mesmo bookmaker)
+        if (result.find(r => r.type === 'match_result' && r.outcome === outcome && r.bookmaker.slug === bk.slug)) continue;
         result.push({ bookmaker: bk, type: 'match_result', outcome, odds: s.odds });
       }
     }
 
-    // Double Chance
-    if (cm === 'DOUBLE_CHANCE') {
+    // ── Double Chance ──
+    if (marketType === 'double_chance') {
       for (const s of sels) {
-        const co = s.canonicalOutcome ?? s.name ?? '';
-        const norm = co.toUpperCase();
-        const outcome = norm.includes('1X') || norm.includes('HOME_DRAW') ? '1X'
-          : norm.includes('X2') || norm.includes('DRAW_AWAY')             ? 'X2'
-          : norm.includes('12') || norm.includes('HOME_AWAY')             ? '12'
+        const co = (s.canonicalOutcome ?? s.rawName ?? s.name ?? '').toUpperCase();
+        const outcome = (co.includes('1X') || co.includes('HOME_DRAW') || co.includes('HOMEDRAW')) ? '1X'
+          : (co.includes('X2') || co.includes('DRAW_AWAY') || co.includes('DRAWAWAY'))             ? 'X2'
+          : (co.includes('12') || co.includes('HOME_AWAY') || co.includes('HOMEAWAY'))             ? '12'
           : null;
         if (!outcome) continue;
+        if (result.find(r => r.type === 'double_chance' && r.outcome === outcome && r.bookmaker.slug === bk.slug)) continue;
         result.push({ bookmaker: bk, type: 'double_chance', outcome, odds: s.odds });
       }
     }
 
-    // Over/Under
-    if (cm === 'OVER_UNDER' || cm === 'TOTAL_GOALS') {
-      const line = mkt.line ?? 0;
+    // ── Over/Under ──
+    if (marketType === 'over_under') {
       for (const s of sels) {
-        const co = s.canonicalOutcome ?? s.name ?? '';
-        const isOver  = co.toUpperCase().includes('OVER')  || co === 'O' || co === 'Over';
-        const isUnder = co.toUpperCase().includes('UNDER') || co === 'U' || co === 'Under';
+        const co  = (s.canonicalOutcome ?? s.rawName ?? s.name ?? '').toLowerCase();
+        const isOver  = co.includes('over')  || co === 'o';
+        const isUnder = co.includes('under') || co === 'u';
         if (!isOver && !isUnder) continue;
-        const ln = s.line ?? line;
+        const line = extractLine(s, mkt);
+        if (line <= 0) continue;
         result.push({
           bookmaker: bk,
           type:      'over_under',
           outcome:   isOver ? 'over' : 'under',
-          line:      ln,
+          line,
           odds:      s.odds,
         });
       }

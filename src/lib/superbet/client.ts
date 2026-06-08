@@ -112,57 +112,39 @@ function eventsToSummary(events: SuperbetEvent[]): OddsSummary[] {
   return results;
 }
 
-// ─── estratégia 1: betler api-gw/events/produce ────────────────────────────
+// ─── estratégia 1: betler REST endpoints (síncronos) ──────────────────────
 
 async function tryBetlerEventsApi(): Promise<OddsSummary[]> {
-  // Tenta variações do payload para o endpoint events/produce
-  const payloads = [
-    { sportId: FOOTBALL_SPORT_ID, isLive: false, lang: 'pt-BR' },
-    { sport: FOOTBALL_SPORT_ID, live: false },
-    { sportIds: [FOOTBALL_SPORT_ID], isLive: false },
-    { filters: { sportId: FOOTBALL_SPORT_ID, isLive: false } },
-    {},  // sem filtro — pode retornar tudo
+  // O endpoint /events/produce é SSE assíncrono (retorna { message: jobId })
+  // Usamos os endpoints REST síncronos alternativos do betler
+  const endpoints = [
+    { method: 'GET',  url: `${BETLER_BASE}/api-gw/sports/${FOOTBALL_SPORT_ID}/events?isLive=false&lang=pt-BR` },
+    { method: 'GET',  url: `${BETLER_BASE}/api-gw/events?sportId=${FOOTBALL_SPORT_ID}&isLive=false` },
+    { method: 'GET',  url: `${BETLER_BASE}/api-gw/prematch/events?sportId=${FOOTBALL_SPORT_ID}` },
+    { method: 'GET',  url: `${BETLER_BASE}/api-gw/offer/events?sportId=${FOOTBALL_SPORT_ID}&isLive=false` },
+    { method: 'POST', url: `${BETLER_BASE}/api-gw/events`, body: JSON.stringify({ sportId: FOOTBALL_SPORT_ID, isLive: false }) },
   ];
 
-  for (const body of payloads) {
+  for (const ep of endpoints) {
     try {
-      const res = await proxyFetch(`${BETLER_BASE}/api-gw/events/produce`, {
-        method:  'POST',
+      const res = await proxyFetch(ep.url, {
+        method:  ep.method,
         headers: HEADERS,
-        body:    JSON.stringify(body),
+        ...(ep.body ? { body: ep.body } : {}),
       });
-      console.log(`[superbet] betler status=${res.status} payload=${JSON.stringify(body)}`);
-      if (!res.ok) {
-        const errText = await res.text().catch(() => '');
-        console.log(`[superbet] betler error body:`, errText.slice(0, 200));
-        continue;
-      }
+      if (!res.ok) continue;
       const ct = res.headers.get('content-type') ?? '';
-      if (!ct.includes('json')) {
-        console.log(`[superbet] betler non-json content-type:`, ct);
-        continue;
-      }
-      const json = await res.json() as { data?: SuperbetEvent[]; events?: SuperbetEvent[]; items?: SuperbetEvent[] } | SuperbetEvent[];
-      const allKeys = Array.isArray(json) ? 'array' : Object.keys(json as object);
-      console.log(`[superbet] betler keys:`, allKeys);
-      // Log o conteúdo do campo message para diagnóstico
-      if (!Array.isArray(json) && (json as Record<string, unknown>).message !== undefined) {
-        const msg = (json as Record<string, unknown>).message;
-        console.log(`[superbet] betler message type:`, typeof msg, Array.isArray(msg) ? `array[${(msg as unknown[]).length}]` : JSON.stringify(msg).slice(0, 300));
-      }
+      if (!ct.includes('json')) continue;
+      const json = await res.json() as Record<string, unknown> | SuperbetEvent[];
       const raw = json as Record<string, unknown>;
       const events: SuperbetEvent[] = Array.isArray(json)
         ? (json as SuperbetEvent[])
         : (raw.data as SuperbetEvent[] | undefined)
           ?? (raw.events as SuperbetEvent[] | undefined)
           ?? (raw.items as SuperbetEvent[] | undefined)
-          ?? (Array.isArray(raw.message) ? (raw.message as SuperbetEvent[]) : undefined)
           ?? [];
-      console.log(`[superbet] betler events count:`, events.length);
       if (events.length > 0) return eventsToSummary(events);
-    } catch (e) {
-      console.log(`[superbet] betler exception:`, String(e));
-    }
+    } catch { /* tenta próximo */ }
   }
   return [];
 }
