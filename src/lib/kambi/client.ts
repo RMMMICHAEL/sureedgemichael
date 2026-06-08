@@ -19,29 +19,10 @@ interface KambiClientDef {
   url:    (id: number) => string;
 }
 
-const CLIENTS: KambiClientDef[] = [
-  {
-    id:     'ktobr',
-    name:   'KTO',
-    base:   BASE_US,
-    origin: 'https://www.kto.bet.br',
-    url:    (id) => `https://www.kto.bet.br/sports/futebol/evento/${id}`,
-  },
-  {
-    id:     'sportingbet',
-    name:   'Sportingbet',
-    base:   BASE_EU,
-    origin: 'https://sports.sportingbet.com',
-    url:    (id) => `https://sports.sportingbet.com/sports/futebol/evento/${id}`,
-  },
-  {
-    id:     'superbet',
-    name:   'Superbet',
-    base:   BASE_EU,
-    origin: 'https://superbet.com.br',
-    url:    (id) => `https://superbet.com.br/esportes/futebol/evento/${id}`,
-  },
-];
+// Nota: KTO (US CDN) e outros endpoints Kambi EU bloqueiam IPs de datacenter
+// (Vercel/AWS). Removidos até solução com proxy residencial.
+// Sportingbet já é coberta pelo cliente bwin/CDS separado.
+const CLIENTS: KambiClientDef[] = [];
 
 // Palavras que identificam e-sports / futebol virtual — excluir
 const VIRTUAL_KEYWORDS = ['cyber', 'virtual', 'esoccer', 'e-soccer', 'inplay arena', 'cla (', 'live arena'];

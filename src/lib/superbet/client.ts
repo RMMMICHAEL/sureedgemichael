@@ -21,9 +21,9 @@ const HEADERS = {
 };
 
 // A lista betbuilder tem ~2200 IDs. Os eventos de hoje ficam nos últimos
-// ~600 IDs e o range varia conforme novos eventos são adicionados.
-// Pegamos os últimos 500 em paralelo (~5-8s), que cobrem hoje + amanhã.
-const SLICE_START = -500;
+// ~600 IDs. Pegamos os últimos 250: suficiente para hoje com margem,
+// e ~3s de fetch paralelo no Vercel (testado: 200 IDs = 3s).
+const SLICE_START = -250;
 const SLICE_END   = undefined; // até o fim
 
 interface SuperbetOdd {
