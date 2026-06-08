@@ -1,75 +1,45 @@
 /**
  * GET /api/dg/odds
- * Retorna todas as odds do DuploGreen para o usuário autenticado.
+ * Retorna odds de futebol via Altenar (API pública, sem auth, sem Cloudflare).
+ * Cobre: EstrelaBet, Br4bet, EsportivaBet, Jogo de Ouro.
+ *
  * Query params:
- *   ?match_id=xxx   → odds de um jogo específico (get-match)
- *   ?type=all       → todos os jogos com melhor odd (get-all-odds) [default]
- *   ?type=individual → todas as odds individuais por casa (get-individual-odds)
- *   ?type=opportunities → todas as linhas por casa e jogo (get-dg-opportunities)
+ *   ?champ_id=11318   → odds de uma liga específica (Brasileirão A = 11318)
+ *   (sem params)      → todas as ligas de futebol
  */
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
-import { dgFetch } from '@/lib/dg/token';
+import { getAllFootballOdds, getOddsByLeague } from '@/lib/altenar/client';
 
 export async function GET(req: NextRequest) {
   // Requer usuário autenticado no SureEdge
   const cookieStore = await cookies();
-  const supabase = createSupabaseServerClient(cookieStore);
+  const supabase    = createSupabaseServerClient(cookieStore);
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
     return NextResponse.json({ ok: false, error: 'Não autenticado' }, { status: 401 });
   }
 
   const { searchParams } = new URL(req.url);
-  const matchId = searchParams.get('match_id');
-  const type    = searchParams.get('type') ?? 'all';
+  const champId = searchParams.get('champ_id');
 
   try {
-    let endpoint: string;
-    let params: Record<string, string> | undefined;
+    const odds = champId
+      ? await getOddsByLeague(Number(champId))
+      : await getAllFootballOdds();
 
-    if (matchId) {
-      endpoint = 'get-match';
-      params = { id: matchId };
-    } else if (type === 'individual') {
-      endpoint = 'get-individual-odds';
-    } else if (type === 'opportunities') {
-      endpoint = 'get-dg-opportunities';
-    } else {
-      endpoint = 'get-all-odds';
-    }
-
-    let res: Response;
-    try {
-      res = await dgFetch(endpoint, params);
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e);
-      if (msg === 'TOKEN_EXPIRED') {
-        return NextResponse.json(
-          { ok: false, error: 'TOKEN_EXPIRED', message: 'Token DuploGreen expirado — reconecte no painel admin.' },
-          { status: 401 },
-        );
-      }
-      throw e;
-    }
-
-    if (!res.ok) {
-      const err = await res.text();
-      return NextResponse.json(
-        { ok: false, error: `DuploGreen erro ${res.status}: ${err}` },
-        { status: 502 },
-      );
-    }
-
-    const data = await res.json();
-    return NextResponse.json({ ok: true, ...data });
-
+    return NextResponse.json({
+      ok:     true,
+      count:  odds.length,
+      source: 'altenar',
+      odds,
+    });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    console.error('[DG odds]', msg);
+    console.error('[altenar odds]', msg);
     return NextResponse.json({ ok: false, error: msg }, { status: 500 });
   }
 }
