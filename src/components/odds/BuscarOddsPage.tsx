@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
-// ─── Tipos (formato Altenar) ──────────────────────────────────────────────────
+// ─── Tipos ────────────────────────────────────────────────────────────────────
 
 interface BookmakerOdds {
   slug: string;
@@ -57,15 +57,120 @@ function fmtTime(iso: string) {
 
 // ─── Componente ───────────────────────────────────────────────────────────────
 
+// ─── Painel de configuração DuploGreen (admin) ───────────────────────────────
+
+function DGSetupPanel({ onClose }: { onClose: () => void }) {
+  const [accessToken,  setAccessToken]  = useState('');
+  const [refreshToken, setRefreshToken] = useState('');
+  const [expiresAt,    setExpiresAt]    = useState('');
+  const [loading,      setLoading]      = useState(false);
+  const [msg,          setMsg]          = useState('');
+  const [error,        setError]        = useState('');
+
+  async function handleSave() {
+    if (!accessToken.startsWith('eyJ'))  { setError('access_token inválido'); return; }
+    if (!refreshToken)                   { setError('refresh_token obrigatório'); return; }
+    setLoading(true); setError(''); setMsg('');
+    try {
+      const res  = await fetch('/api/dg/set-token', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+          access_token:  accessToken.trim(),
+          refresh_token: refreshToken.trim(),
+          expires_at:    expiresAt ? Number(expiresAt) : undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error);
+      setMsg(`Sessão salva! TTL: ${Math.round(data.ttl / 60)} min. Agora rode: node scripts/dg-poller.mjs`);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const inp: React.CSSProperties = {
+    width: '100%', padding: '7px 10px', borderRadius: 8, fontSize: 12, fontFamily: 'monospace',
+    background: 'rgba(255,255,255,.04)', border: '1px solid var(--b)', color: 'var(--t)', outline: 'none',
+  };
+
+  return (
+    <div style={{
+      padding: '16px 18px', borderRadius: 12, marginBottom: 12,
+      background: 'rgba(129,140,248,.06)', border: '1px solid rgba(129,140,248,.25)',
+    }}>
+      <div style={{ fontSize: 13, fontWeight: 700, color: '#818cf8', marginBottom: 10 }}>
+        Configurar DuploGreen
+      </div>
+      <div style={{ fontSize: 11, color: 'var(--t3)', marginBottom: 12, lineHeight: 1.6 }}>
+        1. Abra <strong style={{ color: 'var(--t2)' }}>duplogreenengine.com</strong> e faça login<br/>
+        2. DevTools (F12) → Console → execute:<br/>
+        <code style={{ background: 'rgba(255,255,255,.05)', padding: '2px 6px', borderRadius: 4, fontSize: 11 }}>
+          JSON.parse(localStorage.getItem(&apos;sb-db-auth-token&apos;))
+        </code><br/>
+        3. Copie <strong style={{ color: '#818cf8' }}>access_token</strong>, <strong style={{ color: '#818cf8' }}>refresh_token</strong> e <strong style={{ color: '#818cf8' }}>expires_at</strong>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div>
+          <div style={{ fontSize: 10, color: 'var(--t3)', marginBottom: 3 }}>access_token</div>
+          <input style={inp} value={accessToken} onChange={e => setAccessToken(e.target.value)} placeholder="eyJ..." />
+        </div>
+        <div>
+          <div style={{ fontSize: 10, color: 'var(--t3)', marginBottom: 3 }}>refresh_token</div>
+          <input style={inp} value={refreshToken} onChange={e => setRefreshToken(e.target.value)} placeholder="cole o refresh_token aqui" />
+        </div>
+        <div>
+          <div style={{ fontSize: 10, color: 'var(--t3)', marginBottom: 3 }}>expires_at (opcional — unix timestamp)</div>
+          <input style={inp} value={expiresAt} onChange={e => setExpiresAt(e.target.value)} placeholder="ex: 1749340800" />
+        </div>
+      </div>
+
+      {error && <div style={{ fontSize: 12, color: '#f87171', marginTop: 8 }}>⚠ {error}</div>}
+      {msg   && <div style={{ fontSize: 12, color: '#4ade80', marginTop: 8 }}>✓ {msg}</div>}
+
+      <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+        <button onClick={onClose} style={{
+          padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+          background: 'rgba(255,255,255,.06)', border: '1px solid var(--b)', color: 'var(--t3)', cursor: 'pointer',
+        }}>Cancelar</button>
+        <button onClick={handleSave} disabled={loading} style={{
+          flex: 1, padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700,
+          background: 'rgba(129,140,248,.2)', border: '1px solid rgba(129,140,248,.4)',
+          color: '#818cf8', cursor: loading ? 'wait' : 'pointer', opacity: loading ? 0.7 : 1,
+        }}>
+          {loading ? 'Salvando…' : 'Salvar sessão'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Componente principal ─────────────────────────────────────────────────────
+
 export function BuscarOddsPage() {
-  const [rows,     setRows]     = useState<OddsSummary[]>([]);
-  const [filtered, setFiltered] = useState<OddsSummary[]>([]);
-  const [loading,  setLoading]  = useState(true);
-  const [error,    setError]    = useState('');
-  const [search,   setSearch]   = useState('');
-  const [league,   setLeague]   = useState('all');
-  const [sort,     setSort]     = useState<'time' | 'margin' | 'bkm'>('time');
-  const [lastUpd,  setLastUpd]  = useState('');
+  const [rows,      setRows]      = useState<OddsSummary[]>([]);
+  const [filtered,  setFiltered]  = useState<OddsSummary[]>([]);
+  const [loading,   setLoading]   = useState(true);
+  const [error,     setError]     = useState('');
+  const [search,    setSearch]    = useState('');
+  const [league,    setLeague]    = useState('all');
+  const [sort,      setSort]      = useState<'time' | 'margin' | 'bkm'>('time');
+  const [lastUpd,   setLastUpd]   = useState('');
+  const [source,    setSource]    = useState<'duplogreenengine' | 'altenar' | ''>('');
+  const [cacheAge,  setCacheAge]  = useState(0);
+  const [showSetup, setShowSetup] = useState(false);
+  const isAdmin = useRef(false);
+
+  // Detecta admin via email (lido do Supabase session no cliente)
+  useEffect(() => {
+    fetch('/api/dg/set-token')
+      .then(r => r.json())
+      .then(d => { if (d.ok !== undefined) isAdmin.current = true; })
+      .catch(() => {});
+  }, []);
 
   // ── Carrega ───────────────────────────────────────────────────────────────
   const load = useCallback(async () => {
@@ -73,9 +178,14 @@ export function BuscarOddsPage() {
     setError('');
     try {
       const res  = await fetch('/api/dg/odds');
-      const data = await res.json();
+      const data = await res.json() as {
+        ok: boolean; error?: string;
+        odds?: OddsSummary[]; source?: string; cache_age?: number;
+      };
       if (!data.ok) throw new Error(data.error ?? 'Erro ao carregar odds');
       setRows(data.odds ?? []);
+      setSource((data.source ?? '') as typeof source);
+      setCacheAge(data.cache_age ?? 0);
       setLastUpd(new Date().toLocaleTimeString('pt-BR'));
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
@@ -121,6 +231,15 @@ export function BuscarOddsPage() {
     return isSurebet(bH, bD, bA);
   }).length;
 
+  // Legenda da fonte
+  function sourceLabel() {
+    if (loading) return 'Carregando…';
+    if (source === 'duplogreenengine') {
+      return `${filtered.length} jogos · DuploGreen · 20+ casas · cache ${cacheAge}min atrás · ${lastUpd}`;
+    }
+    return `${filtered.length} jogos · EstrelaBet · Br4bet · EsportivaBet · Jogo de Ouro · ${lastUpd}`;
+  }
+
   // ─── Render ───────────────────────────────────────────────────────────────
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 1100, margin: '0 auto' }}>
@@ -129,13 +248,16 @@ export function BuscarOddsPage() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
         <div>
           <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--t)' }}>Buscar Odds</div>
-          <div style={{ fontSize: 12, color: 'var(--t3)' }}>
-            {loading
-              ? 'Carregando…'
-              : `${filtered.length} jogos · EstrelaBet · Br4bet · EsportivaBet · Jogo de Ouro · atualizado ${lastUpd}`}
-          </div>
+          <div style={{ fontSize: 12, color: 'var(--t3)' }}>{sourceLabel()}</div>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          {source === 'duplogreenengine' && (
+            <div style={{
+              padding: '3px 8px', borderRadius: 6,
+              background: 'rgba(99,102,241,.15)', border: '1px solid rgba(99,102,241,.3)',
+              fontSize: 10, fontWeight: 700, color: '#818cf8',
+            }}>DG</div>
+          )}
           {surebetCount > 0 && (
             <div style={{
               padding: '4px 10px', borderRadius: 20,
@@ -144,6 +266,15 @@ export function BuscarOddsPage() {
             }}>
               🎯 {surebetCount} surebet{surebetCount > 1 ? 's' : ''}
             </div>
+          )}
+          {isAdmin.current && (
+            <button onClick={() => setShowSetup(s => !s)} style={{
+              padding: '5px 10px', borderRadius: 8, fontSize: 11, fontWeight: 600,
+              background: 'rgba(129,140,248,.1)', border: '1px solid rgba(129,140,248,.25)',
+              color: '#818cf8', cursor: 'pointer',
+            }}>
+              {showSetup ? 'Fechar' : 'Config DG'}
+            </button>
           )}
           <button onClick={load} disabled={loading} style={{
             padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600,
@@ -154,6 +285,9 @@ export function BuscarOddsPage() {
           </button>
         </div>
       </div>
+
+      {/* Painel de configuração DG (admin only) */}
+      {showSetup && <DGSetupPanel onClose={() => setShowSetup(false)} />}
 
       {/* Erro */}
       {error && (

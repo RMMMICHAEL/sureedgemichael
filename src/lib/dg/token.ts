@@ -1,52 +1,79 @@
 /**
- * DuploGreen token manager (server-side)
- * O access_token é fornecido pelo browser do admin e armazenado aqui.
- * Renovação via browser (Cloudflare bloqueia login server-side).
+ * DuploGreen — token manager (server-side, Vercel)
+ *
+ * As chamadas reais ao DuploGreen são feitas pelo daemon local (IP residencial).
+ * Este módulo apenas persiste/lê a sessão no Supabase e serve o status para o frontend.
  */
 
-const DG_API = process.env.DG_API_URL || 'https://api.duplogreenengine.com';
-
-// Cache em memória — persiste entre requests no mesmo worker
-let _accessToken: string | null = null;
-let _expiresAt:   number        = 0; // ms
-
-/** Define um novo token (chamado pela rota /api/dg/set-token) */
-export function setDGToken(token: string, expiresInSeconds = 3600) {
-  _accessToken = token;
-  _expiresAt   = Date.now() + expiresInSeconds * 1000;
+export interface DGSession {
+  access_token:  string;
+  refresh_token: string;
+  expires_at:    number; // sempre em ms internamente
 }
 
-/** Retorna o token atual ou null se expirado/ausente */
-export function getDGToken(): string | null {
-  if (_accessToken && Date.now() < _expiresAt - 60_000) {
-    return _accessToken;
-  }
-  return null;
+async function getSupabaseAdmin() {
+  const { createClient } = await import('@supabase/supabase-js');
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  );
 }
 
-/** Informa quantos segundos faltam para expirar (0 = expirado) */
-export function getDGTokenTTL(): number {
-  if (!_accessToken) return 0;
-  return Math.max(0, Math.floor((_expiresAt - Date.now()) / 1000));
+/** Salva sessão completa no Supabase */
+export async function saveDGSession(session: DGSession): Promise<void> {
+  const sb = await getSupabaseAdmin();
+  const value = JSON.stringify(session);
+  const { error } = await sb.from('app_config').upsert(
+    { key: 'dg_session', value, updated_at: new Date().toISOString() },
+    { onConflict: 'key' },
+  );
+  if (error) throw new Error(`saveDGSession: ${error.message}`);
 }
 
-/** Chama endpoint do DuploGreen com o token armazenado */
-export async function dgFetch(endpoint: string, params?: Record<string, string>): Promise<Response> {
-  const token = getDGToken();
-  if (!token) {
-    throw new Error('TOKEN_EXPIRED');
+/** Lê sessão do Supabase */
+export async function getDGSession(): Promise<DGSession | null> {
+  try {
+    const sb = await getSupabaseAdmin();
+    const { data } = await sb
+      .from('app_config')
+      .select('value')
+      .eq('key', 'dg_session')
+      .single();
+    if (!data?.value) return null;
+    const s = JSON.parse(data.value) as DGSession;
+    // Normaliza expires_at para ms
+    if (s.expires_at && s.expires_at < 1e12) s.expires_at *= 1000;
+    return s;
+  } catch {
+    return null;
   }
+}
 
-  const url = new URL(`${DG_API}/functions/v1/${endpoint}`);
-  if (params) {
-    Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
+/** TTL em segundos (0 = expirado ou sem sessão) */
+export async function getDGTokenTTL(): Promise<number> {
+  const s = await getDGSession();
+  if (!s?.access_token) return 0;
+  return Math.max(0, Math.floor((s.expires_at - Date.now()) / 1000));
+}
+
+/** Status do poller local (escrito pelo dg-poller.mjs) */
+export async function getDGPollerStatus(): Promise<{
+  ok: boolean;
+  count_all?: number;
+  count_opp?: number;
+  error?: string;
+  at?: string;
+} | null> {
+  try {
+    const sb = await getSupabaseAdmin();
+    const { data } = await sb
+      .from('app_config')
+      .select('value')
+      .eq('key', 'dg_poller_status')
+      .single();
+    if (!data?.value) return null;
+    return JSON.parse(data.value);
+  } catch {
+    return null;
   }
-  url.searchParams.set('_t', String(Date.now()));
-
-  return fetch(url.toString(), {
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type':  'application/json',
-    },
-  });
 }
