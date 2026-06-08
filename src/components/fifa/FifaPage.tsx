@@ -5,7 +5,7 @@ import { RefreshCw, ExternalLink, TrendingUp, Gamepad2, Clock, AlertCircle, Chev
 import { useStore } from '@/store/useStore';
 import type { FifaEvent, Surebet, MarketOdds } from '@/app/api/fifa/odds/route';
 
-const ADMIN_EMAIL = 'michaelrodrifues04@gmail.com';
+const ADMIN_EMAIL = 'michael.martins.trader@gmail.com';
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
