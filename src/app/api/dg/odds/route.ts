@@ -14,9 +14,10 @@ import { cookies }                   from 'next/headers';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { getAllFootballOdds, getOddsByLeague, type OddsSummary } from '@/lib/altenar/client';
 import { getKambiOdds }    from '@/lib/kambi/client';
-import { getBetanoOdds }   from '@/lib/betano/client';
+// Betano e Novibet bloqueiam requisições de datacenter (Cloudflare) — desativados
+// import { getBetanoOdds }   from '@/lib/betano/client';
+// import { getNovibetOdds }  from '@/lib/novibet/client';
 import { getSuperbetOdds } from '@/lib/superbet/client';
-import { getNovibetOdds }  from '@/lib/novibet/client';
 import { getBwinOdds }     from '@/lib/bwin/client';
 import { getBet365Odds }   from '@/lib/bet365/client';
 
@@ -76,54 +77,53 @@ export async function GET(req: NextRequest) {
   const dateParam = req.nextUrl.searchParams.get('date') ?? '';
 
   try {
-    const [altenarOdds, kambiOdds, betanoOdds, superbetOdds, novibetOdds, bwinOdds, bet365Odds] =
+    const [altenarOdds, kambiOdds, superbetOdds, bwinOdds, bet365Odds] =
       await Promise.allSettled([
         champId ? getOddsByLeague(Number(champId)) : getAllFootballOdds(),
         getKambiOdds(),
-        getBetanoOdds(),
         getSuperbetOdds(),
-        getNovibetOdds(),
         getBwinOdds(),
         getBet365Odds(),
       ]);
 
     const altenar  = altenarOdds.status  === 'fulfilled' ? altenarOdds.value  : [];
     const kambi    = kambiOdds.status    === 'fulfilled' ? kambiOdds.value    : [];
-    const betano   = betanoOdds.status   === 'fulfilled' ? betanoOdds.value   : [];
     const superbet = superbetOdds.status === 'fulfilled' ? superbetOdds.value : [];
-    const novibet  = novibetOdds.status  === 'fulfilled' ? novibetOdds.value  : [];
     const bwin     = bwinOdds.status     === 'fulfilled' ? bwinOdds.value     : [];
     const bet365   = bet365Odds.status   === 'fulfilled' ? bet365Odds.value   : [];
 
-    let odds = mergeOdds(altenar, kambi, betano, superbet, novibet, bwin, bet365);
+    let odds = mergeOdds(altenar, kambi, superbet, bwin, bet365);
 
     // Filtra por dia (Brasília = UTC-3)
     if (!showAll) {
       // ?date=YYYY-MM-DD → dia específico; sem date → hoje BRT
       const refBR   = dateParam
-        ? new Date(dateParam + 'T12:00:00Z')          // data fixa passada pelo front
-        : new Date(Date.now() - 3 * 60 * 60 * 1000); // hoje BRT
+        ? new Date(dateParam + 'T12:00:00Z')
+        : new Date(Date.now() - 3 * 60 * 60 * 1000);
       const filterY = refBR.getUTCFullYear();
       const filterM = refBR.getUTCMonth();
-      const filterD = dateParam ? refBR.getUTCDate() : new Date(Date.now() - 3 * 60 * 60 * 1000).getUTCDate();
+      const filterD = refBR.getUTCDate();
 
       odds = odds.filter(ev => {
-        const d    = new Date(ev.start_time);
-        const dBR  = new Date(d.getTime() - 3 * 60 * 60 * 1000);
-        return (
-          dBR.getUTCFullYear() === filterY &&
-          dBR.getUTCMonth()    === filterM &&
-          dBR.getUTCDate()     === filterD
-        );
+        const d = new Date(ev.start_time);
+        // Bet365/algumas APIs usam 00:00:00Z como placeholder de horário.
+        // Nesse caso comparamos a data UTC diretamente (sem shift BRT),
+        // pois o dia no Brasil é o mesmo da data UTC quando horário é meia-noite.
+        const isMidnightPlaceholder =
+          d.getUTCHours() === 0 && d.getUTCMinutes() === 0 && d.getUTCSeconds() === 0;
+
+        const evY = isMidnightPlaceholder ? d.getUTCFullYear() : new Date(d.getTime() - 3 * 60 * 60 * 1000).getUTCFullYear();
+        const evM = isMidnightPlaceholder ? d.getUTCMonth()    : new Date(d.getTime() - 3 * 60 * 60 * 1000).getUTCMonth();
+        const evD = isMidnightPlaceholder ? d.getUTCDate()     : new Date(d.getTime() - 3 * 60 * 60 * 1000).getUTCDate();
+
+        return evY === filterY && evM === filterM && evD === filterD;
       });
     }
 
     const sources: string[] = [];
     if (altenar.length  > 0) sources.push('altenar');
     if (kambi.length    > 0) sources.push('kambi');
-    if (betano.length   > 0) sources.push('betano');
     if (superbet.length > 0) sources.push('superbet');
-    if (novibet.length  > 0) sources.push('novibet');
     if (bwin.length     > 0) sources.push('bwin');
     if (bet365.length   > 0) sources.push('bet365');
 

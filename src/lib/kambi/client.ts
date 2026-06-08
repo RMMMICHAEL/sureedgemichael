@@ -56,7 +56,7 @@ interface KambiEvent {
   homeName:  string;
   awayName:  string;
   start:     string;
-  groupName: string;
+  group:     string;   // campo real da API Kambi (não groupName)
   groupId:   number;
   betOffers: KambiBetOffer[];
 }
@@ -133,7 +133,7 @@ export async function getKambiOdds(): Promise<OddsSummary[]> {
   for (const { client, events } of results) {
     for (const ev of events) {
       // Exclui e-sports / futebol virtual
-      if (isVirtualLeague(ev.groupName)) continue;
+      if (isVirtualLeague(ev.group)) continue;
 
       const odds = extractMatchOdds(ev.betOffers);
       if (!odds) continue;
@@ -146,7 +146,7 @@ export async function getKambiOdds(): Promise<OddsSummary[]> {
           home_team:   ev.homeName,
           away_team:   ev.awayName,
           start_time:  ev.start,
-          league_name: ev.groupName,
+          league_name: ev.group,
           league_id:   ev.groupId,
           bookmakers:  [],
         });
