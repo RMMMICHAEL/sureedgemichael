@@ -330,6 +330,18 @@ export async function GET(req: NextRequest) {
     return true;
   });
 
+  // Debug: loga estrutura do primeiro evento bruto
+  if (rawEvents.length > 0) {
+    const sample = rawEvents[0];
+    console.log('[fifa/odds] sample event keys:', Object.keys(sample));
+    console.log('[fifa/odds] sample markets count:', sample.markets?.length ?? 'N/A');
+    if (sample.markets?.length > 0) {
+      console.log('[fifa/odds] first market:', JSON.stringify(sample.markets[0]));
+    } else {
+      console.log('[fifa/odds] raw event sample:', JSON.stringify(sample).slice(0, 500));
+    }
+  }
+
   const bet365: BookmakerOdds = {
     slug: 'bet365',
     name: 'Bet365',
