@@ -92,6 +92,7 @@ export interface FifaEvent {
   home:       string;
   away:       string;
   league:     string;
+  category:   string;
   duration:   '6min' | '8min' | 'other';
   startTime:  string;
   markets:    MarketOdds[];
@@ -127,24 +128,22 @@ async function fetchEsportsPage(page: number): Promise<PulseResponse | null> {
 
 function detectDuration(league: string): '6min' | '8min' | 'other' {
   const l = league.toLowerCase();
-  if (l.includes('6 min') || l.includes('6min') || l.includes('6-min')) return '6min';
+  if (l.includes('6 min') || l.includes('6min') || l.includes('6-min') || l.includes('4x5') || l.includes('4 x 5')) return '6min';
   if (l.includes('8 min') || l.includes('8min') || l.includes('8-min')) return '8min';
   return 'other';
 }
 
-function isFifaLeague(league: string): boolean {
-  const l = league.toLowerCase();
-  return (
-    l.includes('fifa') ||
-    l.includes('e-soccer') ||
-    l.includes('esoccer') ||
-    l.includes('e soccer') ||
-    l.includes('virtual') ||
-    l.includes('cyber') ||
-    l.includes('6 min') || l.includes('6min') ||
-    l.includes('8 min') || l.includes('8min') ||
-    l.includes('club friendly esports')
-  );
+// Detecta categoria de e-sport
+function detectCategory(sport: string, league: string): string {
+  const l = (sport + ' ' + league).toLowerCase();
+  if (l.includes('fifa') || l.includes('e-soccer') || l.includes('esoccer')) return 'FIFA';
+  if (l.includes('basketball') || l.includes('ebasket')) return 'Basquete';
+  if (l.includes('cs2') || l.includes('counter')) return 'CS2';
+  if (l.includes('valorant')) return 'Valorant';
+  if (l.includes('dota')) return 'Dota2';
+  if (l.includes('lol') || l.includes('league of legends')) return 'LoL';
+  if (l.includes('virtual')) return 'Virtual';
+  return 'E-Sports';
 }
 
 function extractMarkets(ev: PulseEvent, bk: BookmakerOdds): MarketOdds[] {
@@ -322,12 +321,10 @@ export async function GET(req: NextRequest) {
     if (p) rawEvents.push(...p.events);
   }
 
-  // Filtra apenas FIFA/e-soccer, pré-jogo, duração solicitada
+  // Filtra pré-jogo e duração solicitada (aceita todos os e-sports)
   const filtered = rawEvents.filter(ev => {
     if (ev.live) return false;
-    const league = ev.league;
-    if (!isFifaLeague(league)) return false;
-    const dur = detectDuration(league);
+    const dur = detectDuration(ev.league);
     if (duration === '6' && dur !== '6min') return false;
     if (duration === '8' && dur !== '8min') return false;
     return true;
@@ -349,6 +346,7 @@ export async function GET(req: NextRequest) {
       home:      ev.home,
       away:      ev.away,
       league:    ev.league.split('||').pop()?.trim() ?? ev.league,
+      category:  detectCategory(ev.sport ?? '', ev.league),
       duration:  detectDuration(ev.league),
       startTime: ev.startTime,
       markets,

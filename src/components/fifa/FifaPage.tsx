@@ -1,8 +1,11 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { RefreshCw, ExternalLink, TrendingUp, Filter, Gamepad2, Clock, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { RefreshCw, ExternalLink, TrendingUp, Gamepad2, Clock, AlertCircle, ChevronDown, ChevronUp, Lock } from 'lucide-react';
+import { useStore } from '@/store/useStore';
 import type { FifaEvent, Surebet, MarketOdds } from '@/app/api/fifa/odds/route';
+
+const ADMIN_EMAIL = 'michaelrodrifues04@gmail.com';
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -234,17 +237,31 @@ function EventCard({ ev }: { ev: FifaEvent }) {
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 }}>
-          {/* Duration badge */}
+          {/* Category badge */}
           <span
             style={{
-              fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 6,
-              background: ev.duration === '6min' ? 'rgba(59,130,246,.15)' : 'rgba(139,92,246,.15)',
-              color:      ev.duration === '6min' ? '#60a5fa'              : '#a78bfa',
-              border: `1px solid ${ev.duration === '6min' ? 'rgba(59,130,246,.3)' : 'rgba(139,92,246,.3)'}`,
+              fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 6,
+              background: 'rgba(255,255,255,.06)',
+              color: 'var(--t3)',
+              border: '1px solid rgba(255,255,255,.1)',
             }}
           >
-            {ev.duration}
+            {ev.category}
           </span>
+
+          {/* Duration badge — só quando relevante */}
+          {ev.duration !== 'other' && (
+            <span
+              style={{
+                fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 6,
+                background: ev.duration === '6min' ? 'rgba(59,130,246,.15)' : 'rgba(139,92,246,.15)',
+                color:      ev.duration === '6min' ? '#60a5fa'              : '#a78bfa',
+                border: `1px solid ${ev.duration === '6min' ? 'rgba(59,130,246,.3)' : 'rgba(139,92,246,.3)'}`,
+              }}
+            >
+              {ev.duration}
+            </span>
+          )}
 
           {/* Surebet badge */}
           {ev.hasSurebet && (
@@ -313,6 +330,36 @@ function EventCard({ ev }: { ev: FifaEvent }) {
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export function FifaPage() {
+  const authEmail = useStore(s => s.authEmail);
+
+  // Gate: apenas admin
+  if (authEmail && authEmail !== ADMIN_EMAIL) {
+    return (
+      <div style={{
+        flex: 1, display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center', gap: 16,
+        padding: 40, textAlign: 'center',
+      }}>
+        <div style={{
+          width: 56, height: 56, borderRadius: 16,
+          background: 'rgba(255,77,109,.07)',
+          border: '1px solid rgba(255,77,109,.2)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <Lock size={22} style={{ color: 'var(--r)' }} />
+        </div>
+        <div>
+          <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--t)', marginBottom: 8 }}>
+            Acesso Restrito
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--t3)', maxWidth: 280, lineHeight: 1.6 }}>
+            Esta página está disponível apenas para administradores.
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const [events,     setEvents]     = useState<FifaEvent[]>([]);
   const [loading,    setLoading]    = useState(true);
   const [error,      setError]      = useState<string | null>(null);
