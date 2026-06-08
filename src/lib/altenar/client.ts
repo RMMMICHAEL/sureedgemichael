@@ -1,22 +1,29 @@
 /**
  * Cliente Altenar — API pública, sem autenticação, sem Cloudflare.
- * Cobre: EstrelaBet, Br4bet, EsportivaBet, Jogo de Ouro (mesmo servidor).
+ * Todas as casas abaixo compartilham o mesmo servidor Altenar.
  *
  * Estrutura da resposta GetEvents:
  *  - events[]       → metadados do jogo (id, champId, startDate, competitorIds[], marketIds[])
  *  - competitors[]  → id → nome do time
  *  - markets[]      → id, typeId (1 = 1X2), oddIds[]
  *  - odds[]         → id, price (decimal)
- *  - champs[]       → id, name (nome da liga) — top-level, não aninhado em sports
+ *  - champs[]       → id, name (nome da liga) — top-level
  */
 
 const BASE = 'https://sb2frontend-altenar2.biahosted.com/api/widget';
 
 const INTEGRATIONS: Record<string, string> = {
+  // ── Confirmadas via GetSportMenu ──────────────────────────────────────────
   estrelabet:   'EstrelaBet',
   br4bet:       'Br4.bet',
   esportivabet: 'EsportivaBet',
   jogodeouro:   'Jogo de Ouro',
+  vaidebet:     'VaideBet',
+  sortenabet:   'SortenasBet',
+  lotogreen:    'LotoGreen',
+  betpix365:    'BetPix365',
+  f12:          'F12.bet',
+  vupi:         'VupiBet',
 };
 
 const DEFAULT_PARAMS = {

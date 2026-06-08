@@ -1,44 +1,69 @@
 /**
  * Cliente Kambi — API pública, sem autenticação.
- * Cobre: KTO (ktobr) — usa servidor us.offering-api.kambicdn.com
- * Endpoint: /offering/v2018/{clientId}/listView/football.json
+ * Casas confirmadas via teste direto na API Kambi CDN:
+ *  - KTO       (us.offering-api.kambicdn.com / client: ktobr)
+ *  - Sportingbet (eu-offering-api.kambicdn.com / client: sportingbet)
+ *  - Superbet  (eu-offering-api.kambicdn.com / client: superbet)
  */
 
 import type { OddsSummary } from '@/lib/altenar/client';
 
-// KTO usa servidor US (confirmado no HAR)
 const BASE_US = 'https://us.offering-api.kambicdn.com/offering/v2018';
 const BASE_EU = 'https://eu-offering-api.kambicdn.com/offering/v2018';
 
 interface KambiClientDef {
-  id:   string;
-  name: string;
-  base: string;
-  url:  (id: number) => string;
+  id:     string;
+  name:   string;
+  base:   string;
+  origin: string;
+  url:    (id: number) => string;
 }
 
 const CLIENTS: KambiClientDef[] = [
   {
-    id:   'ktobr',
-    name: 'KTO',
-    base: BASE_US,
-    url:  (id) => `https://www.kto.bet.br/sports/futebol/evento/${id}`,
+    id:     'ktobr',
+    name:   'KTO',
+    base:   BASE_US,
+    origin: 'https://www.kto.bet.br',
+    url:    (id) => `https://www.kto.bet.br/sports/futebol/evento/${id}`,
+  },
+  {
+    id:     'sportingbet',
+    name:   'Sportingbet',
+    base:   BASE_EU,
+    origin: 'https://sports.sportingbet.com',
+    url:    (id) => `https://sports.sportingbet.com/sports/futebol/evento/${id}`,
+  },
+  {
+    id:     'superbet',
+    name:   'Superbet',
+    base:   BASE_EU,
+    origin: 'https://superbet.com.br',
+    url:    (id) => `https://superbet.com.br/esportes/futebol/evento/${id}`,
   },
 ];
 
+// Palavras que identificam e-sports / futebol virtual — excluir
+const VIRTUAL_KEYWORDS = ['cyber', 'virtual', 'esoccer', 'e-soccer', 'inplay arena', 'cla (', 'live arena'];
+
+function isVirtualLeague(groupName: string): boolean {
+  const g = groupName.toLowerCase();
+  return VIRTUAL_KEYWORDS.some(k => g.includes(k));
+}
+
 interface KambiEvent {
-  id:          number;
-  homeName:    string;
-  awayName:    string;
-  start:       string; // ISO
-  groupName:   string; // league
-  groupId:     number;
-  betOffers:   KambiBetOffer[];
+  id:        number;
+  homeName:  string;
+  awayName:  string;
+  start:     string;
+  groupName: string;
+  groupId:   number;
+  betOffers: KambiBetOffer[];
 }
 
 interface KambiBetOffer {
   betOfferType: { name: string };
-  outcomes:     Array<{ label: string; odds: number; oddsFractional?: string }>;
+  outcomes:     Array<{ label: string; odds: number }>;
   suspended?:   boolean;
 }
 
@@ -47,8 +72,7 @@ interface KambiListResponse {
 }
 
 function decimalOdds(raw: number): number {
-  // Kambi returns odds * 1000 (millodds format)
-  return raw > 100 ? raw / 1000 : raw;
+  return raw > 100 ? raw / 1000 : raw; // Kambi usa millodds (×1000)
 }
 
 async function fetchKambiFootball(client: KambiClientDef): Promise<KambiEvent[]> {
@@ -59,9 +83,10 @@ async function fetchKambiFootball(client: KambiClientDef): Promise<KambiEvent[]>
       headers: {
         Accept:       'application/json',
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        Origin:       'https://www.kto.bet.br',
+        Origin:       client.origin,
+        Referer:      client.origin + '/',
       },
-      next: { revalidate: 60 },
+      cache: 'no-store',
     });
 
     if (!res.ok) return [];
@@ -77,16 +102,16 @@ async function fetchKambiFootball(client: KambiClientDef): Promise<KambiEvent[]>
 }
 
 function extractMatchOdds(betOffers: KambiBetOffer[]): { home: number; draw: number; away: number } | null {
-  const matchOffer = betOffers.find(bo =>
+  const offer = betOffers.find(bo =>
     !bo.suspended &&
     (bo.betOfferType.name === 'Match' ||
      bo.betOfferType.name === 'Match Result' ||
      bo.betOfferType.name === 'Result')
   );
 
-  if (!matchOffer || matchOffer.outcomes.length < 3) return null;
+  if (!offer || offer.outcomes.length < 3) return null;
 
-  const [o1, oX, o2] = matchOffer.outcomes;
+  const [o1, oX, o2] = offer.outcomes;
   const home = decimalOdds(o1?.odds ?? 0);
   const draw = decimalOdds(oX?.odds ?? 0);
   const away = decimalOdds(o2?.odds ?? 0);
@@ -107,6 +132,9 @@ export async function getKambiOdds(): Promise<OddsSummary[]> {
 
   for (const { client, events } of results) {
     for (const ev of events) {
+      // Exclui e-sports / futebol virtual
+      if (isVirtualLeague(ev.groupName)) continue;
+
       const odds = extractMatchOdds(ev.betOffers);
       if (!odds) continue;
 
