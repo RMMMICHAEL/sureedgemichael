@@ -127,16 +127,6 @@ export async function GET(req: NextRequest) {
       ok:      true,
       count:   odds.length,
       source:  sources.join('+') || 'none',
-      // diagnóstico — remove depois
-      _debug: {
-        altenar:  altenar.length,
-        superbet: superbet.length,
-        bwin:     bwin.length,
-        bet365:   bet365.length,
-        superbetStatus: superbetOdds.status,
-        bet365Status:   bet365Odds.status,
-        bet365Reason:   bet365Odds.status === 'rejected' ? String((bet365Odds as PromiseRejectedResult).reason) : undefined,
-      },
       odds,
     });
   } catch (e: unknown) {
