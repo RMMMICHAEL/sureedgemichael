@@ -20,14 +20,11 @@ const HEADERS = {
   Referer:      'https://superbet.bet.br/',
 };
 
-// Estrutura da lista betbuilder (2194 total):
-//   0-500:    eventos com empty data (passado)
-//   500-1500: futebol futuro (próximas semanas)
-//   1500-1900: FUTEBOL DE HOJE E AMANHÃ ← range útil
-//   1900-2194: esports e outros esportes
-// Pegamos 700 IDs a partir de -1000 (antes dos esports) para cobrir o range certo.
-const SLICE_START = -1000;  // do fim: começa aqui
-const SLICE_END   = -300;   // vai até aqui (exclui esports no final)
+// A lista betbuilder tem ~2200 IDs. Os eventos de hoje ficam nos últimos
+// ~600 IDs e o range muda conforme novos eventos são adicionados.
+// Estratégia: pegar os últimos 700 e filtrar por data no momento do fetch.
+const SLICE_START = -700;   // últimos 700 IDs cobrem hoje + próximos dias
+const SLICE_END   = undefined; // até o fim da lista
 
 interface SuperbetOdd {
   code:        string;   // '1' | 'X' | '2'
@@ -131,9 +128,16 @@ export async function getSuperbetOdds(): Promise<OddsSummary[]> {
   const eventIds = await fetchEventIds();
   if (!eventIds.length) return [];
 
-  // Busca todos em paralelo (~700 IDs no range de hoje+amanhã)
+  // Busca em paralelo em lotes de 100 para não sobrecarregar o Vercel
   const results: OddsSummary[] = [];
-  const fetched = await Promise.allSettled(eventIds.map(fetchEvent));
+  const allFetched: Array<SuperbetEvent | null> = [];
+  const BATCH = 100;
+  for (let i = 0; i < eventIds.length; i += BATCH) {
+    const batch = eventIds.slice(i, i + BATCH);
+    const settled = await Promise.allSettled(batch.map(fetchEvent));
+    for (const r of settled) allFetched.push(r.status === 'fulfilled' ? r.value : null);
+  }
+  const fetched = allFetched.map(v => ({ status: 'fulfilled' as const, value: v }));
 
   for (const r of fetched) {
       if (r.status !== 'fulfilled' || !r.value) continue;
