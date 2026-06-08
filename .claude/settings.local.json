@@ -105,7 +105,9 @@
       "WebFetch(domain:production-superbet-bmb.freetls.fastly.net)",
       "WebFetch(domain:api.duplogreenengine.com)",
       "WebFetch(domain:www.duplogreenengine.com)",
-      "mcp__Claude_in_Chrome__tabs_context_mcp"
+      "mcp__Claude_in_Chrome__tabs_context_mcp",
+      "Bash(vercel env *)",
+      "Bash(vercel link *)"
     ]
   },
   "enableAllProjectMcpServers": true,

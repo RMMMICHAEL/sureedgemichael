@@ -1,6 +1,9 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useStore } from '@/store/useStore';
+
+const ADMIN_EMAIL = 'michael.martins.trader@gmail.com';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -73,22 +76,67 @@ function bkmLabel(name: string) {
 // ─── Componente principal ─────────────────────────────────────────────────────
 
 export function BuscarOddsPage() {
-  const [rows,     setRows]     = useState<OddRow[]>([]);
-  const [filtered, setFiltered] = useState<OddRow[]>([]);
-  const [loading,  setLoading]  = useState(true);
-  const [error,    setError]    = useState('');
-  const [search,   setSearch]   = useState('');
-  const [league,   setLeague]   = useState('all');
-  const [sort,     setSort]     = useState<'time' | 'margin' | 'bkm'>('time');
-  const [lastUpd,  setLastUpd]  = useState('');
+  const authEmail  = useStore(s => s.authEmail);
+  const isAdmin    = authEmail === ADMIN_EMAIL;
+
+  const [rows,        setRows]        = useState<OddRow[]>([]);
+  const [filtered,    setFiltered]    = useState<OddRow[]>([]);
+  const [loading,     setLoading]     = useState(true);
+  const [error,       setError]       = useState('');
+  const [tokenExpired, setTokenExpired] = useState(false);
+  const [connecting,  setConnecting]  = useState(false);
+  const [search,      setSearch]      = useState('');
+  const [league,      setLeague]      = useState('all');
+  const [sort,        setSort]        = useState<'time' | 'margin' | 'bkm'>('time');
+  const [lastUpd,     setLastUpd]     = useState('');
+
+  // ── Envia token do DuploGreen para o servidor ────────────────────────────────
+  const connectDG = useCallback(async () => {
+    if (!isAdmin) return;
+    setConnecting(true);
+    try {
+      // Pega o token da sessão DuploGreen armazenada no localStorage (se disponível)
+      // Normalmente o admin faz isso via console: copiar e colar o token
+      const tokenInput = window.prompt(
+        'Cole aqui o access_token do DuploGreen\n\n' +
+        'Para obter: abra www.duplogreenengine.com → F12 → Console → cole:\n\n' +
+        'JSON.parse(Object.entries(localStorage).find(([k])=>k.includes("sb-db-auth-token"))[1]).access_token'
+      );
+      if (!tokenInput?.startsWith('eyJ')) {
+        alert('Token inválido. Deve começar com "eyJ"');
+        return;
+      }
+      const res = await fetch('/api/dg/set-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ access_token: tokenInput.trim() }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setTokenExpired(false);
+        setError('');
+        load();
+      } else {
+        alert('Erro: ' + data.error);
+      }
+    } finally {
+      setConnecting(false);
+    }
+  }, [isAdmin]);
 
   // ── Carrega odds ─────────────────────────────────────────────────────────────
   const load = useCallback(async () => {
     setLoading(true);
     setError('');
+    setTokenExpired(false);
     try {
       const res  = await fetch('/api/dg/odds?type=all');
       const data = await res.json();
+      if (data.error === 'TOKEN_EXPIRED') {
+        setTokenExpired(true);
+        setLoading(false);
+        return;
+      }
       if (!data.ok) throw new Error(data.error ?? 'Erro ao carregar odds');
       setRows(data.odds ?? []);
       setLastUpd(new Date().toLocaleTimeString('pt-BR'));
@@ -169,6 +217,40 @@ export function BuscarOddsPage() {
           </button>
         </div>
       </div>
+
+      {/* Token expirado */}
+      {tokenExpired && (
+        <div style={{
+          padding: '14px 16px', borderRadius: 10, display: 'flex',
+          alignItems: 'center', justifyContent: 'space-between', gap: 12,
+          background: 'rgba(251,191,36,.07)', border: '1px solid rgba(251,191,36,.25)',
+        }}>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#fbbf24' }}>
+              🔑 Token DuploGreen expirado
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--t3)', marginTop: 2 }}>
+              {isAdmin
+                ? 'Clique em Reconectar para atualizar o token de acesso.'
+                : 'Aguarde o administrador reconectar o serviço de odds.'}
+            </div>
+          </div>
+          {isAdmin && (
+            <button
+              onClick={connectDG}
+              disabled={connecting}
+              style={{
+                padding: '7px 16px', borderRadius: 8, fontSize: 12, fontWeight: 700,
+                background: 'rgba(251,191,36,.15)', border: '1px solid rgba(251,191,36,.35)',
+                color: '#fbbf24', cursor: connecting ? 'wait' : 'pointer',
+                whiteSpace: 'nowrap', flexShrink: 0,
+              }}
+            >
+              {connecting ? 'Conectando…' : '🔗 Reconectar'}
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Erro */}
       {error && (

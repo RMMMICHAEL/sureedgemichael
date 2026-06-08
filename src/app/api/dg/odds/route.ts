@@ -42,7 +42,19 @@ export async function GET(req: NextRequest) {
       endpoint = 'get-all-odds';
     }
 
-    const res = await dgFetch(endpoint, params);
+    let res: Response;
+    try {
+      res = await dgFetch(endpoint, params);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (msg === 'TOKEN_EXPIRED') {
+        return NextResponse.json(
+          { ok: false, error: 'TOKEN_EXPIRED', message: 'Token DuploGreen expirado — reconecte no painel admin.' },
+          { status: 401 },
+        );
+      }
+      throw e;
+    }
 
     if (!res.ok) {
       const err = await res.text();
