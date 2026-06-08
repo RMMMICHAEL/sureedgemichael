@@ -18,6 +18,7 @@ import { getBetanoOdds }   from '@/lib/betano/client';
 import { getSuperbetOdds } from '@/lib/superbet/client';
 import { getNovibetOdds }  from '@/lib/novibet/client';
 import { getBwinOdds }     from '@/lib/bwin/client';
+import { getBet365Odds }   from '@/lib/bet365/client';
 
 function normalize(s: string) {
   return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
@@ -74,7 +75,7 @@ export async function GET(req: NextRequest) {
   const showAll = req.nextUrl.searchParams.get('all') === '1';
 
   try {
-    const [altenarOdds, kambiOdds, betanoOdds, superbetOdds, novibetOdds, bwinOdds] =
+    const [altenarOdds, kambiOdds, betanoOdds, superbetOdds, novibetOdds, bwinOdds, bet365Odds] =
       await Promise.allSettled([
         champId ? getOddsByLeague(Number(champId)) : getAllFootballOdds(),
         getKambiOdds(),
@@ -82,6 +83,7 @@ export async function GET(req: NextRequest) {
         getSuperbetOdds(),
         getNovibetOdds(),
         getBwinOdds(),
+        getBet365Odds(),
       ]);
 
     const altenar  = altenarOdds.status  === 'fulfilled' ? altenarOdds.value  : [];
@@ -90,8 +92,9 @@ export async function GET(req: NextRequest) {
     const superbet = superbetOdds.status === 'fulfilled' ? superbetOdds.value : [];
     const novibet  = novibetOdds.status  === 'fulfilled' ? novibetOdds.value  : [];
     const bwin     = bwinOdds.status     === 'fulfilled' ? bwinOdds.value     : [];
+    const bet365   = bet365Odds.status   === 'fulfilled' ? bet365Odds.value   : [];
 
-    let odds = mergeOdds(altenar, kambi, betano, superbet, novibet, bwin);
+    let odds = mergeOdds(altenar, kambi, betano, superbet, novibet, bwin, bet365);
 
     // Filtra por dia (Brasília = UTC-3)
     if (!showAll) {
@@ -118,6 +121,7 @@ export async function GET(req: NextRequest) {
     if (superbet.length > 0) sources.push('superbet');
     if (novibet.length  > 0) sources.push('novibet');
     if (bwin.length     > 0) sources.push('bwin');
+    if (bet365.length   > 0) sources.push('bet365');
 
     return NextResponse.json({
       ok:      true,
