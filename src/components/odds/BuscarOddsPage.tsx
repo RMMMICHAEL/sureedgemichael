@@ -223,7 +223,10 @@ function OddsSection({ title, pa, rows, bests }: {
 
 // ─── Painel de odds do evento selecionado ──────────────────────────────────────
 
+type LoadPhase = 'cache' | 'extension' | 'done';
+
 function EventOddsPanel({ event, onBack }: { event: CachedEvent; onBack: () => void }) {
+  const [phase,    setPhase]    = useState<LoadPhase>('cache');
   const [loading,  setLoading]  = useState(false);
   const [parsed,   setParsed]   = useState<ParsedSearch | null>(null);
   const [fetchErr, setFetchErr] = useState('');
@@ -232,25 +235,73 @@ function EventOddsPanel({ event, onBack }: { event: CachedEvent; onBack: () => v
     setLoading(true);
     setFetchErr('');
     setParsed(null);
+
+    // ── Fase 1: cache rápido (/api/sure/search) ──────────────────────────
+    setPhase('cache');
     try {
       const res  = await fetch('/api/sure/search', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query: event.name }),
       });
-      const json = await res.json() as { ok: boolean; data?: unknown; error?: string };
-      if (!json.ok) throw new Error(json.error ?? '');
-      const p = parseSearchResults(json.data);
+      const json = await res.json() as {
+        ok: boolean; data?: unknown; error?: string;
+        reason?: string; cached_at?: string;
+      };
+
+      if (json.ok && json.data) {
+        const p = parseSearchResults(json.data);
+        if (p) {
+          setParsed(p);
+          setLoading(false);
+          setPhase('done');
+          return;
+        }
+      }
+
+      // Cache velho ou não encontrado → tenta extensão
+      const needsExtension = !json.ok; // reason: 'stale' | 'not_found' | 'error'
+      if (!needsExtension) {
+        throw new Error('Nenhuma odd encontrada para este evento');
+      }
+    } catch (e: unknown) {
+      const msg = (e as Error).message ?? '';
+      // Se não foi erro de "cache precisa de extensão", já para aqui
+      if (!msg.includes('stale') && !msg.includes('not_found')) {
+        setFetchErr(
+          msg === 'Nenhuma odd encontrada para este evento' ? msg
+          : 'Não foi possível carregar as odds. Verifique se o SuperMonitor está ativo.',
+        );
+        setLoading(false);
+        return;
+      }
+    }
+
+    // ── Fase 2: extensão em tempo real (/api/sure/search-odds) ──────────
+    setPhase('extension');
+    try {
+      const res2  = await fetch('/api/sure/search-odds', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: event.name }),
+      });
+      const json2 = await res2.json() as { ok: boolean; results?: unknown; error?: string };
+
+      if (!json2.ok) throw new Error(json2.error ?? 'Extensão não respondeu');
+
+      const p = parseSearchResults(json2.results);
       if (!p) throw new Error('Nenhuma odd encontrada para este evento');
       setParsed(p);
     } catch (e: unknown) {
       const msg = (e as Error).message ?? '';
       setFetchErr(
-        msg === 'Nenhuma odd encontrada para este evento' ? msg
-        : msg.includes('401') || msg.includes('expirado') ? 'Serviço temporariamente indisponível.'
-        : 'Não foi possível carregar as odds.',
+        msg.includes('Timeout') || msg.includes('não respondeu')
+          ? 'Extensão não respondeu. Verifique se o navegador está aberto com o SuperMonitor ativo.'
+          : msg === 'Nenhuma odd encontrada para este evento'
+            ? msg
+            : 'Não foi possível carregar as odds.',
       );
     } finally {
       setLoading(false);
+      setPhase('done');
     }
   }
 
@@ -260,6 +311,8 @@ function EventOddsPanel({ event, onBack }: { event: CachedEvent; onBack: () => v
     try { return new Date(utc).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }); }
     catch { return utc; }
   }
+
+  const phaseLabel = phase === 'cache' ? 'Verificando cache…' : phase === 'extension' ? 'Buscando via SuperMonitor…' : '';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -302,7 +355,7 @@ function EventOddsPanel({ event, onBack }: { event: CachedEvent; onBack: () => v
           borderRadius: 14, padding: '40px 16px', textAlign: 'center',
           background: 'var(--bg2)', border: '1px solid var(--b)',
         }}>
-          <div style={{ fontSize: 11, color: 'var(--t3)', marginBottom: 8 }}>Buscando odds…</div>
+          <div style={{ fontSize: 11, color: 'var(--t3)', marginBottom: 8 }}>{phaseLabel}</div>
           <div style={{ display: 'flex', justifyContent: 'center', gap: 5 }}>
             {[0, 1, 2].map(i => (
               <div key={i} style={{
