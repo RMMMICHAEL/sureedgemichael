@@ -59,6 +59,9 @@ interface BwinFixture {
   participants:   BwinParticipant[];
   optionMarkets:  BwinMarket[];
   isOpenForBetting: boolean;
+  isVirtual?:     boolean;
+  fixtureType?:   string;
+  taggedLocations?: unknown[];
 }
 
 interface BwinFixturesResponse {
@@ -135,6 +138,9 @@ export async function getBwinOdds(): Promise<OddsSummary[]> {
 
   for (const fx of fixtures) {
     if (!fx.isOpenForBetting) continue;
+    // Exclui partidas virtuais / e-soccer
+    if (fx.isVirtual) continue;
+    if (fx.fixtureType === 'Virtual') continue;
 
     const mkt = find1X2Market(fx.optionMarkets ?? []);
     if (!mkt) continue;
@@ -144,7 +150,6 @@ export async function getBwinOdds(): Promise<OddsSummary[]> {
     const away = getParticipant(fx, 'AwayTeam');
     if (!home || !away) continue;
 
-    // Mapeia opções → 1/X/2 pela ordem
     const [o1, oX, o2] = opts;
     const homeOdds = o1?.price?.odds ?? 0;
     const drawOdds = oX?.price?.odds ?? 0;
@@ -154,7 +159,13 @@ export async function getBwinOdds(): Promise<OddsSummary[]> {
 
     const leagueName = fx.competition?.name?.value ?? '';
     const leagueId   = fx.competition?.id          ?? 0;
-    const sourceId   = fx.id.split(':')[1] ?? fx.id;
+
+    // URL: /pt-br/sports/eventos/{name-slug}-{fixtureId}
+    const nameSlug = (fx.name?.value ?? '')
+      .toLowerCase()
+      .normalize('NFD').replace(/[̀-ͯ]/g, '')
+      .replace(/\s+/g, '-').replace(/[^a-z0-9\-]/g, '');
+    const fixtureUrl = `https://www.sportingbet.bet.br/pt-br/sports/eventos/${nameSlug}-${fx.id}`;
 
     results.push({
       match_id:    fx.id,
@@ -169,7 +180,7 @@ export async function getBwinOdds(): Promise<OddsSummary[]> {
         home: homeOdds,
         draw: drawOdds,
         away: awayOdds,
-        url:  `https://www.sportingbet.bet.br/pt-br/sports/eventos/-${sourceId}`,
+        url:  fixtureUrl,
       }],
     });
   }

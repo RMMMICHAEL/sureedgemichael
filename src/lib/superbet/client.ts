@@ -105,6 +105,14 @@ function parseMatchName(ev: SuperbetEvent): { home: string; away: string } {
   };
 }
 
+function toSlug(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9\-]/g, '');
+}
+
 export async function getSuperbetOdds(): Promise<OddsSummary[]> {
   const eventIds = await fetchEventIds();
   if (!eventIds.length) return [];
@@ -134,6 +142,9 @@ export async function getSuperbetOdds(): Promise<OddsSummary[]> {
         ? new Date(ev.matchDate.replace(' ', 'T') + 'Z').toISOString()
         : new Date().toISOString();
 
+      // URL: /odds/futebol/{home-slug}-x-{away-slug}-{eventId}
+      const eventUrl = `https://superbet.bet.br/odds/futebol/${toSlug(home)}-x-${toSlug(away)}-${ev.eventId}`;
+
       results.push({
         match_id:    String(ev.eventId),
         home_team:   home,
@@ -147,7 +158,7 @@ export async function getSuperbetOdds(): Promise<OddsSummary[]> {
           home: odds.home,
           draw: odds.draw,
           away: odds.away,
-          url:  `https://superbet.bet.br/odds/futebol/-${ev.eventId}`,
+          url:  eventUrl,
         }],
       });
     }
