@@ -446,23 +446,37 @@ export function BuscarOddsPage() {
   const [search,        setSearch]        = useState('');
   const [selectedEvent, setSelectedEvent] = useState<OddsSummary | null>(null);
 
-  // Carrega odds com logs de diagnóstico em cada etapa
+  // Carrega odds: tenta banco de dados importado primeiro, cai nas APIs ao vivo se vazio
   const loadOdds = useCallback(async (date: string, silent = false) => {
     if (!silent) { setLoading(true); setFetchErr(''); setAllOdds([]); setSelectedEvent(null); }
     try {
-      const isToday = date === todayBRT();
-      const url     = isToday ? '/api/dg/odds' : `/api/dg/odds?date=${date}`;
+      // 1ª tentativa: dados importados no Supabase (mais rápido e completo)
+      const dbUrl  = `/api/dg/odds-db?date=${date}`;
+      console.log('[frontend:4-fetch] tentando banco importado:', dbUrl);
+      const dbRes  = await fetch(dbUrl);
+      const dbJson = await dbRes.json() as { ok: boolean; odds?: OddsSummary[]; source?: string; error?: string };
 
-      console.log('[frontend:4-fetch] buscando odds:', url);
-      const res  = await fetch(url);
+      if (dbJson.ok && (dbJson.odds?.length ?? 0) > 0) {
+        const odds = dbJson.odds!;
+        console.log('[frontend:4-fetch] banco importado:', odds.length, 'jogos | source:', dbJson.source);
+        setAllOdds(odds);
+        return;
+      }
+
+      console.log('[frontend:4-fetch] banco vazio para essa data, usando APIs ao vivo…');
+
+      // 2ª tentativa: APIs ao vivo
+      const isToday = date === todayBRT();
+      const liveUrl = isToday ? '/api/dg/odds' : `/api/dg/odds?date=${date}`;
+      console.log('[frontend:4-fetch] buscando odds ao vivo:', liveUrl);
+      const res  = await fetch(liveUrl);
       const json = await res.json() as { ok: boolean; odds?: OddsSummary[]; source?: string; error?: string };
 
       if (!json.ok) throw new Error(json.error ?? 'Erro ao carregar odds');
 
       const odds = json.odds ?? [];
-      console.log('[frontend:4-fetch] odds recebidas:', odds.length, '| sources:', json.source);
+      console.log('[frontend:4-fetch] odds ao vivo:', odds.length, '| sources:', json.source);
 
-      // Log de bookmakers presentes
       const bkCount: Record<string, number> = {};
       for (const ev of odds) {
         for (const bk of ev.bookmakers) {
