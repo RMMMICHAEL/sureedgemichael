@@ -12,7 +12,35 @@ interface Leg {
   odd:           number;
   outcome:       string;
   matchUrl?:     string | null;
-  isPA:          boolean;
+  isPA?:         boolean | null;
+}
+
+/**
+ * Casas que operam com Pagamento Antecipado (PA) no Brasil.
+ * Usado como fallback quando o JSON importado não inclui isPA nas legs.
+ * Altenar: todas as casas com is_pa = true.
+ * Também: Superbet, Sportingbet.
+ */
+const PA_SLUGS = new Set([
+  // Altenar (is_pa: true)
+  'estrelabet', 'br4bet', 'esportivabet', 'jogodeouro', 'vaidebet',
+  'sortenabet', 'lotogreen', 'betpix365', 'f12', 'vupi',
+  // Outros
+  'superbet', 'sportingbet',
+]);
+
+/** Retorna true se a leg tem Pagamento Antecipado.
+ *  Usa isPA do dado quando explicitamente definido (true/false);
+ *  caso contrário deriva pelo slug. */
+function isLegPA(leg: Leg): boolean {
+  if (leg.isPA === true)  return true;
+  if (leg.isPA === false) return false;
+  // undefined/null → deriva do slug
+  const slug = (leg.bookmakerSlug ?? '').toLowerCase().trim();
+  if (PA_SLUGS.has(slug)) return true;
+  // Partial match para slugs com sufixos (ex: "estrelabet-br")
+  for (const s of PA_SLUGS) { if (slug.includes(s)) return true; }
+  return false;
 }
 
 interface DGOpportunity {
@@ -96,7 +124,7 @@ function LegCell({ leg }: { leg: Leg | undefined }) {
             {leg.bookmaker}
           </span>
         )}
-        {leg.isPA && (
+        {isLegPA(leg) && (
           <span className="shrink-0 rounded px-1 text-[8px] font-bold" style={{
             background: 'rgba(255,159,10,.1)',
             color: 'rgba(255,159,10,.75)',
@@ -166,7 +194,7 @@ function DGDetailPanel({
     { key: 'away',   label: 'Fora (2)' },
   ];
 
-  const hasPA = matchOpportunities.some(op => op.legs.some(l => l.isPA));
+  const hasPA = matchOpportunities.some(op => op.legs.some(l => isLegPA(l)));
 
   return (
     <div className="flex flex-col gap-4">
@@ -458,7 +486,7 @@ export function DGOpportunitiesSection() {
     return opportunities.filter(o => {
       if (classFilter !== 'ALL' && o.dg_classification !== classFilter) return false;
 
-      const paCount = o.legs.filter(l => l.isPA).length;
+      const paCount = o.legs.filter(l => isLegPA(l)).length;
       if (paFilter === 'AMBOS_PA' && paCount < 2)  return false;
       if (paFilter === 'UM_PA'    && paCount !== 1) return false;
       if (paFilter === 'SEM_PA'   && paCount > 0)  return false;
@@ -760,7 +788,7 @@ export function DGOpportunitiesSection() {
               {evs.map((o, idx) => {
                 const rgb      = classRgb(o.dg_classification);
                 const col      = classColor(o.dg_classification);
-                const hasPA    = o.legs.some(l => l.isPA);
+                const hasPA    = o.legs.some(l => isLegPA(l));
                 const oppCount = filtered.filter(x => x.match_id === o.match_id).length;
                 const legHome  = o.legs.find(l => l.outcome === 'home');
                 const legDraw  = o.legs.find(l => l.outcome === 'draw');
