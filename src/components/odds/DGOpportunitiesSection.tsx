@@ -54,6 +54,18 @@ function classRgb(c: string | null): string {
   return '129,140,248';
 }
 
+/** Cor do DG Profit baseada no sinal — verde positivo, vermelho negativo */
+function profitColor(pct: number | null): string {
+  if (pct == null) return 'rgba(255,255,255,.3)';
+  return pct >= 0 ? 'hsl(150 85% 60%)' : 'hsl(0 80% 65%)';
+}
+
+/** Formata DG Profit com sinal */
+function fmtProfit(pct: number | null): string {
+  if (pct == null) return '—';
+  return `${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%`;
+}
+
 // ── Célula de leg ─────────────────────────────────────────────────────────────
 
 function LegCell({ leg }: { leg: Leg | undefined }) {
@@ -105,12 +117,10 @@ function DGDetailPanel({
   matchOpportunities: DGOpportunity[];
   onBack: () => void;
 }) {
-  // Score é a métrica primária — sort padrão por score
-  const [sortCol, setSortCol]       = useState<'score' | 'profit' | 'home' | 'draw' | 'away'>('score');
+  const [sortCol, setSortCol]   = useState<'score' | 'profit' | 'home' | 'draw' | 'away'>('score');
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  // calcKey força re-mount do calc-reveal a cada nova seleção
-  const [calcKey, setCalcKey]       = useState(0);
-  const [calcFill, setCalcFill]     = useState<{ odds: string[]; houses: string[]; urls: string[] } | null>(null);
+  const [calcKey, setCalcKey]   = useState(0);
+  const [calcFill, setCalcFill] = useState<{ odds: string[]; houses: string[]; urls: string[] } | null>(null);
   const calcRef = useRef<HTMLDivElement>(null);
 
   const o   = matchOpportunities[0];
@@ -120,7 +130,7 @@ function DGDetailPanel({
   const sorted = useMemo(() => {
     return [...matchOpportunities].sort((a, b) => {
       if (sortCol === 'score')  return (b.dg_score ?? 0) - (a.dg_score ?? 0);
-      if (sortCol === 'profit') return (b.dg_profit_pct ?? 0) - (a.dg_profit_pct ?? 0);
+      if (sortCol === 'profit') return (b.dg_profit_pct ?? -999) - (a.dg_profit_pct ?? -999);
       const legA = a.legs.find(l => l.outcome === sortCol);
       const legB = b.legs.find(l => l.outcome === sortCol);
       return (legB?.odd ?? 0) - (legA?.odd ?? 0);
@@ -145,13 +155,12 @@ function DGDetailPanel({
       urls:   legs.map(l => l.matchUrl ?? ''),
     });
     setCalcKey(k => k + 1);
-    // Scroll calc into view after state update + animation start
     setTimeout(() => calcRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 80);
   }
 
   const cols: { key: typeof sortCol; label: string }[] = [
     { key: 'score',  label: 'Score' },
-    { key: 'profit', label: 'Lucro %' },
+    { key: 'profit', label: 'DG Profit' },
     { key: 'home',   label: 'Casa (1)' },
     { key: 'draw',   label: 'Empate (X)' },
     { key: 'away',   label: 'Fora (2)' },
@@ -189,7 +198,7 @@ function DGDetailPanel({
               background: 'rgba(255,159,10,.1)', color: 'rgba(255,159,10,.8)', border: '1px solid rgba(255,159,10,.2)',
             }}>PA disponível</span>
           )}
-          {/* Score — métrica primária no header */}
+          {/* Score — métrica primária */}
           <div className="flex flex-col items-center rounded-xl px-3 py-1.5" style={{
             background: `rgba(${rgb},.1)`, border: `1px solid rgba(${rgb},.25)`,
           }}>
@@ -200,8 +209,8 @@ function DGDetailPanel({
               DG score
             </span>
             {o.dg_profit_pct != null && (
-              <span className="text-[9px] font-bold tabular-nums mt-0.5" style={{ color: 'hsl(150 85% 58%)' }}>
-                {o.dg_profit_pct.toFixed(1)}% lucro
+              <span className="text-[9px] font-bold tabular-nums mt-0.5" style={{ color: profitColor(o.dg_profit_pct) }}>
+                {fmtProfit(o.dg_profit_pct)}
               </span>
             )}
           </div>
@@ -292,7 +301,7 @@ function DGDetailPanel({
                   {idx + 1}
                 </span>
 
-                {/* Score — primário, grande */}
+                {/* Score */}
                 <div className="flex flex-col items-center gap-0.5">
                   <span className="text-[18px] font-black leading-none tabular-nums" style={{
                     color: (isBest || isSelected) ? col : 'rgba(255,255,255,.7)',
@@ -310,14 +319,16 @@ function DGDetailPanel({
                   </div>
                 </div>
 
-                {/* Lucro % — secundário */}
-                <div className="flex flex-col items-center">
-                  <span className="text-[13px] font-black tabular-nums" style={{
-                    color: 'hsl(150 85% 60%)',
-                    textShadow: '0 0 8px hsl(150 85% 55%/0.3)',
-                  }}>
-                    {opp.dg_profit_pct?.toFixed(2) ?? '—'}%
+                {/* DG Profit — cor correta baseada no sinal */}
+                <div className="flex flex-col items-center gap-0.5">
+                  <span className="text-[13px] font-black tabular-nums" style={{ color: profitColor(opp.dg_profit_pct) }}>
+                    {fmtProfit(opp.dg_profit_pct)}
                   </span>
+                  {opp.max_loss_pct != null && (
+                    <span className="text-[9px] font-bold tabular-nums" style={{ color: 'rgba(248,113,113,.6)' }}>
+                      -{Math.abs(opp.max_loss_pct).toFixed(1)}% perda
+                    </span>
+                  )}
                 </div>
 
                 <LegCell leg={legHome} />
@@ -329,7 +340,7 @@ function DGDetailPanel({
         </div>
       </div>
 
-      {/* ── Calculadora — revela com motion quando linha é selecionada ───── */}
+      {/* ── Calculadora ─────────────────────────────────────────────────── */}
       {calcFill && (
         <div key={calcKey} ref={calcRef} className="calc-reveal overflow-hidden rounded-2xl" style={{
           background: 'rgba(13,17,23,0.75)',
@@ -375,28 +386,44 @@ function DGDetailPanel({
 
 // ── Lista principal ───────────────────────────────────────────────────────────
 
-type SortBy = 'score' | 'menor_perda' | 'maior_perda' | 'recentes';
-type PAFilter = 'ALL' | 'AMBOS_PA' | 'UM_PA' | 'SEM_PA';
+type SortBy   = 'score' | 'menor_perda' | 'maior_perda' | 'recentes';
+type PAFilter = 'ALL'   | 'AMBOS_PA'   | 'UM_PA'        | 'SEM_PA';
+
+const SORT_LABELS: Record<SortBy, string> = {
+  score:       'Maior DG Score',
+  menor_perda: 'Menor Perda',
+  maior_perda: 'Maior Perda',
+  recentes:    'Mais recentes',
+};
 
 export function DGOpportunitiesSection() {
-  const [opportunities, setOpportunities] = useState<DGOpportunity[]>([]);
-  const [loading,       setLoading]       = useState(true);
-  const [error,         setError]         = useState('');
-  const [search,        setSearch]        = useState('');
-  const [classFilter,   setClassFilter]   = useState<'ALL' | 'ALTA' | 'MEDIA' | 'BAIXA'>('ALL');
-  const [paFilter,      setPaFilter]      = useState<PAFilter>('ALL');
-  const [sortBy,        setSortBy]        = useState<SortBy>('score');
-  const [sortOpen,      setSortOpen]      = useState(false);
-  const [bkFilter,      setBkFilter]      = useState('');   // bookmaker name filter
-  const [bkOpen,        setBkOpen]        = useState(false);
+  const [opportunities,   setOpportunities]   = useState<DGOpportunity[]>([]);
+  const [loading,         setLoading]         = useState(true);
+  const [error,           setError]           = useState('');
+  const [search,          setSearch]          = useState('');
+  const [classFilter,     setClassFilter]     = useState<'ALL' | 'ALTA' | 'MEDIA' | 'BAIXA'>('ALL');
+  const [paFilter,        setPaFilter]        = useState<PAFilter>('ALL');
+  const [sortBy,          setSortBy]          = useState<SortBy>('score');
+  const [sortOpen,        setSortOpen]        = useState(false);
+  const [bkFilter,        setBkFilter]        = useState('');
+  const [bkOpen,          setBkOpen]          = useState(false);
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
 
-  // Close dropdowns on outside click
+  const sortRef = useRef<HTMLDivElement>(null);
+  const bkRef   = useRef<HTMLDivElement>(null);
+
+  // Close dropdowns on outside click — using refs to avoid closing on inside clicks
   useEffect(() => {
-    if (!sortOpen && !bkOpen) return;
-    const close = () => { setSortOpen(false); setBkOpen(false); };
-    document.addEventListener('mousedown', close);
-    return () => document.removeEventListener('mousedown', close);
+    function handleDown(e: MouseEvent) {
+      if (sortOpen && sortRef.current && !sortRef.current.contains(e.target as Node)) {
+        setSortOpen(false);
+      }
+      if (bkOpen && bkRef.current && !bkRef.current.contains(e.target as Node)) {
+        setBkOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleDown);
+    return () => document.removeEventListener('mousedown', handleDown);
   }, [sortOpen, bkOpen]);
 
   const load = useCallback(async (silent = false) => {
@@ -415,9 +442,9 @@ export function DGOpportunitiesSection() {
 
   useEffect(() => { load(); }, [load]);
 
-  // Todos os bookmakers únicos presentes nas oportunidades
+  // Bookmakers únicos
   const allBookmakers = useMemo(() => {
-    const set = new Map<string, string>(); // slug → name
+    const set = new Map<string, string>();
     for (const o of opportunities) {
       for (const l of o.legs) {
         if (!set.has(l.bookmakerSlug)) set.set(l.bookmakerSlug, l.bookmaker);
@@ -431,25 +458,26 @@ export function DGOpportunitiesSection() {
     return opportunities.filter(o => {
       if (classFilter !== 'ALL' && o.dg_classification !== classFilter) return false;
 
-      const paLegs = o.legs.filter(l => l.isPA).length;
-      if (paFilter === 'AMBOS_PA' && paLegs < 2)   return false;
-      if (paFilter === 'UM_PA'    && paLegs !== 1)  return false;
-      if (paFilter === 'SEM_PA'   && paLegs > 0)    return false;
+      const paCount = o.legs.filter(l => l.isPA).length;
+      if (paFilter === 'AMBOS_PA' && paCount < 2)  return false;
+      if (paFilter === 'UM_PA'    && paCount !== 1) return false;
+      if (paFilter === 'SEM_PA'   && paCount > 0)  return false;
 
       if (bkFilter) {
-        const bkNorm = bkFilter.toLowerCase();
-        if (!o.legs.some(l => l.bookmaker.toLowerCase().includes(bkNorm) || l.bookmakerSlug.toLowerCase().includes(bkNorm))) return false;
+        const q = bkFilter.toLowerCase();
+        if (!o.legs.some(l => l.bookmaker.toLowerCase().includes(q) || l.bookmakerSlug.toLowerCase().includes(q))) return false;
       }
 
       if (search.trim()) {
-        const q = norm(search);
-        return norm(o.home_team).includes(q) || norm(o.away_team).includes(q) || norm(o.league ?? '').includes(q);
+        const q = norm(search.trim());
+        if (!norm(o.home_team).includes(q) && !norm(o.away_team).includes(q) && !norm(o.league ?? '').includes(q)) return false;
       }
+
       return true;
     });
   }, [opportunities, classFilter, paFilter, bkFilter, search]);
 
-  // Melhor oportunidade por match_id + sort pelo critério selecionado
+  // Melhor por match + sort
   const dedupList = useMemo(() => {
     const best = new Map<string, DGOpportunity>();
     for (const o of filtered) {
@@ -458,11 +486,10 @@ export function DGOpportunitiesSection() {
         best.set(o.match_id, o);
       }
     }
-    const list = Array.from(best.values());
-    return list.sort((a, b) => {
+    return Array.from(best.values()).sort((a, b) => {
       if (sortBy === 'score')       return (b.dg_score ?? 0) - (a.dg_score ?? 0);
       if (sortBy === 'menor_perda') return (b.dg_profit_pct ?? -999) - (a.dg_profit_pct ?? -999);
-      if (sortBy === 'maior_perda') return (a.dg_profit_pct ?? 999) - (b.dg_profit_pct ?? 999);
+      if (sortBy === 'maior_perda') return (a.dg_profit_pct ?? 999)  - (b.dg_profit_pct ?? 999);
       if (sortBy === 'recentes') {
         const ta = a.kickoff ? new Date(a.kickoff).getTime() : 0;
         const tb = b.kickoff ? new Date(b.kickoff).getTime() : 0;
@@ -527,7 +554,8 @@ export function DGOpportunitiesSection() {
       <div className="flex flex-wrap items-center gap-2">
 
         {/* Classificação */}
-        <div className="flex items-center gap-1 rounded-xl p-1" style={{ background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.07)' }}>
+        <div className="flex items-center gap-1 rounded-xl p-1"
+          style={{ background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.07)' }}>
           {(['ALL','ALTA','MEDIA','BAIXA'] as const).map(c => {
             const active = classFilter === c;
             const color  = c === 'ALTA' ? '61,255,143' : c === 'MEDIA' ? '255,159,10' : c === 'BAIXA' ? '248,113,113' : '255,255,255';
@@ -537,7 +565,7 @@ export function DGOpportunitiesSection() {
                 className="flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-bold transition-all"
                 style={{
                   background: active ? `rgba(${color},.15)` : 'transparent',
-                  color:      active ? `rgb(${color})` : 'rgba(255,255,255,.4)',
+                  color:      active ? `rgb(${color})`      : 'rgba(255,255,255,.4)',
                   border:     active ? `1px solid rgba(${color},.3)` : '1px solid transparent',
                 }}>
                 {c === 'ALL' ? 'Todos' : c}
@@ -551,7 +579,8 @@ export function DGOpportunitiesSection() {
         </div>
 
         {/* PA filter */}
-        <div className="flex items-center gap-1 rounded-xl p-1" style={{ background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.07)' }}>
+        <div className="flex items-center gap-1 rounded-xl p-1"
+          style={{ background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.07)' }}>
           {([
             ['ALL',      'Todos'],
             ['AMBOS_PA', 'Ambos PA'],
@@ -562,7 +591,7 @@ export function DGOpportunitiesSection() {
               className="rounded-lg px-2.5 py-1 text-[11px] font-bold transition-all"
               style={{
                 background: paFilter === v ? 'rgba(255,159,10,.15)' : 'transparent',
-                color:      paFilter === v ? 'rgba(255,159,10,.9)' : 'rgba(255,255,255,.4)',
+                color:      paFilter === v ? 'rgba(255,159,10,.9)'  : 'rgba(255,255,255,.4)',
                 border:     paFilter === v ? '1px solid rgba(255,159,10,.3)' : '1px solid transparent',
               }}>
               {label}
@@ -571,26 +600,18 @@ export function DGOpportunitiesSection() {
         </div>
 
         {/* Sort dropdown */}
-        <div className="relative">
+        <div className="relative" ref={sortRef}>
           <button
             onClick={() => { setSortOpen(v => !v); setBkOpen(false); }}
             className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-[11px] font-bold transition-all"
             style={{ background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.08)', color: 'var(--t2)' }}>
             <ArrowDown size={11} />
-            {sortBy === 'score'       ? 'Maior DG Score'
-            : sortBy === 'menor_perda' ? 'Menor Perda'
-            : sortBy === 'maior_perda' ? 'Maior Perda'
-            :                            'Mais recentes'}
+            {SORT_LABELS[sortBy]}
           </button>
           {sortOpen && (
             <div className="absolute left-0 top-full z-50 mt-1 overflow-hidden rounded-xl py-1"
               style={{ background: '#111827', border: '1px solid rgba(255,255,255,.1)', minWidth: 170, boxShadow: '0 8px 32px rgba(0,0,0,.5)' }}>
-              {([
-                ['score',       'Maior DG Score'],
-                ['menor_perda', 'Menor Perda'],
-                ['maior_perda', 'Maior Perda'],
-                ['recentes',    'Mais recentes'],
-              ] as [SortBy, string][]).map(([v, label]) => (
+              {(Object.entries(SORT_LABELS) as [SortBy, string][]).map(([v, label]) => (
                 <button key={v}
                   onClick={() => { setSortBy(v); setSortOpen(false); }}
                   className="flex w-full items-center gap-2 px-4 py-2.5 text-[12px] font-semibold transition-colors hover:bg-white/5"
@@ -604,19 +625,20 @@ export function DGOpportunitiesSection() {
         </div>
 
         {/* Bookmaker filter */}
-        <div className="relative">
+        <div className="relative" ref={bkRef}>
           <button
             onClick={() => { setBkOpen(v => !v); setSortOpen(false); }}
             className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-[11px] font-bold transition-all"
             style={{
               background: bkFilter ? 'rgba(77,166,255,.12)' : 'rgba(255,255,255,.04)',
-              border: bkFilter ? '1px solid rgba(77,166,255,.3)' : '1px solid rgba(255,255,255,.08)',
-              color: bkFilter ? '#4DA6FF' : 'var(--t2)',
+              border:     bkFilter ? '1px solid rgba(77,166,255,.3)' : '1px solid rgba(255,255,255,.08)',
+              color:      bkFilter ? '#4DA6FF' : 'var(--t2)',
             }}>
             <SlidersHorizontal size={11} />
             {bkFilter || 'Casa'}
             {bkFilter && (
-              <span onClick={e => { e.stopPropagation(); setBkFilter(''); }}
+              <span
+                onClick={e => { e.stopPropagation(); setBkFilter(''); }}
                 style={{ marginLeft: 2, opacity: .7, cursor: 'pointer' }}>×</span>
             )}
           </button>
@@ -626,6 +648,7 @@ export function DGOpportunitiesSection() {
               <button onClick={() => { setBkFilter(''); setBkOpen(false); }}
                 className="flex w-full items-center px-4 py-2.5 text-[12px] font-semibold hover:bg-white/5"
                 style={{ color: !bkFilter ? '#3DFF8F' : 'var(--t3)' }}>
+                {!bkFilter && <span style={{ color: '#3DFF8F', fontSize: 9, marginRight: 6 }}>✓</span>}
                 Todas as casas
               </button>
               {allBookmakers.map(bk => (
@@ -669,12 +692,13 @@ export function DGOpportunitiesSection() {
         <div className="hidden md:grid items-center gap-2 px-4 text-[10px] font-black uppercase tracking-widest"
           style={{ gridTemplateColumns: '72px 68px 1fr 88px 100px 100px 100px', color: 'rgba(255,255,255,.25)' }}>
           {/* Score com tooltip */}
-          <div className="flex items-center gap-1 group relative cursor-help">
+          <div className="group relative flex cursor-help items-center gap-1">
             <span>Score</span>
             <span style={{ color: 'rgba(255,255,255,.3)', fontSize: 9 }}>ⓘ</span>
-            <div className="pointer-events-none absolute left-0 top-full z-50 mt-1 hidden group-hover:block w-56 rounded-xl p-3"
+            <div className="pointer-events-none absolute left-0 top-full z-50 mt-1 hidden w-60 rounded-xl p-3 group-hover:block"
               style={{ background: '#111827', border: '1px solid rgba(255,255,255,.1)', boxShadow: '0 8px 24px rgba(0,0,0,.5)' }}>
-              <p className="text-[11px] font-semibold leading-relaxed" style={{ color: 'rgba(255,255,255,.7)', textTransform: 'none', letterSpacing: 'normal' }}>
+              <p className="text-[11px] font-semibold leading-relaxed"
+                style={{ color: 'rgba(255,255,255,.7)', textTransform: 'none', letterSpacing: 'normal' }}>
                 <strong style={{ color: '#A855F7' }}>DG Score</strong> é a probabilidade do Duplo Green acontecer, calculada pelo algoritmo DuploGreen. Quanto maior, maior a chance do duplo ocorrer. <strong>Não representa lucro.</strong>
               </p>
             </div>
@@ -685,6 +709,17 @@ export function DGOpportunitiesSection() {
           <span className="text-center">Casa (1)</span>
           <span className="text-center">Empate (X)</span>
           <span className="text-center">Fora (2)</span>
+        </div>
+      )}
+
+      {/* Nenhum resultado */}
+      {dedupList.length === 0 && !loading && (
+        <div className="flex flex-col items-center gap-2 py-10" style={{ color: 'var(--t3)' }}>
+          <p className="text-sm font-bold">Nenhum resultado para os filtros selecionados</p>
+          <button onClick={() => { setClassFilter('ALL'); setPaFilter('ALL'); setBkFilter(''); setSearch(''); setSortBy('score'); }}
+            className="text-xs underline" style={{ color: '#818cf8', background: 'none', border: 'none', cursor: 'pointer' }}>
+            Limpar filtros
+          </button>
         </div>
       )}
 
@@ -747,7 +782,7 @@ export function DGOpportunitiesSection() {
                     <div className="hidden md:grid items-center gap-2 px-4 py-3"
                       style={{ gridTemplateColumns: '72px 68px 1fr 88px 100px 100px 100px' }}>
 
-                      {/* Score — probabilidade do duplo, não lucro */}
+                      {/* Score */}
                       <div className="flex flex-col items-center gap-0.5">
                         <span className="text-[18px] font-black leading-none tabular-nums" style={{ color: col }}>
                           {o.dg_score ?? '—'}
@@ -763,25 +798,17 @@ export function DGOpportunitiesSection() {
                         )}
                       </div>
 
-                      {/* DG Profit % — cor baseada no sinal (positivo=verde, negativo=vermelho) */}
-                      {(() => {
-                        const pct = o.dg_profit_pct;
-                        const pctColor = pct == null ? 'rgba(255,255,255,.3)'
-                          : pct >= 0 ? 'hsl(150 85% 60%)' : 'hsl(0 85% 65%)';
-                        const loss = o.max_loss_pct;
-                        return (
-                          <div className="flex flex-col items-center gap-0.5">
-                            <span className="text-[13px] font-black tabular-nums" style={{ color: pctColor }}>
-                              {pct != null ? `${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%` : '—'}
-                            </span>
-                            {loss != null && (
-                              <span className="text-[9px] font-bold tabular-nums" style={{ color: 'rgba(248,113,113,.65)' }}>
-                                -{Math.abs(loss).toFixed(1)}% perda
-                              </span>
-                            )}
-                          </div>
-                        );
-                      })()}
+                      {/* DG Profit — verde positivo, vermelho negativo */}
+                      <div className="flex flex-col items-center gap-0.5">
+                        <span className="text-[13px] font-black tabular-nums" style={{ color: profitColor(o.dg_profit_pct) }}>
+                          {fmtProfit(o.dg_profit_pct)}
+                        </span>
+                        {o.max_loss_pct != null && (
+                          <span className="text-[9px] font-bold tabular-nums" style={{ color: 'rgba(248,113,113,.65)' }}>
+                            -{Math.abs(o.max_loss_pct).toFixed(1)}% perda
+                          </span>
+                        )}
+                      </div>
 
                       {/* Jogo */}
                       <div className="min-w-0">
@@ -824,10 +851,8 @@ export function DGOpportunitiesSection() {
                         <p className="text-[11px]" style={{ color: 'var(--t3)' }}>
                           {fmtTime(o.kickoff)}
                           {o.dg_profit_pct != null && (
-                            <span className="ml-2 font-black" style={{
-                              color: o.dg_profit_pct >= 0 ? 'hsl(150 85% 60%)' : 'hsl(0 85% 65%)',
-                            }}>
-                              {o.dg_profit_pct >= 0 ? '+' : ''}{o.dg_profit_pct.toFixed(1)}%
+                            <span className="ml-2 font-black" style={{ color: profitColor(o.dg_profit_pct) }}>
+                              {fmtProfit(o.dg_profit_pct)}
                             </span>
                           )}
                           {hasPA && <span className="ml-1 font-bold" style={{ color: 'rgba(255,159,10,.7)' }}>· PA</span>}
