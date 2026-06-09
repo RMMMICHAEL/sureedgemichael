@@ -552,8 +552,14 @@ export function BuscarOddsPage() {
   const normFn = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 
   const filtered = useMemo(() => {
+    const now = Date.now();
     const result = allOdds
       .filter(ev => !isExcluded(ev.league_name ?? ''))
+      // Remove partidas que já começaram (start_time é UTC)
+      .filter(ev => {
+        try { return new Date(ev.start_time).getTime() > now; }
+        catch { return true; }
+      })
       .filter(ev => {
         if (!search.trim()) return true;
         const q = normFn(search);
