@@ -7,6 +7,7 @@
  */
 
 import type { OddsSummary } from '@/lib/altenar/client';
+import { proxyFetch } from '@/lib/proxy/fetch';
 
 const BASE_US = 'https://us.offering-api.kambicdn.com/offering/v2018';
 const BASE_EU = 'https://eu-offering-api.kambicdn.com/offering/v2018';
@@ -16,13 +17,22 @@ interface KambiClientDef {
   name:   string;
   base:   string;
   origin: string;
+  is_pa:  boolean;
   url:    (id: number) => string;
 }
 
-// Nota: KTO (US CDN) e outros endpoints Kambi EU bloqueiam IPs de datacenter
-// (Vercel/AWS). Removidos até solução com proxy residencial.
-// Sportingbet já é coberta pelo cliente bwin/CDS separado.
-const CLIENTS: KambiClientDef[] = [];
+// KTO usa Kambi US CDN — bloqueado por Vercel IP, usa proxyFetch.
+// Sportingbet já é coberta pelo cliente bwin/CDS (200+ eventos), não duplicar.
+const CLIENTS: KambiClientDef[] = [
+  {
+    id:     'ktobr',
+    name:   'KTO',
+    base:   BASE_US,
+    origin: 'https://www.kto.bet.br',
+    is_pa:  false, // KTO não opera com Pagamento Antecipado
+    url:    (id) => `https://www.kto.bet.br/p/sports/event/#/football/event/${id}`,
+  },
+];
 
 // Palavras que identificam e-sports / futebol virtual — excluir
 const VIRTUAL_KEYWORDS = ['cyber', 'virtual', 'esoccer', 'e-soccer', 'inplay arena', 'cla (', 'live arena'];
@@ -60,7 +70,7 @@ async function fetchKambiFootball(client: KambiClientDef): Promise<KambiEvent[]>
   const url = `${client.base}/${client.id}/listView/football.json?lang=pt_BR&market=BR&client_id=200&channel_id=3&useCombined=true&ncid=${Date.now()}`;
 
   try {
-    const res = await fetch(url, {
+    const res = await proxyFetch(url, {
       headers: {
         Accept:       'application/json',
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
@@ -140,7 +150,7 @@ export async function getKambiOdds(): Promise<OddsSummary[]> {
         draw:  odds.draw,
         away:  odds.away,
         url:   client.url(ev.id),
-        is_pa: true, // casas Kambi (Sportingbet, KTO) operam com PA
+        is_pa: client.is_pa,
       });
     }
   }

@@ -132,9 +132,10 @@ async function tryBetlerEventsApi(): Promise<OddsSummary[]> {
         headers: HEADERS,
         ...(ep.body ? { body: ep.body } : {}),
       });
+      console.log(`[superbet:betler] ${ep.method} ${ep.url.split('/api-gw/')[1]} → ${res.status}`);
       if (!res.ok) continue;
       const ct = res.headers.get('content-type') ?? '';
-      if (!ct.includes('json')) continue;
+      if (!ct.includes('json')) { console.log(`[superbet:betler] não-JSON: ${ct}`); continue; }
       const json = await res.json() as Record<string, unknown> | SuperbetEvent[];
       const raw = json as Record<string, unknown>;
       const events: SuperbetEvent[] = Array.isArray(json)
@@ -143,8 +144,9 @@ async function tryBetlerEventsApi(): Promise<OddsSummary[]> {
           ?? (raw.events as SuperbetEvent[] | undefined)
           ?? (raw.items as SuperbetEvent[] | undefined)
           ?? [];
+      console.log(`[superbet:betler] → ${events.length} eventos`);
       if (events.length > 0) return eventsToSummary(events);
-    } catch { /* tenta próximo */ }
+    } catch (e) { console.log(`[superbet:betler] erro: ${String(e).slice(0,100)}`); }
   }
   return [];
 }
@@ -243,12 +245,18 @@ async function tryBetbuilderFallback(): Promise<OddsSummary[]> {
 // ─── export principal ──────────────────────────────────────────────────────
 
 export async function getSuperbetOdds(): Promise<OddsSummary[]> {
-  // Tenta estratégias em ordem: betler API → tournament map → fallback legado
+  // Estratégia 1: betler REST API (síncrono)
   let results = await tryBetlerEventsApi();
+  console.log(`[superbet] estratégia 1 (betler): ${results.length} eventos`);
   if (results.length > 0) return results;
 
+  // Estratégia 2: static sportTournamentMap + offer por torneio
   results = await tryTournamentMap();
+  console.log(`[superbet] estratégia 2 (tournamentMap): ${results.length} eventos`);
   if (results.length > 0) return results;
 
-  return tryBetbuilderFallback();
+  // Estratégia 3: betbuilder + fetch individual
+  results = await tryBetbuilderFallback();
+  console.log(`[superbet] estratégia 3 (betbuilder): ${results.length} eventos`);
+  return results;
 }

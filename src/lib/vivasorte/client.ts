@@ -4,6 +4,7 @@
  */
 
 import type { OddsSummary } from '@/lib/altenar/client';
+import { proxyFetch } from '@/lib/proxy/fetch';
 
 const BASE    = 'https://vivasorte.bet.br';
 const HEADERS = {
@@ -46,14 +47,18 @@ const PATHS = [
 async function fetchEvents(): Promise<VivaEvent[]> {
   for (const path of PATHS) {
     try {
-      const res = await fetch(`${BASE}${path}`, { headers: HEADERS, cache: 'no-store' });
-      if (!res.ok) continue;
+      const res = await proxyFetch(`${BASE}${path}`, { headers: HEADERS, cache: 'no-store' });
+      if (!res.ok) { console.log(`[vivasorte] ${path} → ${res.status}`); continue; }
       const ct = res.headers.get('content-type') ?? '';
-      if (!ct.includes('json')) continue;
+      if (!ct.includes('json')) { console.log(`[vivasorte] ${path} → não-JSON: ${ct}`); continue; }
       const json: VivaResponse = await res.json();
       const evs = json.events ?? json.data ?? json.items;
-      if (Array.isArray(evs) && evs.length > 0) return evs;
-    } catch { /* tenta próximo */ }
+      if (Array.isArray(evs) && evs.length > 0) {
+        console.log(`[vivasorte] ${path} → ${evs.length} eventos`);
+        return evs;
+      }
+      console.log(`[vivasorte] ${path} → array vazio`);
+    } catch (e) { console.log(`[vivasorte] ${path} → erro: ${e}`); }
   }
   return [];
 }

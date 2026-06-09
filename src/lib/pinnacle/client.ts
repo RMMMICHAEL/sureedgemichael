@@ -7,6 +7,7 @@
  */
 
 import type { OddsSummary } from '@/lib/altenar/client';
+import { proxyFetch } from '@/lib/proxy/fetch';
 
 const BASE    = 'https://pinnacle.bet.br';
 const HEADERS = {
@@ -64,12 +65,12 @@ const ODDS_PATHS = [
 async function tryFetch<T>(paths: string[]): Promise<T | null> {
   for (const path of paths) {
     try {
-      const res = await fetch(`${BASE}${path}`, { headers: HEADERS, cache: 'no-store' });
-      if (!res.ok) continue;
+      const res = await proxyFetch(`${BASE}${path}`, { headers: HEADERS, cache: 'no-store' });
+      if (!res.ok) { console.log(`[pinnacle] ${path} → ${res.status}`); continue; }
       const ct = res.headers.get('content-type') ?? '';
-      if (!ct.includes('json')) continue;
+      if (!ct.includes('json')) { console.log(`[pinnacle] ${path} → não-JSON: ${ct}`); continue; }
       return res.json() as Promise<T>;
-    } catch { /* tenta próximo */ }
+    } catch (e) { console.log(`[pinnacle] ${path} → erro: ${e}`); }
   }
   return null;
 }
@@ -106,7 +107,8 @@ export async function getPinnacleOdds(): Promise<OddsSummary[]> {
   for (const m of matchups) {
     // Apenas pré-jogo sem pai (sem período específico)
     if (m.parentId)           continue;
-    if (m.status !== 'I')     continue; // I = in progress / open
+    // Pinnacle status: 'O' = Open (aceita apostas), 'I' = Inactivated, 'H' = Hidden
+    if (m.status !== 'O')     continue;
     if (m.liveStatus === 1)   continue; // ao vivo
 
     const odds = oddsMap.get(m.id);

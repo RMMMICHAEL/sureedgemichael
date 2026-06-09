@@ -6,6 +6,7 @@
  */
 
 import type { OddsSummary } from '@/lib/altenar/client';
+import { proxyFetch } from '@/lib/proxy/fetch';
 
 const BASE    = 'https://www.betnacional.bet.br';
 const HEADERS = {
@@ -51,14 +52,18 @@ const PATHS = [
 async function fetchEvents(): Promise<Bet6Event[]> {
   for (const path of PATHS) {
     try {
-      const res = await fetch(`${BASE}${path}`, { headers: HEADERS, cache: 'no-store' });
-      if (!res.ok) continue;
+      const res = await proxyFetch(`${BASE}${path}`, { headers: HEADERS, cache: 'no-store' });
+      if (!res.ok) { console.log(`[betnacional] ${path} → ${res.status}`); continue; }
       const ct = res.headers.get('content-type') ?? '';
-      if (!ct.includes('json')) continue;
+      if (!ct.includes('json')) { console.log(`[betnacional] ${path} → não-JSON: ${ct}`); continue; }
       const json: Bet6Response = await res.json();
       const evs = json.events ?? json.data ?? json.items;
-      if (Array.isArray(evs) && evs.length > 0) return evs;
-    } catch { /* tenta próximo */ }
+      if (Array.isArray(evs) && evs.length > 0) {
+        console.log(`[betnacional] ${path} → ${evs.length} eventos`);
+        return evs;
+      }
+      console.log(`[betnacional] ${path} → array vazio`);
+    } catch (e) { console.log(`[betnacional] ${path} → erro: ${e}`); }
   }
   return [];
 }

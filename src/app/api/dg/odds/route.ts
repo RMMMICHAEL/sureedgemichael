@@ -168,6 +168,7 @@ export async function GET(req: NextRequest) {
     console.log('[odds:2-merge] bookmakers por fonte:', bkCount);
 
     // Converte UnifiedMatch de volta para OddsSummary (compatibilidade com código existente)
+    // market_type: '1x2' (sem PA) ou '1x2_pa' (com PA) — derivado de is_pa
     let odds: OddsSummary[] = mergedMatches.map(m => ({
       match_id:    m.match_id,
       home_team:   m.home_team,
@@ -176,15 +177,25 @@ export async function GET(req: NextRequest) {
       league_name: m.league_name,
       league_id:   0,
       bookmakers:  m.bookmakers.map(b => ({
-        slug:  b.bookmaker_slug,
-        name:  b.bookmaker_name,
-        home:  b.odd_home,
-        draw:  b.odd_draw,
-        away:  b.odd_away,
-        url:   b.match_url,
-        is_pa: b.is_pa,
+        slug:        b.bookmaker_slug,
+        name:        b.bookmaker_name,
+        home:        b.odd_home,
+        draw:        b.odd_draw,
+        away:        b.odd_away,
+        url:         b.match_url,
+        is_pa:       b.is_pa,
+        market_type: b.is_pa ? '1x2_pa' : '1x2',
       })),
     }));
+
+    // Log: quantos bookmakers de cada market_type existem no total
+    let total1x2 = 0, total1x2pa = 0;
+    for (const ev of odds) {
+      for (const bk of ev.bookmakers) {
+        if (bk.is_pa) total1x2pa++; else total1x2++;
+      }
+    }
+    console.log(`[odds:2-merge] market_type: 1x2=${total1x2} 1x2_pa=${total1x2pa}`);
 
     // ── STEP 3: Filtro de data (BRT = UTC-3) ────────────────────────────────
     if (!showAll) {
