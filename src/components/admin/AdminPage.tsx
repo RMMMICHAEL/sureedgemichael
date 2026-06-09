@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { wipeDB, EMPTY_DB } from '@/lib/storage/db';
 import { saveToSupabase } from '@/lib/supabase/sync';
 import { loadSeedData, clearSeedData } from '@/lib/dev/seedData';
-import { AlertTriangle, Trash2, X, KeyRound, CheckCircle2, Loader2, RefreshCw } from 'lucide-react';
+import { AlertTriangle, Trash2, X, KeyRound, CheckCircle2, Loader2, RefreshCw, Upload, FileJson } from 'lucide-react';
 
 const ADMIN_EMAIL = 'michael.martins.trader@gmail.com';
 
@@ -310,6 +310,110 @@ function CookiePanel() {
   );
 }
 
+// ── Odds Import Panel ────────────────────────────────────────────────────────
+
+type ImportStatus = 'idle' | 'loading' | 'success' | 'error';
+
+function OddsImportPanel() {
+  const [json, setJson]       = useState('');
+  const [status, setStatus]   = useState<ImportStatus>('idle');
+  const [result, setResult]   = useState<string>('');
+
+  async function handleImport() {
+    if (!json.trim()) return;
+    setStatus('loading');
+    setResult('');
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(json);
+    } catch {
+      setStatus('error');
+      setResult('JSON inválido — verifique o formato e tente novamente.');
+      return;
+    }
+
+    try {
+      const res  = await fetch('/api/admin/odds-import', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(parsed),
+      });
+      const data = await res.json() as { ok: boolean; total: number; upserted: number; errors?: string[] };
+
+      if (data.ok) {
+        setStatus('success');
+        setResult(`✓ ${data.upserted} de ${data.total} registros importados com sucesso.`);
+        setJson('');
+      } else {
+        setStatus('error');
+        setResult(`Erro: ${data.errors?.join('; ') ?? 'falha desconhecida'}`);
+      }
+    } catch (e) {
+      setStatus('error');
+      setResult(`Erro de rede: ${String(e)}`);
+    }
+  }
+
+  const statusColor =
+    status === 'success' ? 'var(--g)' :
+    status === 'error'   ? 'var(--r)' : 'var(--t2)';
+
+  return (
+    <div className="rounded-2xl p-5" style={{ background: 'rgba(63,200,255,.04)', border: '1px solid rgba(63,200,255,.18)' }}>
+      <div className="flex items-center gap-2 font-bold mb-1" style={{ color: 'rgb(63,200,255)' }}>
+        <FileJson size={16} />
+        Importar Odds (JSON)
+      </div>
+      <p className="text-xs mb-3" style={{ color: 'var(--t2)' }}>
+        Cole aqui o JSON do <code style={{ background: 'rgba(255,255,255,.08)', padding: '1px 4px', borderRadius: 4 }}>get-individual-odds</code>.
+        O sistema irá popular automaticamente o banco de dados com todos os eventos e odds.
+        Use upsert — registros existentes serão atualizados.
+      </p>
+
+      <textarea
+        value={json}
+        onChange={e => { setJson(e.target.value); setStatus('idle'); setResult(''); }}
+        placeholder={'{\n  "success": true,\n  "count": 1912,\n  "odds": [...]\n}'}
+        rows={8}
+        className="w-full rounded-xl p-3 text-xs font-mono resize-y mb-3"
+        style={{
+          background:  'rgba(0,0,0,.3)',
+          border:      '1px solid var(--b)',
+          color:       'var(--t1)',
+          outline:     'none',
+        }}
+        disabled={status === 'loading'}
+        spellCheck={false}
+      />
+
+      <div className="flex items-center gap-3 flex-wrap">
+        <button
+          type="button"
+          onClick={handleImport}
+          disabled={status === 'loading' || !json.trim()}
+          className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all"
+          style={{
+            background: status === 'loading' ? 'rgba(63,200,255,.1)' : 'rgb(63,200,255)',
+            color:      '#060A07',
+            opacity:    (status === 'loading' || !json.trim()) ? 0.6 : 1,
+          }}
+        >
+          {status === 'loading'
+            ? <><Loader2 size={14} className="animate-spin" /> Importando...</>
+            : <><Upload size={14} /> Importar</>}
+        </button>
+
+        {result && (
+          <span className="text-xs font-medium" style={{ color: statusColor }}>
+            {result}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export function AdminPage() {
@@ -414,6 +518,8 @@ export function AdminPage() {
         )}
 
         {isAdmin && <CookiePanel />}
+
+        {isAdmin && <OddsImportPanel />}
 
         <div className="rounded-2xl p-5" style={{ background: 'var(--rd)', border: '1px solid rgba(255,69,69,.25)' }}>
           <div className="font-bold mb-1" style={{ color: 'var(--r)' }}>Zona de Perigo</div>
