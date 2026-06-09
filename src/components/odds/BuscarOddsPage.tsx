@@ -100,8 +100,6 @@ function EventOddsPanel({
 }) {
   const [slots, setSlots] = useState<(CalcSlot | null)[]>([null, null, null]);
   const [calcFill, setCalcFill] = useState<{ odds: string[]; houses: string[]; urls: string[] } | null>(null);
-  const [sortCol, setSortCol] = useState<'home' | 'draw' | 'away'>('home');
-
   useEffect(() => {
     const active = slots.filter(Boolean) as CalcSlot[];
     if (!active.length) { setCalcFill(null); return; }
@@ -249,10 +247,12 @@ function EventOddsPanel({
     );
   }
 
-  // ── Seção (sem PA / com PA) ──────────────────────────────────────────────────
+  // ── Seção (sem PA / com PA) — sortCol é local a cada seção ─────────────────
   function OddsSection({ label, bks, accentColor, isPA }: {
     label: string; bks: BookmakerOdds[]; accentColor: string; isPA: boolean;
   }) {
+    const [sortCol, setSortCol] = useState<'home' | 'draw' | 'away'>('home');
+
     if (!bks.length) return null;
     const bests  = { h: bestOf(bks, 'home'), d: bestOf(bks, 'draw'), a: bestOf(bks, 'away') };
     const mgn    = margin(bks);
@@ -312,7 +312,7 @@ function EventOddsPanel({
             } : {
               color: 'rgba(255,255,255,.3)',
             }}>
-              {isSure ? `🎯 Surebet +${Math.abs(mgn).toFixed(2)}%` : `margem ${mgn.toFixed(1)}%`}
+              {isSure ? `SUREBET +${Math.abs(mgn).toFixed(2)}%` : `margem ${mgn.toFixed(1)}%`}
             </span>
           )}
         </div>
@@ -398,10 +398,9 @@ function EventOddsPanel({
 
       {/* ── Header do evento ──────────────────────────────────────────────── */}
       <div className="flex items-center gap-3 rounded-2xl px-4 py-3.5" style={{
-        background: 'rgba(13,17,23,0.85)',
-        border: '1px solid rgba(129,140,248,.25)',
-        borderLeft: '3px solid #818cf8',
-        boxShadow: '0 4px 32px rgba(0,0,0,.5), 0 0 0 1px rgba(129,140,248,.06) inset',
+        background: 'linear-gradient(135deg, rgba(129,140,248,.09) 0%, rgba(13,17,23,0.9) 60%)',
+        border: '1px solid rgba(129,140,248,.32)',
+        boxShadow: '0 4px 32px rgba(0,0,0,.5), 0 0 20px rgba(129,140,248,.05) inset',
         backdropFilter: 'blur(20px)',
       }}>
         <button onClick={onBack} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl transition-colors hover:bg-white/10"
@@ -445,7 +444,7 @@ function EventOddsPanel({
 
         {/* Slots */}
         <div className="flex flex-wrap items-center gap-2 border-b px-4 py-3" style={{ borderColor: 'rgba(255,255,255,.05)' }}>
-          <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: 'var(--t3)' }}>🧮 Calculadora</span>
+          <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: 'var(--t3)' }}>Calculadora</span>
           <div className="flex flex-1 flex-wrap gap-2">
             {slots.map((slot, i) => (
               <div key={i} className="flex items-center gap-1.5 rounded-lg px-2 py-1 transition-all text-[10px] font-semibold"
@@ -488,7 +487,7 @@ function EventOddsPanel({
 
       {/* ── Dica ──────────────────────────────────────────────────────────── */}
       <p className="px-1 text-[11px]" style={{ color: 'rgba(255,255,255,.25)' }}>
-        👆 Clique em qualquer odd para adicioná-la à calculadora · máx 3 slots
+        Clique em qualquer odd para adicioná-la à calculadora · máx 3 slots
       </p>
 
       {/* ── Seções de odds ────────────────────────────────────────────────── */}
@@ -634,22 +633,24 @@ export function BuscarOddsPage() {
         </div>
 
         {/* Tab switcher */}
-        <div className="flex items-center gap-1 rounded-xl p-1" style={{ background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.07)' }}>
+        <div className="flex items-center rounded-xl overflow-hidden" style={{
+          background: 'rgba(255,255,255,.04)',
+          border: '1px solid rgba(255,255,255,.08)',
+        }}>
           <button onClick={() => setTab('odds')}
-            className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-bold transition-all"
+            className={`tab-btn flex items-center gap-1.5 px-4 py-2 text-[12px] font-bold${tab === 'odds' ? ' tab-active' : ''}`}
             style={{
-              background: tab === 'odds' ? 'rgba(63,200,255,.15)' : 'transparent',
-              color: tab === 'odds' ? 'rgb(63,200,255)' : 'rgba(255,255,255,.4)',
-              border: tab === 'odds' ? '1px solid rgba(63,200,255,.3)' : '1px solid transparent',
+              background: tab === 'odds' ? 'rgba(99,102,241,.12)' : 'transparent',
+              color: tab === 'odds' ? 'rgb(148,163,255)' : 'rgba(255,255,255,.38)',
             }}>
             <Zap size={12} /> Odds do Dia
           </button>
+          <div style={{ width: 1, height: 24, background: 'rgba(255,255,255,.07)' }} />
           <button onClick={() => setTab('dg')}
-            className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-bold transition-all"
+            className={`tab-btn flex items-center gap-1.5 px-4 py-2 text-[12px] font-bold${tab === 'dg' ? ' tab-active' : ''}`}
             style={{
-              background: tab === 'dg' ? 'rgba(168,85,247,.15)' : 'transparent',
-              color: tab === 'dg' ? 'rgb(168,85,247)' : 'rgba(255,255,255,.4)',
-              border: tab === 'dg' ? '1px solid rgba(168,85,247,.3)' : '1px solid transparent',
+              background: tab === 'dg' ? 'rgba(168,85,247,.12)' : 'transparent',
+              color: tab === 'dg' ? 'rgb(196,157,255)' : 'rgba(255,255,255,.38)',
             }}>
             <TrendingUp size={12} /> Oportunidades DG
           </button>
@@ -756,29 +757,25 @@ export function BuscarOddsPage() {
       {/* ── Eventos por liga ────────────────────────────────────────────── */}
       {!loading && byLeague.map(([league, evs]) => (
         <div key={league} className="overflow-hidden rounded-2xl" style={{
-          background: 'rgba(13,17,23,0.75)',
+          background: 'rgba(13,17,23,0.8)',
           border: '1px solid rgba(255,255,255,.08)',
-          boxShadow: '0 4px 20px rgba(0,0,0,.4), 0 1px 0 rgba(255,255,255,.04) inset',
-          backdropFilter: 'blur(10px)',
+          boxShadow: '0 4px 24px rgba(0,0,0,.42)',
         }}>
 
-          {/* Barra topo da liga */}
-          <div style={{ height: 2, background: 'linear-gradient(90deg, rgba(129,140,248,.7) 0%, rgba(129,140,248,.2) 50%, transparent 100%)' }} />
+          {/* Barra topo da liga — acento violeta */}
+          <div style={{ height: 2, background: 'linear-gradient(90deg, rgba(99,102,241,.85) 0%, rgba(99,102,241,.35) 40%, transparent 100%)' }} />
 
           {/* Cabeçalho da liga */}
           <div className="flex items-center justify-between px-4 py-2.5"
             style={{
-              background: 'linear-gradient(90deg, rgba(129,140,248,.06) 0%, transparent 60%)',
+              background: 'rgba(99,102,241,.04)',
               borderBottom: '1px solid rgba(255,255,255,.05)',
             }}>
-            <div className="flex items-center gap-2">
-              <div style={{ width: 2, height: 12, borderRadius: 1, background: 'rgba(129,140,248,.6)' }} />
-              <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: 'rgba(255,255,255,.5)' }}>
-                {league}
-              </span>
-            </div>
+            <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: 'rgba(148,163,255,.75)' }}>
+              {league}
+            </span>
             <span className="rounded-full px-2 py-0.5 text-[9px] font-bold"
-              style={{ background: 'rgba(255,255,255,.05)', color: 'rgba(255,255,255,.3)', border: '1px solid rgba(255,255,255,.07)' }}>
+              style={{ background: 'rgba(99,102,241,.1)', color: 'rgba(148,163,255,.6)', border: '1px solid rgba(99,102,241,.18)' }}>
               {evs.length}
             </span>
           </div>
@@ -827,14 +824,15 @@ export function BuscarOddsPage() {
                       {mgn !== null ? (
                         <span className="rounded-md px-2 py-1 text-[11px] font-bold tabular-nums"
                           style={isSure ? {
-                            background: 'rgba(61,255,143,.12)',
-                            color: 'hsl(150 90% 55%)',
-                            border: '1px solid rgba(61,255,143,.25)',
-                            boxShadow: '0 0 8px rgba(61,255,143,.12)',
+                            background: 'rgba(61,255,143,.14)',
+                            color: 'hsl(150 90% 60%)',
+                            border: '1px solid rgba(61,255,143,.32)',
+                            boxShadow: '0 0 10px rgba(61,255,143,.15)',
+                            fontWeight: 900,
                           } : {
-                            background: 'rgba(248,113,113,.08)',
-                            color: '#f87171',
-                            border: '1px solid rgba(248,113,113,.15)',
+                            background: 'rgba(255,255,255,.04)',
+                            color: 'rgba(255,255,255,.35)',
+                            border: '1px solid rgba(255,255,255,.07)',
                           }}>
                           {isSure ? `+${Math.abs(mgn).toFixed(2)}%` : `${mgn.toFixed(1)}%`}
                         </span>
@@ -859,7 +857,7 @@ export function BuscarOddsPage() {
                         {ev.bookmakers.length} casas
                         {mgn !== null && (
                           <span className="ml-2 font-bold" style={{ color: isSure ? 'hsl(150 90% 55%)' : '#f87171' }}>
-                            {isSure ? `🎯 +${Math.abs(mgn).toFixed(2)}%` : `${mgn.toFixed(1)}%`}
+                            {isSure ? `+${Math.abs(mgn).toFixed(2)}%` : `${mgn.toFixed(1)}%`}
                           </span>
                         )}
                       </p>

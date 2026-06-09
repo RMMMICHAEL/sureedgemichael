@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { Gift, ChevronRight, ExternalLink, RefreshCw, Search, AlertCircle } from 'lucide-react';
+import { Gift, ChevronRight, ExternalLink, RefreshCw, Search, AlertCircle, Zap } from 'lucide-react';
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
 
@@ -158,13 +158,12 @@ export function FreebetConverterPage() {
 
       {/* ── Painel de configuração ──────────────────────────────────────── */}
       <div className="overflow-hidden rounded-2xl" style={{
-        background: 'rgba(13,17,23,0.8)',
-        border: '1px solid rgba(99,102,241,.2)',
-        boxShadow: '0 4px 24px rgba(0,0,0,.4)',
-        backdropFilter: 'blur(12px)',
+        background: 'linear-gradient(135deg, rgba(99,102,241,.07) 0%, rgba(13,17,23,0.9) 55%)',
+        border: '1px solid rgba(99,102,241,.28)',
+        boxShadow: '0 4px 28px rgba(0,0,0,.45), 0 0 20px rgba(99,102,241,.05) inset',
       }}>
         {/* Barra topo */}
-        <div style={{ height: 2, background: 'linear-gradient(90deg, rgba(99,102,241,.9) 0%, rgba(99,102,241,.2) 60%, transparent 100%)' }} />
+        <div style={{ height: 2, background: 'linear-gradient(90deg, rgba(99,102,241,.95) 0%, rgba(99,102,241,.35) 45%, transparent 100%)' }} />
 
         <div className="flex flex-wrap items-end gap-4 px-5 py-4">
 
@@ -217,11 +216,11 @@ export function FreebetConverterPage() {
           <button
             onClick={buscar}
             disabled={!selected || loading}
-            className="flex items-center gap-2 rounded-xl px-5 py-2.5 text-[13px] font-black transition-all hover:opacity-90 disabled:opacity-40"
+            className="flex items-center gap-2 rounded-xl px-5 py-2.5 text-[13px] font-black transition-all hover:opacity-95 active:scale-[0.98] disabled:opacity-35"
             style={{
-              background: 'rgba(99,102,241,.85)',
+              background: 'rgba(99,102,241,.9)',
               color: '#fff',
-              boxShadow: '0 4px 16px rgba(99,102,241,.35)',
+              boxShadow: '0 4px 20px rgba(99,102,241,.4), 0 1px 0 rgba(255,255,255,.15) inset',
             }}>
             {loading
               ? <RefreshCw size={14} className="animate-spin" />
@@ -309,18 +308,17 @@ export function FreebetConverterPage() {
 
               return (
                 <div key={r.match_id + r.freebet_outcome}
-                  className="overflow-hidden rounded-2xl"
+                  className="fb-card overflow-hidden rounded-2xl"
                   style={{
-                    background: 'rgba(13,17,23,0.75)',
+                    background: 'rgba(13,17,23,0.8)',
                     border: '1px solid rgba(255,255,255,.08)',
                     boxShadow: '0 4px 20px rgba(0,0,0,.35)',
-                    backdropFilter: 'blur(10px)',
                   }}>
 
                   {/* Barra topo colorida por conversão */}
                   <div style={{
                     height: 2,
-                    background: `linear-gradient(90deg, ${convColor(r.conversion_pct)} 0%, ${convColor(r.conversion_pct)}40 60%, transparent 100%)`,
+                    background: `linear-gradient(90deg, ${convColor(r.conversion_pct)} 0%, ${convColor(r.conversion_pct)}33 55%, transparent 100%)`,
                   }} />
 
                   {/* Linha principal — clique para expandir */}
@@ -348,35 +346,41 @@ export function FreebetConverterPage() {
                       </div>
 
                       {/* Freebet outcome */}
-                      <div className="flex items-center gap-1.5 rounded-xl px-3 py-1.5" style={{
+                      <div className="flex items-center gap-2 rounded-xl px-3 py-1.5" style={{
                         background: 'rgba(99,102,241,.1)',
-                        border: '1px solid rgba(99,102,241,.25)',
+                        border: '1px solid rgba(99,102,241,.28)',
                       }}>
                         <Gift size={11} style={{ color: '#818cf8' }} />
-                        <span className="text-[11px] font-bold" style={{ color: '#818cf8' }}>
-                          {OUTCOME_LABEL[r.freebet_outcome]} ({OUTCOME_ABBR[r.freebet_outcome]}) · {r.freebet_odd.toFixed(2)}
+                        <span className="text-[11px] font-bold" style={{ color: 'rgb(148,163,255)' }}>
+                          {OUTCOME_LABEL[r.freebet_outcome]} ({OUTCOME_ABBR[r.freebet_outcome]})
+                        </span>
+                        <span className="font-mono text-[12px] font-black tabular-nums" style={{ color: 'rgb(196,181,255)' }}>
+                          {r.freebet_odd.toFixed(2)}
                         </span>
                       </div>
 
                       {/* Conversão % */}
                       <div className="flex flex-col items-end shrink-0">
-                        <span className="text-[20px] font-black tabular-nums leading-none" style={{
+                        <span className="text-[24px] font-black tabular-nums leading-none" style={{
                           color: convColor(r.conversion_pct),
-                          textShadow: `0 0 16px ${convColor(r.conversion_pct)}50`,
+                          textShadow: `0 0 20px ${convColor(r.conversion_pct)}60`,
                         }}>
                           {r.conversion_pct.toFixed(1)}%
                         </span>
-                        <span className="text-[10px] font-semibold" style={{ color: 'rgba(255,255,255,.3)' }}>
+                        <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: 'rgba(255,255,255,.25)' }}>
                           conversão
                         </span>
                       </div>
 
                       {/* Lucro */}
                       <div className="flex flex-col items-end shrink-0">
-                        <span className="text-[16px] font-black tabular-nums leading-none" style={{ color: 'hsl(150 85% 60%)' }}>
+                        <span className="text-[18px] font-black tabular-nums leading-none" style={{
+                          color: 'hsl(150 85% 62%)',
+                          textShadow: '0 0 14px hsl(150 85% 55%/0.4)',
+                        }}>
                           R${fmtBRL(lucro)}
                         </span>
-                        <span className="text-[10px] font-semibold" style={{ color: 'rgba(255,255,255,.3)' }}>
+                        <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: 'rgba(255,255,255,.25)' }}>
                           lucro garantido
                         </span>
                       </div>

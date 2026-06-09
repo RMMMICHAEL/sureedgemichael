@@ -139,10 +139,9 @@ function DGDetailPanel({
 
       {/* ── Header do evento ────────────────────────────────────────────── */}
       <div className="flex items-center gap-3 rounded-2xl px-4 py-3.5" style={{
-        background: 'rgba(13,17,23,0.85)',
-        border: `1px solid rgba(${rgb},.25)`,
-        borderLeft: `3px solid rgb(${rgb})`,
-        boxShadow: `0 4px 32px rgba(0,0,0,.5), 0 0 0 1px rgba(${rgb},.06) inset`,
+        background: `linear-gradient(135deg, rgba(${rgb},.09) 0%, rgba(13,17,23,0.9) 60%)`,
+        border: `1px solid rgba(${rgb},.32)`,
+        boxShadow: `0 4px 32px rgba(0,0,0,.5), 0 0 20px rgba(${rgb},.06) inset`,
         backdropFilter: 'blur(20px)',
       }}>
         <button onClick={onBack}
@@ -488,27 +487,23 @@ export function DGOpportunitiesSection() {
 
           return (
             <div key={league} className="overflow-hidden rounded-2xl" style={{
-              background: 'rgba(13,17,23,0.75)',
+              background: 'rgba(13,17,23,0.8)',
               border: '1px solid rgba(255,255,255,.08)',
-              boxShadow: '0 4px 20px rgba(0,0,0,.4), 0 1px 0 rgba(255,255,255,.04) inset',
-              backdropFilter: 'blur(10px)',
+              boxShadow: '0 4px 24px rgba(0,0,0,.42)',
             }}>
-              {/* Barra topo */}
-              <div style={{ height: 2, background: 'linear-gradient(90deg, rgba(129,140,248,.7) 0%, rgba(129,140,248,.2) 50%, transparent 100%)' }} />
+              {/* Barra topo — acento violeta DG */}
+              <div style={{ height: 2, background: 'linear-gradient(90deg, rgba(168,85,247,.85) 0%, rgba(168,85,247,.3) 40%, transparent 100%)' }} />
 
               {/* Header liga */}
               <div className="flex items-center justify-between px-4 py-2.5" style={{
-                background: 'linear-gradient(90deg, rgba(129,140,248,.06) 0%, transparent 60%)',
+                background: 'rgba(168,85,247,.04)',
                 borderBottom: '1px solid rgba(255,255,255,.05)',
               }}>
-                <div className="flex items-center gap-2">
-                  <div style={{ width: 2, height: 12, borderRadius: 1, background: 'rgba(129,140,248,.6)' }} />
-                  <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: 'rgba(255,255,255,.5)' }}>
-                    {league}
-                  </span>
-                </div>
+                <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: 'rgba(196,157,255,.75)' }}>
+                  {league}
+                </span>
                 <span className="rounded-full px-2 py-0.5 text-[9px] font-bold"
-                  style={{ background: 'rgba(255,255,255,.05)', color: 'rgba(255,255,255,.3)', border: '1px solid rgba(255,255,255,.07)' }}>
+                  style={{ background: 'rgba(168,85,247,.1)', color: 'rgba(196,157,255,.6)', border: '1px solid rgba(168,85,247,.18)' }}>
                   {evs.length}
                 </span>
               </div>
@@ -524,6 +519,7 @@ export function DGOpportunitiesSection() {
                   const legDraw = o.legs.find(l => l.outcome === 'draw');
                   const legAway = o.legs.find(l => l.outcome === 'away');
 
+                  const isAlta = o.dg_classification === 'ALTA';
                   return (
                     <button
                       key={o.id}
@@ -542,10 +538,16 @@ export function DGOpportunitiesSection() {
 
                         {/* Score */}
                         <div className="flex flex-col items-center">
-                          <span className="text-[15px] font-black leading-none tabular-nums" style={{ color: col }}>
+                          <span className="text-[18px] font-black leading-none tabular-nums" style={{
+                            color: col,
+                            textShadow: isAlta ? `0 0 12px rgba(${rgb},.5)` : undefined,
+                          }}>
                             {o.dg_score ?? '—'}
                           </span>
-                          <span className="text-[8px] font-bold" style={{ color: `rgba(${rgb},.5)` }}>
+                          <span className="mt-0.5 rounded px-1 text-[8px] font-black uppercase tracking-wide" style={{
+                            background: `rgba(${rgb},.12)`,
+                            color: `rgba(${rgb},.85)`,
+                          }}>
                             {o.dg_classification ?? ''}
                           </span>
                         </div>
@@ -562,15 +564,19 @@ export function DGOpportunitiesSection() {
 
                         {/* Lucro */}
                         <div className="flex flex-col items-center">
-                          <span className="text-[14px] font-black tabular-nums" style={{
+                          <span className="text-[17px] font-black tabular-nums" style={{
                             color: 'hsl(150 85% 60%)',
-                            textShadow: '0 0 10px hsl(150 85% 55%/0.3)',
+                            textShadow: '0 0 12px hsl(150 85% 55%/0.35)',
                           }}>
                             {o.dg_profit_pct?.toFixed(1) ?? '—'}%
                           </span>
-                          <div className="flex items-center gap-1">
+                          <div className="flex items-center gap-1 mt-0.5">
                             {hasPA && (
-                              <span className="text-[8px] font-bold" style={{ color: 'rgba(255,159,10,.7)' }}>PA</span>
+                              <span className="rounded px-1 py-px text-[8px] font-bold" style={{
+                                background: 'rgba(255,159,10,.12)',
+                                color: 'rgba(255,159,10,.85)',
+                                border: '1px solid rgba(255,159,10,.22)',
+                              }}>PA</span>
                             )}
                             {oppCount > 1 && (
                               <span className="text-[8px]" style={{ color: 'rgba(255,255,255,.25)' }}>+{oppCount - 1}</span>
@@ -586,11 +592,17 @@ export function DGOpportunitiesSection() {
 
                       {/* Mobile */}
                       <div className="flex items-center gap-3 px-4 py-3 md:hidden">
-                        <div className="flex flex-col items-center shrink-0" style={{ width: 36 }}>
-                          <span className="text-[15px] font-black leading-none tabular-nums" style={{ color: col }}>
+                        <div className="flex flex-col items-center shrink-0" style={{ width: 38 }}>
+                          <span className="text-[18px] font-black leading-none tabular-nums" style={{
+                            color: col,
+                            textShadow: isAlta ? `0 0 10px rgba(${rgb},.45)` : undefined,
+                          }}>
                             {o.dg_score ?? '—'}
                           </span>
-                          <span className="text-[7px] font-bold uppercase" style={{ color: `rgba(${rgb},.5)` }}>
+                          <span className="rounded px-1 text-[7px] font-black uppercase mt-0.5" style={{
+                            background: `rgba(${rgb},.12)`,
+                            color: `rgba(${rgb},.8)`,
+                          }}>
                             {o.dg_classification}
                           </span>
                         </div>
