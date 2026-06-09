@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useEffect, useCallback } from 'react';
-import { Search, X, Building2, ScanSearch, Calendar, ChevronLeft, ChevronRight, ExternalLink, ArrowDown } from 'lucide-react';
+import { Search, X, ScanSearch, ChevronLeft, ChevronRight, ExternalLink, ArrowDown, RefreshCw } from 'lucide-react';
 import { SurebetCalc } from '@/components/calcalendario/SurebetCalc';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
@@ -412,54 +412,31 @@ function EventOddsPanel({
 
 export function BuscarOddsPage() {
   const today = todayBRT();
+  // selectedDate fixo em hoje — filtro de dias removido (dados importados são apenas do dia atual)
+  const selectedDate = today;
 
-  const [selectedDate,  setSelectedDate]  = useState(today);
   const [allOdds,       setAllOdds]       = useState<OddsSummary[]>([]);
   const [loading,       setLoading]       = useState(true);
   const [fetchErr,      setFetchErr]      = useState('');
   const [search,        setSearch]        = useState('');
   const [selectedEvent, setSelectedEvent] = useState<OddsSummary | null>(null);
 
-  // Carrega odds: tenta banco de dados importado primeiro, cai nas APIs ao vivo se vazio
   const loadOdds = useCallback(async (date: string, silent = false) => {
     if (!silent) { setLoading(true); setFetchErr(''); setAllOdds([]); setSelectedEvent(null); }
     try {
-      // 1ª tentativa: dados importados no Supabase (mais rápido e completo)
-      const dbUrl  = `/api/dg/odds-db?date=${date}`;
-      console.log('[frontend:4-fetch] tentando banco importado:', dbUrl);
-      const dbRes  = await fetch(dbUrl);
+      const dbRes  = await fetch(`/api/dg/odds-db?date=${date}`);
       const dbJson = await dbRes.json() as { ok: boolean; odds?: OddsSummary[]; source?: string; error?: string };
 
       if (dbJson.ok && (dbJson.odds?.length ?? 0) > 0) {
-        const odds = dbJson.odds!;
-        console.log('[frontend:4-fetch] banco importado:', odds.length, 'jogos | source:', dbJson.source);
-        setAllOdds(odds);
+        setAllOdds(dbJson.odds!);
         return;
       }
 
-      console.log('[frontend:4-fetch] banco vazio para essa data, usando APIs ao vivo…');
-
-      // 2ª tentativa: APIs ao vivo
-      const isToday = date === todayBRT();
-      const liveUrl = isToday ? '/api/dg/odds' : `/api/dg/odds?date=${date}`;
-      console.log('[frontend:4-fetch] buscando odds ao vivo:', liveUrl);
-      const res  = await fetch(liveUrl);
-      const json = await res.json() as { ok: boolean; odds?: OddsSummary[]; source?: string; error?: string };
-
+      // fallback: APIs ao vivo
+      const res  = await fetch('/api/dg/odds');
+      const json = await res.json() as { ok: boolean; odds?: OddsSummary[]; error?: string };
       if (!json.ok) throw new Error(json.error ?? 'Erro ao carregar odds');
-
-      const odds = json.odds ?? [];
-      console.log('[frontend:4-fetch] odds ao vivo:', odds.length, '| sources:', json.source);
-
-      const bkCount: Record<string, number> = {};
-      for (const ev of odds) {
-        for (const bk of ev.bookmakers) {
-          bkCount[bk.slug] = (bkCount[bk.slug] ?? 0) + 1;
-        }
-      }
-      console.log('[frontend:4-fetch] bookmakers:', bkCount);
-
-      setAllOdds(odds);
+      setAllOdds(json.odds ?? []);
     } catch {
       if (!silent) setFetchErr('Não foi possível carregar as odds.');
     } finally {
@@ -469,7 +446,6 @@ export function BuscarOddsPage() {
 
   useEffect(() => { loadOdds(selectedDate); }, [selectedDate, loadOdds]);
 
-  // Auto-refresh a cada 30s (silent = não mostra loading spinner)
   useEffect(() => {
     const id = setInterval(() => loadOdds(selectedDate, true), 30_000);
     return () => clearInterval(id);
@@ -508,12 +484,10 @@ export function BuscarOddsPage() {
     });
   }, [filtered]);
 
-  const days = Array.from({ length: 7 }, (_, i) => addDays(today, i));
-
   // ── Modo evento selecionado ────────────────────────────────────────────────
   if (selectedEvent) {
     return (
-      <div style={{ maxWidth: 800, margin: '0 auto' }}>
+      <div style={{ maxWidth: 860, margin: '0 auto' }}>
         <EventOddsPanel
           event={selectedEvent}
           onBack={() => setSelectedEvent(null)}
@@ -523,166 +497,241 @@ export function BuscarOddsPage() {
     );
   }
 
+  // ── Helpers inline ─────────────────────────────────────────────────────────
+  function bestOfGroup(bks: BookmakerOdds[], key: keyof BookmakerOdds) {
+    const vals = bks.map(b => b[key] as number).filter(v => v > 1);
+    return vals.length ? Math.max(...vals) : 0;
+  }
+  function bestBk(bks: BookmakerOdds[], key: keyof BookmakerOdds) {
+    const best = bestOfGroup(bks, key);
+    return bks.find(b => (b[key] as number) === best && best > 1) ?? null;
+  }
+  function calcMargin(bks: BookmakerOdds[]) {
+    const h = bestOfGroup(bks, 'home'), d = bestOfGroup(bks, 'draw'), a = bestOfGroup(bks, 'away');
+    if (!h || !d || !a) return null;
+    return (1/h + 1/d + 1/a - 1) * 100;
+  }
+
   // ── Lista de eventos ───────────────────────────────────────────────────────
   return (
-    <div style={{ maxWidth: 800, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <div className="mx-auto flex flex-col gap-4" style={{ maxWidth: 920 }}>
 
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
-        <div>
-          <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--t)' }}>Buscar Odds</div>
-          <div style={{ fontSize: 12, color: 'var(--t3)' }}>
-            {loading ? 'Carregando…' : `${filtered.length} jogos · ${fmtDayLabel(selectedDate)}`}
+      {/* ── Topbar ──────────────────────────────────────────────────────── */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-3">
+          <div>
+            <h1 className="text-base font-black tracking-tight" style={{ color: 'var(--t)' }}>Buscar Odds</h1>
+            <p className="text-[11px]" style={{ color: 'var(--t3)' }}>
+              {loading ? 'Carregando…' : `${filtered.length} jogo${filtered.length !== 1 ? 's' : ''} · dados de hoje`}
+            </p>
           </div>
+          {/* Badge "Hoje apenas" */}
+          <span className="flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold"
+            style={{ background: 'rgba(99,102,241,.12)', color: '#818cf8', border: '1px solid rgba(99,102,241,.25)' }}>
+            <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#818cf8] opacity-80" />
+            Eventos de hoje apenas
+          </span>
         </div>
-        <button onClick={() => loadOdds(selectedDate)} disabled={loading} style={{
-          padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600,
-          background: 'var(--bg2)', border: '1px solid var(--b)',
-          color: 'var(--t2)', cursor: loading ? 'wait' : 'pointer', opacity: loading ? 0.6 : 1,
-        }}>
-          {loading ? '…' : '↻ Atualizar'}
+
+        <button
+          onClick={() => loadOdds(selectedDate)}
+          disabled={loading}
+          className="flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-semibold transition-opacity hover:opacity-80 disabled:opacity-40"
+          style={{ background: 'var(--bg2)', border: '1px solid var(--b)', color: 'var(--t2)' }}>
+          <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
+          Atualizar
         </button>
       </div>
 
-      {/* Seletor de dia */}
-      <div style={{
-        borderRadius: 12, padding: '10px 12px',
-        background: 'var(--bg2)', border: '1px solid var(--b)',
-        display: 'flex', alignItems: 'center', gap: 6, overflowX: 'auto',
-      }}>
-        <Calendar size={13} style={{ color: 'var(--t3)', flexShrink: 0 }} />
-        <div style={{ display: 'flex', gap: 4 }}>
-          {days.map(day => {
-            const active = day === selectedDate;
-            return (
-              <button key={day} onClick={() => setSelectedDate(day)} style={{
-                padding: '4px 10px', borderRadius: 7, fontSize: 11, fontWeight: 700,
-                whiteSpace: 'nowrap', cursor: 'pointer', border: '1px solid',
-                background: active ? 'var(--accent,#818cf8)' : 'transparent',
-                borderColor: active ? 'var(--accent,#818cf8)' : 'var(--b)',
-                color: active ? '#fff' : 'var(--t3)',
-              }}>
-                {fmtDayLabel(day)}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Campo de busca */}
-      <div style={{ position: 'relative' }}>
-        <Search size={13} style={{
-          position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)',
-          color: 'var(--t3)', pointerEvents: 'none',
-        }} />
+      {/* ── Busca ───────────────────────────────────────────────────────── */}
+      <div className="relative">
+        <Search size={13} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--t3)' }} />
         <input
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder="Buscar time ou liga…"
-          style={{
-            width: '100%', padding: '9px 34px', borderRadius: 10, boxSizing: 'border-box',
-            background: 'var(--bg2)', border: '1px solid var(--b)',
-            color: 'var(--t)', fontSize: 13, outline: 'none',
-          }}
+          className="w-full rounded-xl py-2.5 pl-9 pr-9 text-[13px] outline-none"
+          style={{ background: 'var(--bg2)', border: '1px solid var(--b)', color: 'var(--t)' }}
         />
         {search && (
-          <button onClick={() => setSearch('')} style={{
-            position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
-            color: 'var(--t3)', background: 'none', border: 'none', cursor: 'pointer',
-          }}>
+          <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2"
+            style={{ color: 'var(--t3)', background: 'none', border: 'none', cursor: 'pointer' }}>
             <X size={13} />
           </button>
         )}
       </div>
 
-      {/* Erro */}
+      {/* ── Erro ────────────────────────────────────────────────────────── */}
       {fetchErr && (
-        <div style={{
-          padding: '12px 16px', borderRadius: 10,
-          background: 'rgba(248,113,113,.07)', border: '1px solid rgba(248,113,113,.2)',
-          color: '#f87171', fontSize: 13,
-        }}>
+        <div className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm"
+          style={{ background: 'rgba(248,113,113,.07)', border: '1px solid rgba(248,113,113,.2)', color: '#f87171' }}>
           ⚠ {fetchErr}
-          <button onClick={() => loadOdds(selectedDate)} style={{
-            marginLeft: 12, fontSize: 11, color: '#818cf8', background: 'none', border: 'none', cursor: 'pointer',
-          }}>Tentar novamente</button>
+          <button onClick={() => loadOdds(selectedDate)} className="ml-auto text-xs"
+            style={{ color: '#818cf8', background: 'none', border: 'none', cursor: 'pointer' }}>
+            Tentar novamente
+          </button>
         </div>
       )}
 
-      {/* Skeleton */}
+      {/* ── Skeleton ────────────────────────────────────────────────────── */}
       {loading && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {Array.from({ length: 7 }).map((_, i) => (
-            <div key={i} style={{
-              height: 58, borderRadius: 10, background: 'var(--bg2)',
-              border: '1px solid var(--b)', opacity: 1 - i * 0.11,
-            }} />
+        <div className="flex flex-col gap-2">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="h-16 rounded-xl animate-pulse"
+              style={{ background: 'var(--bg2)', border: '1px solid var(--b)', opacity: 1 - i * 0.1 }} />
           ))}
         </div>
       )}
 
-      {/* Vazio */}
+      {/* ── Vazio ───────────────────────────────────────────────────────── */}
       {!loading && !fetchErr && filtered.length === 0 && (
-        <div style={{ textAlign: 'center', padding: '48px 0', color: 'var(--t3)' }}>
-          <ScanSearch size={28} style={{ margin: '0 auto 10px', opacity: .4 }} />
-          <div style={{ fontSize: 14, fontWeight: 600 }}>Nenhum jogo encontrado</div>
-          <div style={{ fontSize: 12, marginTop: 4, opacity: .6 }}>
-            {search ? 'Tente outro termo.' : 'Sem jogos com odds disponíveis para esta data.'}
-          </div>
+        <div className="flex flex-col items-center py-16 gap-3" style={{ color: 'var(--t3)' }}>
+          <ScanSearch size={32} className="opacity-30" />
+          <p className="text-sm font-semibold">Nenhum jogo encontrado</p>
+          <p className="text-xs opacity-60">
+            {search ? 'Tente outro termo de busca.' : 'Sem odds importadas para hoje. Importe via painel Admin.'}
+          </p>
         </div>
       )}
 
-      {/* Eventos por liga */}
+      {/* ── Cabeçalho das colunas (desktop) ─────────────────────────────── */}
+      {!loading && byLeague.length > 0 && (
+        <div className="hidden md:grid items-center gap-2 px-4 text-[10px] font-black uppercase tracking-widest"
+          style={{ gridTemplateColumns: '44px 1fr 72px 120px 120px 120px', color: 'rgba(255,255,255,.3)' }}>
+          <span>Hora</span>
+          <span>Jogo</span>
+          <span className="text-center">Margem</span>
+          <span className="text-center">Casa (1)</span>
+          <span className="text-center">Empate (X)</span>
+          <span className="text-center">Fora (2)</span>
+        </div>
+      )}
+
+      {/* ── Eventos por liga ────────────────────────────────────────────── */}
       {!loading && byLeague.map(([league, evs]) => (
-        <div key={league} style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-          <div style={{
-            fontSize: 10, fontWeight: 900, textTransform: 'uppercase',
-            letterSpacing: '.1em', color: 'var(--t3)',
-            padding: '2px 2px 4px', display: 'flex', alignItems: 'center', gap: 6,
-          }}>
-            <span style={{ flex: 1 }}>{league}</span>
-            <span style={{ opacity: .45, fontWeight: 600 }}>{evs.length}</span>
+        <div key={league} className="overflow-hidden rounded-2xl"
+          style={{ border: '1px solid rgba(255,255,255,.07)' }}>
+
+          {/* Cabeçalho da liga */}
+          <div className="flex items-center justify-between px-4 py-2.5"
+            style={{ background: 'rgba(255,255,255,.03)', borderBottom: '1px solid rgba(255,255,255,.06)' }}>
+            <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: 'rgba(255,255,255,.45)' }}>
+              {league}
+            </span>
+            <span className="rounded px-1.5 py-0.5 text-[9px] font-bold"
+              style={{ background: 'rgba(255,255,255,.06)', color: 'rgba(255,255,255,.3)' }}>
+              {evs.length}
+            </span>
           </div>
 
-          {evs.map(ev => (
-            <button key={ev.match_id} onClick={() => setSelectedEvent(ev)} style={{
-              width: '100%', textAlign: 'left', cursor: 'pointer',
-              borderRadius: 10, padding: '10px 14px',
-              background: 'var(--bg2)', border: '1px solid var(--b)',
-              display: 'flex', alignItems: 'center', gap: 12,
-              transition: 'border-color .15s, background .15s',
-            }}
-            onMouseEnter={e => {
-              (e.currentTarget as HTMLElement).style.borderColor = 'rgba(129,140,248,.4)';
-              (e.currentTarget as HTMLElement).style.background  = 'rgba(129,140,248,.05)';
-            }}
-            onMouseLeave={e => {
-              (e.currentTarget as HTMLElement).style.borderColor = 'var(--b)';
-              (e.currentTarget as HTMLElement).style.background  = 'var(--bg2)';
-            }}>
-              <div style={{
-                fontSize: 12, fontWeight: 700, color: 'var(--t3)',
-                flexShrink: 0, minWidth: 36, textAlign: 'center', fontVariantNumeric: 'tabular-nums',
-              }}>
-                {fmtTime(ev.start_time)}
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{
-                  fontSize: 13, fontWeight: 700, color: 'var(--t)',
-                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                }}>
-                  {ev.home_team} x {ev.away_team}
-                </div>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
-                <Building2 size={10} style={{ color: '#818cf8' }} />
-                <span style={{ fontSize: 10, fontWeight: 700, color: '#818cf8' }}>{ev.bookmakers.length}</span>
-              </div>
-              <ChevronRight size={14} style={{ color: 'var(--t3)', flexShrink: 0, opacity: .4 }} />
-            </button>
-          ))}
+          {/* Linhas dos eventos */}
+          <div className="divide-y divide-white/[.04]">
+            {evs.map((ev, idx) => {
+              const mgn = calcMargin(ev.bookmakers);
+              const isSure = mgn !== null && mgn < 0;
+              const bkH = bestBk(ev.bookmakers, 'home');
+              const bkD = bestBk(ev.bookmakers, 'draw');
+              const bkA = bestBk(ev.bookmakers, 'away');
+              return (
+                <button
+                  key={ev.match_id}
+                  type="button"
+                  onClick={() => setSelectedEvent(ev)}
+                  className="group w-full text-left transition-colors hover:bg-white/[.03]"
+                  style={{ background: idx % 2 === 1 ? 'rgba(255,255,255,.015)' : undefined }}>
+
+                  {/* ── Desktop layout ── */}
+                  <div className="hidden md:grid items-center gap-2 px-4 py-3"
+                    style={{ gridTemplateColumns: '44px 1fr 72px 120px 120px 120px' }}>
+
+                    {/* Hora */}
+                    <span className="text-[12px] font-bold tabular-nums" style={{ color: 'var(--t3)' }}>
+                      {fmtTime(ev.start_time)}
+                    </span>
+
+                    {/* Jogo */}
+                    <div className="min-w-0">
+                      <p className="truncate text-[13px] font-semibold" style={{ color: 'var(--t)' }}>
+                        {ev.home_team}
+                      </p>
+                      <p className="truncate text-[12px]" style={{ color: 'var(--t3)' }}>
+                        {ev.away_team}
+                      </p>
+                    </div>
+
+                    {/* Margem */}
+                    <div className="flex justify-center">
+                      {mgn !== null ? (
+                        <span className="rounded-md px-2 py-1 text-[11px] font-bold tabular-nums"
+                          style={isSure ? {
+                            background: 'rgba(61,255,143,.15)', color: 'hsl(150 90% 55%)',
+                            border: '1px solid rgba(61,255,143,.3)',
+                          } : {
+                            background: 'rgba(248,113,113,.1)', color: '#f87171',
+                            border: '1px solid rgba(248,113,113,.2)',
+                          }}>
+                          {isSure ? `+${Math.abs(mgn).toFixed(2)}%` : `${mgn.toFixed(1)}%`}
+                        </span>
+                      ) : <span style={{ color: 'rgba(255,255,255,.15)', fontSize: 11 }}>—</span>}
+                    </div>
+
+                    {/* Odd Casa */}
+                    <BestOddCell bk={bkH} type="home" />
+                    {/* Odd Empate */}
+                    <BestOddCell bk={bkD} type="draw" />
+                    {/* Odd Fora */}
+                    <BestOddCell bk={bkA} type="away" />
+                  </div>
+
+                  {/* ── Mobile layout ── */}
+                  <div className="flex items-center gap-3 px-4 py-3 md:hidden">
+                    <span className="w-10 shrink-0 text-[11px] font-bold tabular-nums text-center" style={{ color: 'var(--t3)' }}>
+                      {fmtTime(ev.start_time)}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <p className="truncate text-[13px] font-semibold" style={{ color: 'var(--t)' }}>
+                        {ev.home_team} x {ev.away_team}
+                      </p>
+                      <p className="text-[11px]" style={{ color: 'var(--t3)' }}>
+                        {ev.bookmakers.length} casas
+                        {mgn !== null && (
+                          <span className="ml-2 font-bold" style={{ color: isSure ? 'hsl(150 90% 55%)' : '#f87171' }}>
+                            {isSure ? `🎯 +${Math.abs(mgn).toFixed(2)}%` : `${mgn.toFixed(1)}%`}
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                    <ChevronRight size={14} className="shrink-0 opacity-30" style={{ color: 'var(--t3)' }} />
+                  </div>
+                </button>
+              );
+            })}
+          </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+// ── Célula de melhor odd (lista) ───────────────────────────────────────────────
+function BestOddCell({ bk, type }: { bk: BookmakerOdds | null; type: 'home' | 'draw' | 'away' }) {
+  if (!bk) return <div className="flex justify-center"><span style={{ color: 'rgba(255,255,255,.15)', fontSize: 11 }}>—</span></div>;
+  const val = bk[type] as number;
+  const isPA = bk.is_pa ?? isPa(bk.slug);
+  return (
+    <div className="flex flex-col items-center gap-0.5">
+      <span className="text-[15px] font-black tabular-nums" style={{ color: 'hsl(150 85% 60%)' }}>
+        {val.toFixed(2)}
+      </span>
+      <span className="flex items-center gap-1 text-[10px] font-medium" style={{ color: 'rgba(255,255,255,.45)' }}>
+        {bk.name}
+        {isPA && (
+          <span className="rounded px-1 text-[8px] font-bold"
+            style={{ background: 'rgba(255,159,10,.12)', color: 'rgba(255,159,10,.7)', border: '1px solid rgba(255,159,10,.2)' }}>
+            PA
+          </span>
+        )}
+      </span>
     </div>
   );
 }
