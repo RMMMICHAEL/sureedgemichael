@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { ExternalLink, RefreshCw, Search, X, SlidersHorizontal, ChevronLeft, ChevronRight, ArrowDown } from 'lucide-react';
+import { SurebetCalc } from '@/components/calcalendario/SurebetCalc';
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
 
@@ -41,10 +42,6 @@ function fmtTime(utc: string | null): string {
     });
   } catch { return utc; }
 }
-
-const OUTCOME_PT: Record<string, string> = {
-  home: 'Casa (1)', draw: 'Empate (X)', away: 'Fora (2)',
-};
 
 function classColor(c: string | null): string {
   if (c === 'ALTA')  return 'hsl(150 90% 58%)';
@@ -108,7 +105,12 @@ function DGDetailPanel({
   matchOpportunities: DGOpportunity[];
   onBack: () => void;
 }) {
-  const [sortCol, setSortCol] = useState<'profit' | 'score' | 'home' | 'draw' | 'away'>('profit');
+  // Score é a métrica primária — sort padrão por score
+  const [sortCol, setSortCol]       = useState<'score' | 'profit' | 'home' | 'draw' | 'away'>('score');
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // calcKey força re-mount do calc-reveal a cada nova seleção
+  const [calcKey, setCalcKey]       = useState(0);
+  const [calcFill, setCalcFill]     = useState<{ odds: string[]; houses: string[]; urls: string[] } | null>(null);
 
   const o   = matchOpportunities[0];
   const rgb = classRgb(o.dg_classification);
@@ -116,16 +118,36 @@ function DGDetailPanel({
 
   const sorted = useMemo(() => {
     return [...matchOpportunities].sort((a, b) => {
-      if (sortCol === 'profit') return (b.dg_profit_pct ?? 0) - (a.dg_profit_pct ?? 0);
       if (sortCol === 'score')  return (b.dg_score ?? 0) - (a.dg_score ?? 0);
-      // sort by a specific outcome odd
+      if (sortCol === 'profit') return (b.dg_profit_pct ?? 0) - (a.dg_profit_pct ?? 0);
       const legA = a.legs.find(l => l.outcome === sortCol);
       const legB = b.legs.find(l => l.outcome === sortCol);
       return (legB?.odd ?? 0) - (legA?.odd ?? 0);
     });
   }, [matchOpportunities, sortCol]);
 
+  function selectOpportunity(opp: DGOpportunity) {
+    if (selectedId === opp.id) {
+      setSelectedId(null);
+      setCalcFill(null);
+      return;
+    }
+    setSelectedId(opp.id);
+    const legHome = opp.legs.find(l => l.outcome === 'home');
+    const legDraw = opp.legs.find(l => l.outcome === 'draw');
+    const legAway = opp.legs.find(l => l.outcome === 'away');
+    const legs = [legHome, legDraw, legAway].filter(Boolean) as Leg[];
+    if (!legs.length) return;
+    setCalcFill({
+      odds:   legs.map(l => String(l.odd)),
+      houses: legs.map(l => l.bookmaker),
+      urls:   legs.map(l => l.matchUrl ?? ''),
+    });
+    setCalcKey(k => k + 1);
+  }
+
   const cols: { key: typeof sortCol; label: string }[] = [
+    { key: 'score',  label: 'Score' },
     { key: 'profit', label: 'Lucro %' },
     { key: 'home',   label: 'Casa (1)' },
     { key: 'draw',   label: 'Empate (X)' },
@@ -139,9 +161,10 @@ function DGDetailPanel({
 
       {/* ── Header do evento ────────────────────────────────────────────── */}
       <div className="flex items-center gap-3 rounded-2xl px-4 py-3.5" style={{
-        background: `linear-gradient(135deg, rgba(${rgb},.09) 0%, rgba(13,17,23,0.9) 60%)`,
-        border: `1px solid rgba(${rgb},.32)`,
-        boxShadow: `0 4px 32px rgba(0,0,0,.5), 0 0 20px rgba(${rgb},.06) inset`,
+        background: 'rgba(13,17,23,0.85)',
+        border: `1px solid rgba(${rgb},.25)`,
+        borderLeft: `3px solid rgb(${rgb})`,
+        boxShadow: `0 4px 32px rgba(0,0,0,.5), 0 0 0 1px rgba(${rgb},.06) inset`,
         backdropFilter: 'blur(20px)',
       }}>
         <button onClick={onBack}
@@ -163,13 +186,21 @@ function DGDetailPanel({
               background: 'rgba(255,159,10,.1)', color: 'rgba(255,159,10,.8)', border: '1px solid rgba(255,159,10,.2)',
             }}>PA disponível</span>
           )}
+          {/* Score — métrica primária no header */}
           <div className="flex flex-col items-center rounded-xl px-3 py-1.5" style={{
             background: `rgba(${rgb},.1)`, border: `1px solid rgba(${rgb},.25)`,
           }}>
-            <span className="text-[20px] font-black leading-none tabular-nums" style={{ color: col }}>
+            <span className="text-[22px] font-black leading-none tabular-nums" style={{ color: col }}>
               {o.dg_score ?? '—'}
             </span>
-            <span className="text-[9px] font-bold uppercase tracking-widest" style={{ color: `rgba(${rgb},.6)` }}>score</span>
+            <span className="text-[8px] font-black uppercase tracking-widest" style={{ color: `rgba(${rgb},.55)` }}>
+              DG score
+            </span>
+            {o.dg_profit_pct != null && (
+              <span className="text-[9px] font-bold tabular-nums mt-0.5" style={{ color: 'hsl(150 85% 58%)' }}>
+                {o.dg_profit_pct.toFixed(1)}% lucro
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -181,10 +212,8 @@ function DGDetailPanel({
         boxShadow: `0 4px 24px rgba(0,0,0,.35), 0 0 0 1px rgba(${rgb},.06) inset`,
         backdropFilter: 'blur(8px)',
       }}>
-        {/* Barra de acento */}
         <div style={{ height: 2, background: `linear-gradient(90deg, rgba(${rgb},.9) 0%, rgba(${rgb},.3) 60%, transparent 100%)` }} />
 
-        {/* Header da seção */}
         <div className="flex items-center justify-between px-5 py-3" style={{
           background: `linear-gradient(90deg, rgba(${rgb},.08) 0%, transparent 70%)`,
           borderBottom: `1px solid rgba(${rgb},.12)`,
@@ -200,14 +229,14 @@ function DGDetailPanel({
               {matchOpportunities.length} combinação{matchOpportunities.length !== 1 ? 'ões' : ''}
             </span>
           </div>
-          <span className="text-[11px] font-bold" style={{ color: 'rgba(255,255,255,.3)' }}>
-            melhor lucro: {Math.max(...matchOpportunities.map(x => x.dg_profit_pct ?? 0)).toFixed(2)}%
-          </span>
+          <p className="text-[10px]" style={{ color: 'rgba(255,255,255,.25)' }}>
+            clique numa linha para calcular
+          </p>
         </div>
 
-        {/* Cabeçalho das colunas */}
-        <div className="grid items-center gap-3 px-5 py-2.5" style={{
-          gridTemplateColumns: '28px 80px 1fr 1fr 1fr',
+        {/* Colunas header */}
+        <div className="grid items-center gap-2 px-5 py-2.5" style={{
+          gridTemplateColumns: '20px 72px 68px 1fr 1fr 1fr',
           background: 'rgba(255,255,255,.015)',
           borderBottom: '1px solid rgba(255,255,255,.05)',
         }}>
@@ -229,63 +258,109 @@ function DGDetailPanel({
         {/* Linhas */}
         <div>
           {sorted.map((opp, idx) => {
-            const legHome = opp.legs.find(l => l.outcome === 'home');
-            const legDraw = opp.legs.find(l => l.outcome === 'draw');
-            const legAway = opp.legs.find(l => l.outcome === 'away');
-            const anyPA   = opp.legs.some(l => l.isPA);
-            const isBest  = idx === 0;
+            const legHome    = opp.legs.find(l => l.outcome === 'home');
+            const legDraw    = opp.legs.find(l => l.outcome === 'draw');
+            const legAway    = opp.legs.find(l => l.outcome === 'away');
+            const isBest     = idx === 0;
+            const isSelected = selectedId === opp.id;
 
             return (
-              <div key={opp.id}
-                className="odds-row odds-row-in grid items-center gap-3 px-5 py-3"
+              <button
+                key={opp.id}
+                type="button"
+                onClick={() => selectOpportunity(opp)}
+                className="odds-row w-full text-left"
                 style={{
-                  gridTemplateColumns: '28px 80px 1fr 1fr 1fr',
-                  '--row-i': idx,
-                  background: isBest
+                  display: 'grid',
+                  gridTemplateColumns: '20px 72px 68px 1fr 1fr 1fr',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  padding: '12px 20px',
+                  background: isSelected
+                    ? `rgba(${rgb},.10)`
+                    : isBest
                     ? `rgba(${rgb},.05)`
                     : idx % 2 === 1 ? 'rgba(255,255,255,.012)' : undefined,
                   borderTop: idx > 0 ? '1px solid rgba(255,255,255,.04)' : undefined,
+                  borderLeft: isSelected ? `3px solid rgba(${rgb},.7)` : '3px solid transparent',
                 } as React.CSSProperties}>
 
-                {/* Rank */}
                 <span className="text-[11px] font-black tabular-nums" style={{ color: 'rgba(255,255,255,.2)' }}>
                   {idx + 1}
                 </span>
 
-                {/* Lucro + score */}
+                {/* Score — primário, grande */}
                 <div className="flex flex-col items-center gap-0.5">
-                  <span className="text-[15px] font-black tabular-nums leading-none" style={{
-                    color: isBest ? col : 'hsl(150 85% 60%)',
-                    textShadow: isBest ? `0 0 12px rgba(${rgb},.4)` : '0 0 8px hsl(150 85% 55%/0.3)',
+                  <span className="text-[18px] font-black leading-none tabular-nums" style={{
+                    color: (isBest || isSelected) ? col : 'rgba(255,255,255,.7)',
+                    textShadow: (isBest || isSelected) ? `0 0 12px rgba(${rgb},.4)` : 'none',
+                  }}>
+                    {opp.dg_score ?? '—'}
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <span className="text-[8px] font-black uppercase tracking-wide" style={{ color: `rgba(${rgb},.4)` }}>
+                      {opp.dg_classification ?? ''}
+                    </span>
+                    {isSelected && (
+                      <span className="text-[8px] font-black" style={{ color: `rgba(${rgb},.6)` }}>✓</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Lucro % — secundário */}
+                <div className="flex flex-col items-center">
+                  <span className="text-[13px] font-black tabular-nums" style={{
+                    color: 'hsl(150 85% 60%)',
+                    textShadow: '0 0 8px hsl(150 85% 55%/0.3)',
                   }}>
                     {opp.dg_profit_pct?.toFixed(2) ?? '—'}%
                   </span>
-                  <div className="flex items-center gap-1">
-                    <span className="text-[9px] font-semibold" style={{ color: 'rgba(255,255,255,.25)' }}>
-                      score {opp.dg_score ?? '—'}
-                    </span>
-                    {anyPA && (
-                      <span className="rounded px-1 text-[7px] font-bold" style={{
-                        background: 'rgba(255,159,10,.1)',
-                        color: 'rgba(255,159,10,.7)',
-                        border: '1px solid rgba(255,159,10,.18)',
-                      }}>PA</span>
-                    )}
-                  </div>
                 </div>
 
                 <LegCell leg={legHome} />
                 <LegCell leg={legDraw} />
                 <LegCell leg={legAway} />
-              </div>
+              </button>
             );
           })}
         </div>
       </div>
 
-      {/* Dica */}
+      {/* ── Calculadora — revela com motion quando linha é selecionada ───── */}
+      {calcFill && (
+        <div key={calcKey} className="calc-reveal overflow-hidden rounded-2xl" style={{
+          background: 'rgba(13,17,23,0.75)',
+          border: `1px solid rgba(${rgb},.28)`,
+          boxShadow: `0 4px 28px rgba(0,0,0,.4), 0 0 20px rgba(${rgb},.05) inset`,
+          backdropFilter: 'blur(12px)',
+        }}>
+          <div style={{ height: 2, background: `linear-gradient(90deg, rgba(${rgb},.8) 0%, rgba(${rgb},.2) 60%, transparent 100%)` }} />
+          <div className="flex items-center justify-between px-5 py-3" style={{
+            background: `linear-gradient(90deg, rgba(${rgb},.07) 0%, transparent 60%)`,
+            borderBottom: `1px solid rgba(${rgb},.1)`,
+          }}>
+            <div className="flex items-center gap-2">
+              <div style={{ width: 3, height: 14, borderRadius: 2, background: `rgb(${rgb})` }} />
+              <span className="text-[11px] font-black tracking-widest uppercase" style={{ color: col }}>
+                Calculadora
+              </span>
+            </div>
+            <span className="text-[10px]" style={{ color: 'rgba(255,255,255,.3)' }}>
+              odds pré-carregadas · ajuste livremente
+            </span>
+          </div>
+          <div className="p-4">
+            <SurebetCalc
+              selectedEvent={{ name: `${o.home_team} x ${o.away_team}`, start_utc: o.kickoff ?? '' }}
+              externalFill={calcFill}
+              defaultNumOutcomes={3}
+            />
+          </div>
+        </div>
+      )}
+
       <p className="px-1 text-[11px]" style={{ color: 'rgba(255,255,255,.25)' }}>
-        👆 Clique no nome da casa para abrir o evento direto na plataforma
+        👆 Clique numa linha para calcular stakes · clique no nome da casa para abrir na plataforma
       </p>
     </div>
   );
@@ -332,21 +407,22 @@ export function DGOpportunitiesSection() {
     });
   }, [opportunities, classFilter, paFilter, search]);
 
-  // Um card por match_id — melhor oportunidade de cada jogo
+  // Melhor oportunidade por match_id ordenado por Score (métrica primária)
   const dedupList = useMemo(() => {
-    const seen = new Set<string>();
-    return filtered.filter(o => {
-      if (seen.has(o.match_id)) return false;
-      seen.add(o.match_id);
-      return true;
-    });
+    const best = new Map<string, DGOpportunity>();
+    for (const o of filtered) {
+      const existing = best.get(o.match_id);
+      if (!existing || (o.dg_score ?? 0) > (existing.dg_score ?? 0)) {
+        best.set(o.match_id, o);
+      }
+    }
+    return Array.from(best.values()).sort((a, b) => (b.dg_score ?? 0) - (a.dg_score ?? 0));
   }, [filtered]);
 
   const countAlta  = opportunities.filter(o => o.dg_classification === 'ALTA').length;
   const countMedia = opportunities.filter(o => o.dg_classification === 'MEDIA').length;
   const countBaixa = opportunities.filter(o => o.dg_classification === 'BAIXA').length;
 
-  // ── Detalhe de jogo selecionado ──────────────────────────────────────────────
   if (selectedMatchId) {
     const allForMatch = opportunities.filter(o => o.match_id === selectedMatchId);
     if (!allForMatch.length) { setSelectedMatchId(null); return null; }
@@ -358,7 +434,6 @@ export function DGOpportunitiesSection() {
     );
   }
 
-  // ── States especiais ─────────────────────────────────────────────────────────
   if (loading) return (
     <div className="flex flex-col gap-3">
       {Array.from({ length: 6 }).map((_, i) => (
@@ -397,7 +472,6 @@ export function DGOpportunitiesSection() {
 
       {/* ── Filtros ──────────────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center gap-2">
-        {/* Classificação */}
         <div className="flex items-center gap-1 rounded-xl p-1" style={{ background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.07)' }}>
           {(['ALL','ALTA','MEDIA','BAIXA'] as const).map(c => {
             const active = classFilter === c;
@@ -421,7 +495,6 @@ export function DGOpportunitiesSection() {
           })}
         </div>
 
-        {/* PA */}
         <div className="flex items-center gap-1 rounded-xl p-1" style={{ background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.07)' }}>
           {([['ALL','Todos'],['PA','Com PA'],['SEM_PA','Sem PA']] as const).map(([v, label]) => (
             <button key={v} onClick={() => setPaFilter(v as typeof paFilter)}
@@ -436,7 +509,6 @@ export function DGOpportunitiesSection() {
           ))}
         </div>
 
-        {/* Busca */}
         <div className="relative ml-auto">
           <Search size={12} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--t3)' }} />
           <input value={search} onChange={e => setSearch(e.target.value)}
@@ -459,22 +531,22 @@ export function DGOpportunitiesSection() {
         </button>
       </div>
 
-      {/* Cabeçalho colunas desktop */}
+      {/* Cabeçalho desktop — Score em destaque à esquerda */}
       {dedupList.length > 0 && (
         <div className="hidden md:grid items-center gap-2 px-4 text-[10px] font-black uppercase tracking-widest"
-          style={{ gridTemplateColumns: '44px 1fr 68px 100px 100px 100px', color: 'rgba(255,255,255,.25)' }}>
+          style={{ gridTemplateColumns: '52px 56px 1fr 88px 100px 100px 100px', color: 'rgba(255,255,255,.25)' }}>
           <span>Score</span>
+          <span className="text-center">Lucro%</span>
           <span>Jogo</span>
-          <span className="text-center">Lucro</span>
+          <span className="text-center">Hora</span>
           <span className="text-center">Casa (1)</span>
           <span className="text-center">Empate (X)</span>
           <span className="text-center">Fora (2)</span>
         </div>
       )}
 
-      {/* ── Eventos agrupados por liga ────────────────────────────────────── */}
+      {/* ── Eventos por liga ─────────────────────────────────────────────── */}
       {(() => {
-        // Agrupa por liga
         const byLeague = new Map<string, typeof dedupList>();
         for (const o of dedupList) {
           const key = o.league ?? 'Outros';
@@ -482,153 +554,133 @@ export function DGOpportunitiesSection() {
           byLeague.get(key)!.push(o);
         }
 
-        return Array.from(byLeague.entries()).map(([league, evs]) => {
-          const leagueRgb = classRgb(evs[0].dg_classification);
-
-          return (
-            <div key={league} className="overflow-hidden rounded-2xl" style={{
-              background: 'rgba(13,17,23,0.8)',
-              border: '1px solid rgba(255,255,255,.08)',
-              boxShadow: '0 4px 24px rgba(0,0,0,.42)',
+        return Array.from(byLeague.entries()).map(([league, evs]) => (
+          <div key={league} className="overflow-hidden rounded-2xl" style={{
+            background: 'rgba(13,17,23,0.75)',
+            border: '1px solid rgba(255,255,255,.08)',
+            boxShadow: '0 4px 20px rgba(0,0,0,.4), 0 1px 0 rgba(255,255,255,.04) inset',
+            backdropFilter: 'blur(10px)',
+          }}>
+            <div style={{ height: 2, background: 'linear-gradient(90deg, rgba(129,140,248,.7) 0%, rgba(129,140,248,.2) 50%, transparent 100%)' }} />
+            <div className="flex items-center justify-between px-4 py-2.5" style={{
+              background: 'linear-gradient(90deg, rgba(129,140,248,.06) 0%, transparent 60%)',
+              borderBottom: '1px solid rgba(255,255,255,.05)',
             }}>
-              {/* Barra topo — acento violeta DG */}
-              <div style={{ height: 2, background: 'linear-gradient(90deg, rgba(168,85,247,.85) 0%, rgba(168,85,247,.3) 40%, transparent 100%)' }} />
-
-              {/* Header liga */}
-              <div className="flex items-center justify-between px-4 py-2.5" style={{
-                background: 'rgba(168,85,247,.04)',
-                borderBottom: '1px solid rgba(255,255,255,.05)',
-              }}>
-                <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: 'rgba(196,157,255,.75)' }}>
+              <div className="flex items-center gap-2">
+                <div style={{ width: 2, height: 12, borderRadius: 1, background: 'rgba(129,140,248,.6)' }} />
+                <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: 'rgba(255,255,255,.5)' }}>
                   {league}
                 </span>
-                <span className="rounded-full px-2 py-0.5 text-[9px] font-bold"
-                  style={{ background: 'rgba(168,85,247,.1)', color: 'rgba(196,157,255,.6)', border: '1px solid rgba(168,85,247,.18)' }}>
-                  {evs.length}
-                </span>
               </div>
+              <span className="rounded-full px-2 py-0.5 text-[9px] font-bold"
+                style={{ background: 'rgba(255,255,255,.05)', color: 'rgba(255,255,255,.3)', border: '1px solid rgba(255,255,255,.07)' }}>
+                {evs.length}
+              </span>
+            </div>
 
-              {/* Linhas */}
-              <div>
-                {evs.map((o, idx) => {
-                  const rgb     = classRgb(o.dg_classification);
-                  const col     = classColor(o.dg_classification);
-                  const hasPA   = o.legs.some(l => l.isPA);
-                  const oppCount = filtered.filter(x => x.match_id === o.match_id).length;
-                  const legHome = o.legs.find(l => l.outcome === 'home');
-                  const legDraw = o.legs.find(l => l.outcome === 'draw');
-                  const legAway = o.legs.find(l => l.outcome === 'away');
+            <div>
+              {evs.map((o, idx) => {
+                const rgb      = classRgb(o.dg_classification);
+                const col      = classColor(o.dg_classification);
+                const hasPA    = o.legs.some(l => l.isPA);
+                const oppCount = filtered.filter(x => x.match_id === o.match_id).length;
+                const legHome  = o.legs.find(l => l.outcome === 'home');
+                const legDraw  = o.legs.find(l => l.outcome === 'draw');
+                const legAway  = o.legs.find(l => l.outcome === 'away');
 
-                  const isAlta = o.dg_classification === 'ALTA';
-                  return (
-                    <button
-                      key={o.id}
-                      type="button"
-                      onClick={() => setSelectedMatchId(o.match_id)}
-                      className="event-row w-full text-left"
-                      style={{
-                        background: idx % 2 === 1 ? 'rgba(255,255,255,.012)' : undefined,
-                        borderTop: idx > 0 ? '1px solid rgba(255,255,255,.04)' : undefined,
-                        display: 'block',
-                      }}>
+                return (
+                  <button
+                    key={o.id}
+                    type="button"
+                    onClick={() => setSelectedMatchId(o.match_id)}
+                    className="event-row w-full text-left"
+                    style={{
+                      background: idx % 2 === 1 ? 'rgba(255,255,255,.012)' : undefined,
+                      borderTop: idx > 0 ? '1px solid rgba(255,255,255,.04)' : undefined,
+                      display: 'block',
+                    }}>
 
-                      {/* Desktop */}
-                      <div className="hidden md:grid items-center gap-2 px-4 py-3"
-                        style={{ gridTemplateColumns: '44px 1fr 68px 100px 100px 100px' }}>
+                    {/* Desktop */}
+                    <div className="hidden md:grid items-center gap-2 px-4 py-3"
+                      style={{ gridTemplateColumns: '52px 56px 1fr 88px 100px 100px 100px' }}>
 
-                        {/* Score */}
-                        <div className="flex flex-col items-center">
-                          <span className="text-[18px] font-black leading-none tabular-nums" style={{
-                            color: col,
-                            textShadow: isAlta ? `0 0 12px rgba(${rgb},.5)` : undefined,
-                          }}>
-                            {o.dg_score ?? '—'}
-                          </span>
-                          <span className="mt-0.5 rounded px-1 text-[8px] font-black uppercase tracking-wide" style={{
-                            background: `rgba(${rgb},.12)`,
-                            color: `rgba(${rgb},.85)`,
-                          }}>
-                            {o.dg_classification ?? ''}
-                          </span>
-                        </div>
+                      {/* Score — grande, colorido pela classificação */}
+                      <div className="flex flex-col items-center">
+                        <span className="text-[18px] font-black leading-none tabular-nums" style={{ color: col }}>
+                          {o.dg_score ?? '—'}
+                        </span>
+                        <span className="text-[8px] font-black uppercase tracking-wide" style={{ color: `rgba(${rgb},.5)` }}>
+                          {o.dg_classification ?? ''}
+                        </span>
+                      </div>
 
-                        {/* Jogo */}
-                        <div className="min-w-0">
+                      {/* Lucro % — secundário */}
+                      <div className="flex flex-col items-center">
+                        <span className="text-[13px] font-black tabular-nums" style={{
+                          color: 'hsl(150 85% 60%)',
+                          textShadow: '0 0 8px hsl(150 85% 55%/0.3)',
+                        }}>
+                          {o.dg_profit_pct?.toFixed(1) ?? '—'}%
+                        </span>
+                        {hasPA && (
+                          <span className="text-[8px] font-bold" style={{ color: 'rgba(255,159,10,.7)' }}>PA</span>
+                        )}
+                      </div>
+
+                      {/* Jogo */}
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 min-w-0">
                           <p className="truncate text-[13px] font-semibold" style={{ color: 'var(--t)' }}>
                             {o.home_team}
                           </p>
-                          <p className="truncate text-[12px]" style={{ color: 'var(--t3)' }}>
-                            {o.away_team} · {fmtTime(o.kickoff)}
-                          </p>
+                          {oppCount > 1 && (
+                            <span className="shrink-0 rounded px-1 text-[8px] font-bold" style={{
+                              background: `rgba(${rgb},.1)`, color: col, border: `1px solid rgba(${rgb},.2)`,
+                            }}>+{oppCount - 1}</span>
+                          )}
                         </div>
+                        <p className="truncate text-[12px]" style={{ color: 'var(--t3)' }}>{o.away_team}</p>
+                      </div>
 
-                        {/* Lucro */}
-                        <div className="flex flex-col items-center">
-                          <span className="text-[17px] font-black tabular-nums" style={{
-                            color: 'hsl(150 85% 60%)',
-                            textShadow: '0 0 12px hsl(150 85% 55%/0.35)',
-                          }}>
+                      <span className="text-[11px] font-bold tabular-nums text-center" style={{ color: 'var(--t3)' }}>
+                        {fmtTime(o.kickoff)}
+                      </span>
+
+                      <LegCell leg={legHome} />
+                      <LegCell leg={legDraw} />
+                      <LegCell leg={legAway} />
+                    </div>
+
+                    {/* Mobile */}
+                    <div className="flex items-center gap-3 px-4 py-3 md:hidden">
+                      <div className="flex flex-col items-center shrink-0" style={{ width: 40 }}>
+                        <span className="text-[17px] font-black leading-none tabular-nums" style={{ color: col }}>
+                          {o.dg_score ?? '—'}
+                        </span>
+                        <span className="text-[7px] font-black uppercase" style={{ color: `rgba(${rgb},.5)` }}>
+                          {o.dg_classification}
+                        </span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="truncate text-[13px] font-semibold" style={{ color: 'var(--t)' }}>
+                          {o.home_team} x {o.away_team}
+                        </p>
+                        <p className="text-[11px]" style={{ color: 'var(--t3)' }}>
+                          {fmtTime(o.kickoff)}
+                          <span className="ml-2 font-black" style={{ color: 'hsl(150 85% 60%)' }}>
                             {o.dg_profit_pct?.toFixed(1) ?? '—'}%
                           </span>
-                          <div className="flex items-center gap-1 mt-0.5">
-                            {hasPA && (
-                              <span className="rounded px-1 py-px text-[8px] font-bold" style={{
-                                background: 'rgba(255,159,10,.12)',
-                                color: 'rgba(255,159,10,.85)',
-                                border: '1px solid rgba(255,159,10,.22)',
-                              }}>PA</span>
-                            )}
-                            {oppCount > 1 && (
-                              <span className="text-[8px]" style={{ color: 'rgba(255,255,255,.25)' }}>+{oppCount - 1}</span>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Legs */}
-                        <LegCell leg={legHome} />
-                        <LegCell leg={legDraw} />
-                        <LegCell leg={legAway} />
+                          {hasPA && <span className="ml-1 font-bold" style={{ color: 'rgba(255,159,10,.7)' }}>· PA</span>}
+                        </p>
                       </div>
-
-                      {/* Mobile */}
-                      <div className="flex items-center gap-3 px-4 py-3 md:hidden">
-                        <div className="flex flex-col items-center shrink-0" style={{ width: 38 }}>
-                          <span className="text-[18px] font-black leading-none tabular-nums" style={{
-                            color: col,
-                            textShadow: isAlta ? `0 0 10px rgba(${rgb},.45)` : undefined,
-                          }}>
-                            {o.dg_score ?? '—'}
-                          </span>
-                          <span className="rounded px-1 text-[7px] font-black uppercase mt-0.5" style={{
-                            background: `rgba(${rgb},.12)`,
-                            color: `rgba(${rgb},.8)`,
-                          }}>
-                            {o.dg_classification}
-                          </span>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="truncate text-[13px] font-semibold" style={{ color: 'var(--t)' }}>
-                            {o.home_team} x {o.away_team}
-                          </p>
-                          <p className="text-[11px]" style={{ color: 'var(--t3)' }}>
-                            {fmtTime(o.kickoff)}
-                            {o.dg_profit_pct !== null && (
-                              <span className="ml-2 font-bold" style={{ color: 'hsl(150 85% 60%)' }}>
-                                {o.dg_profit_pct.toFixed(1)}%
-                              </span>
-                            )}
-                            {hasPA && <span className="ml-1 font-bold" style={{ color: 'rgba(255,159,10,.7)' }}>· PA</span>}
-                          </p>
-                        </div>
-                        <ChevronRight size={14} className="shrink-0 opacity-30" style={{ color: 'var(--t3)' }} />
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
+                      <ChevronRight size={14} className="shrink-0 opacity-30" style={{ color: 'var(--t3)' }} />
+                    </div>
+                  </button>
+                );
+              })}
             </div>
-          );
-        });
+          </div>
+        ));
       })()}
     </div>
   );

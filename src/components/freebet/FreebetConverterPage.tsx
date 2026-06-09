@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { Gift, ChevronRight, ExternalLink, RefreshCw, Search, AlertCircle, Zap } from 'lucide-react';
+import { SurebetCalc } from '@/components/calcalendario/SurebetCalc';
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
 
@@ -518,6 +519,47 @@ export function FreebetConverterPage() {
                             {r.conversion_pct.toFixed(2)}%
                           </p>
                           <p className="text-[10px]" style={{ color: 'rgba(255,255,255,.25)' }}>da freebet em dinheiro</p>
+                        </div>
+                      </div>
+
+                      {/* ── Calculadora — revela com motion ao expandir ─────────── */}
+                      <div className="calc-reveal mt-4 overflow-hidden rounded-2xl" style={{
+                        background: 'rgba(13,17,23,0.7)',
+                        border: '1px solid rgba(99,102,241,.22)',
+                        boxShadow: '0 4px 20px rgba(0,0,0,.35), 0 0 16px rgba(99,102,241,.04) inset',
+                        backdropFilter: 'blur(12px)',
+                      }}>
+                        <div style={{ height: 2, background: 'linear-gradient(90deg, rgba(99,102,241,.85) 0%, rgba(99,102,241,.2) 60%, transparent 100%)' }} />
+                        <div className="flex items-center justify-between px-5 py-3" style={{
+                          background: 'linear-gradient(90deg, rgba(99,102,241,.07) 0%, transparent 60%)',
+                          borderBottom: '1px solid rgba(99,102,241,.1)',
+                        }}>
+                          <div className="flex items-center gap-2">
+                            <div style={{ width: 3, height: 14, borderRadius: 2, background: 'rgba(99,102,241,.9)' }} />
+                            <span className="text-[11px] font-black tracking-widest uppercase" style={{ color: 'rgb(148,163,255)' }}>
+                              Calculadora
+                            </span>
+                          </div>
+                          <span className="text-[10px]" style={{ color: 'rgba(255,255,255,.3)' }}>
+                            odds pré-carregadas · ajuste livremente
+                          </span>
+                        </div>
+                        <div className="p-4">
+                          <SurebetCalc
+                            selectedEvent={{
+                              name:      `${r.home_team} x ${r.away_team}`,
+                              start_utc: r.start_time ?? '',
+                            }}
+                            externalFill={{
+                              odds:   [r.freebet_odd, ...r.covers.map(c => c.odd)].map(String),
+                              houses: [
+                                `${selected} (freebet)`,
+                                ...r.covers.map(c => c.bookmaker_name),
+                              ],
+                              urls:   [r.freebet_url ?? '', ...r.covers.map(c => c.url ?? '')],
+                            }}
+                            defaultNumOutcomes={3}
+                          />
                         </div>
                       </div>
                     </div>
