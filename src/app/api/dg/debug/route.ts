@@ -78,9 +78,10 @@ export async function GET(req: NextRequest) {
   fill('vivasorte',   vivasorte);
 
   // Step 2: Merge
-  const merged = mergeMatches([
-    altenar, bwin, bet365, betano, superbet, betfair, pinnacle, betnac, vivasorte,
-  ]);
+  const { matches: merged, stats: mergeStats } = mergeMatches(
+    [altenar, bwin, bet365, betano, superbet, betfair, pinnacle, betnac, vivasorte],
+    ['altenar', 'bwin', 'bet365', 'betano', 'superbet', 'betfair', 'pinnacle', 'betnacional', 'vivasorte'],
+  );
 
   // Conta bookmakers por slug em todos os matches
   const bkTotals: Record<string, number> = {};
@@ -131,6 +132,7 @@ export async function GET(req: NextRequest) {
     step2_merge: {
       total_matches:    merged.length,
       bookmakers_count: bkTotals,
+      survival_stats:   mergeStats.perSource,
     },
     sample_matches:   sample,
     norm_examples:    normExamples,

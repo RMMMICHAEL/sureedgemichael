@@ -151,11 +151,12 @@ export async function GET(req: NextRequest) {
     console.log('[odds:1-coleta] total eventos coletados:', totalCollected);
 
     // ── STEP 2: Match mapping com normalização avançada ──────────────────────
-    const mergedMatches = mergeMatches([
-      altenar, kambi, superbet, bwin, bet365,
-      betfair, pinnacle, betnac, vivasorte, betano,
-    ]);
+    const { matches: mergedMatches, stats: mergeStats } = mergeMatches(
+      [altenar, kambi, superbet, bwin, bet365, betfair, pinnacle, betnac, vivasorte, betano],
+      ['altenar', 'kambi', 'superbet', 'bwin', 'bet365', 'betfair', 'pinnacle', 'betnacional', 'vivasorte', 'betano'],
+    );
     console.log('[odds:2-merge] total após merge:', mergedMatches.length);
+    console.log('[odds:2-merge] stats:', JSON.stringify(mergeStats.perSource));
 
     // Debug: mostra quais bookmakers cada fonte contribuiu
     const bkCount: Record<string, number> = {};

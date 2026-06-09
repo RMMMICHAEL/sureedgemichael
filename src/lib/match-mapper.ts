@@ -290,23 +290,32 @@ export interface SourceEvent {
   }>;
 }
 
-export function mergeMatches(sources: SourceEvent[][]): UnifiedMatch[] {
-  normCache.clear(); // limpa cache entre requests
+export interface MergeStats {
+  totalIn:     number;
+  totalOut:    number;
+  perSource:   Record<string, { in: number; survived: number; slugs: string[] }>;
+}
+
+export function mergeMatches(
+  sources: SourceEvent[][],
+  sourceNames?: string[],
+): { matches: UnifiedMatch[]; stats: MergeStats } {
+  normCache.clear();
   const merged: UnifiedMatch[] = [];
   const now = new Date().toISOString();
+  const stats: MergeStats = { totalIn: 0, totalOut: 0, perSource: {} };
 
-  // Registra quantas odds vieram de cada fonte (debug)
-  let totalIn = 0;
-  let matched = 0;
-  let added   = 0;
+  for (let si = 0; si < sources.length; si++) {
+    const source     = sources[si];
+    const sourceName = sourceNames?.[si] ?? `source_${si}`;
+    const srcStats   = { in: source.length, survived: 0, slugs: [] as string[] };
+    stats.perSource[sourceName] = srcStats;
 
-  for (const source of sources) {
     for (const ev of source) {
-      totalIn++;
+      stats.totalIn++;
       const homeNorm = normalizeTeamName(ev.home_team);
       const awayNorm = normalizeTeamName(ev.away_team);
 
-      // Procura partida existente que case
       const existing = merged.find(m =>
         teamsMatch(m.home_team, ev.home_team) &&
         teamsMatch(m.away_team, ev.away_team)
@@ -325,28 +334,46 @@ export function mergeMatches(sources: SourceEvent[][]): UnifiedMatch[] {
       }));
 
       if (existing) {
-        matched++;
+        let added = false;
         for (const bk of bks) {
           if (!existing.bookmakers.find(b => b.bookmaker_slug === bk.bookmaker_slug)) {
             existing.bookmakers.push(bk);
+            added = true;
           }
         }
+        if (added) srcStats.survived++;
       } else {
-        added++;
+        srcStats.survived++;
         merged.push({
-          match_id:    ev.match_id,
-          home_team:   ev.home_team,
-          away_team:   ev.away_team,
-          home_norm:   homeNorm,
-          away_norm:   awayNorm,
-          start_time:  ev.start_time,
+          match_id:   ev.match_id,
+          home_team:  ev.home_team,
+          away_team:  ev.away_team,
+          home_norm:  homeNorm,
+          away_norm:  awayNorm,
+          start_time: ev.start_time,
           league_name: ev.league_name,
-          bookmakers:  bks,
+          bookmakers: bks,
         });
+      }
+
+      // Coleta slugs únicos desta fonte
+      for (const bk of bks) {
+        if (!srcStats.slugs.includes(bk.bookmaker_slug)) {
+          srcStats.slugs.push(bk.bookmaker_slug);
+        }
       }
     }
   }
 
-  console.log(`[match-mapper] in=${totalIn} merged=${matched} new=${added} total=${merged.length}`);
-  return merged;
+  stats.totalOut = merged.length;
+
+  // Log detalhado de sobrevivência por fonte
+  console.log('[match-mapper] sobrevivência por fonte:');
+  for (const [name, s] of Object.entries(stats.perSource)) {
+    const pct = s.in > 0 ? Math.round(s.survived / s.in * 100) : 0;
+    console.log(`  ${name}: entrada=${s.in} sobreviveu=${s.survived} (${pct}%) slugs=[${s.slugs.join(',')}]`);
+  }
+  console.log(`[match-mapper] total: ${stats.totalIn} → ${stats.totalOut} partidas únicas`);
+
+  return { matches: merged, stats };
 }
