@@ -138,7 +138,21 @@ function EventOddsPanel({
     }
   }, [slots]);
 
-  useEffect(() => { setSlots([null, null, null]); }, [event.match_id]);
+  // Auto-fill with best odds for each outcome when the event opens
+  useEffect(() => {
+    const bestSlot = (type: OddType): CalcSlot | null => {
+      const key = type === 'home' ? 'home' : type === 'draw' ? 'draw' : 'away';
+      let best: BookmakerOdds | null = null;
+      let bestVal = 0;
+      for (const bk of event.bookmakers) {
+        const v = bk[key] as number;
+        if (v > bestVal) { bestVal = v; best = bk; }
+      }
+      if (!best || bestVal <= 1) return null;
+      return { bk: best, type, value: bestVal };
+    };
+    setSlots([bestSlot('home'), bestSlot('draw'), bestSlot('away')]);
+  }, [event.match_id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleOddClick(bk: BookmakerOdds, type: OddType, value: number) {
     if (value <= 1) return;
@@ -334,16 +348,14 @@ function EventOddsPanel({
               {bks.length} casas
             </span>
           </div>
-          {mgn !== null && (
-            <span className="rounded-md px-2.5 py-1 text-[11px] font-bold tabular-nums" style={isSure ? {
+          {mgn !== null && isSure && (
+            <span className="rounded-md px-2.5 py-1 text-[11px] font-bold tabular-nums" style={{
               background: 'rgba(61,255,143,.12)',
               color: 'hsl(150 90% 58%)',
               border: '1px solid rgba(61,255,143,.3)',
               boxShadow: '0 0 10px rgba(61,255,143,.15)',
-            } : {
-              color: 'rgba(255,255,255,.3)',
             }}>
-              {isSure ? `SUREBET +${Math.abs(mgn).toFixed(2)}%` : `margem ${mgn.toFixed(1)}%`}
+              SUREBET +{Math.abs(mgn).toFixed(2)}%
             </span>
           )}
         </div>
@@ -550,8 +562,8 @@ function EventOddsPanel({
             externalFill={calcFill}
             defaultNumOutcomes={3}
             hideFormula
-            accent="#4DA6FF"
-            initialOpType="surebet"
+            accent={dgInfo ? '#3DFF8F' : '#4DA6FF'}
+            initialOpType={dgInfo ? 'duplo_green' : 'surebet'}
           />
         </div>
       </div>

@@ -538,15 +538,15 @@ export function FreebetConverterPage() {
                         const OUTCOME_ABBR2: Record<string, string> = { home: '1', draw: 'X', away: '2' };
 
                         // slots: freebet + 2 coberturas
-                        const fbSlotName = `${selected} (freebet)`;
+                        // house name for slot 0 = selected (sem "(freebet)") para match com ALL_HOUSES no modal
                         const slots = [
-                          { name: fbSlotName,              odd: r.freebet_odd, outcome: r.freebet_outcome, url: r.freebet_url ?? '' },
-                          ...r.covers.map(c => ({ name: c.bookmaker_name, odd: c.odd, outcome: c.outcome, url: c.url ?? '' })),
+                          { name: selected, displayName: `${selected} (freebet)`, odd: r.freebet_odd, outcome: r.freebet_outcome, url: r.freebet_url ?? '' },
+                          ...r.covers.map(c => ({ name: c.bookmaker_name, displayName: c.bookmaker_name, odd: c.odd, outcome: c.outcome, url: c.url ?? '' })),
                         ].slice(0, 3);
 
                         const calcFill = {
                           odds:   slots.map(s => String(s.odd)),
-                          houses: slots.map(s => s.name),
+                          houses: slots.map(s => s.name),  // nome limpo para AddToPanelModal
                           urls:   slots.map(s => s.url),
                         };
 
@@ -571,7 +571,7 @@ export function FreebetConverterPage() {
                                       border: `1px solid ${SLOT_COLORS[i]}40`,
                                     }}>
                                     <span style={{ color: SLOT_COLORS[i], fontSize: 9 }}>{SLOT_LABELS[i]}</span>
-                                    <span style={{ color: 'var(--t2)' }}>{slot.name}</span>
+                                    <span style={{ color: 'var(--t2)' }}>{slot.displayName}</span>
                                     <span style={{ color: SLOT_COLORS[i], fontWeight: 900 }}>{slot.odd.toFixed(2)}</span>
                                     <span style={{ color: 'rgba(255,255,255,.3)', fontSize: 9 }}>
                                       ({OUTCOME_ABBR2[slot.outcome] ?? slot.outcome})

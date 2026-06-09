@@ -390,7 +390,8 @@ export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 
     setInjectedHouses(externalFill.houses?.slice(0, n) ?? []);
     setInjectedHouseUrls(externalFill.urls?.slice(0, n) ?? []);
     setInjectedFavicons(externalFill.favicons?.slice(0, n) ?? []);
-    setFixedMode('sum');
+    // If initialFreebet is set, keep the freebet leg locked (don't reset fixedMode)
+    if (!initialFreebet?.length) setFixedMode('sum');
   }, [externalFill]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const formulaOptions: FormulaOption[] = useMemo(() => {
