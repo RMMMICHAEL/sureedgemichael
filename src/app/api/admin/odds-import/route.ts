@@ -4,6 +4,11 @@
  * Importa o JSON do get-individual-odds (DuploGreen) para a tabela bookmaker_odds.
  * Restrito ao e-mail de administrador — verificado via sessão Supabase.
  *
+ * Estratégia de atualização:
+ *   Para cada lote de match_ids, apaga os registros do mesmo market_type
+ *   e reinsere com os valores novos — garante que odds desatualizadas sejam
+ *   sobrescritas mesmo que o upsert não detecte mudança.
+ *
  * Body aceito:
  *   - Formato DG completo: { success, count, odds: [...] }
  *   - Só o array:          [...]
@@ -46,7 +51,7 @@ async function getSupabaseAdmin() {
 }
 
 export async function POST(req: NextRequest) {
-  // ── 1. Verificar autenticação e e-mail admin ──────────────────────────────
+  // ── 1. Autenticação ───────────────────────────────────────────────────────
   const cookieStore = await cookies();
   const supabase    = createSupabaseServerClient(cookieStore);
   const { data: { user } } = await supabase.auth.getUser();
@@ -63,21 +68,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: 'Body inválido (JSON esperado)' }, { status: 400 });
   }
 
-  // Aceita o array direto, ou { odds/data: [...] } (formato DuploGreen)
   let records: OddRecord[] = [];
   if (Array.isArray(body)) {
     records = body as OddRecord[];
   } else {
     const b = body as Record<string, unknown>;
-    if (Array.isArray(b.odds))   records = b.odds as OddRecord[];
-    else if (Array.isArray(b.data)) records = b.data as OddRecord[];
+    if (Array.isArray(b.odds))        records = b.odds as OddRecord[];
+    else if (Array.isArray(b.data))   records = b.data as OddRecord[];
   }
 
   if (!records.length) {
     return NextResponse.json({ ok: false, error: 'Nenhum registro encontrado no JSON' }, { status: 400 });
   }
 
-  // ── 3. Mapear para schema da tabela ───────────────────────────────────────
+  // ── 3. Mapear para schema ─────────────────────────────────────────────────
   const now = new Date().toISOString();
   const rows = records.map(r => ({
     match_id:       r.match_id,
@@ -95,40 +99,65 @@ export async function POST(req: NextRequest) {
     odd_away:       r.odd_away,
     match_url:      r.match_url ?? null,
     source_url:     r.source_url ?? null,
-    updated_at:     r.updated_at ?? now,
+    updated_at:     now,   // sempre agora — indica quando foi atualizado
     imported_at:    now,
   }));
 
-  // ── 4. Upsert via service role (bypass RLS) em lotes de 500 ──────────────
-  const admin = await getSupabaseAdmin();
-  const BATCH = 500;
-  let totalUpserted = 0;
+  // ── 4. Delete → Insert por lote (garante atualização real das odds) ───────
+  // Agrupa por market_type para deletar apenas o tipo que está sendo reimportado
+  const byMarketType = new Map<string, typeof rows>();
+  for (const row of rows) {
+    const mt = row.market_type;
+    if (!byMarketType.has(mt)) byMarketType.set(mt, []);
+    byMarketType.get(mt)!.push(row);
+  }
+
+  const admin  = await getSupabaseAdmin();
+  const BATCH  = 500;
+  let   totalInserted = 0;
   const errors: string[] = [];
 
-  for (let i = 0; i < rows.length; i += BATCH) {
-    const batch = rows.slice(i, i + BATCH);
-    const { error, count } = await admin
-      .from('bookmaker_odds')
-      .upsert(batch, {
-        onConflict:       'match_id,bookmaker_slug,market_type',
-        ignoreDuplicates: false,
-        count:            'exact',
-      });
+  for (const [marketType, mtRows] of byMarketType) {
+    // Coleta todos os match_ids deste market_type
+    const matchIds = [...new Set(mtRows.map(r => r.match_id))];
 
-    if (error) {
-      console.error(`[odds-import] lote ${i}–${i + BATCH}:`, error.message);
-      errors.push(`lote ${i}: ${error.message}`);
-    } else {
-      totalUpserted += count ?? batch.length;
+    // Apaga em lotes de 500 match_ids para evitar query muito longa
+    for (let i = 0; i < matchIds.length; i += BATCH) {
+      const idBatch = matchIds.slice(i, i + BATCH);
+      const { error: delErr } = await admin
+        .from('bookmaker_odds')
+        .delete()
+        .in('match_id', idBatch)
+        .eq('market_type', marketType);
+
+      if (delErr) {
+        console.error(`[odds-import] erro ao deletar lote ${i} (${marketType}):`, delErr.message);
+        errors.push(`delete lote ${i} (${marketType}): ${delErr.message}`);
+      }
+    }
+
+    // Reinsere em lotes de 500 registros
+    for (let i = 0; i < mtRows.length; i += BATCH) {
+      const batch = mtRows.slice(i, i + BATCH);
+      const { error: insErr, count } = await admin
+        .from('bookmaker_odds')
+        .insert(batch, { count: 'exact' });
+
+      if (insErr) {
+        console.error(`[odds-import] erro ao inserir lote ${i} (${marketType}):`, insErr.message);
+        errors.push(`insert lote ${i} (${marketType}): ${insErr.message}`);
+      } else {
+        totalInserted += count ?? batch.length;
+      }
     }
   }
 
-  console.log(`[odds-import] ${totalUpserted}/${rows.length} registros importados por ${user.email}`);
+  console.log(`[odds-import] ${totalInserted}/${rows.length} registros atualizados por ${user.email}`);
 
   return NextResponse.json({
     ok:       errors.length === 0,
     total:    rows.length,
-    upserted: totalUpserted,
+    inserted: totalInserted,
     errors:   errors.length > 0 ? errors : undefined,
   });
 }

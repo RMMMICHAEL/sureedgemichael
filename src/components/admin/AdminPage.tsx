@@ -355,11 +355,11 @@ function OddsImportPanel() {
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify(parsed),
       });
-      const data = await res.json() as { ok: boolean; total: number; upserted: number; errors?: string[] };
+      const data = await res.json() as { ok: boolean; total: number; inserted: number; errors?: string[] };
 
       if (data.ok) {
         setStatus('success');
-        setResult(`✓ ${data.upserted} de ${data.total} registros importados de "${fileName}".`);
+        setResult(`✓ ${data.inserted} de ${data.total} odds atualizadas de "${fileName}".`);
         setFileName('');
         setRawText('');
       } else {
