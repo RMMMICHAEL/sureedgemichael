@@ -1,29 +1,34 @@
 /**
  * GET /api/dg/freebet-calc
  *
- * Calcula as melhores oportunidades de conversão de freebet
- * usando as odds já importadas na tabela bookmaker_odds.
+ * Calcula as melhores oportunidades de conversão de freebet SNR (Stake Não Retornada).
+ *
+ * Usa DUAS fontes de dados:
+ *   1. bookmaker_odds    → odds individuais do dia importadas pelo admin
+ *   2. dg_opportunities  → oportunidades DG pré-computadas (legs já otimizados)
+ *
+ * A fonte DG geralmente produz resultados melhores porque as odds foram
+ * selecionadas pelo algoritmo do DuploGreen. As duas fontes são mescladas
+ * e deduplicadas por match_id, mantendo sempre o melhor resultado.
  *
  * Query params:
- *   ?bookmaker=slug     → slug da casa onde está a freebet (obrigatório)
- *   ?amount=100         → valor da freebet (apenas para referência; cálculo é em %)
- *   ?market=1x2         → 1x2 ou 1x2_pa (padrão: ambos)
+ *   ?bookmaker=slug   → slug da casa onde está a freebet (obrigatório)
+ *   ?bookmaker=__list__ → apenas retorna lista de bookmakers disponíveis
  *
- * Retorno:
- *   { ok, bookmaker, results: FreebetOpportunity[] }
- *
- * Fórmula SNR (Stake Não Retornada):
- *   Freebet F no outcome HOME com odd O_h:
- *   → cover_draw_stake  = F × (O_h − 1) / O_d
- *   → cover_away_stake  = F × (O_h − 1) / O_a
- *   → guaranteed_profit = F × (O_h − 1) × (1 − 1/O_d − 1/O_a)
- *   → conversion_pct    = guaranteed_profit / F × 100
+ * Fórmula SNR:
+ *   F = valor da freebet, O_fb = odd da freebet, O_c1/O_c2 = coberturas
+ *   s1 = F × (O_fb − 1) / O_c1
+ *   s2 = F × (O_fb − 1) / O_c2
+ *   lucro = F × (O_fb − 1) − s1 − s2
+ *   conversão% = lucro / F × 100
  */
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse }   from 'next/server';
 import { cookies }                     from 'next/headers';
 import { createSupabaseServerClient }  from '@/lib/supabase/server';
+
+// ── Tipos internos ─────────────────────────────────────────────────────────────
 
 interface DbRow {
   match_id:       string;
@@ -41,34 +46,57 @@ interface DbRow {
   match_url:      string | null;
 }
 
+interface DGLeg {
+  bookmaker:     string;
+  bookmakerSlug: string;
+  odd:           number;
+  outcome:       string;
+  matchUrl?:     string | null;
+  isPA:          boolean;
+}
+
+interface DGOpportunity {
+  id:                string;
+  match_id:          string;
+  home_team:         string;
+  away_team:         string;
+  league:            string | null;
+  kickoff:           string | null;
+  dg_profit_pct:     number | null;
+  dg_score:          number | null;
+  dg_classification: string | null;
+  legs:              DGLeg[];
+}
+
 export interface FreebetOpportunity {
   match_id:        string;
   home_team:       string;
   away_team:       string;
   league_name:     string;
   start_time:      string | null;
-  /** Outcome onde vai a freebet: 'home' | 'draw' | 'away' */
   freebet_outcome: 'home' | 'draw' | 'away';
   freebet_odd:     number;
   freebet_url:     string | null;
-  /** As 2 coberturas necessárias */
   covers: {
     outcome:        'home' | 'draw' | 'away';
     bookmaker_slug: string;
     bookmaker_name: string;
     odd:            number;
-    /** Stake por R$100 de freebet */
     stake_per_100:  number;
     is_pa:          boolean;
     url:            string | null;
   }[];
-  /** % de conversão garantida (por R$100 de freebet) */
-  conversion_pct:    number;
-  /** Lucro garantido por R$100 de freebet */
-  profit_per_100:    number;
-  /** Custo total de cobertura por R$100 de freebet */
+  conversion_pct:     number;
+  profit_per_100:     number;
   cover_cost_per_100: number;
+  /** Fonte dos dados: 'odds' = bookmaker_odds, 'dg' = dg_opportunities */
+  source: 'odds' | 'dg';
+  /** Score DG (quando disponível) */
+  dg_score?: number | null;
+  dg_classification?: string | null;
 }
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function todayBRT(): string {
   const d = new Date(Date.now() - 3 * 60 * 60 * 1000);
@@ -88,6 +116,74 @@ function isPa(slug: string): boolean {
   return false;
 }
 
+function slugMatch(a: string, b: string): boolean {
+  const na = a.toLowerCase().replace(/[\s\-_.]/g,'');
+  const nb = b.toLowerCase().replace(/[\s\-_.]/g,'');
+  return na === nb || na.startsWith(nb.slice(0,5)) || nb.startsWith(na.slice(0,5));
+}
+
+/** Calcula conversão SNR e retorna FreebetOpportunity ou null se inviável */
+function computeSNR(params: {
+  matchId:       string;
+  homeName:      string;
+  awayName:      string;
+  leagueName:    string;
+  startTime:     string | null;
+  fbOutcome:     'home' | 'draw' | 'away';
+  fbOdd:         number;
+  fbUrl:         string | null;
+  covers: {
+    outcome:   'home' | 'draw' | 'away';
+    slug:      string;
+    name:      string;
+    odd:       number;
+    url:       string | null;
+  }[];
+  source:        'odds' | 'dg';
+  dgScore?:      number | null;
+  dgClass?:      string | null;
+}): FreebetOpportunity | null {
+  const { fbOdd, covers } = params;
+  if (fbOdd <= 1 || covers.length < 2) return null;
+
+  // Para cada outcome de cobertura precisamos de exatamente 1 casa
+  const needed = (['home','draw','away'] as const).filter(o => o !== params.fbOutcome);
+  const c1 = covers.find(c => c.outcome === needed[0]);
+  const c2 = covers.find(c => c.outcome === needed[1]);
+  if (!c1 || !c2 || c1.odd <= 1 || c2.odd <= 1) return null;
+
+  const F = 100;
+  const profit_fb = F * (fbOdd - 1);
+  const s1 = profit_fb / c1.odd;
+  const s2 = profit_fb / c2.odd;
+  const profit = profit_fb - s1 - s2;
+  const conversion_pct = (profit / F) * 100;
+  if (conversion_pct <= 0) return null;
+
+  return {
+    match_id:        params.matchId,
+    home_team:       params.homeName,
+    away_team:       params.awayName,
+    league_name:     params.leagueName,
+    start_time:      params.startTime,
+    freebet_outcome: params.fbOutcome,
+    freebet_odd:     fbOdd,
+    freebet_url:     params.fbUrl,
+    covers: [
+      { outcome: c1.outcome, bookmaker_slug: c1.slug, bookmaker_name: c1.name, odd: c1.odd, stake_per_100: s1, is_pa: isPa(c1.slug), url: c1.url },
+      { outcome: c2.outcome, bookmaker_slug: c2.slug, bookmaker_name: c2.name, odd: c2.odd, stake_per_100: s2, is_pa: isPa(c2.slug), url: c2.url },
+    ],
+    conversion_pct,
+    profit_per_100:     profit,
+    cover_cost_per_100: s1 + s2,
+    source:             params.source,
+    dg_score:           params.dgScore,
+    dg_classification:  params.dgClass,
+  };
+}
+
+// ── Handler ───────────────────────────────────────────────────────────────────
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const bookmakerParam = searchParams.get('bookmaker');
@@ -98,148 +194,168 @@ export async function GET(req: NextRequest) {
 
   const cookieStore = await cookies();
   const supabase    = createSupabaseServerClient(cookieStore);
+  const today       = todayBRT();
+  const now         = Date.now();
 
-  const today = todayBRT();
+  // ── Busca as duas fontes em paralelo ─────────────────────────────────────────
+  const [oddsRes, dgRes] = await Promise.all([
+    supabase
+      .from('bookmaker_odds')
+      .select(`
+        match_id, home_team, away_team, match_date, start_time,
+        league_name, bookmaker_slug, bookmaker_name, market_type,
+        odd_home, odd_draw, odd_away, match_url
+      `)
+      .eq('match_date', today)
+      .order('start_time', { ascending: true }),
 
-  // Busca TODOS os registros de hoje de uma vez
-  const { data, error } = await supabase
-    .from('bookmaker_odds')
-    .select(`
-      match_id, home_team, away_team, match_date, start_time,
-      league_name, bookmaker_slug, bookmaker_name, market_type,
-      odd_home, odd_draw, odd_away, match_url
-    `)
-    .eq('match_date', today)
-    .order('start_time', { ascending: true });
+    supabase
+      .from('dg_opportunities')
+      .select('id, match_id, home_team, away_team, league, kickoff, dg_profit_pct, dg_score, dg_classification, legs')
+      .gt('kickoff', new Date().toISOString()),
+  ]);
 
-  if (error) {
-    return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
-  }
+  const rows     = (oddsRes.data ?? []) as DbRow[];
+  const dgOpps   = (dgRes.data   ?? []) as DGOpportunity[];
 
-  const rows = (data ?? []) as DbRow[];
-
-  // Agrupa por match_id
-  const byMatch = new Map<string, DbRow[]>();
-  for (const row of rows) {
-    if (!byMatch.has(row.match_id)) byMatch.set(row.match_id, []);
-    byMatch.get(row.match_id)!.push(row);
-  }
-
-  const now = Date.now();
-  const results: FreebetOpportunity[] = [];
-
-  for (const [matchId, matchRows] of byMatch) {
-    // Só eventos futuros
-    const meta = matchRows[0];
-    if (meta.start_time && new Date(meta.start_time).getTime() <= now) continue;
-
-    // Acha os registros da casa da freebet (case-insensitive slug)
-    const fbSlug = bookmakerParam.toLowerCase().replace(/[\s\-_.]/g,'');
-    const fbRows = matchRows.filter(r => {
-      const s = r.bookmaker_slug.toLowerCase().replace(/[\s\-_.]/g,'');
-      return s === fbSlug || s.startsWith(fbSlug.slice(0,5)) || fbSlug.startsWith(s.slice(0,5));
-    });
-
-    if (!fbRows.length) continue;
-
-    // Pega melhor odd da casa da freebet para cada outcome
-    const fbHome = Math.max(...fbRows.map(r => r.odd_home ?? 0).filter(v => v > 1), 0);
-    const fbDraw = Math.max(...fbRows.map(r => r.odd_draw ?? 0).filter(v => v > 1), 0);
-    const fbAway = Math.max(...fbRows.map(r => r.odd_away ?? 0).filter(v => v > 1), 0);
-    const fbUrl  = fbRows.find(r => r.match_url)?.match_url ?? null;
-
-    // Odds de cobertura: apenas outras casas
-    const coverRows = matchRows.filter(r => {
-      const s = r.bookmaker_slug.toLowerCase().replace(/[\s\-_.]/g,'');
-      return !(s === fbSlug || s.startsWith(fbSlug.slice(0,5)) || fbSlug.startsWith(s.slice(0,5)));
-    });
-
-    // Para cada outcome como freebet, calcula melhor cobertura dos outros 2
-    const outcomes: { key: 'home'|'draw'|'away'; fbOdd: number }[] = [
-      { key: 'home', fbOdd: fbHome },
-      { key: 'draw', fbOdd: fbDraw },
-      { key: 'away', fbOdd: fbAway },
-    ];
-
-    for (const { key: fbOutcome, fbOdd } of outcomes) {
-      if (fbOdd <= 1) continue;
-
-      // Os 2 outcomes que precisam de cobertura
-      const coverOutcomes = (['home','draw','away'] as const).filter(o => o !== fbOutcome);
-
-      // Melhor bookmaker para cada outcome de cobertura
-      const bestCovers = coverOutcomes.map(co => {
-        const colKey = co === 'home' ? 'odd_home' : co === 'draw' ? 'odd_draw' : 'odd_away';
-        let bestOdd = 0;
-        let bestRow: DbRow | null = null;
-        for (const r of coverRows) {
-          const v = (r[colKey] as number | null) ?? 0;
-          if (v > bestOdd) { bestOdd = v; bestRow = r; }
-        }
-        return { outcome: co, odd: bestOdd, row: bestRow };
-      });
-
-      // Todos os covers precisam ter odd > 1
-      if (bestCovers.some(c => c.odd <= 1)) continue;
-
-      const [c1, c2] = bestCovers;
-
-      // SNR: stake por R$100 de freebet
-      // cover1_stake = 100 × (fbOdd − 1) / c1.odd
-      // cover2_stake = 100 × (fbOdd − 1) / c2.odd
-      const F = 100;
-      const profit_fb = F * (fbOdd - 1); // se a freebet ganhar
-      const s1 = profit_fb / c1.odd;
-      const s2 = profit_fb / c2.odd;
-      const profit = profit_fb - s1 - s2;
-      const conversion_pct = (profit / F) * 100;
-
-      // Só inclui se conversão > 0%
-      if (conversion_pct <= 0) continue;
-
-      results.push({
-        match_id:        matchId,
-        home_team:       meta.home_team,
-        away_team:       meta.away_team,
-        league_name:     meta.league_name ?? '',
-        start_time:      meta.start_time,
-        freebet_outcome: fbOutcome,
-        freebet_odd:     fbOdd,
-        freebet_url:     fbUrl,
-        covers: bestCovers.map((c, i) => ({
-          outcome:        c.outcome,
-          bookmaker_slug: c.row!.bookmaker_slug,
-          bookmaker_name: c.row!.bookmaker_name ?? c.row!.bookmaker_slug,
-          odd:            c.odd,
-          stake_per_100:  i === 0 ? s1 : s2,
-          is_pa:          isPa(c.row!.bookmaker_slug),
-          url:            c.row!.match_url ?? null,
-        })),
-        conversion_pct,
-        profit_per_100:     profit,
-        cover_cost_per_100: s1 + s2,
-      });
-    }
-  }
-
-  // Ordena por conversão decrescente — melhor no topo
-  results.sort((a, b) => b.conversion_pct - a.conversion_pct);
-
-  // Deduplica: para o mesmo jogo, mantém só o melhor outcome
-  const seen = new Set<string>();
-  const deduplicated = results.filter(r => {
-    if (seen.has(r.match_id)) return false;
-    seen.add(r.match_id);
-    return true;
-  });
-
-  // Lista de bookmakers disponíveis no banco hoje
+  // Lista de bookmakers disponíveis nas DUAS fontes
   const bookmakerSet = new Map<string, string>();
   for (const r of rows) {
     if (!bookmakerSet.has(r.bookmaker_slug)) {
       bookmakerSet.set(r.bookmaker_slug, r.bookmaker_name ?? r.bookmaker_slug);
     }
   }
+  for (const opp of dgOpps) {
+    for (const leg of opp.legs) {
+      if (!bookmakerSet.has(leg.bookmakerSlug)) {
+        bookmakerSet.set(leg.bookmakerSlug, leg.bookmaker);
+      }
+    }
+  }
+
+  // Modo listagem — só retorna bookmakers disponíveis
+  if (bookmakerParam === '__list__') {
+    return NextResponse.json({
+      ok: true, bookmaker: '__list__', date: today,
+      total_events: 0, total_opportunities: 0,
+      bookmakers_available: Array.from(bookmakerSet.entries()).map(([slug, name]) => ({ slug, name })),
+      results: [],
+    });
+  }
+
+  const allResults: FreebetOpportunity[] = [];
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Fonte 1: bookmaker_odds
+  // ─────────────────────────────────────────────────────────────────────────────
+  const byMatch = new Map<string, DbRow[]>();
+  for (const row of rows) {
+    if (!byMatch.has(row.match_id)) byMatch.set(row.match_id, []);
+    byMatch.get(row.match_id)!.push(row);
+  }
+
+  for (const [matchId, matchRows] of byMatch) {
+    const meta = matchRows[0];
+    if (meta.start_time && new Date(meta.start_time).getTime() <= now) continue;
+
+    const fbRows = matchRows.filter(r => slugMatch(r.bookmaker_slug, bookmakerParam));
+    if (!fbRows.length) continue;
+
+    const fbHome = Math.max(...fbRows.map(r => r.odd_home ?? 0).filter(v => v > 1), 0);
+    const fbDraw = Math.max(...fbRows.map(r => r.odd_draw ?? 0).filter(v => v > 1), 0);
+    const fbAway = Math.max(...fbRows.map(r => r.odd_away ?? 0).filter(v => v > 1), 0);
+    const fbUrl  = fbRows.find(r => r.match_url)?.match_url ?? null;
+
+    const coverRows = matchRows.filter(r => !slugMatch(r.bookmaker_slug, bookmakerParam));
+
+    const bestCover = (outcome: 'home'|'draw'|'away') => {
+      const col = outcome === 'home' ? 'odd_home' : outcome === 'draw' ? 'odd_draw' : 'odd_away';
+      let best = 0; let bestRow: DbRow | null = null;
+      for (const r of coverRows) {
+        const v = (r[col] as number | null) ?? 0;
+        if (v > best) { best = v; bestRow = r; }
+      }
+      if (!bestRow || best <= 1) return null;
+      return { outcome, slug: bestRow.bookmaker_slug, name: bestRow.bookmaker_name ?? bestRow.bookmaker_slug, odd: best, url: bestRow.match_url ?? null };
+    };
+
+    for (const fbOutcome of ['home','draw','away'] as const) {
+      const fbOdd = fbOutcome === 'home' ? fbHome : fbOutcome === 'draw' ? fbDraw : fbAway;
+      if (fbOdd <= 1) continue;
+      const coverOutcomes = (['home','draw','away'] as const).filter(o => o !== fbOutcome);
+      const covers = coverOutcomes.map(bestCover).filter(Boolean) as NonNullable<ReturnType<typeof bestCover>>[];
+
+      const result = computeSNR({
+        matchId, homeName: meta.home_team, awayName: meta.away_team,
+        leagueName: meta.league_name ?? '', startTime: meta.start_time,
+        fbOutcome, fbOdd, fbUrl,
+        covers, source: 'odds',
+      });
+      if (result) allResults.push(result);
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Fonte 2: dg_opportunities
+  // ─────────────────────────────────────────────────────────────────────────────
+  for (const opp of dgOpps) {
+    if (opp.kickoff && new Date(opp.kickoff).getTime() <= now) continue;
+
+    // Encontra a leg correspondente ao bookmaker da freebet
+    const fbLeg = opp.legs.find(l => slugMatch(l.bookmakerSlug, bookmakerParam));
+    if (!fbLeg) continue;
+
+    const fbOutcome = fbLeg.outcome as 'home' | 'draw' | 'away';
+    if (!['home','draw','away'].includes(fbOutcome)) continue;
+
+    // Coberturas: as demais legs (agrupadas por outcome — pega melhor odd de cada)
+    const coverByOutcome = new Map<string, DGLeg>();
+    for (const leg of opp.legs) {
+      if (leg.outcome === fbOutcome) continue;
+      const existing = coverByOutcome.get(leg.outcome);
+      if (!existing || leg.odd > existing.odd) coverByOutcome.set(leg.outcome, leg);
+    }
+
+    const covers = Array.from(coverByOutcome.values()).map(leg => ({
+      outcome:  leg.outcome as 'home' | 'draw' | 'away',
+      slug:     leg.bookmakerSlug,
+      name:     leg.bookmaker,
+      odd:      leg.odd,
+      url:      leg.matchUrl ?? null,
+    }));
+
+    const result = computeSNR({
+      matchId:    opp.match_id,
+      homeName:   opp.home_team,
+      awayName:   opp.away_team,
+      leagueName: opp.league ?? '',
+      startTime:  opp.kickoff,
+      fbOutcome,
+      fbOdd:  fbLeg.odd,
+      fbUrl:  fbLeg.matchUrl ?? null,
+      covers,
+      source: 'dg',
+      dgScore: opp.dg_score,
+      dgClass: opp.dg_classification,
+    });
+    if (result) allResults.push(result);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Mescla e deduplica: por match_id, mantém o de maior conversão
+  // Prefere fonte 'dg' em caso de empate (dados mais otimizados)
+  // ─────────────────────────────────────────────────────────────────────────────
+  allResults.sort((a, b) => {
+    if (b.conversion_pct !== a.conversion_pct) return b.conversion_pct - a.conversion_pct;
+    return a.source === 'dg' ? -1 : 1; // dg wins tie
+  });
+
+  const seen = new Set<string>();
+  const deduplicated = allResults.filter(r => {
+    if (seen.has(r.match_id)) return false;
+    seen.add(r.match_id);
+    return true;
+  });
 
   return NextResponse.json({
     ok: true,

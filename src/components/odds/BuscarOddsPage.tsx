@@ -14,7 +14,6 @@ interface BookmakerOdds {
   draw:  number;
   away:  number;
   url:   string;
-  /** true = Pagamento Antecipado; false/undefined = pagamento normal */
   is_pa?: boolean;
 }
 
@@ -26,6 +25,13 @@ interface OddsSummary {
   league_name: string;
   league_id:   number;
   bookmakers:  BookmakerOdds[];
+}
+
+/** Resumo da melhor oportunidade DG para um match_id */
+interface DGInfo {
+  dg_score:          number | null;
+  dg_classification: string | null;
+  dg_profit_pct:     number | null;
 }
 
 // ─── Casas com Pagamento Antecipado ──────────────────────────────────────────
@@ -87,16 +93,31 @@ interface CalcSlot { bk: BookmakerOdds; type: OddType; value: number }
 const SLOT_COLORS = ['#3DFF8F', '#4DA6FF', '#FF9F0A'];
 const SLOT_LABELS = ['1ª', '2ª', '3ª'];
 
+// ─── DG Classification helpers ────────────────────────────────────────────────
+
+function dgClassColor(c: string | null): string {
+  if (c === 'ALTA')  return 'hsl(150 90% 58%)';
+  if (c === 'MEDIA') return 'hsl(38 95% 65%)';
+  return 'rgba(255,255,255,.4)';
+}
+function dgClassRgb(c: string | null): string {
+  if (c === 'ALTA')  return '61,255,143';
+  if (c === 'MEDIA') return '255,159,10';
+  return '129,140,248';
+}
+
 // ─── Painel de odds ───────────────────────────────────────────────────────────
 
 function EventOddsPanel({
   event,
   onBack,
   onRefresh,
+  dgInfo,
 }: {
   event:     OddsSummary;
   onBack:    () => void;
   onRefresh: () => void;
+  dgInfo?:   DGInfo | null;
 }) {
   const [slots, setSlots] = useState<(CalcSlot | null)[]>([null, null, null]);
   const [calcFill, setCalcFill] = useState<{ odds: string[]; houses: string[]; urls: string[] } | null>(null);
@@ -147,6 +168,9 @@ function EventOddsPanel({
 
   const activeSlots = slots.filter(Boolean) as CalcSlot[];
   const eventName   = `${event.home_team} x ${event.away_team}`;
+
+  const dgRgb = dgInfo ? dgClassRgb(dgInfo.dg_classification) : null;
+  const dgCol = dgInfo ? dgClassColor(dgInfo.dg_classification) : null;
 
   // ── Odd button ──────────────────────────────────────────────────────────────
   function OddBtn({ bk, type, value, isBest, isSecond }: {
@@ -415,6 +439,43 @@ function EventOddsPanel({
             {event.league_name} · {fmtTime(event.start_time)}
           </div>
         </div>
+
+        {/* Badge DG no header do evento */}
+        {dgInfo && dgRgb && dgCol && (
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="flex flex-col items-center rounded-xl px-3 py-1.5" style={{
+              background: `rgba(${dgRgb},.1)`,
+              border: `1px solid rgba(${dgRgb},.28)`,
+            }}>
+              <div className="flex items-center gap-1.5">
+                <Zap size={10} style={{ color: dgCol }} />
+                <span className="text-[18px] font-black leading-none tabular-nums" style={{ color: dgCol }}>
+                  {dgInfo.dg_score ?? '—'}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <span className="text-[8px] font-black uppercase tracking-widest" style={{ color: `rgba(${dgRgb},.5)` }}>
+                  DG score
+                </span>
+                {dgInfo.dg_classification && (
+                  <span className="rounded px-1 text-[7px] font-black" style={{
+                    background: `rgba(${dgRgb},.12)`,
+                    color: dgCol,
+                    border: `1px solid rgba(${dgRgb},.2)`,
+                  }}>
+                    {dgInfo.dg_classification}
+                  </span>
+                )}
+              </div>
+              {dgInfo.dg_profit_pct != null && (
+                <span className="text-[9px] font-bold tabular-nums mt-0.5" style={{ color: 'hsl(150 85% 58%)' }}>
+                  {dgInfo.dg_profit_pct.toFixed(1)}% lucro DG
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
         <button onClick={onRefresh} className="shrink-0 flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-[11px] font-bold transition-all hover:opacity-80"
           style={{ background: 'rgba(129,140,248,.12)', color: '#818cf8', border: '1px solid rgba(129,140,248,.28)' }}>
           <RefreshCw size={11} />
@@ -520,11 +581,47 @@ export function BuscarOddsPage() {
   const [fetchErr,      setFetchErr]      = useState('');
   const [search,        setSearch]        = useState('');
   const [selectedEvent, setSelectedEvent] = useState<OddsSummary | null>(null);
+  const [dgOnly,        setDgOnly]        = useState(false);
+
+  /** Map<match_id, DGInfo> — carregado junto com as odds */
+  const [dgMap, setDgMap] = useState<Map<string, DGInfo>>(new Map());
+
+  const loadDGMap = useCallback(async () => {
+    try {
+      const res  = await fetch('/api/dg/opportunities?limit=500');
+      const data = await res.json() as {
+        ok: boolean;
+        results?: Array<{
+          match_id: string;
+          dg_score: number | null;
+          dg_classification: string | null;
+          dg_profit_pct: number | null;
+        }>;
+      };
+      if (!data.ok || !data.results) return;
+      // Para cada match_id, mantém o de melhor score
+      const map = new Map<string, DGInfo>();
+      for (const r of data.results) {
+        const existing = map.get(r.match_id);
+        if (!existing || (r.dg_score ?? 0) > (existing.dg_score ?? 0)) {
+          map.set(r.match_id, {
+            dg_score:          r.dg_score,
+            dg_classification: r.dg_classification,
+            dg_profit_pct:     r.dg_profit_pct,
+          });
+        }
+      }
+      setDgMap(map);
+    } catch { /* silencia — DG é bonus */ }
+  }, []);
 
   const loadOdds = useCallback(async (date: string, silent = false) => {
     if (!silent) { setLoading(true); setFetchErr(''); setAllOdds([]); setSelectedEvent(null); }
     try {
-      const dbRes  = await fetch(`/api/dg/odds-db?date=${date}`);
+      const [dbRes] = await Promise.all([
+        fetch(`/api/dg/odds-db?date=${date}`),
+        loadDGMap(),
+      ]);
       const dbJson = await dbRes.json() as { ok: boolean; odds?: OddsSummary[]; source?: string; error?: string };
 
       if (dbJson.ok && (dbJson.odds?.length ?? 0) > 0) {
@@ -541,7 +638,7 @@ export function BuscarOddsPage() {
     } finally {
       if (!silent) setLoading(false);
     }
-  }, []);
+  }, [loadDGMap]);
 
   useEffect(() => { loadOdds(selectedDate); }, [selectedDate, loadOdds]);
 
@@ -556,11 +653,12 @@ export function BuscarOddsPage() {
     const now = Date.now();
     const result = allOdds
       .filter(ev => !isExcluded(ev.league_name ?? ''))
-      // Remove partidas que já começaram (start_time é UTC)
       .filter(ev => {
         try { return new Date(ev.start_time).getTime() > now; }
         catch { return true; }
       })
+      // Filtro dgOnly: só eventos com oportunidade DG importada
+      .filter(ev => !dgOnly || dgMap.has(ev.match_id))
       .filter(ev => {
         if (!search.trim()) return true;
         const q = normFn(search);
@@ -568,10 +666,8 @@ export function BuscarOddsPage() {
                normFn(ev.away_team).includes(q) ||
                normFn(ev.league_name ?? '').includes(q);
       });
-    console.log('[frontend:5-render] odds após filtro:', result.length,
-      '| com 2+ bookmakers:', result.filter(e => e.bookmakers.length >= 2).length);
     return result;
-  }, [allOdds, search]);
+  }, [allOdds, search, dgOnly, dgMap]);
 
   const byLeague = useMemo(() => {
     const map = new Map<string, OddsSummary[]>();
@@ -589,6 +685,15 @@ export function BuscarOddsPage() {
     });
   }, [filtered]);
 
+  const dgCount = useMemo(() => {
+    const now = Date.now();
+    return allOdds.filter(ev =>
+      !isExcluded(ev.league_name ?? '') &&
+      new Date(ev.start_time).getTime() > now &&
+      dgMap.has(ev.match_id)
+    ).length;
+  }, [allOdds, dgMap]);
+
   // ── Modo evento selecionado ────────────────────────────────────────────────
   if (selectedEvent) {
     return (
@@ -597,6 +702,7 @@ export function BuscarOddsPage() {
           event={selectedEvent}
           onBack={() => setSelectedEvent(null)}
           onRefresh={() => loadOdds(selectedDate)}
+          dgInfo={dgMap.get(selectedEvent.match_id) ?? null}
         />
       </div>
     );
@@ -665,11 +771,35 @@ export function BuscarOddsPage() {
 
       {/* ── Topbar odds ─────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        <span className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold"
-          style={{ background: 'rgba(99,102,241,.1)', color: '#818cf8', border: '1px solid rgba(99,102,241,.22)' }}>
-          <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: '#818cf8', boxShadow: '0 0 6px #818cf8' }} />
-          Eventos de hoje apenas
-        </span>
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold"
+            style={{ background: 'rgba(99,102,241,.1)', color: '#818cf8', border: '1px solid rgba(99,102,241,.22)' }}>
+            <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: '#818cf8', boxShadow: '0 0 6px #818cf8' }} />
+            Eventos de hoje apenas
+          </span>
+
+          {/* Filtro dgOnly */}
+          {dgMap.size > 0 && (
+            <button
+              onClick={() => setDgOnly(v => !v)}
+              className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold transition-all"
+              style={{
+                background: dgOnly ? 'rgba(168,85,247,.18)' : 'rgba(255,255,255,.04)',
+                color: dgOnly ? 'rgb(196,157,255)' : 'rgba(255,255,255,.4)',
+                border: dgOnly ? '1px solid rgba(168,85,247,.4)' : '1px solid rgba(255,255,255,.09)',
+                boxShadow: dgOnly ? '0 0 12px rgba(168,85,247,.2)' : 'none',
+              }}>
+              <Zap size={9} />
+              Só com DG
+              <span className="rounded-full px-1.5 py-px text-[8px]" style={{
+                background: dgOnly ? 'rgba(168,85,247,.2)' : 'rgba(255,255,255,.07)',
+              }}>
+                {dgCount}
+              </span>
+            </button>
+          )}
+        </div>
+
         <button
           onClick={() => loadOdds(selectedDate)}
           disabled={loading}
@@ -736,7 +866,7 @@ export function BuscarOddsPage() {
           <ScanSearch size={32} className="opacity-30" />
           <p className="text-sm font-semibold">Nenhum jogo encontrado</p>
           <p className="text-xs opacity-60">
-            {search ? 'Tente outro termo de busca.' : 'Sem odds importadas para hoje. Importe via painel Admin.'}
+            {search ? 'Tente outro termo de busca.' : dgOnly ? 'Nenhum jogo com DG importado para hoje.' : 'Sem odds importadas para hoje. Importe via painel Admin.'}
           </p>
         </div>
       )}
@@ -744,7 +874,7 @@ export function BuscarOddsPage() {
       {/* ── Cabeçalho das colunas (desktop) ─────────────────────────────── */}
       {!loading && byLeague.length > 0 && (
         <div className="hidden md:grid items-center gap-2 px-4 text-[10px] font-black uppercase tracking-widest"
-          style={{ gridTemplateColumns: '44px 1fr 72px 120px 120px 120px', color: 'rgba(255,255,255,.25)' }}>
+          style={{ gridTemplateColumns: '44px 1fr 72px 110px 110px 110px', color: 'rgba(255,255,255,.25)' }}>
           <span>Hora</span>
           <span>Jogo</span>
           <span className="text-center">Margem</span>
@@ -762,7 +892,7 @@ export function BuscarOddsPage() {
           boxShadow: '0 4px 24px rgba(0,0,0,.42)',
         }}>
 
-          {/* Barra topo da liga — acento violeta */}
+          {/* Barra topo da liga */}
           <div style={{ height: 2, background: 'linear-gradient(90deg, rgba(99,102,241,.85) 0%, rgba(99,102,241,.35) 40%, transparent 100%)' }} />
 
           {/* Cabeçalho da liga */}
@@ -783,11 +913,15 @@ export function BuscarOddsPage() {
           {/* Linhas dos eventos */}
           <div>
             {evs.map((ev, idx) => {
-              const mgn = calcMargin(ev.bookmakers);
+              const mgn   = calcMargin(ev.bookmakers);
               const isSure = mgn !== null && mgn < 0;
-              const bkH = bestBk(ev.bookmakers, 'home');
-              const bkD = bestBk(ev.bookmakers, 'draw');
-              const bkA = bestBk(ev.bookmakers, 'away');
+              const bkH   = bestBk(ev.bookmakers, 'home');
+              const bkD   = bestBk(ev.bookmakers, 'draw');
+              const bkA   = bestBk(ev.bookmakers, 'away');
+              const dg    = dgMap.get(ev.match_id);
+              const dgRgb2 = dg ? dgClassRgb(dg.dg_classification) : null;
+              const dgCol2 = dg ? dgClassColor(dg.dg_classification) : null;
+
               return (
                 <button
                   key={ev.match_id}
@@ -802,18 +936,30 @@ export function BuscarOddsPage() {
 
                   {/* ── Desktop layout ── */}
                   <div className="hidden md:grid items-center gap-2 px-4 py-3"
-                    style={{ gridTemplateColumns: '44px 1fr 72px 120px 120px 120px' }}>
+                    style={{ gridTemplateColumns: '44px 1fr 72px 110px 110px 110px' }}>
 
                     {/* Hora */}
                     <span className="text-[12px] font-bold tabular-nums" style={{ color: 'var(--t3)' }}>
                       {fmtTime(ev.start_time)}
                     </span>
 
-                    {/* Jogo */}
+                    {/* Jogo + badge DG */}
                     <div className="min-w-0">
-                      <p className="truncate text-[13px] font-semibold" style={{ color: 'var(--t)' }}>
-                        {ev.home_team}
-                      </p>
+                      <div className="flex items-center gap-2 min-w-0">
+                        <p className="truncate text-[13px] font-semibold" style={{ color: 'var(--t)' }}>
+                          {ev.home_team}
+                        </p>
+                        {dg && dgRgb2 && dgCol2 && (
+                          <span className="shrink-0 flex items-center gap-1 rounded-md px-1.5 py-px text-[8px] font-black" style={{
+                            background: `rgba(${dgRgb2},.1)`,
+                            color: dgCol2,
+                            border: `1px solid rgba(${dgRgb2},.25)`,
+                          }}>
+                            <Zap size={7} />
+                            DG {dg.dg_score}
+                          </span>
+                        )}
+                      </div>
                       <p className="truncate text-[12px]" style={{ color: 'var(--t3)' }}>
                         {ev.away_team}
                       </p>
@@ -850,9 +996,20 @@ export function BuscarOddsPage() {
                       {fmtTime(ev.start_time)}
                     </span>
                     <div className="flex-1 min-w-0">
-                      <p className="truncate text-[13px] font-semibold" style={{ color: 'var(--t)' }}>
-                        {ev.home_team} x {ev.away_team}
-                      </p>
+                      <div className="flex items-center gap-2">
+                        <p className="truncate text-[13px] font-semibold" style={{ color: 'var(--t)' }}>
+                          {ev.home_team} x {ev.away_team}
+                        </p>
+                        {dg && dgRgb2 && dgCol2 && (
+                          <span className="shrink-0 flex items-center gap-1 rounded-md px-1.5 py-px text-[8px] font-black" style={{
+                            background: `rgba(${dgRgb2},.1)`,
+                            color: dgCol2,
+                            border: `1px solid rgba(${dgRgb2},.25)`,
+                          }}>
+                            <Zap size={7} /> DG
+                          </span>
+                        )}
+                      </div>
                       <p className="text-[11px]" style={{ color: 'var(--t3)' }}>
                         {ev.bookmakers.length} casas
                         {mgn !== null && (
@@ -902,3 +1059,6 @@ function BestOddCell({ bk, type }: { bk: BookmakerOdds | null; type: 'home' | 'd
     </div>
   );
 }
+
+// suppress unused import warning (fmtDayLabel only used in date navigation not yet implemented)
+void fmtDayLabel;

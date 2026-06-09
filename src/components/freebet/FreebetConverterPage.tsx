@@ -28,6 +28,9 @@ interface FreebetOpportunity {
   conversion_pct:     number;
   profit_per_100:     number;
   cover_cost_per_100: number;
+  source?:            'odds' | 'dg';
+  dg_score?:          number | null;
+  dg_classification?: string | null;
 }
 
 interface BookmakerOption {
@@ -358,6 +361,26 @@ export function FreebetConverterPage() {
                           {r.freebet_odd.toFixed(2)}
                         </span>
                       </div>
+
+                      {/* Badge DG */}
+                      {r.source === 'dg' && (
+                        <div className="flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 shrink-0" style={{
+                          background: 'rgba(168,85,247,.1)',
+                          border: '1px solid rgba(168,85,247,.28)',
+                        }}>
+                          <Zap size={10} style={{ color: 'rgba(196,157,255,.9)' }} />
+                          <span className="text-[10px] font-black" style={{ color: 'rgba(196,157,255,.9)' }}>
+                            DG{r.dg_score != null ? ` ${r.dg_score}` : ''}
+                          </span>
+                          {r.dg_classification && (
+                            <span className="text-[9px] font-black" style={{
+                              color: r.dg_classification === 'ALTA' ? 'hsl(150 90% 58%)' : r.dg_classification === 'MEDIA' ? 'hsl(38 95% 65%)' : 'rgba(255,255,255,.35)',
+                            }}>
+                              {r.dg_classification}
+                            </span>
+                          )}
+                        </div>
+                      )}
 
                       {/* Conversão % */}
                       <div className="flex flex-col items-end shrink-0">
