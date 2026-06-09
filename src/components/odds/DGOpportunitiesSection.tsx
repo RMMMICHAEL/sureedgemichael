@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { ExternalLink, RefreshCw, ChevronLeft, ChevronRight, ArrowDown, Pin, X } from 'lucide-react';
+import { ExternalLink, RefreshCw, ChevronLeft, ChevronRight, ArrowDown, ArrowUpDown, Pin, X } from 'lucide-react';
 import { SurebetCalc } from '@/components/calcalendario/SurebetCalc';
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
@@ -33,6 +33,13 @@ interface DGOpportunity {
 
 type BkState  = 'off' | 'on' | 'fixed';
 type PAFilter = 'ALL' | 'AMBOS_PA' | 'UM_PA';
+type SortBy   = 'maior_lucro' | 'menor_lucro' | 'recentes';
+
+const SORT_OPTS: { value: SortBy; label: string }[] = [
+  { value: 'maior_lucro', label: 'Maior Lucro DG' },
+  { value: 'menor_lucro', label: 'Menor Lucro DG' },
+  { value: 'recentes',    label: 'Mais Recentes'  },
+];
 
 // ── Casas com PA ──────────────────────────────────────────────────────────────
 // Altenar (todas is_pa: true) + Superbet + Sportingbet.
@@ -590,9 +597,21 @@ export function DGOpportunitiesSection() {
   const [loading,         setLoading]         = useState(true);
   const [error,           setError]           = useState('');
   const [paFilter,        setPaFilter]        = useState<PAFilter>('ALL');
+  const [sortBy,          setSortBy]          = useState<SortBy>('maior_lucro');
+  const [sortOpen,        setSortOpen]        = useState(false);
   const [bkStates,        setBkStates]        = useState<Record<string, BkState>>({});
   const [bkModalOpen,     setBkModalOpen]     = useState(false);
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
+  const sortRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!sortOpen) return;
+    function handleDown(e: MouseEvent) {
+      if (sortRef.current && !sortRef.current.contains(e.target as Node)) setSortOpen(false);
+    }
+    document.addEventListener('mousedown', handleDown);
+    return () => document.removeEventListener('mousedown', handleDown);
+  }, [sortOpen]);
 
   const load = useCallback(async (silent = false) => {
     if (!silent) { setLoading(true); setError(''); }
@@ -660,12 +679,19 @@ export function DGOpportunitiesSection() {
       const ex = best.get(o.match_id);
       if (!ex || (o.dg_score ?? 0) > (ex.dg_score ?? 0)) best.set(o.match_id, o);
     }
-    // Fixadas primeiro, depois por lucro (maior → menor, negativos no final)
+    // Fixadas primeiro, depois pela ordenação escolhida
     return Array.from(best.values()).sort((a, b) => {
       const aFixed = a.legs.some(l => fixedSlugs.has(l.bookmakerSlug));
       const bFixed = b.legs.some(l => fixedSlugs.has(l.bookmakerSlug));
       if (aFixed !== bFixed) return aFixed ? -1 : 1;
-      return (b.dg_profit_pct ?? -999) - (a.dg_profit_pct ?? -999);
+      if (sortBy === 'maior_lucro') return (b.dg_profit_pct ?? -999) - (a.dg_profit_pct ?? -999);
+      if (sortBy === 'menor_lucro') return (a.dg_profit_pct ?? 999)  - (b.dg_profit_pct ?? 999);
+      if (sortBy === 'recentes') {
+        const ta = a.kickoff ? new Date(a.kickoff).getTime() : 0;
+        const tb = b.kickoff ? new Date(b.kickoff).getTime() : 0;
+        return ta - tb;
+      }
+      return 0;
     });
   }, [filtered, fixedSlugs]);
 
@@ -773,6 +799,31 @@ export function DGOpportunitiesSection() {
             </span>
           )}
         </button>
+
+        {/* Sort dropdown */}
+        <div className="relative" ref={sortRef}>
+          <button
+            onClick={() => setSortOpen(v => !v)}
+            className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-[12px] font-bold transition-all"
+            style={{ background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.08)', color: 'var(--t2)' }}>
+            <ArrowUpDown size={12} style={{ color: 'rgba(255,255,255,.4)' }} />
+            {SORT_OPTS.find(o => o.value === sortBy)?.label}
+          </button>
+          {sortOpen && (
+            <div className="absolute left-0 top-full z-50 mt-1 overflow-hidden rounded-xl py-1"
+              style={{ background: '#111827', border: '1px solid rgba(255,255,255,.1)', minWidth: 170, boxShadow: '0 8px 32px rgba(0,0,0,.6)' }}>
+              {SORT_OPTS.map(opt => (
+                <button key={opt.value}
+                  onClick={() => { setSortBy(opt.value); setSortOpen(false); }}
+                  className="flex w-full items-center gap-2 px-4 py-2.5 text-[12px] font-semibold transition-colors hover:bg-white/5"
+                  style={{ color: sortBy === opt.value ? '#3DFF8F' : 'var(--t2)', background: sortBy === opt.value ? 'rgba(61,255,143,.06)' : 'transparent' }}>
+                  {sortBy === opt.value && <span style={{ color: '#3DFF8F', fontSize: 9 }}>✓</span>}
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
 
         {/* Clear filtros */}
         {(paFilter !== 'ALL' || hasAnyActive) && (
