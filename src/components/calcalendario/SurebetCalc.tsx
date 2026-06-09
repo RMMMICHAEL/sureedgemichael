@@ -343,9 +343,14 @@ interface SurebetCalcProps {
   initialFreebet?: number[];
   /** Default operation type pre-selected in "Adicionar ao Painel" modal */
   initialOpType?: OpType;
+  /**
+   * Initial anchor value (stake total / freebet value).
+   * Defaults to '100' when initialFreebet is set, '200' otherwise.
+   */
+  defaultAnchor?: string;
 }
 
-export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 2, hideNumOutcomes, hideFormula, accent, initialFreebet, initialOpType }: SurebetCalcProps = {}) {
+export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 2, hideNumOutcomes, hideFormula, accent, initialFreebet, initialOpType, defaultAnchor }: SurebetCalcProps = {}) {
   const [numOutcomes, setNumOutcomes] = useState<number>(defaultNumOutcomes);
   const [formulaVal,  setFormulaVal]  = useState(0);
   const [odds,        setOdds]        = useState(() =>
@@ -354,7 +359,9 @@ export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 
   const [fixedMode,   setFixedMode]   = useState<'sum' | number>(() =>
     initialFreebet && initialFreebet.length > 0 ? initialFreebet[0] : 'sum'
   );
-  const [anchor,      setAnchor]      = useState('200');
+  const [anchor,      setAnchor]      = useState(() =>
+    defaultAnchor ?? (initialFreebet && initialFreebet.length > 0 ? '100' : '200')
+  );
   const [distribute,  setDistribute]  = useState(() => Array(MAX_OUTCOMES).fill(true));
   const [freebet,     setFreebet]     = useState(() => {
     const arr = Array(MAX_OUTCOMES).fill(false);
@@ -561,6 +568,20 @@ export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 
   const anyFB = freebet.slice(0, numOutcomes).some(Boolean);
 
   function toggleFixed(i: number | 'sum') {
+    // In freebet mode: C only works on the freebet leg.
+    // Clicking C on a cover leg or total row redirects to the freebet leg.
+    const fbIdx = anyFB ? freebet.findIndex(Boolean) : -1;
+    if (anyFB && typeof i === 'number' && i !== fbIdx) {
+      // Redirect: activate C on the freebet leg
+      setFixedMode(fbIdx);
+      return;
+    }
+    if (anyFB && i === 'sum') {
+      // In freebet mode clicking C on Total → put C on the freebet leg
+      setFixedMode(fbIdx);
+      return;
+    }
+
     if (fixedMode === i) {
       // Deactivate — return to total mode, keep current total as anchor
       const tot = result.totalBet > 0 ? result.totalBet.toFixed(2) : anchor;
@@ -580,9 +601,15 @@ export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 
     setOdds(prev => prev.map((o, idx) => idx === i ? val : o));
   }
 
-  // Stake cells only update anchor when C is already active for that cell
+  // Stake cells only update anchor when C is already active for that cell.
+  // In freebet mode, only the freebet leg can update the anchor.
   function handleStakeInput(i: number | 'sum', val: string) {
-    if (fixedMode === i) setAnchor(val);
+    if (fixedMode !== i) return;
+    if (anyFB) {
+      const fbIdx = freebet.findIndex(Boolean);
+      if (i !== fbIdx) return; // ignore edits on cover stakes in freebet mode
+    }
+    setAnchor(val);
   }
 
   // Mobile detection
@@ -892,24 +919,32 @@ export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 
                   placeholder="2.00"
                 />
 
-                {/* Stake — sempre editável */}
-                <input
-                  style={{
-                    ...INPUT,
-                    border: isFB
-                      ? '1px solid rgba(168,85,247,.4)'
-                      : isFixed
-                        ? '1px solid rgba(255,191,0,.4)'
-                        : '1px solid rgba(255,255,255,.1)',
-                    color: isFB ? '#A855F7' : isFixed ? '#FFBF00' : '#E2E8F0',
-                    cursor: 'text',
-                  }}
-                  inputMode="decimal"
-                  value={stakeDisplayVal}
-                  onChange={e => handleStakeInput(i, e.target.value)}
-                  onFocus={e => e.target.select()}
-                  placeholder="0.00"
-                />
+                {/* Stake — freebet leg editável; coberturas read-only no modo freebet */}
+                {(() => {
+                  const fbIdx = anyFB ? freebet.findIndex(Boolean) : -1;
+                  const isCoverInFBMode = anyFB && i !== fbIdx;
+                  return (
+                    <input
+                      style={{
+                        ...INPUT,
+                        border: isFB
+                          ? '1px solid rgba(168,85,247,.4)'
+                          : isFixed
+                            ? '1px solid rgba(255,191,0,.4)'
+                            : '1px solid rgba(255,255,255,.1)',
+                        color: isFB ? '#A855F7' : isFixed ? '#FFBF00' : '#E2E8F0',
+                        cursor: isCoverInFBMode ? 'default' : 'text',
+                        opacity: isCoverInFBMode ? 0.65 : 1,
+                      }}
+                      inputMode="decimal"
+                      readOnly={isCoverInFBMode}
+                      value={stakeDisplayVal}
+                      onChange={e => handleStakeInput(i, e.target.value)}
+                      onFocus={e => { if (!isCoverInFBMode) e.target.select(); }}
+                      placeholder="0.00"
+                    />
+                  );
+                })()}
 
                 {/* D toggle (distribute / break-even) */}
                 <button
