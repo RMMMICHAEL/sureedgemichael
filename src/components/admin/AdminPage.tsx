@@ -315,21 +315,37 @@ function CookiePanel() {
 type ImportStatus = 'idle' | 'loading' | 'success' | 'error';
 
 function OddsImportPanel() {
-  const [json, setJson]       = useState('');
-  const [status, setStatus]   = useState<ImportStatus>('idle');
-  const [result, setResult]   = useState<string>('');
+  const [fileName, setFileName] = useState('');
+  const [rawText, setRawText]   = useState('');
+  const [status, setStatus]     = useState<ImportStatus>('idle');
+  const [result, setResult]     = useState<string>('');
+
+  // Carrega arquivo .txt / .json selecionado pelo usuário
+  function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setFileName(file.name);
+    setStatus('idle');
+    setResult('');
+    const reader = new FileReader();
+    reader.onload = ev => setRawText((ev.target?.result as string) ?? '');
+    reader.readAsText(file, 'utf-8');
+    // Limpa o input para permitir re-seleção do mesmo arquivo
+    e.target.value = '';
+  }
 
   async function handleImport() {
-    if (!json.trim()) return;
+    const text = rawText.trim();
+    if (!text) return;
     setStatus('loading');
     setResult('');
 
     let parsed: unknown;
     try {
-      parsed = JSON.parse(json);
+      parsed = JSON.parse(text);
     } catch {
       setStatus('error');
-      setResult('JSON inválido — verifique o formato e tente novamente.');
+      setResult('JSON inválido — o arquivo pode estar corrompido ou incompleto.');
       return;
     }
 
@@ -343,8 +359,9 @@ function OddsImportPanel() {
 
       if (data.ok) {
         setStatus('success');
-        setResult(`✓ ${data.upserted} de ${data.total} registros importados com sucesso.`);
-        setJson('');
+        setResult(`✓ ${data.upserted} de ${data.total} registros importados.`);
+        setFileName('');
+        setRawText('');
       } else {
         setStatus('error');
         setResult(`Erro: ${data.errors?.join('; ') ?? 'falha desconhecida'}`);
@@ -359,44 +376,63 @@ function OddsImportPanel() {
     status === 'success' ? 'var(--g)' :
     status === 'error'   ? 'var(--r)' : 'var(--t2)';
 
+  const hasFile = !!rawText;
+
   return (
     <div className="rounded-2xl p-5" style={{ background: 'rgba(63,200,255,.04)', border: '1px solid rgba(63,200,255,.18)' }}>
       <div className="flex items-center gap-2 font-bold mb-1" style={{ color: 'rgb(63,200,255)' }}>
         <FileJson size={16} />
         Importar Odds (JSON)
       </div>
-      <p className="text-xs mb-3" style={{ color: 'var(--t2)' }}>
-        Cole aqui o JSON do <code style={{ background: 'rgba(255,255,255,.08)', padding: '1px 4px', borderRadius: 4 }}>get-individual-odds</code>.
-        O sistema irá popular automaticamente o banco de dados com todos os eventos e odds.
-        Use upsert — registros existentes serão atualizados.
+      <p className="text-xs mb-4" style={{ color: 'var(--t2)' }}>
+        Selecione o arquivo <code style={{ background: 'rgba(255,255,255,.08)', padding: '1px 4px', borderRadius: 4 }}>.txt</code> ou <code style={{ background: 'rgba(255,255,255,.08)', padding: '1px 4px', borderRadius: 4 }}>.json</code> baixado do DuploGreen.
+        Faça uma importação por arquivo — primeiro o <strong style={{ color: 'var(--t1)' }}>1x2_pa</strong>, depois o <strong style={{ color: 'var(--t1)' }}>1x2</strong>.
+        Upsert automático — registros existentes são atualizados.
       </p>
 
-      <textarea
-        value={json}
-        onChange={e => { setJson(e.target.value); setStatus('idle'); setResult(''); }}
-        placeholder={'{\n  "success": true,\n  "count": 1912,\n  "odds": [...]\n}'}
-        rows={8}
-        className="w-full rounded-xl p-3 text-xs font-mono resize-y mb-3"
+      {/* Área de seleção de arquivo */}
+      <label
+        className="flex flex-col items-center justify-center gap-2 w-full rounded-xl cursor-pointer mb-3 transition-all"
         style={{
-          background:  'rgba(0,0,0,.3)',
-          border:      '1px solid var(--b)',
-          color:       'var(--t1)',
-          outline:     'none',
+          border:     `2px dashed ${hasFile ? 'rgb(63,200,255)' : 'var(--b)'}`,
+          background: hasFile ? 'rgba(63,200,255,.06)' : 'rgba(0,0,0,.2)',
+          padding:    '20px 16px',
         }}
-        disabled={status === 'loading'}
-        spellCheck={false}
-      />
+      >
+        <input
+          type="file"
+          accept=".txt,.json,application/json,text/plain"
+          className="hidden"
+          onChange={handleFile}
+          disabled={status === 'loading'}
+        />
+        {hasFile ? (
+          <>
+            <FileJson size={22} style={{ color: 'rgb(63,200,255)' }} />
+            <span className="text-sm font-medium" style={{ color: 'rgb(63,200,255)' }}>{fileName}</span>
+            <span className="text-xs" style={{ color: 'var(--t2)' }}>
+              {(rawText.length / 1024).toFixed(0)} KB carregado — clique para trocar
+            </span>
+          </>
+        ) : (
+          <>
+            <Upload size={22} style={{ color: 'var(--t3)' }} />
+            <span className="text-sm" style={{ color: 'var(--t2)' }}>Clique para selecionar o arquivo</span>
+            <span className="text-xs" style={{ color: 'var(--t3)' }}>todasasods.txt · .json · até ~5 MB</span>
+          </>
+        )}
+      </label>
 
       <div className="flex items-center gap-3 flex-wrap">
         <button
           type="button"
           onClick={handleImport}
-          disabled={status === 'loading' || !json.trim()}
+          disabled={status === 'loading' || !hasFile}
           className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all"
           style={{
             background: status === 'loading' ? 'rgba(63,200,255,.1)' : 'rgb(63,200,255)',
             color:      '#060A07',
-            opacity:    (status === 'loading' || !json.trim()) ? 0.6 : 1,
+            opacity:    (status === 'loading' || !hasFile) ? 0.5 : 1,
           }}
         >
           {status === 'loading'
