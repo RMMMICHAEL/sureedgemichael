@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useMemo, useEffect, useCallback } from 'react';
-import { Search, X, ScanSearch, ChevronLeft, ChevronRight, ExternalLink, ArrowDown, RefreshCw } from 'lucide-react';
+import { Search, X, ScanSearch, ChevronLeft, ChevronRight, ExternalLink, ArrowDown, RefreshCw, Zap, TrendingUp } from 'lucide-react';
 import { SurebetCalc } from '@/components/calcalendario/SurebetCalc';
+import { DGOpportunitiesSection } from './DGOpportunitiesSection';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -514,6 +515,7 @@ export function BuscarOddsPage() {
   const today = todayBRT();
   const selectedDate = today;
 
+  const [tab,           setTab]           = useState<'odds' | 'dg'>('odds');
   const [allOdds,       setAllOdds]       = useState<OddsSummary[]>([]);
   const [loading,       setLoading]       = useState(true);
   const [fetchErr,      setFetchErr]      = useState('');
@@ -620,23 +622,53 @@ export function BuscarOddsPage() {
   return (
     <div className="mx-auto flex flex-col gap-4" style={{ maxWidth: 920 }}>
 
-      {/* ── Topbar ──────────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-3">
-          <div>
-            <h1 className="text-base font-black tracking-tight" style={{ color: 'var(--t)' }}>Buscar Odds</h1>
-            <p className="text-[11px]" style={{ color: 'var(--t3)' }}>
-              {loading ? 'Carregando…' : `${filtered.length} jogo${filtered.length !== 1 ? 's' : ''} · dados de hoje`}
-            </p>
-          </div>
-          {/* Badge "Hoje apenas" */}
-          <span className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold"
-            style={{ background: 'rgba(99,102,241,.1)', color: '#818cf8', border: '1px solid rgba(99,102,241,.22)' }}>
-            <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: '#818cf8', boxShadow: '0 0 6px #818cf8' }} />
-            Eventos de hoje apenas
-          </span>
+      {/* ── Header + tabs ───────────────────────────────────────────────── */}
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h1 className="text-base font-black tracking-tight" style={{ color: 'var(--t)' }}>Buscar Odds</h1>
+          <p className="text-[11px]" style={{ color: 'var(--t3)' }}>
+            {tab === 'odds'
+              ? (loading ? 'Carregando…' : `${filtered.length} jogo${filtered.length !== 1 ? 's' : ''} · dados de hoje`)
+              : 'Oportunidades DuploGreen importadas'}
+          </p>
         </div>
 
+        {/* Tab switcher */}
+        <div className="flex items-center gap-1 rounded-xl p-1" style={{ background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.07)' }}>
+          <button onClick={() => setTab('odds')}
+            className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-bold transition-all"
+            style={{
+              background: tab === 'odds' ? 'rgba(63,200,255,.15)' : 'transparent',
+              color: tab === 'odds' ? 'rgb(63,200,255)' : 'rgba(255,255,255,.4)',
+              border: tab === 'odds' ? '1px solid rgba(63,200,255,.3)' : '1px solid transparent',
+            }}>
+            <Zap size={12} /> Odds do Dia
+          </button>
+          <button onClick={() => setTab('dg')}
+            className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-bold transition-all"
+            style={{
+              background: tab === 'dg' ? 'rgba(168,85,247,.15)' : 'transparent',
+              color: tab === 'dg' ? 'rgb(168,85,247)' : 'rgba(255,255,255,.4)',
+              border: tab === 'dg' ? '1px solid rgba(168,85,247,.3)' : '1px solid transparent',
+            }}>
+            <TrendingUp size={12} /> Oportunidades DG
+          </button>
+        </div>
+      </div>
+
+      {/* ── Tab DG ──────────────────────────────────────────────────────── */}
+      {tab === 'dg' && <DGOpportunitiesSection />}
+
+      {/* ── Tab Odds do Dia ──────────────────────────────────────────────── */}
+      {tab === 'odds' && <>
+
+      {/* ── Topbar odds ─────────────────────────────────────────────────── */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <span className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold"
+          style={{ background: 'rgba(99,102,241,.1)', color: '#818cf8', border: '1px solid rgba(99,102,241,.22)' }}>
+          <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: '#818cf8', boxShadow: '0 0 6px #818cf8' }} />
+          Eventos de hoje apenas
+        </span>
         <button
           onClick={() => loadOdds(selectedDate)}
           disabled={loading}
@@ -840,6 +872,9 @@ export function BuscarOddsPage() {
           </div>
         </div>
       ))}
+
+      </> /* fim tab odds */}
+
     </div>
   );
 }
