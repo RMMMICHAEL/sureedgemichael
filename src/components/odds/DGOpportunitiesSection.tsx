@@ -660,12 +660,12 @@ export function DGOpportunitiesSection() {
       const ex = best.get(o.match_id);
       if (!ex || (o.dg_score ?? 0) > (ex.dg_score ?? 0)) best.set(o.match_id, o);
     }
-    // Fixadas primeiro, depois por score
+    // Fixadas primeiro, depois por lucro (maior → menor, negativos no final)
     return Array.from(best.values()).sort((a, b) => {
       const aFixed = a.legs.some(l => fixedSlugs.has(l.bookmakerSlug));
       const bFixed = b.legs.some(l => fixedSlugs.has(l.bookmakerSlug));
       if (aFixed !== bFixed) return aFixed ? -1 : 1;
-      return (b.dg_score ?? 0) - (a.dg_score ?? 0);
+      return (b.dg_profit_pct ?? -999) - (a.dg_profit_pct ?? -999);
     });
   }, [filtered, fixedSlugs]);
 
