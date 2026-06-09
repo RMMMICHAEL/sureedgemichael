@@ -522,46 +522,66 @@ export function FreebetConverterPage() {
                         </div>
                       </div>
 
-                      {/* ── Calculadora — revela com motion ao expandir ─────────── */}
-                      <div className="calc-reveal mt-4 overflow-hidden rounded-2xl" style={{
-                        background: 'rgba(13,17,23,0.7)',
-                        border: '1px solid rgba(99,102,241,.22)',
-                        boxShadow: '0 4px 20px rgba(0,0,0,.35), 0 0 16px rgba(99,102,241,.04) inset',
-                        backdropFilter: 'blur(12px)',
-                      }}>
-                        <div style={{ height: 2, background: 'linear-gradient(90deg, rgba(99,102,241,.85) 0%, rgba(99,102,241,.2) 60%, transparent 100%)' }} />
-                        <div className="flex items-center justify-between px-5 py-3" style={{
-                          background: 'linear-gradient(90deg, rgba(99,102,241,.07) 0%, transparent 60%)',
-                          borderBottom: '1px solid rgba(99,102,241,.1)',
-                        }}>
-                          <div className="flex items-center gap-2">
-                            <div style={{ width: 3, height: 14, borderRadius: 2, background: 'rgba(99,102,241,.9)' }} />
-                            <span className="text-[11px] font-black tracking-widest uppercase" style={{ color: 'rgb(148,163,255)' }}>
-                              Calculadora
-                            </span>
+                      {/* ── Calculadora — mesma UI dos slots do EventOddsPanel ── */}
+                      {(() => {
+                        const SLOT_COLORS = ['#3DFF8F', '#4DA6FF', '#FF9F0A'];
+                        const SLOT_LABELS = ['1ª', '2ª', '3ª'];
+                        const OUTCOME_ABBR2: Record<string, string> = { home: '1', draw: 'X', away: '2' };
+
+                        // slots: freebet + 2 coberturas
+                        const fbSlotName = `${selected} (freebet)`;
+                        const slots = [
+                          { name: fbSlotName,              odd: r.freebet_odd, outcome: r.freebet_outcome, url: r.freebet_url ?? '' },
+                          ...r.covers.map(c => ({ name: c.bookmaker_name, odd: c.odd, outcome: c.outcome, url: c.url ?? '' })),
+                        ].slice(0, 3);
+
+                        const calcFill = {
+                          odds:   slots.map(s => String(s.odd)),
+                          houses: slots.map(s => s.name),
+                          urls:   slots.map(s => s.url),
+                        };
+
+                        return (
+                          <div className="calc-reveal mt-4 overflow-hidden rounded-2xl" style={{
+                            background: 'rgba(13,17,23,0.7)',
+                            border: 'rgba(61,255,143,.28) 1px solid',
+                            boxShadow: '0 4px 24px rgba(0,0,0,.35), 0 0 20px rgba(61,255,143,.06)',
+                            backdropFilter: 'blur(12px)',
+                            transition: 'border-color 0.4s ease',
+                          }}>
+                            <div style={{ height: 2, background: 'linear-gradient(90deg, rgba(61,255,143,.8) 0%, rgba(61,255,143,.2) 60%, transparent 100%)' }} />
+
+                            {/* Slots — igual ao EventOddsPanel */}
+                            <div className="flex flex-wrap items-center gap-2 border-b px-4 py-3" style={{ borderColor: 'rgba(255,255,255,.05)' }}>
+                              <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: 'var(--t3)' }}>Calculadora</span>
+                              <div className="flex flex-1 flex-wrap gap-2">
+                                {slots.map((slot, i) => (
+                                  <div key={i} className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-[10px] font-semibold"
+                                    style={{
+                                      background: `${SLOT_COLORS[i]}12`,
+                                      border: `1px solid ${SLOT_COLORS[i]}40`,
+                                    }}>
+                                    <span style={{ color: SLOT_COLORS[i], fontSize: 9 }}>{SLOT_LABELS[i]}</span>
+                                    <span style={{ color: 'var(--t2)' }}>{slot.name}</span>
+                                    <span style={{ color: SLOT_COLORS[i], fontWeight: 900 }}>{slot.odd.toFixed(2)}</span>
+                                    <span style={{ color: 'rgba(255,255,255,.3)', fontSize: 9 }}>
+                                      ({OUTCOME_ABBR2[slot.outcome] ?? slot.outcome})
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+
+                            <div className="p-4">
+                              <SurebetCalc
+                                selectedEvent={{ name: `${r.home_team} x ${r.away_team}`, start_utc: r.start_time ?? '' }}
+                                externalFill={calcFill}
+                                defaultNumOutcomes={3}
+                              />
+                            </div>
                           </div>
-                          <span className="text-[10px]" style={{ color: 'rgba(255,255,255,.3)' }}>
-                            odds pré-carregadas · ajuste livremente
-                          </span>
-                        </div>
-                        <div className="p-4">
-                          <SurebetCalc
-                            selectedEvent={{
-                              name:      `${r.home_team} x ${r.away_team}`,
-                              start_utc: r.start_time ?? '',
-                            }}
-                            externalFill={{
-                              odds:   [r.freebet_odd, ...r.covers.map(c => c.odd)].map(String),
-                              houses: [
-                                `${selected} (freebet)`,
-                                ...r.covers.map(c => c.bookmaker_name),
-                              ],
-                              urls:   [r.freebet_url ?? '', ...r.covers.map(c => c.url ?? '')],
-                            }}
-                            defaultNumOutcomes={3}
-                          />
-                        </div>
-                      </div>
+                        );
+                      })()}
                     </div>
                   )}
                 </div>
