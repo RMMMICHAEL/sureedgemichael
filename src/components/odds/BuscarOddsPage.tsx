@@ -492,16 +492,16 @@ function EventOddsPanel({
 
       {/* ── Seções de odds ────────────────────────────────────────────────── */}
       <OddsSection
-        label="Odds sem PA"
-        bks={semPa}
-        accentColor="hsl(230 80% 70%)"
-        isPA={false}
-      />
-      <OddsSection
         label="Odds com PA — Pagamento Antecipado"
         bks={comPa}
         accentColor="hsl(38 95% 65%)"
         isPA={true}
+      />
+      <OddsSection
+        label="Odds sem PA"
+        bks={semPa}
+        accentColor="hsl(230 80% 70%)"
+        isPA={false}
       />
 
     </div>
