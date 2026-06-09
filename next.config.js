@@ -43,8 +43,10 @@ const nextConfig = {
   // Desativa source maps em produção (dificulta engenharia reversa)
   productionBrowserSourceMaps: false,
 
-  // undici é um módulo Node.js nativo — não deve ser bundlado pelo webpack
-  serverExternalPackages: ['undici'],
+  // undici é um módulo Node.js nativo — não deve ser bundlado pelo webpack (Next.js 14)
+  experimental: {
+    serverComponentsExternalPackages: ['undici'],
+  },
 
   async headers() {
     return [

@@ -246,24 +246,24 @@ export interface UnifiedMatch {
  * Usa normalização de nomes + Levenshtein para casar partidas
  * entre fontes com nomes diferentes.
  */
-export function mergeMatches(
-  sources: Array<{
-    match_id:    string;
-    home_team:   string;
-    away_team:   string;
-    start_time:  string;
-    league_name: string;
-    bookmakers:  Array<{
-      slug:  string;
-      name:  string;
-      home:  number;
-      draw:  number;
-      away:  number;
-      url:   string;
-      is_pa?: boolean;
-    }>;
-  }[]
-): UnifiedMatch[] {
+export interface SourceEvent {
+  match_id:    string;
+  home_team:   string;
+  away_team:   string;
+  start_time:  string;
+  league_name: string;
+  bookmakers:  Array<{
+    slug:   string;
+    name:   string;
+    home:   number;
+    draw:   number;
+    away:   number;
+    url:    string;
+    is_pa?: boolean;
+  }>;
+}
+
+export function mergeMatches(sources: SourceEvent[][]): UnifiedMatch[] {
   const merged: UnifiedMatch[] = [];
   const now = new Date().toISOString();
 

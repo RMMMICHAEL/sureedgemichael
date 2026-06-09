@@ -22,7 +22,7 @@ import { getBetfairOdds }              from '@/lib/betfair/client';
 import { getPinnacleOdds }             from '@/lib/pinnacle/client';
 import { getBetNacionalOdds }          from '@/lib/betnacional/client';
 import { getVivaSorteOdds }            from '@/lib/vivasorte/client';
-import { mergeMatches, normalizeTeamName } from '@/lib/match-mapper';
+import { mergeMatches, normalizeTeamName, type SourceEvent } from '@/lib/match-mapper';
 
 export async function GET(req: NextRequest) {
   const cookieStore = await cookies();
@@ -53,38 +53,33 @@ export async function GET(req: NextRequest) {
     vivasorte:  { count: 0, sample: '' },
   };
 
-  const arr = (r: PromiseSettledResult<typeof altenarR extends PromiseSettledResult<infer V> ? V : never>) =>
-    r.status === 'fulfilled' ? r.value : [];
+  const altenar   = altenarR.status   === 'fulfilled' ? altenarR.value   : [];
+  const bwin      = bwinR.status      === 'fulfilled' ? bwinR.value      : [];
+  const bet365    = bet365R.status    === 'fulfilled' ? bet365R.value    : [];
+  const betano    = betanoR.status    === 'fulfilled' ? betanoR.value    : [];
+  const superbet  = superbetR.status  === 'fulfilled' ? superbetR.value  : [];
+  const betfair   = betfairR.status   === 'fulfilled' ? betfairR.value   : [];
+  const pinnacle  = pinnacleR.status  === 'fulfilled' ? pinnacleR.value  : [];
+  const betnac    = betnacR.status    === 'fulfilled' ? betnacR.value    : [];
+  const vivasorte = vivasorteR.status === 'fulfilled' ? vivasorteR.value : [];
 
-  const altenar   = arr(altenarR as never);
-  const bwin      = arr(bwinR as never);
-  const bet365    = arr(bet365R as never);
-  const betano    = arr(betanoR as never);
-  const superbet  = arr(superbetR as never);
-  const betfair   = arr(betfairR as never);
-  const pinnacle  = arr(pinnacleR as never);
-  const betnac    = arr(betnacR as never);
-  const vivasorte = arr(vivasorteR as never);
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  function fill(key: keyof typeof sources, data: any[]) {
+  function fill(key: keyof typeof sources, data: SourceEvent[]) {
     sources[key].count = data.length;
     if (data[0]) sources[key].sample = `${data[0].home_team} vs ${data[0].away_team}`;
   }
-  fill('altenar', altenar as never[]);
-  fill('bwin', bwin as never[]);
-  fill('bet365', bet365 as never[]);
-  fill('betano', betano as never[]);
-  fill('superbet', superbet as never[]);
-  fill('betfair', betfair as never[]);
-  fill('pinnacle', pinnacle as never[]);
-  fill('betnacional', betnac as never[]);
-  fill('vivasorte', vivasorte as never[]);
+  fill('altenar',     altenar);
+  fill('bwin',        bwin);
+  fill('bet365',      bet365);
+  fill('betano',      betano);
+  fill('superbet',    superbet);
+  fill('betfair',     betfair);
+  fill('pinnacle',    pinnacle);
+  fill('betnacional', betnac);
+  fill('vivasorte',   vivasorte);
 
   // Step 2: Merge
   const merged = mergeMatches([
-    altenar as never[], bwin as never[], bet365 as never[], betano as never[],
-    superbet as never[], betfair as never[], pinnacle as never[], betnac as never[], vivasorte as never[],
+    altenar, bwin, bet365, betano, superbet, betfair, pinnacle, betnac, vivasorte,
   ]);
 
   // Conta bookmakers por slug em todos os matches
