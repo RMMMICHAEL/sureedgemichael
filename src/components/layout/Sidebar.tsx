@@ -7,7 +7,7 @@ import {
   LayoutDashboard, Activity, Building2, Wallet,
   BarChart3, ShieldCheck, Receipt, Users, X,
   UserCircle, LogOut, NotebookPen,
-  CalendarDays, Target, UserCog, ChevronDown, ScanSearch, Gift, Radio, Gamepad2,
+  CalendarDays, Target, UserCog, ChevronDown, ScanSearch, Gift, Radio,
   PanelLeftClose,
 } from 'lucide-react';
 import { getMySubscription } from '@/lib/supabase/subscription';
@@ -41,7 +41,6 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { id: 'ops',    label: 'Operações',        icon: <Activity   size={15} strokeWidth={2} /> },
       { id: 'odds',    label: 'Buscar Odds',       icon: <ScanSearch size={15} strokeWidth={2} /> },
-      { id: 'fifa',    label: 'FIFA Surebet',      icon: <Gamepad2  size={15} strokeWidth={2} /> },
       { id: 'freebet', label: 'Converter Freebet', icon: <Gift      size={15} strokeWidth={2} /> },
     ],
   },

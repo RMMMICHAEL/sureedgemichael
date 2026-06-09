@@ -355,5 +355,4 @@ export type ViewId =
   | 'perfil'
   | 'notas'
   | 'freebet'
-  | 'scanner'
-  | 'fifa';
+  | 'scanner';

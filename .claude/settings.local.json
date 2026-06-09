@@ -187,7 +187,16 @@
       "Bash(curl -s \"https://api.pulsescore.net/api/v3/bet365/events?page=1&limit=30\" -H \"x-secret: f1d51c03-a84c-4714-af28-da8565f3674b\" -H \"Accept: application/json\")",
       "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('Total:', d['total'], 'Pages:', d['totalPages']\\); [print\\(e['league'], '|', e['home'], 'x', e['away'], '|', e['startTime'][:16]\\) for e in d['events'][:15]]\")",
       "Bash(curl -s \"https://api.pulsescore.net/api/v3/bet365/events?page=1&limit=5\" -H \"x-secret: f1d51c03-a84c-4714-af28-da8565f3674b\" -H \"Accept: application/json\")",
-      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('total:', d['total'], 'pages:', d['totalPages']\\)\")"
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('total:', d['total'], 'pages:', d['totalPages']\\)\")",
+      "Bash(node -e \"require\\('https'\\).get\\('https://api.pulsescore.net/api/v3/bet365/e-sports/events?page=1&limit=5', { headers: { 'x-secret': '$\\(cat .env.local)",
+      "WebFetch(domain:pt.betsapi.com)",
+      "WebFetch(domain:proxy-seller.com)",
+      "Bash(npx vercel *)",
+      "Bash(cat next.config.js)",
+      "Bash(cat next.config.mjs)",
+      "Bash(cat next.config.ts)",
+      "Bash(node -e \"const p=require\\('./package.json'\\);console.log\\('undici:',p.dependencies?.undici||p.devDependencies?.undici||'NOT FOUND'\\)\")",
+      "Bash(cat \"/mnt/c/Users/rmmic/AppData/Local/Temp/claude/C--Users-rmmic-OneDrive-Documentos-suredge-app/9221ba53-12f4-421e-9ef6-257056d81ca8/tasks/blwv2sd20.output\" 2>/dev/null || echo \"ainda vazio\")"
     ]
   },
   "enableAllProjectMcpServers": true,
