@@ -131,9 +131,10 @@ interface AddToPanelProps {
   onClose: () => void;
   selectedEvent?: { name: string; start_utc: string } | null;
   initialHouses?: string[];
+  initialOpType?: OpType;
 }
 
-function AddToPanelModal({ numOutcomes, formulaOpt, rawOdds, commissions, stakes, onClose, selectedEvent, initialHouses }: AddToPanelProps) {
+function AddToPanelModal({ numOutcomes, formulaOpt, rawOdds, commissions, stakes, onClose, selectedEvent, initialHouses, initialOpType }: AddToPanelProps) {
   const addLeg  = useStore(s => s.addLeg);
   const toastFn = useStore(s => s.toast);
   const allLegs = useStore(s => s.legs);
@@ -166,7 +167,7 @@ function AddToPanelModal({ numOutcomes, formulaOpt, rawOdds, commissions, stakes
     return nowBRT();
   });
   const [sp,   setSp]   = useState('Futebol');
-  const [opT,  setOpT]  = useState<OpType>('duplo_green');
+  const [opT,  setOpT]  = useState<OpType>(initialOpType ?? 'duplo_green');
   const [houses, setHouses] = useState<string[]>(() =>
     Array.from({ length: Math.min(numOutcomes, MAX_OUTCOMES) }, (_, i) => initialHouses?.[i] ?? '')
   );
@@ -324,18 +325,33 @@ interface SurebetCalcProps {
     favicons?: string[];
   } | null;
   defaultNumOutcomes?: number;
+  /** Hide the "Nº de Casas" selector — useful when the number of outcomes is fixed by context */
+  hideNumOutcomes?: boolean;
+  /**
+   * Indices of legs to pre-activate as Freebet SNR.
+   * E.g. [0] marks the first leg as freebet on mount.
+   */
+  initialFreebet?: number[];
+  /** Default operation type pre-selected in "Adicionar ao Painel" modal */
+  initialOpType?: OpType;
 }
 
-export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 2 }: SurebetCalcProps = {}) {
+export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 2, hideNumOutcomes, initialFreebet, initialOpType }: SurebetCalcProps = {}) {
   const [numOutcomes, setNumOutcomes] = useState<number>(defaultNumOutcomes);
   const [formulaVal,  setFormulaVal]  = useState(0);
   const [odds,        setOdds]        = useState(() =>
     Array.from({ length: MAX_OUTCOMES }, (_, i) => (['2.10','1.95','2.80'][i] ?? ''))
   );
-  const [fixedMode,   setFixedMode]   = useState<'sum' | number>('sum');
+  const [fixedMode,   setFixedMode]   = useState<'sum' | number>(() =>
+    initialFreebet && initialFreebet.length > 0 ? initialFreebet[0] : 'sum'
+  );
   const [anchor,      setAnchor]      = useState('200');
   const [distribute,  setDistribute]  = useState(() => Array(MAX_OUTCOMES).fill(true));
-  const [freebet,     setFreebet]     = useState(() => Array(MAX_OUTCOMES).fill(false));
+  const [freebet,     setFreebet]     = useState(() => {
+    const arr = Array(MAX_OUTCOMES).fill(false);
+    initialFreebet?.forEach(i => { if (i < MAX_OUTCOMES) arr[i] = true; });
+    return arr;
+  });
   const [roundEnabled, setRoundEnabled] = useState(false);
   const [roundToStr,  setRoundToStr]  = useState('5');
   const [showAdd,             setShowAdd]             = useState(false);
@@ -590,7 +606,7 @@ export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 
       }}>
 
         {/* Nº de Casas: 2 | 3 | 4 ou mais */}
-        <div>
+        {!hideNumOutcomes && <div>
           <span style={LABEL}>Nº de Casas</span>
           <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' }}>
             {[2, 3].map(n => (
@@ -643,7 +659,7 @@ export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 
               </select>
             )}
           </div>
-        </div>
+        </div>}
 
         {/* Formula selector — hidden for N>=4 (only one option) */}
         {numOutcomes <= 3 && (
@@ -1072,6 +1088,7 @@ export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 
           onClose={() => setShowAdd(false)}
           selectedEvent={selectedEvent}
           initialHouses={injectedHouses}
+          initialOpType={initialOpType}
         />
       )}
     </div>

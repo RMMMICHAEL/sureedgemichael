@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Gift, ChevronRight, ExternalLink, RefreshCw, Search, AlertCircle, Zap } from 'lucide-react';
 import { SurebetCalc } from '@/components/calcalendario/SurebetCalc';
 
@@ -77,6 +77,15 @@ export function FreebetConverterPage() {
   const [error,      setError]        = useState('');
   const [search,     setSearch]       = useState('');
   const [expanded,   setExpanded]     = useState<string | null>(null);
+
+  // Scroll calculator into view when a card expands
+  useEffect(() => {
+    if (!expanded) return;
+    setTimeout(() => {
+      document.querySelector(`[data-calc-id="${expanded}"]`)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, 120);
+  }, [expanded]);
 
   // Carrega lista de casas disponíveis ao montar
   useEffect(() => {
@@ -542,7 +551,7 @@ export function FreebetConverterPage() {
                         };
 
                         return (
-                          <div className="calc-reveal mt-4 overflow-hidden rounded-2xl" style={{
+                          <div data-calc-id={r.match_id + r.freebet_outcome} className="calc-reveal mt-4 overflow-hidden rounded-2xl" style={{
                             background: 'rgba(13,17,23,0.7)',
                             border: 'rgba(61,255,143,.28) 1px solid',
                             boxShadow: '0 4px 24px rgba(0,0,0,.35), 0 0 20px rgba(61,255,143,.06)',
@@ -577,6 +586,9 @@ export function FreebetConverterPage() {
                                 selectedEvent={{ name: `${r.home_team} x ${r.away_team}`, start_utc: r.start_time ?? '' }}
                                 externalFill={calcFill}
                                 defaultNumOutcomes={3}
+                                hideNumOutcomes
+                                initialFreebet={[0]}
+                                initialOpType="freebet"
                               />
                             </div>
                           </div>

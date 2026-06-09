@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { Search, X, ScanSearch, ChevronLeft, ChevronRight, ExternalLink, ArrowDown, RefreshCw, Zap, TrendingUp } from 'lucide-react';
 import { SurebetCalc } from '@/components/calcalendario/SurebetCalc';
 import { DGOpportunitiesSection } from './DGOpportunitiesSection';
@@ -121,30 +121,37 @@ function EventOddsPanel({
 }) {
   const [slots, setSlots] = useState<(CalcSlot | null)[]>([null, null, null]);
   const [calcFill, setCalcFill] = useState<{ odds: string[]; houses: string[]; urls: string[] } | null>(null);
+  const calcRef = React.useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     const active = slots.filter(Boolean) as CalcSlot[];
     if (!active.length) { setCalcFill(null); return; }
+    // Always map positions: 0=home, 1=draw, 2=away — regardless of click order
     setCalcFill({
-      odds:   active.map(s => String(s.value)),
-      houses: active.map(s => s.bk.name),
-      urls:   active.map(s => s.bk.url ?? ''),
+      odds:   slots.map(s => s ? String(s.value) : ''),
+      houses: slots.map(s => s ? s.bk.name : ''),
+      urls:   slots.map(s => s ? (s.bk.url ?? '') : ''),
     });
+    // Scroll calculator into view on first slot selection
+    if (active.length === 1) {
+      setTimeout(() => calcRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 80);
+    }
   }, [slots]);
 
   useEffect(() => { setSlots([null, null, null]); }, [event.match_id]);
 
   function handleOddClick(bk: BookmakerOdds, type: OddType, value: number) {
     if (value <= 1) return;
+    // Slot position is always outcome-driven: home→0, draw→1, away→2
+    const typeIdx = type === 'home' ? 0 : type === 'draw' ? 1 : 2;
     setSlots(prev => {
       const existingIdx = prev.findIndex(s => s?.bk.slug === bk.slug && s?.type === type);
       if (existingIdx >= 0) {
         const next = [...prev]; next[existingIdx] = null; return next;
       }
-      const emptyIdx = prev.findIndex(s => s === null);
-      if (emptyIdx >= 0) {
-        const next = [...prev]; next[emptyIdx] = { bk, type, value }; return next;
-      }
-      return [prev[1], prev[2], { bk, type, value }];
+      const next = [...prev];
+      next[typeIdx] = { bk, type, value };
+      return next;
     });
   }
 
@@ -537,7 +544,7 @@ function EventOddsPanel({
           )}
         </div>
 
-        <div className="p-4">
+        <div className="p-4" ref={calcRef}>
           <SurebetCalc
             selectedEvent={{ name: eventName, start_utc: event.start_time }}
             externalFill={calcFill}

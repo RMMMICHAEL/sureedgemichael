@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { ExternalLink, RefreshCw, Search, X, SlidersHorizontal, ChevronLeft, ChevronRight, ArrowDown } from 'lucide-react';
 import { SurebetCalc } from '@/components/calcalendario/SurebetCalc';
 
@@ -111,6 +111,7 @@ function DGDetailPanel({
   // calcKey força re-mount do calc-reveal a cada nova seleção
   const [calcKey, setCalcKey]       = useState(0);
   const [calcFill, setCalcFill]     = useState<{ odds: string[]; houses: string[]; urls: string[] } | null>(null);
+  const calcRef = useRef<HTMLDivElement>(null);
 
   const o   = matchOpportunities[0];
   const rgb = classRgb(o.dg_classification);
@@ -144,6 +145,8 @@ function DGDetailPanel({
       urls:   legs.map(l => l.matchUrl ?? ''),
     });
     setCalcKey(k => k + 1);
+    // Scroll calc into view after state update + animation start
+    setTimeout(() => calcRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 80);
   }
 
   const cols: { key: typeof sortCol; label: string }[] = [
@@ -328,7 +331,7 @@ function DGDetailPanel({
 
       {/* ── Calculadora — revela com motion quando linha é selecionada ───── */}
       {calcFill && (
-        <div key={calcKey} className="calc-reveal overflow-hidden rounded-2xl" style={{
+        <div key={calcKey} ref={calcRef} className="calc-reveal overflow-hidden rounded-2xl" style={{
           background: 'rgba(13,17,23,0.75)',
           border: `1px solid rgba(${rgb},.28)`,
           boxShadow: `0 4px 28px rgba(0,0,0,.4), 0 0 20px rgba(${rgb},.05) inset`,
@@ -354,6 +357,7 @@ function DGDetailPanel({
               selectedEvent={{ name: `${o.home_team} x ${o.away_team}`, start_utc: o.kickoff ?? '' }}
               externalFill={calcFill}
               defaultNumOutcomes={3}
+              initialOpType="duplo_green"
             />
           </div>
         </div>
