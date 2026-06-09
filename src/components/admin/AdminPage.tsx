@@ -355,11 +355,12 @@ function OddsImportPanel() {
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify(parsed),
       });
-      const data = await res.json() as { ok: boolean; total: number; inserted: number; errors?: string[] };
+      const data = await res.json() as { ok: boolean; total: number; inserted: number; cleaned: number; errors?: string[] };
 
       if (data.ok) {
         setStatus('success');
-        setResult(`✓ ${data.inserted} de ${data.total} odds atualizadas de "${fileName}".`);
+        const cleanMsg = data.cleaned > 0 ? ` · ${data.cleaned} registros antigos removidos` : '';
+        setResult(`✓ ${data.inserted} de ${data.total} odds atualizadas de "${fileName}"${cleanMsg}.`);
         setFileName('');
         setRawText('');
       } else {

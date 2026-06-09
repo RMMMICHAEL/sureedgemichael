@@ -104,6 +104,24 @@ export async function POST(req: NextRequest) {
   }));
 
   // ── 4. Delete → Insert por lote (garante atualização real das odds) ───────
+  const admin  = await getSupabaseAdmin();
+
+  // Limpeza automática: remove jogos de dias anteriores para não acumular
+  // Mantém apenas registros com match_date >= hoje (BRT)
+  const todayBRT = new Date(Date.now() - 3 * 60 * 60 * 1000)
+    .toISOString().slice(0, 10); // "YYYY-MM-DD"
+
+  const { error: cleanErr, count: cleanCount } = await admin
+    .from('bookmaker_odds')
+    .delete({ count: 'exact' })
+    .lt('match_date', todayBRT);
+
+  if (cleanErr) {
+    console.warn('[odds-import] aviso na limpeza de datas antigas:', cleanErr.message);
+  } else if (cleanCount && cleanCount > 0) {
+    console.log(`[odds-import] limpeza: ${cleanCount} registros de dias anteriores removidos`);
+  }
+
   // Agrupa por market_type para deletar apenas o tipo que está sendo reimportado
   const byMarketType = new Map<string, typeof rows>();
   for (const row of rows) {
@@ -111,8 +129,6 @@ export async function POST(req: NextRequest) {
     if (!byMarketType.has(mt)) byMarketType.set(mt, []);
     byMarketType.get(mt)!.push(row);
   }
-
-  const admin  = await getSupabaseAdmin();
   const BATCH  = 500;
   let   totalInserted = 0;
   const errors: string[] = [];
@@ -158,6 +174,7 @@ export async function POST(req: NextRequest) {
     ok:       errors.length === 0,
     total:    rows.length,
     inserted: totalInserted,
+    cleaned:  cleanCount ?? 0,
     errors:   errors.length > 0 ? errors : undefined,
   });
 }
