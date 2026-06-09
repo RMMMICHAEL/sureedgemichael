@@ -34,6 +34,7 @@ import { getPinnacleOdds }    from '@/lib/pinnacle/client';
 import { getBetNacionalOdds } from '@/lib/betnacional/client';
 import { getVivaSorteOdds }   from '@/lib/vivasorte/client';
 import { getBetanoOdds }      from '@/lib/betano/client';
+import { mergeMatches }       from '@/lib/match-mapper';
 
 // ── Merge helpers ─────────────────────────────────────────────────────────────
 
@@ -124,18 +125,53 @@ export async function GET(req: NextRequest) {
     const vivasorte  = vivaSorteOdds.status   === 'fulfilled' ? vivaSorteOdds.value   : [];
     const betano     = betanoOdds.status      === 'fulfilled' ? betanoOdds.value      : [];
 
-    // Debug: log contagem de cada fonte
-    console.log('[odds] fontes:', {
+    // ── STEP 1: Log contagem por fonte ──────────────────────────────────────
+    const sourceCounts = {
       altenar: altenar.length, kambi: kambi.length, superbet: superbet.length,
       bwin: bwin.length, bet365: bet365.length, betano: betano.length,
-      betfair: betfair.length, pinnacle: pinnacle.length, betnac: betnac.length, vivasorte: vivasorte.length,
-      superbetError: superbetOdds.status === 'rejected' ? String(superbetOdds.reason) : null,
-      betanoError:   betanoOdds.status   === 'rejected' ? String(betanoOdds.reason)   : null,
-    });
+      betfair: betfair.length, pinnacle: pinnacle.length,
+      betnac: betnac.length, vivasorte: vivasorte.length,
+    };
+    console.log('[odds:1-coleta]', sourceCounts);
+    const totalCollected = Object.values(sourceCounts).reduce((a, b) => a + b, 0);
+    console.log('[odds:1-coleta] total eventos coletados:', totalCollected);
 
-    let odds = mergeOdds(altenar, kambi, superbet, bwin, bet365, betfair, pinnacle, betnac, vivasorte, betano);
+    // ── STEP 2: Match mapping com normalização avançada ──────────────────────
+    const mergedMatches = mergeMatches([
+      altenar, kambi, superbet, bwin, bet365,
+      betfair, pinnacle, betnac, vivasorte, betano,
+    ]);
+    console.log('[odds:2-merge] total após merge:', mergedMatches.length);
 
-    // ── Filtro de data (BRT = UTC-3) ────────────────────────────────────────
+    // Debug: mostra quais bookmakers cada fonte contribuiu
+    const bkCount: Record<string, number> = {};
+    for (const m of mergedMatches) {
+      for (const bk of m.bookmakers) {
+        bkCount[bk.bookmaker_slug] = (bkCount[bk.bookmaker_slug] ?? 0) + 1;
+      }
+    }
+    console.log('[odds:2-merge] bookmakers por fonte:', bkCount);
+
+    // Converte UnifiedMatch de volta para OddsSummary (compatibilidade com código existente)
+    let odds: OddsSummary[] = mergedMatches.map(m => ({
+      match_id:    m.match_id,
+      home_team:   m.home_team,
+      away_team:   m.away_team,
+      start_time:  m.start_time,
+      league_name: m.league_name,
+      league_id:   0,
+      bookmakers:  m.bookmakers.map(b => ({
+        slug:  b.bookmaker_slug,
+        name:  b.bookmaker_name,
+        home:  b.odd_home,
+        draw:  b.odd_draw,
+        away:  b.odd_away,
+        url:   b.match_url,
+        is_pa: b.is_pa,
+      })),
+    }));
+
+    // ── STEP 3: Filtro de data (BRT = UTC-3) ────────────────────────────────
     if (!showAll) {
       const refBR   = dateParam
         ? new Date(dateParam + 'T12:00:00Z')
@@ -152,6 +188,8 @@ export async function GET(req: NextRequest) {
                brt.getUTCDate()     === filterD;
       });
     }
+
+    console.log('[odds:3-filtro] após filtro de data:', odds.length);
 
     const sources: string[] = [];
     if (altenar.length   > 0) sources.push('altenar');

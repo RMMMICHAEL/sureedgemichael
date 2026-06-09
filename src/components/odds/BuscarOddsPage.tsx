@@ -446,32 +446,51 @@ export function BuscarOddsPage() {
   const [search,        setSearch]        = useState('');
   const [selectedEvent, setSelectedEvent] = useState<OddsSummary | null>(null);
 
-  // Carrega odds diretamente da nossa API (independe de SuperMonitor)
-  const loadOdds = useCallback(async (date: string) => {
-    setLoading(true);
-    setFetchErr('');
-    setAllOdds([]);
-    setSelectedEvent(null);
+  // Carrega odds com logs de diagnóstico em cada etapa
+  const loadOdds = useCallback(async (date: string, silent = false) => {
+    if (!silent) { setLoading(true); setFetchErr(''); setAllOdds([]); setSelectedEvent(null); }
     try {
       const isToday = date === todayBRT();
       const url     = isToday ? '/api/dg/odds' : `/api/dg/odds?date=${date}`;
-      const res     = await fetch(url);
-      const json    = await res.json() as { ok: boolean; odds?: OddsSummary[]; error?: string };
+
+      console.log('[frontend:4-fetch] buscando odds:', url);
+      const res  = await fetch(url);
+      const json = await res.json() as { ok: boolean; odds?: OddsSummary[]; source?: string; error?: string };
+
       if (!json.ok) throw new Error(json.error ?? 'Erro ao carregar odds');
-      setAllOdds(json.odds ?? []);
+
+      const odds = json.odds ?? [];
+      console.log('[frontend:4-fetch] odds recebidas:', odds.length, '| sources:', json.source);
+
+      // Log de bookmakers presentes
+      const bkCount: Record<string, number> = {};
+      for (const ev of odds) {
+        for (const bk of ev.bookmakers) {
+          bkCount[bk.slug] = (bkCount[bk.slug] ?? 0) + 1;
+        }
+      }
+      console.log('[frontend:4-fetch] bookmakers:', bkCount);
+
+      setAllOdds(odds);
     } catch {
-      setFetchErr('Não foi possível carregar as odds.');
+      if (!silent) setFetchErr('Não foi possível carregar as odds.');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
   useEffect(() => { loadOdds(selectedDate); }, [selectedDate, loadOdds]);
 
+  // Auto-refresh a cada 30s (silent = não mostra loading spinner)
+  useEffect(() => {
+    const id = setInterval(() => loadOdds(selectedDate, true), 30_000);
+    return () => clearInterval(id);
+  }, [selectedDate, loadOdds]);
+
   const normFn = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 
-  const filtered = useMemo(() =>
-    allOdds
+  const filtered = useMemo(() => {
+    const result = allOdds
       .filter(ev => !isExcluded(ev.league_name ?? ''))
       .filter(ev => {
         if (!search.trim()) return true;
@@ -479,9 +498,11 @@ export function BuscarOddsPage() {
         return normFn(ev.home_team).includes(q) ||
                normFn(ev.away_team).includes(q) ||
                normFn(ev.league_name ?? '').includes(q);
-      }),
-    [allOdds, search]
-  );
+      });
+    console.log('[frontend:5-render] odds após filtro:', result.length,
+      '| com 2+ bookmakers:', result.filter(e => e.bookmakers.length >= 2).length);
+    return result;
+  }, [allOdds, search]);
 
   const byLeague = useMemo(() => {
     const map = new Map<string, OddsSummary[]>();
