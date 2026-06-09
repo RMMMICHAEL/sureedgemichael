@@ -469,14 +469,12 @@ export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 
       }
 
       const totalBet = stakes.reduce((s, v) => s + v, 0);
-      // ROI denominator = only real money at risk (non-freebet stakes)
-      const realMoney = stakes.reduce((s, v, i) => !freebet[i] ? s + v : s, 0);
       const profitSeq = dist
         .map((d, i) => (d ? profits[i] : undefined))
         .filter((p): p is number => p !== undefined);
       const minProfit = profitSeq.length > 0 ? Math.min(...profitSeq) : 0;
-      const base = realMoney > 0.001 ? realMoney : (totalBet > 0.001 ? totalBet : 1);
-      const profitPct = (minProfit / base) * 100;
+      // Conversão% = lucro / valor da freebet (s0) — não relativo ao custo de cobertura
+      const profitPct = s0 > 0.001 ? (minProfit / s0) * 100 : 0;
 
       return { stakes, profits, totalBet, profitPct, margin: 0, isSurebet: minProfit > 0.01 };
     }
@@ -729,7 +727,7 @@ export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 
           textAlign: 'center', minWidth: 110,
         }}>
           <div style={{ fontSize: 10, fontWeight: 700, color: profitColor, opacity: .7, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-            {isSurebet ? 'Surebet' : 'Lucro'}
+            {anyFB ? 'Conversão' : isSurebet ? 'Surebet' : 'Lucro'}
           </div>
           <div style={{
             fontSize: 22, fontWeight: 900, color: profitColor,
