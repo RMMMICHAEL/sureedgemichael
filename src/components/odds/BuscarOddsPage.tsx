@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useEffect, useCallback } from 'react';
-import { Search, X, Building2, ScanSearch, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, X, Building2, ScanSearch, Calendar, ChevronLeft, ChevronRight, ExternalLink, ArrowDown } from 'lucide-react';
 import { SurebetCalc } from '@/components/calcalendario/SurebetCalc';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
@@ -103,6 +103,7 @@ function EventOddsPanel({
 }) {
   const [slots, setSlots] = useState<(CalcSlot | null)[]>([null, null, null]);
   const [calcFill, setCalcFill] = useState<{ odds: string[]; houses: string[]; urls: string[] } | null>(null);
+  const [sortCol, setSortCol] = useState<'home' | 'draw' | 'away'>('home');
 
   useEffect(() => {
     const active = slots.filter(Boolean) as CalcSlot[];
@@ -114,7 +115,6 @@ function EventOddsPanel({
     });
   }, [slots]);
 
-  // reset slots when event changes
   useEffect(() => { setSlots([null, null, null]); }, [event.match_id]);
 
   function handleOddClick(bk: BookmakerOdds, type: OddType, value: number) {
@@ -132,11 +132,10 @@ function EventOddsPanel({
     });
   }
 
-  function slotOf(slug: string, type: OddType): number {
+  function slotOf(slug: string, type: OddType) {
     return slots.findIndex(s => s?.bk.slug === slug && s?.type === type);
   }
 
-  // is_pa do backend (preciso) > heurística de slug (fallback para dados antigos)
   const semPa = event.bookmakers.filter(b => !(b.is_pa ?? isPa(b.slug)));
   const comPa = event.bookmakers.filter(b =>  (b.is_pa ?? isPa(b.slug)));
 
@@ -151,181 +150,216 @@ function EventOddsPanel({
     return (1/h + 1/d + 1/a - 1) * 100;
   }
 
-  function OddCell({ bk, type, value, isBest }: {
-    bk: BookmakerOdds; type: OddType; value: number; isBest: boolean;
+  const activeSlots = slots.filter(Boolean) as CalcSlot[];
+  const eventName   = `${event.home_team} x ${event.away_team}`;
+
+  // ── Odd button ──────────────────────────────────────────────────────────────
+  function OddBtn({ bk, type, value, isBest, isSecond }: {
+    bk: BookmakerOdds; type: OddType; value: number; isBest: boolean; isSecond: boolean;
   }) {
     const slotIdx = slotOf(bk.slug, type);
     const selected = slotIdx >= 0;
-    const color = selected ? SLOT_COLORS[slotIdx] : isBest ? 'var(--g)' : 'var(--t2)';
+    const slotColor = SLOT_COLORS[slotIdx] ?? SLOT_COLORS[0];
+
+    if (value <= 1) return (
+      <div className="flex h-10 w-[72px] items-center justify-center rounded-xl"
+        style={{ background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.06)' }}>
+        <span style={{ color: 'rgba(255,255,255,.15)', fontSize: 12 }}>—</span>
+      </div>
+    );
+
+    const btnStyle: React.CSSProperties = selected ? {
+      background: `${slotColor}20`,
+      border:     `1px solid ${slotColor}70`,
+      color:      slotColor,
+      boxShadow:  `0 0 10px ${slotColor}30`,
+    } : isBest ? {} : isSecond ? {
+      background: 'hsl(150 70% 45% / 0.06)',
+      border:     '1px solid hsl(150 70% 45% / 0.22)',
+      color:      'hsl(150 60% 58%)',
+    } : {
+      background: 'rgba(255,255,255,.05)',
+      border:     '1px solid rgba(255,255,255,.1)',
+      color:      'rgba(255,255,255,.75)',
+    };
+
     return (
-      <td style={{ padding: '4px 6px', textAlign: 'center', position: 'relative' }}>
-        {value > 1 ? (
-          <button
-            onClick={() => handleOddClick(bk, type, value)}
-            title={selected ? `Remover da calculadora (slot ${slotIdx + 1})` : 'Adicionar à calculadora'}
-            style={{
-              width: '100%', minWidth: 52, padding: '5px 4px',
-              borderRadius: 7, cursor: 'pointer',
-              fontSize: 12, fontWeight: selected ? 900 : isBest ? 800 : 500,
-              fontVariantNumeric: 'tabular-nums', color,
-              background: selected
-                ? `rgba(${SLOT_COLORS[slotIdx].slice(1).match(/../g)!.map(h=>parseInt(h,16)).join(',')}, .13)`
-                : isBest ? 'rgba(63,255,33,.07)' : 'transparent',
-              border: selected
-                ? `1px solid ${SLOT_COLORS[slotIdx]}55`
-                : isBest ? '1px solid rgba(63,255,33,.2)' : '1px solid transparent',
-              transition: 'all .12s', position: 'relative',
-            }}
-          >
-            {value.toFixed(2)}
-            {selected && (
-              <span style={{
-                position: 'absolute', top: -5, right: -5,
-                width: 14, height: 14, borderRadius: '50%',
-                background: SLOT_COLORS[slotIdx],
-                color: '#0D1117', fontSize: 8, fontWeight: 900,
-                display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1,
-              }}>{slotIdx + 1}</span>
-            )}
-          </button>
-        ) : (
-          <span style={{ color: 'rgba(255,255,255,.15)', fontSize: 12 }}>—</span>
+      <button
+        type="button"
+        onClick={() => handleOddClick(bk, type, value)}
+        title={selected ? `Slot ${slotIdx + 1} — clique para remover` : 'Adicionar à calculadora'}
+        className={`relative flex h-10 w-[72px] items-center justify-center rounded-xl font-mono text-sm font-semibold transition-all duration-300 hover:scale-105 active:scale-95${isBest && !selected ? ' animate-best-odd-glow' : ''}`}
+        style={isBest && !selected ? {
+          background: 'hsl(150 90% 45% / 0.15)',
+          border:     '1px solid hsl(150 90% 50% / 0.5)',
+          color:      'hsl(150 90% 58%)',
+        } : btnStyle}
+      >
+        {value.toFixed(2)}
+        {selected && (
+          <span style={{
+            position: 'absolute', top: -5, right: -5,
+            width: 15, height: 15, borderRadius: '50%',
+            background: slotColor, color: '#060A07',
+            fontSize: 8, fontWeight: 900,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>{slotIdx + 1}</span>
         )}
-      </td>
+      </button>
     );
   }
 
-  function BkRow({ bk, bests }: { bk: BookmakerOdds; bests: { h: number; d: number; a: number } }) {
-    const isH = bk.home === bests.h && bk.home > 1;
-    const isD = bk.draw === bests.d && bk.draw > 1;
-    const isA = bk.away === bests.a && bk.away > 1;
-    const anySelected = slots.some(s => s?.bk.slug === bk.slug);
-    return (
-      <tr style={{
-        borderBottom: '1px solid rgba(255,255,255,.03)',
-        background: anySelected ? 'rgba(255,255,255,.025)' : undefined,
-        transition: 'background .1s',
-      }}
-        onMouseEnter={e => { if (!anySelected) (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,.02)'; }}
-        onMouseLeave={e => { if (!anySelected) (e.currentTarget as HTMLElement).style.background = ''; }}>
-        <td style={{ padding: '5px 10px', fontSize: 11, fontWeight: 700, color: anySelected ? 'var(--t)' : 'var(--t2)', whiteSpace: 'nowrap' }}>
-          {bk.url ? (
-            <a href={bk.url} target="_blank" rel="noopener noreferrer"
-              style={{ color: 'inherit', textDecoration: 'none' }}
-              onMouseEnter={e => { (e.target as HTMLElement).style.color = '#818cf8'; }}
-              onMouseLeave={e => { (e.target as HTMLElement).style.color = ''; }}>
-              {bk.name}
-            </a>
-          ) : bk.name}
-        </td>
-        <OddCell bk={bk} type="home" value={bk.home} isBest={isH} />
-        <OddCell bk={bk} type="draw" value={bk.draw} isBest={isD} />
-        <OddCell bk={bk} type="away" value={bk.away} isBest={isA} />
-      </tr>
-    );
-  }
-
-  function Section({ title, bks, accent, bg }: {
-    title: string; bks: BookmakerOdds[]; accent: string; bg: string;
+  // ── Seção (sem PA / com PA) ──────────────────────────────────────────────────
+  function OddsSection({ label, bks, accentColor, headerBg }: {
+    label: string; bks: BookmakerOdds[]; accentColor: string; headerBg: string;
   }) {
     if (!bks.length) return null;
-    const sorted = [...bks].sort((a, b) => (b.home + b.draw + b.away) - (a.home + a.draw + a.away));
-    const bests = { h: bestOf(bks, 'home'), d: bestOf(bks, 'draw'), a: bestOf(bks, 'away') };
-    const mgn   = margin(bks);
+    const bests  = { h: bestOf(bks, 'home'), d: bestOf(bks, 'draw'), a: bestOf(bks, 'away') };
+    const mgn    = margin(bks);
     const isSure = mgn !== null && mgn < 0;
+
+    // Ordenar pela coluna selecionada, decrescente
+    const sorted = [...bks].sort((a, b) => {
+      const va = a[sortCol] as number ?? 0;
+      const vb = b[sortCol] as number ?? 0;
+      return vb - va;
+    });
+
+    // segundas melhores (empatadas com a melhor ficam no grupo "best"; aqui pegamos o segundo valor distinto)
+    const secondH = [...new Set(bks.map(b => b.home).filter(v => v > 1 && v < bests.h))].sort((a,b)=>b-a)[0] ?? 0;
+    const secondD = [...new Set(bks.map(b => b.draw).filter(v => v > 1 && v < bests.d))].sort((a,b)=>b-a)[0] ?? 0;
+    const secondA = [...new Set(bks.map(b => b.away).filter(v => v > 1 && v < bests.a))].sort((a,b)=>b-a)[0] ?? 0;
+
+    const cols: { key: 'home'|'draw'|'away'; label: string }[] = [
+      { key: 'home', label: 'Casa (1)' },
+      { key: 'draw', label: 'Empate (X)' },
+      { key: 'away', label: 'Fora (2)' },
+    ];
+
     return (
-      <>
-        <tr>
-          <td colSpan={4} style={{
-            padding: '5px 10px', fontSize: 9, fontWeight: 900,
-            textTransform: 'uppercase', letterSpacing: '.12em',
-            color: accent, background: bg, borderTop: '1px solid var(--b)',
-          }}>
-            {title} · {bks.length} casa{bks.length !== 1 ? 's' : ''}
-            {mgn !== null && (
-              <span style={{ marginLeft: 8, fontWeight: 700, color: isSure ? 'var(--g)' : 'rgba(255,255,255,.4)' }}>
-                {isSure ? `🎯 Surebet ${Math.abs(mgn).toFixed(2)}%` : `margem ${mgn.toFixed(1)}%`}
-              </span>
-            )}
-          </td>
-        </tr>
-        {sorted.map(bk => <BkRow key={bk.slug} bk={bk} bests={bests} />)}
-      </>
+      <div className="overflow-hidden rounded-2xl" style={{ border: `1px solid ${accentColor}40`, boxShadow: `0 0 20px ${accentColor}10` }}>
+
+        {/* Header da seção */}
+        <div className="flex items-center justify-between px-5 py-3" style={{ background: headerBg, borderBottom: `1px solid ${accentColor}30` }}>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold tracking-wide" style={{ color: accentColor }}>{label}</span>
+            <span className="rounded px-1.5 py-0.5 text-[10px] font-semibold" style={{ background: `${accentColor}18`, color: accentColor }}>
+              {bks.length} casas
+            </span>
+          </div>
+          {mgn !== null && (
+            <span className="text-[11px] font-bold" style={{ color: isSure ? 'hsl(150 90% 55%)' : 'rgba(255,255,255,.35)' }}>
+              {isSure ? `🎯 Surebet +${Math.abs(mgn).toFixed(2)}%` : `margem ${mgn.toFixed(1)}%`}
+            </span>
+          )}
+        </div>
+
+        {/* Cabeçalho das colunas */}
+        <div className="grid items-center gap-3 px-5 py-2" style={{ gridTemplateColumns: '1fr 72px 72px 72px', background: 'rgba(255,255,255,.02)', borderBottom: '1px solid rgba(255,255,255,.05)' }}>
+          <span className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: 'rgba(255,255,255,.3)' }}>Casa</span>
+          {cols.map(c => (
+            <button key={c.key} type="button"
+              onClick={() => setSortCol(c.key)}
+              className="flex items-center justify-center gap-0.5 text-[11px] font-semibold transition-colors"
+              style={{ color: sortCol === c.key ? 'rgba(255,255,255,.9)' : 'rgba(255,255,255,.35)' }}>
+              {c.label}
+              {sortCol === c.key && <ArrowDown size={10} />}
+            </button>
+          ))}
+        </div>
+
+        {/* Linhas */}
+        <div className="divide-y divide-white/[.04]">
+          {sorted.map((bk, idx) => {
+            const isH = bk.home === bests.h && bk.home > 1;
+            const isD = bk.draw === bests.d && bk.draw > 1;
+            const isA = bk.away === bests.a && bk.away > 1;
+            const is2H = !isH && bk.home === secondH && bk.home > 1;
+            const is2D = !isD && bk.draw === secondD && bk.draw > 1;
+            const is2A = !isA && bk.away === secondA && bk.away > 1;
+            const anySelected = slots.some(s => s?.bk.slug === bk.slug);
+            return (
+              <div key={bk.slug}
+                className="grid items-center gap-3 px-5 py-3 transition-colors"
+                style={{
+                  gridTemplateColumns: '1fr 72px 72px 72px',
+                  background: anySelected ? 'rgba(255,255,255,.03)' : idx % 2 === 1 ? 'rgba(255,255,255,.015)' : undefined,
+                }}>
+
+                {/* Nome da casa */}
+                <div className="flex min-w-0 items-center gap-2">
+                  {bk.url ? (
+                    <a href={bk.url} target="_blank" rel="noopener noreferrer"
+                      className="flex items-center gap-1.5 text-sm font-semibold transition-colors hover:text-cyan-400 truncate"
+                      style={{ color: anySelected ? 'rgba(255,255,255,.95)' : 'rgba(255,255,255,.8)' }}>
+                      <ExternalLink size={11} className="shrink-0 opacity-50" />
+                      <span className="truncate">{bk.name}</span>
+                    </a>
+                  ) : (
+                    <span className="text-sm font-semibold truncate" style={{ color: 'rgba(255,255,255,.7)' }}>{bk.name}</span>
+                  )}
+                  {(bk.is_pa ?? isPa(bk.slug)) && (
+                    <span className="shrink-0 rounded px-1 py-px text-[8px] font-bold" style={{ background: 'rgba(255,159,10,.12)', color: 'rgba(255,159,10,.7)', border: '1px solid rgba(255,159,10,.2)' }}>PA</span>
+                  )}
+                </div>
+
+                <OddBtn bk={bk} type="home" value={bk.home} isBest={isH} isSecond={is2H} />
+                <OddBtn bk={bk} type="draw" value={bk.draw} isBest={isD} isSecond={is2D} />
+                <OddBtn bk={bk} type="away" value={bk.away} isBest={isA} isSecond={is2A} />
+              </div>
+            );
+          })}
+        </div>
+      </div>
     );
   }
 
-  const allBests = {
-    h: bestOf(event.bookmakers, 'home'),
-    d: bestOf(event.bookmakers, 'draw'),
-    a: bestOf(event.bookmakers, 'away'),
-  };
-  const activeSlots  = slots.filter(Boolean) as CalcSlot[];
-  const eventName    = `${event.home_team} x ${event.away_team}`;
-
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <div className="flex flex-col gap-4">
 
-      {/* Header do evento */}
-      <div style={{
-        borderRadius: 14, padding: '12px 16px',
-        background: 'var(--bg2)', border: '1px solid var(--b)',
-        display: 'flex', alignItems: 'center', gap: 12,
-      }}>
-        <button onClick={onBack} style={{
-          width: 32, height: 32, borderRadius: 8, border: '1px solid var(--b)',
-          background: 'rgba(255,255,255,.05)', color: 'var(--t3)', flexShrink: 0,
-          display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
-        }}>
+      {/* ── Header do evento ──────────────────────────────────────────────── */}
+      <div className="flex items-center gap-3 rounded-2xl px-4 py-3" style={{ background: 'var(--bg2)', border: '1px solid var(--b)' }}>
+        <button onClick={onBack} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl transition-colors hover:bg-white/10"
+          style={{ background: 'rgba(255,255,255,.05)', border: '1px solid var(--b)', color: 'var(--t3)' }}>
           <ChevronLeft size={15} />
         </button>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--t)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {eventName}
-          </div>
-          <div style={{ fontSize: 11, color: 'var(--t3)', marginTop: 2 }}>
+        <div className="flex-1 min-w-0">
+          <div className="truncate text-sm font-bold" style={{ color: 'var(--t)' }}>{eventName}</div>
+          <div className="mt-0.5 text-[11px]" style={{ color: 'var(--t3)' }}>
             {event.league_name} · {fmtTime(event.start_time)}
           </div>
         </div>
-        <button onClick={onRefresh} style={{
-          padding: '5px 12px', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer',
-          background: 'rgba(99,102,241,.15)', color: '#818cf8',
-          border: '1px solid rgba(99,102,241,.3)', flexShrink: 0,
-        }}>↻</button>
+        <button onClick={onRefresh} className="shrink-0 rounded-lg px-3 py-1.5 text-[11px] font-bold transition-colors hover:opacity-80"
+          style={{ background: 'rgba(99,102,241,.15)', color: '#818cf8', border: '1px solid rgba(99,102,241,.3)' }}>
+          ↻ Atualizar
+        </button>
       </div>
 
-      {/* ── Calculadora integrada ──────────────────────────────────────────── */}
-      <div style={{
-        borderRadius: 14, overflow: 'hidden',
-        border: `1px solid ${activeSlots.length > 0 ? 'rgba(61,255,143,.25)' : 'var(--b)'}`,
-        background: activeSlots.length > 0 ? 'rgba(61,255,143,.025)' : 'var(--bg2)',
-        transition: 'border-color .2s, background .2s',
-      }}>
-        <div style={{
-          padding: '10px 16px', borderBottom: '1px solid rgba(255,255,255,.06)',
-          display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+      {/* ── Calculadora ───────────────────────────────────────────────────── */}
+      <div className="overflow-hidden rounded-2xl transition-all duration-300"
+        style={{
+          border: `1px solid ${activeSlots.length > 0 ? 'rgba(61,255,143,.3)' : 'var(--b)'}`,
+          background: activeSlots.length > 0 ? 'rgba(61,255,143,.02)' : 'var(--bg2)',
         }}>
-          <span style={{ fontSize: 10, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '.12em', color: 'var(--t3)' }}>
-            🧮 Calculadora
-          </span>
-          <div style={{ display: 'flex', gap: 6, flex: 1, flexWrap: 'wrap' }}>
+
+        {/* Slots */}
+        <div className="flex flex-wrap items-center gap-2 border-b px-4 py-3" style={{ borderColor: 'rgba(255,255,255,.05)' }}>
+          <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: 'var(--t3)' }}>🧮 Calculadora</span>
+          <div className="flex flex-1 flex-wrap gap-2">
             {slots.map((slot, i) => (
-              <div key={i} style={{
-                display: 'flex', alignItems: 'center', gap: 5,
-                padding: '3px 8px', borderRadius: 7,
-                background: slot ? `${SLOT_COLORS[i]}15` : 'rgba(255,255,255,.04)',
-                border: `1px solid ${slot ? SLOT_COLORS[i] + '40' : 'rgba(255,255,255,.08)'}`,
-                fontSize: 10, fontWeight: 700, transition: 'all .15s',
-              }}>
-                <span style={{ color: SLOT_COLORS[i], opacity: slot ? 1 : .3, fontSize: 9 }}>{SLOT_LABELS[i]}</span>
+              <div key={i} className="flex items-center gap-1.5 rounded-lg px-2 py-1 transition-all text-[10px] font-semibold"
+                style={{
+                  background: slot ? `${SLOT_COLORS[i]}15` : 'rgba(255,255,255,.04)',
+                  border: `1px solid ${slot ? SLOT_COLORS[i] + '45' : 'rgba(255,255,255,.08)'}`,
+                }}>
+                <span style={{ color: SLOT_COLORS[i], opacity: slot ? 1 : .35, fontSize: 9 }}>{SLOT_LABELS[i]}</span>
                 {slot ? (
                   <>
                     <span style={{ color: 'var(--t2)' }}>{slot.bk.name}</span>
                     <span style={{ color: SLOT_COLORS[i], fontWeight: 900 }}>{slot.value.toFixed(2)}</span>
-                    <span style={{ color: 'rgba(255,255,255,.3)', fontSize: 9 }}>
-                      ({slot.type === 'home' ? '1' : slot.type === 'draw' ? 'X' : '2'})
-                    </span>
-                    <button onClick={() => { setSlots(prev => { const n = [...prev]; n[i] = null; return n; }); }}
-                      style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,.3)', cursor: 'pointer', fontSize: 11, lineHeight: 1, padding: 0, marginLeft: 2 }}>×</button>
+                    <span style={{ color: 'rgba(255,255,255,.3)', fontSize: 9 }}>({slot.type === 'home' ? '1' : slot.type === 'draw' ? 'X' : '2'})</span>
+                    <button onClick={() => setSlots(prev => { const n = [...prev]; n[i] = null; return n; })}
+                      style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,.3)', cursor: 'pointer', lineHeight: 1, padding: 0, marginLeft: 2, fontSize: 12 }}>×</button>
                   </>
                 ) : (
                   <span style={{ color: 'rgba(255,255,255,.2)', fontSize: 9 }}>vazio</span>
@@ -333,8 +367,16 @@ function EventOddsPanel({
               </div>
             ))}
           </div>
+          {activeSlots.length > 0 && (
+            <button onClick={() => setSlots([null, null, null])}
+              className="rounded-md px-2 py-1 text-[9px] font-bold transition-colors hover:bg-white/10"
+              style={{ color: 'rgba(255,255,255,.35)', border: '1px solid rgba(255,255,255,.12)' }}>
+              Limpar
+            </button>
+          )}
         </div>
-        <div style={{ padding: 16 }}>
+
+        <div className="p-4">
           <SurebetCalc
             selectedEvent={{ name: eventName, start_utc: event.start_time }}
             externalFill={calcFill}
@@ -343,92 +385,24 @@ function EventOddsPanel({
         </div>
       </div>
 
-      {/* Tabela de odds */}
-      <div style={{ borderRadius: 14, overflow: 'hidden', border: '1px solid var(--b)' }}>
+      {/* ── Dica ──────────────────────────────────────────────────────────── */}
+      <p className="px-1 text-[11px]" style={{ color: 'rgba(255,255,255,.3)' }}>
+        👆 Clique em qualquer odd para adicioná-la à calculadora · máx 3 slots
+      </p>
 
-        {/* Cabeçalho */}
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '10px 14px', background: 'var(--bg2)', borderBottom: '1px solid var(--b)',
-        }}>
-          <span style={{ fontSize: 10, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '.12em', color: 'var(--t3)' }}>
-            Odds por Casa
-          </span>
-          <div style={{ display: 'flex', gap: 8, fontSize: 10, fontWeight: 700 }}>
-            <span style={{ color: 'rgba(63,255,33,.8)' }}>{semPa.length} sem PA</span>
-            <span style={{ color: 'rgba(255,255,255,.2)' }}>·</span>
-            <span style={{ color: 'rgba(255,159,10,.8)' }}>{comPa.length} com PA</span>
-          </div>
-        </div>
-
-        {/* Dica */}
-        <div style={{
-          padding: '6px 14px', fontSize: 10, color: 'rgba(255,255,255,.3)',
-          background: 'rgba(77,166,255,.03)', borderBottom: '1px solid rgba(255,255,255,.04)',
-          display: 'flex', alignItems: 'center', gap: 6,
-        }}>
-          <span style={{ fontSize: 12 }}>👆</span>
-          <span>Clique em uma odd para fixar na calculadora · até 3 slots</span>
-          {activeSlots.length > 0 && (
-            <button onClick={() => setSlots([null, null, null])} style={{
-              marginLeft: 'auto', fontSize: 9, fontWeight: 700,
-              color: 'rgba(255,255,255,.4)', background: 'none',
-              border: '1px solid rgba(255,255,255,.12)', borderRadius: 5,
-              padding: '2px 7px', cursor: 'pointer',
-            }}>Limpar slots</button>
-          )}
-        </div>
-
-        {/* Tabela */}
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 320 }}>
-            <thead>
-              <tr style={{ background: 'rgba(255,255,255,.025)' }}>
-                <th style={{ padding: '6px 10px', textAlign: 'left', fontSize: 10, fontWeight: 800,
-                  textTransform: 'uppercase', letterSpacing: '.1em', color: 'var(--t3)', minWidth: 110 }}>
-                  Casa
-                </th>
-                {[
-                  { label: '1', sub: event.home_team.split(' ')[0] ?? '1' },
-                  { label: 'X', sub: 'Empate' },
-                  { label: '2', sub: event.away_team.split(' ')[0] ?? '2' },
-                ].map(({ label, sub }) => (
-                  <th key={label} style={{ padding: '6px 6px', textAlign: 'center', fontSize: 10, fontWeight: 800,
-                    textTransform: 'uppercase', letterSpacing: '.1em', color: 'var(--t3)', minWidth: 56 }}>
-                    <div>{label}</div>
-                    <div style={{ fontSize: 8, fontWeight: 600, opacity: .5, textTransform: 'none', letterSpacing: 0, marginTop: 1 }}>
-                      {sub.slice(0, 8)}
-                    </div>
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              <Section title="SEM Pagamento Antecipado" bks={semPa} accent="rgba(63,255,33,.8)" bg="rgba(63,255,33,.04)" />
-              <Section title="COM Pagamento Antecipado" bks={comPa} accent="rgba(255,159,10,.8)" bg="rgba(255,159,10,.04)" />
-            </tbody>
-          </table>
-        </div>
-
-        {/* Melhores odds */}
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap',
-          padding: '8px 14px',
-          background: 'rgba(63,255,33,.04)', borderTop: '1px solid rgba(63,255,33,.15)',
-        }}>
-          <span style={{ fontSize: 9, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '.12em', color: 'rgba(63,255,33,.6)' }}>
-            Melhores odds
-          </span>
-          {([['1', allBests.h], ['X', allBests.d], ['2', allBests.a]] as [string, number][]).map(([l, v]) =>
-            v > 1 ? (
-              <span key={l} style={{ fontSize: 11, fontWeight: 700, color: 'var(--t2)' }}>
-                <span style={{ color: 'var(--t3)' }}>{l}</span>
-                {' '}<span style={{ color: 'var(--g)', fontWeight: 800 }}>{v.toFixed(2)}</span>
-              </span>
-            ) : null
-          )}
-        </div>
-      </div>
+      {/* ── Seções de odds ────────────────────────────────────────────────── */}
+      <OddsSection
+        label="Odds sem PA"
+        bks={semPa}
+        accentColor="hsl(210 80% 65%)"
+        headerBg="hsl(215 30% 10%)"
+      />
+      <OddsSection
+        label="Odds com PA — Pagamento Antecipado"
+        bks={comPa}
+        accentColor="hsl(38 95% 65%)"
+        headerBg="hsl(35 30% 9%)"
+      />
 
     </div>
   );

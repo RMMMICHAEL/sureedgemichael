@@ -564,3 +564,16 @@ tr:hover td { background: rgba(255,255,255,.025); }
     opacity: 1; animation: none;
   }
 }
+
+/* ── Odds best-glow animation ── */
+@keyframes best-odd-glow {
+  0%, 100% {
+    box-shadow: 0 0 6px hsl(150 90% 50% / 0.25), 0 0 0 1px hsl(150 90% 50% / 0.35);
+  }
+  50% {
+    box-shadow: 0 0 14px hsl(150 90% 50% / 0.55), 0 0 0 1px hsl(150 90% 50% / 0.6);
+  }
+}
+.animate-best-odd-glow {
+  animation: best-odd-glow 3s ease-in-out infinite;
+}
