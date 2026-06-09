@@ -359,7 +359,7 @@ function OddsImportPanel() {
 
       if (data.ok) {
         setStatus('success');
-        setResult(`✓ ${data.upserted} de ${data.total} registros importados.`);
+        setResult(`✓ ${data.upserted} de ${data.total} registros importados de "${fileName}".`);
         setFileName('');
         setRawText('');
       } else {
@@ -418,7 +418,7 @@ function OddsImportPanel() {
           <>
             <Upload size={22} style={{ color: 'var(--t3)' }} />
             <span className="text-sm" style={{ color: 'var(--t2)' }}>Clique para selecionar o arquivo</span>
-            <span className="text-xs" style={{ color: 'var(--t3)' }}>todasasods.txt · .json · até ~5 MB</span>
+            <span className="text-xs" style={{ color: 'var(--t3)' }}>odds-pa.txt / odds.txt · .json · qualquer tamanho</span>
           </>
         )}
       </label>
