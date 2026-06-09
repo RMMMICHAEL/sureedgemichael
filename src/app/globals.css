@@ -577,3 +577,46 @@ tr:hover td { background: rgba(255,255,255,.025); }
 .animate-best-odd-glow {
   animation: best-odd-glow 3s ease-in-out infinite;
 }
+
+/* ── Odds panel: row enter (Jakub: opacity + translateY + blur) ── */
+@keyframes odds-row-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+    filter: blur(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+.odds-row-in {
+  animation: odds-row-in 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: calc(var(--row-i, 0) * 28ms);
+}
+
+/* ── Odds panel: row hover (Emil: subtle, non-distracting) ── */
+.odds-row {
+  transition: background 0.15s ease, border-left-color 0.15s ease;
+  border-left: 2px solid transparent;
+}
+.odds-row:hover {
+  background: rgba(255,255,255,.035) !important;
+  border-left-color: rgba(255,255,255,.15) !important;
+}
+
+/* ── Event list row hover ── */
+.event-row {
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+.event-row:hover {
+  background: rgba(129,140,248,.06) !important;
+  box-shadow: inset 3px 0 0 rgba(129,140,248,.5) !important;
+}
+
+/* ── reduced-motion overrides ── */
+@media (prefers-reduced-motion: reduce) {
+  .odds-row-in { animation: none; opacity: 1; filter: none; }
+  .odds-row, .event-row { transition: none; }
+}

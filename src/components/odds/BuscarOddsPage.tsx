@@ -29,14 +29,10 @@ interface OddsSummary {
 
 // ─── Casas com Pagamento Antecipado ──────────────────────────────────────────
 
-// PA = Pagamento Antecipado: casas que pagam antes do fim do jogo (plataforma Altenar) + Superbet.
-// NÃO inclui: Bet365, Betano, Sportingbet — essas pagam apenas ao fim do jogo.
 const PA_SET = new Set([
-  // Altenar (todas são PA)
   'estrelabet','br4bet','esportivabet','jogodeouro','vaidebet',
   'sortenabet','lotogreen','betpix365','f12','vupibet','vupibr',
   'bet7k','esportesdasorte','apostabet','brasilbet',
-  // Superbet
   'superbet',
 ]);
 
@@ -48,7 +44,7 @@ function isPa(slug: string): boolean {
   return false;
 }
 
-// ─── Esportes/ligas excluídos (e-soccer / virtuais) ───────────────────────────
+// ─── Esportes/ligas excluídos ─────────────────────────────────────────────────
 
 const EXCL_LEAGUE = ['e-futebol','e-soccer','esoccer','futebol virtual','virtual','efootball','cyber','esport','h2h'];
 
@@ -163,40 +159,30 @@ function EventOddsPanel({
 
     if (value <= 1) return (
       <div className="flex h-10 w-[72px] items-center justify-center rounded-xl"
-        style={{ background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.06)' }}>
-        <span style={{ color: 'rgba(255,255,255,.15)', fontSize: 12 }}>—</span>
+        style={{
+          background: 'rgba(255,255,255,.025)',
+          border: '1px solid rgba(255,255,255,.05)',
+        }}>
+        <span style={{ color: 'rgba(255,255,255,.12)', fontSize: 12 }}>—</span>
       </div>
     );
 
-    const btnStyle: React.CSSProperties = selected ? {
-      background: `${slotColor}20`,
-      border:     `1px solid ${slotColor}70`,
-      color:      slotColor,
-      boxShadow:  `0 0 10px ${slotColor}30`,
-    } : isBest ? {} : isSecond ? {
-      background: 'hsl(150 70% 45% / 0.06)',
-      border:     '1px solid hsl(150 70% 45% / 0.22)',
-      color:      'hsl(150 60% 58%)',
-    } : {
-      background: 'rgba(255,255,255,.05)',
-      border:     '1px solid rgba(255,255,255,.1)',
-      color:      'rgba(255,255,255,.75)',
-    };
-
-    return (
-      <button
-        type="button"
-        onClick={() => handleOddClick(bk, type, value)}
-        title={selected ? `Slot ${slotIdx + 1} — clique para remover` : 'Adicionar à calculadora'}
-        className={`relative flex h-10 w-[72px] items-center justify-center rounded-xl font-mono text-sm font-semibold transition-all duration-300 hover:scale-105 active:scale-95${isBest && !selected ? ' animate-best-odd-glow' : ''}`}
-        style={isBest && !selected ? {
-          background: 'hsl(150 90% 45% / 0.15)',
-          border:     '1px solid hsl(150 90% 50% / 0.5)',
-          color:      'hsl(150 90% 58%)',
-        } : btnStyle}
-      >
-        {value.toFixed(2)}
-        {selected && (
+    if (selected) {
+      return (
+        <button
+          type="button"
+          onClick={() => handleOddClick(bk, type, value)}
+          title={`Slot ${slotIdx + 1} — clique para remover`}
+          className="relative flex h-10 w-[72px] items-center justify-center rounded-xl font-mono text-sm font-semibold"
+          style={{
+            background: `${slotColor}22`,
+            border: `1px solid ${slotColor}80`,
+            color: slotColor,
+            boxShadow: `0 0 14px ${slotColor}30, inset 0 1px 0 ${slotColor}20`,
+            transition: 'box-shadow 0.2s ease, transform 0.15s ease',
+            transform: 'scale(1)',
+          }}>
+          {value.toFixed(2)}
           <span style={{
             position: 'absolute', top: -5, right: -5,
             width: 15, height: 15, borderRadius: '50%',
@@ -204,28 +190,79 @@ function EventOddsPanel({
             fontSize: 8, fontWeight: 900,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>{slotIdx + 1}</span>
-        )}
+        </button>
+      );
+    }
+
+    if (isBest) {
+      return (
+        <button
+          type="button"
+          onClick={() => handleOddClick(bk, type, value)}
+          title="Melhor odd — adicionar à calculadora"
+          className="relative flex h-10 w-[72px] items-center justify-center rounded-xl font-mono text-sm font-black animate-best-odd-glow"
+          style={{
+            background: 'hsl(150 90% 45% / 0.14)',
+            border: '1px solid hsl(150 90% 50% / 0.5)',
+            color: 'hsl(150 90% 60%)',
+            textShadow: '0 0 10px hsl(150 90% 55% / 0.6)',
+            transition: 'box-shadow 0.2s ease, transform 0.15s ease',
+          }}>
+          {value.toFixed(2)}
+        </button>
+      );
+    }
+
+    if (isSecond) {
+      return (
+        <button
+          type="button"
+          onClick={() => handleOddClick(bk, type, value)}
+          title="Adicionar à calculadora"
+          className="flex h-10 w-[72px] items-center justify-center rounded-xl font-mono text-sm font-semibold"
+          style={{
+            background: 'hsl(150 70% 45% / 0.07)',
+            border: '1px solid hsl(150 70% 45% / 0.22)',
+            color: 'hsl(150 60% 58%)',
+            transition: 'box-shadow 0.2s ease, transform 0.15s ease',
+          }}>
+          {value.toFixed(2)}
+        </button>
+      );
+    }
+
+    return (
+      <button
+        type="button"
+        onClick={() => handleOddClick(bk, type, value)}
+        title="Adicionar à calculadora"
+        className="flex h-10 w-[72px] items-center justify-center rounded-xl font-mono text-sm font-semibold"
+        style={{
+          background: 'rgba(255,255,255,.04)',
+          border: '1px solid rgba(255,255,255,.09)',
+          color: 'rgba(255,255,255,.65)',
+          transition: 'box-shadow 0.2s ease, background 0.15s ease',
+        }}>
+        {value.toFixed(2)}
       </button>
     );
   }
 
   // ── Seção (sem PA / com PA) ──────────────────────────────────────────────────
-  function OddsSection({ label, bks, accentColor, headerBg }: {
-    label: string; bks: BookmakerOdds[]; accentColor: string; headerBg: string;
+  function OddsSection({ label, bks, accentColor, isPA }: {
+    label: string; bks: BookmakerOdds[]; accentColor: string; isPA: boolean;
   }) {
     if (!bks.length) return null;
     const bests  = { h: bestOf(bks, 'home'), d: bestOf(bks, 'draw'), a: bestOf(bks, 'away') };
     const mgn    = margin(bks);
     const isSure = mgn !== null && mgn < 0;
 
-    // Ordenar pela coluna selecionada, decrescente
     const sorted = [...bks].sort((a, b) => {
       const va = a[sortCol] as number ?? 0;
       const vb = b[sortCol] as number ?? 0;
       return vb - va;
     });
 
-    // segundas melhores (empatadas com a melhor ficam no grupo "best"; aqui pegamos o segundo valor distinto)
     const secondH = [...new Set(bks.map(b => b.home).filter(v => v > 1 && v < bests.h))].sort((a,b)=>b-a)[0] ?? 0;
     const secondD = [...new Set(bks.map(b => b.draw).filter(v => v > 1 && v < bests.d))].sort((a,b)=>b-a)[0] ?? 0;
     const secondA = [...new Set(bks.map(b => b.away).filter(v => v > 1 && v < bests.a))].sort((a,b)=>b-a)[0] ?? 0;
@@ -236,40 +273,73 @@ function EventOddsPanel({
       { key: 'away', label: 'Fora (2)' },
     ];
 
+    const accentRgb = isPA ? '255,159,10' : '99,102,241';
+
     return (
-      <div className="overflow-hidden rounded-2xl" style={{ border: `1px solid ${accentColor}40`, boxShadow: `0 0 20px ${accentColor}10` }}>
+      <div className="overflow-hidden rounded-2xl" style={{
+        background: `rgba(${accentRgb},.02)`,
+        border: `1px solid rgba(${accentRgb},.18)`,
+        boxShadow: `0 4px 24px rgba(0,0,0,.35), 0 0 0 1px rgba(${accentRgb},.06) inset`,
+        backdropFilter: 'blur(8px)',
+      }}>
+
+        {/* Barra de acento no topo */}
+        <div style={{ height: 2, background: `linear-gradient(90deg, rgba(${accentRgb},.9) 0%, rgba(${accentRgb},.3) 60%, transparent 100%)` }} />
 
         {/* Header da seção */}
-        <div className="flex items-center justify-between px-5 py-3" style={{ background: headerBg, borderBottom: `1px solid ${accentColor}30` }}>
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold tracking-wide" style={{ color: accentColor }}>{label}</span>
-            <span className="rounded px-1.5 py-0.5 text-[10px] font-semibold" style={{ background: `${accentColor}18`, color: accentColor }}>
+        <div className="flex items-center justify-between px-5 py-3" style={{
+          background: `linear-gradient(90deg, rgba(${accentRgb},.08) 0%, transparent 70%)`,
+          borderBottom: `1px solid rgba(${accentRgb},.12)`,
+        }}>
+          <div className="flex items-center gap-2.5">
+            <div style={{ width: 3, height: 14, borderRadius: 2, background: accentColor }} />
+            <span className="text-[11px] font-black tracking-widest uppercase" style={{ color: accentColor }}>{label}</span>
+            <span className="rounded-full px-2 py-0.5 text-[9px] font-bold" style={{
+              background: `rgba(${accentRgb},.12)`,
+              color: accentColor,
+              border: `1px solid rgba(${accentRgb},.25)`,
+            }}>
               {bks.length} casas
             </span>
           </div>
           {mgn !== null && (
-            <span className="text-[11px] font-bold" style={{ color: isSure ? 'hsl(150 90% 55%)' : 'rgba(255,255,255,.35)' }}>
+            <span className="rounded-md px-2.5 py-1 text-[11px] font-bold tabular-nums" style={isSure ? {
+              background: 'rgba(61,255,143,.12)',
+              color: 'hsl(150 90% 58%)',
+              border: '1px solid rgba(61,255,143,.3)',
+              boxShadow: '0 0 10px rgba(61,255,143,.15)',
+            } : {
+              color: 'rgba(255,255,255,.3)',
+            }}>
               {isSure ? `🎯 Surebet +${Math.abs(mgn).toFixed(2)}%` : `margem ${mgn.toFixed(1)}%`}
             </span>
           )}
         </div>
 
         {/* Cabeçalho das colunas */}
-        <div className="grid items-center gap-3 px-5 py-2" style={{ gridTemplateColumns: '1fr 72px 72px 72px', background: 'rgba(255,255,255,.02)', borderBottom: '1px solid rgba(255,255,255,.05)' }}>
-          <span className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: 'rgba(255,255,255,.3)' }}>Casa</span>
+        <div className="grid items-center gap-3 px-5 py-2.5" style={{
+          gridTemplateColumns: '1fr 72px 72px 72px',
+          background: 'rgba(255,255,255,.015)',
+          borderBottom: '1px solid rgba(255,255,255,.05)',
+        }}>
+          <span className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: 'rgba(255,255,255,.25)' }}>Casa</span>
           {cols.map(c => (
             <button key={c.key} type="button"
               onClick={() => setSortCol(c.key)}
-              className="flex items-center justify-center gap-0.5 text-[11px] font-semibold transition-colors"
-              style={{ color: sortCol === c.key ? 'rgba(255,255,255,.9)' : 'rgba(255,255,255,.35)' }}>
+              className="flex items-center justify-center gap-0.5 text-[11px] font-bold transition-colors"
+              style={{
+                color: sortCol === c.key ? 'rgba(255,255,255,.85)' : 'rgba(255,255,255,.3)',
+                borderBottom: sortCol === c.key ? `2px solid rgba(${accentRgb},.7)` : '2px solid transparent',
+                paddingBottom: 2,
+              }}>
               {c.label}
-              {sortCol === c.key && <ArrowDown size={10} />}
+              {sortCol === c.key && <ArrowDown size={9} style={{ marginLeft: 2 }} />}
             </button>
           ))}
         </div>
 
         {/* Linhas */}
-        <div className="divide-y divide-white/[.04]">
+        <div>
           {sorted.map((bk, idx) => {
             const isH = bk.home === bests.h && bk.home > 1;
             const isD = bk.draw === bests.d && bk.draw > 1;
@@ -280,26 +350,34 @@ function EventOddsPanel({
             const anySelected = slots.some(s => s?.bk.slug === bk.slug);
             return (
               <div key={bk.slug}
-                className="grid items-center gap-3 px-5 py-3 transition-colors"
+                className="odds-row odds-row-in grid items-center gap-3 px-5 py-3"
                 style={{
                   gridTemplateColumns: '1fr 72px 72px 72px',
-                  background: anySelected ? 'rgba(255,255,255,.03)' : idx % 2 === 1 ? 'rgba(255,255,255,.015)' : undefined,
-                }}>
+                  '--row-i': idx,
+                  background: anySelected
+                    ? `rgba(${accentRgb},.04)`
+                    : idx % 2 === 1 ? 'rgba(255,255,255,.012)' : undefined,
+                  borderTop: idx > 0 ? '1px solid rgba(255,255,255,.04)' : undefined,
+                } as React.CSSProperties}>
 
                 {/* Nome da casa */}
                 <div className="flex min-w-0 items-center gap-2">
                   {bk.url ? (
                     <a href={bk.url} target="_blank" rel="noopener noreferrer"
-                      className="flex items-center gap-1.5 text-sm font-semibold transition-colors hover:text-cyan-400 truncate"
-                      style={{ color: anySelected ? 'rgba(255,255,255,.95)' : 'rgba(255,255,255,.8)' }}>
-                      <ExternalLink size={11} className="shrink-0 opacity-50" />
+                      className="flex items-center gap-1.5 text-[13px] font-semibold transition-colors hover:text-cyan-400 truncate"
+                      style={{ color: anySelected ? 'rgba(255,255,255,.95)' : 'rgba(255,255,255,.75)' }}>
+                      <ExternalLink size={10} className="shrink-0 opacity-40" />
                       <span className="truncate">{bk.name}</span>
                     </a>
                   ) : (
-                    <span className="text-sm font-semibold truncate" style={{ color: 'rgba(255,255,255,.7)' }}>{bk.name}</span>
+                    <span className="text-[13px] font-semibold truncate" style={{ color: 'rgba(255,255,255,.65)' }}>{bk.name}</span>
                   )}
                   {(bk.is_pa ?? isPa(bk.slug)) && (
-                    <span className="shrink-0 rounded px-1 py-px text-[8px] font-bold" style={{ background: 'rgba(255,159,10,.12)', color: 'rgba(255,159,10,.7)', border: '1px solid rgba(255,159,10,.2)' }}>PA</span>
+                    <span className="shrink-0 rounded px-1 py-px text-[8px] font-bold" style={{
+                      background: 'rgba(255,159,10,.1)',
+                      color: 'rgba(255,159,10,.75)',
+                      border: '1px solid rgba(255,159,10,.2)',
+                    }}>PA</span>
                   )}
                 </div>
 
@@ -318,29 +396,51 @@ function EventOddsPanel({
     <div className="flex flex-col gap-4">
 
       {/* ── Header do evento ──────────────────────────────────────────────── */}
-      <div className="flex items-center gap-3 rounded-2xl px-4 py-3" style={{ background: 'var(--bg2)', border: '1px solid var(--b)' }}>
+      <div className="flex items-center gap-3 rounded-2xl px-4 py-3.5" style={{
+        background: 'rgba(13,17,23,0.85)',
+        border: '1px solid rgba(129,140,248,.25)',
+        borderLeft: '3px solid #818cf8',
+        boxShadow: '0 4px 32px rgba(0,0,0,.5), 0 0 0 1px rgba(129,140,248,.06) inset',
+        backdropFilter: 'blur(20px)',
+      }}>
         <button onClick={onBack} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl transition-colors hover:bg-white/10"
-          style={{ background: 'rgba(255,255,255,.05)', border: '1px solid var(--b)', color: 'var(--t3)' }}>
+          style={{ background: 'rgba(129,140,248,.1)', border: '1px solid rgba(129,140,248,.2)', color: '#818cf8' }}>
           <ChevronLeft size={15} />
         </button>
         <div className="flex-1 min-w-0">
-          <div className="truncate text-sm font-bold" style={{ color: 'var(--t)' }}>{eventName}</div>
+          <div className="truncate text-[15px] font-black tracking-tight" style={{ color: 'var(--t)' }}>
+            {eventName}
+          </div>
           <div className="mt-0.5 text-[11px]" style={{ color: 'var(--t3)' }}>
             {event.league_name} · {fmtTime(event.start_time)}
           </div>
         </div>
-        <button onClick={onRefresh} className="shrink-0 rounded-lg px-3 py-1.5 text-[11px] font-bold transition-colors hover:opacity-80"
-          style={{ background: 'rgba(99,102,241,.15)', color: '#818cf8', border: '1px solid rgba(99,102,241,.3)' }}>
-          ↻ Atualizar
+        <button onClick={onRefresh} className="shrink-0 flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-[11px] font-bold transition-all hover:opacity-80"
+          style={{ background: 'rgba(129,140,248,.12)', color: '#818cf8', border: '1px solid rgba(129,140,248,.28)' }}>
+          <RefreshCw size={11} />
+          Atualizar
         </button>
       </div>
 
       {/* ── Calculadora ───────────────────────────────────────────────────── */}
       <div className="overflow-hidden rounded-2xl transition-all duration-300"
         style={{
-          border: `1px solid ${activeSlots.length > 0 ? 'rgba(61,255,143,.3)' : 'var(--b)'}`,
-          background: activeSlots.length > 0 ? 'rgba(61,255,143,.02)' : 'var(--bg2)',
+          background: 'rgba(13,17,23,0.7)',
+          border: `1px solid ${activeSlots.length > 0 ? 'rgba(61,255,143,.28)' : 'rgba(255,255,255,.07)'}`,
+          boxShadow: activeSlots.length > 0
+            ? '0 4px 24px rgba(0,0,0,.35), 0 0 20px rgba(61,255,143,.06)'
+            : '0 4px 24px rgba(0,0,0,.35)',
+          backdropFilter: 'blur(12px)',
         }}>
+
+        {/* Barra topo calculadora */}
+        <div style={{
+          height: 2,
+          background: activeSlots.length > 0
+            ? 'linear-gradient(90deg, rgba(61,255,143,.8) 0%, rgba(61,255,143,.2) 60%, transparent 100%)'
+            : 'linear-gradient(90deg, rgba(255,255,255,.08) 0%, transparent 100%)',
+          transition: 'background 0.4s ease',
+        }} />
 
         {/* Slots */}
         <div className="flex flex-wrap items-center gap-2 border-b px-4 py-3" style={{ borderColor: 'rgba(255,255,255,.05)' }}>
@@ -349,10 +449,10 @@ function EventOddsPanel({
             {slots.map((slot, i) => (
               <div key={i} className="flex items-center gap-1.5 rounded-lg px-2 py-1 transition-all text-[10px] font-semibold"
                 style={{
-                  background: slot ? `${SLOT_COLORS[i]}15` : 'rgba(255,255,255,.04)',
-                  border: `1px solid ${slot ? SLOT_COLORS[i] + '45' : 'rgba(255,255,255,.08)'}`,
+                  background: slot ? `${SLOT_COLORS[i]}12` : 'rgba(255,255,255,.03)',
+                  border: `1px solid ${slot ? SLOT_COLORS[i] + '40' : 'rgba(255,255,255,.07)'}`,
                 }}>
-                <span style={{ color: SLOT_COLORS[i], opacity: slot ? 1 : .35, fontSize: 9 }}>{SLOT_LABELS[i]}</span>
+                <span style={{ color: SLOT_COLORS[i], opacity: slot ? 1 : .3, fontSize: 9 }}>{SLOT_LABELS[i]}</span>
                 {slot ? (
                   <>
                     <span style={{ color: 'var(--t2)' }}>{slot.bk.name}</span>
@@ -370,7 +470,7 @@ function EventOddsPanel({
           {activeSlots.length > 0 && (
             <button onClick={() => setSlots([null, null, null])}
               className="rounded-md px-2 py-1 text-[9px] font-bold transition-colors hover:bg-white/10"
-              style={{ color: 'rgba(255,255,255,.35)', border: '1px solid rgba(255,255,255,.12)' }}>
+              style={{ color: 'rgba(255,255,255,.35)', border: '1px solid rgba(255,255,255,.1)' }}>
               Limpar
             </button>
           )}
@@ -386,7 +486,7 @@ function EventOddsPanel({
       </div>
 
       {/* ── Dica ──────────────────────────────────────────────────────────── */}
-      <p className="px-1 text-[11px]" style={{ color: 'rgba(255,255,255,.3)' }}>
+      <p className="px-1 text-[11px]" style={{ color: 'rgba(255,255,255,.25)' }}>
         👆 Clique em qualquer odd para adicioná-la à calculadora · máx 3 slots
       </p>
 
@@ -394,14 +494,14 @@ function EventOddsPanel({
       <OddsSection
         label="Odds sem PA"
         bks={semPa}
-        accentColor="hsl(210 80% 65%)"
-        headerBg="hsl(215 30% 10%)"
+        accentColor="hsl(230 80% 70%)"
+        isPA={false}
       />
       <OddsSection
         label="Odds com PA — Pagamento Antecipado"
         bks={comPa}
         accentColor="hsl(38 95% 65%)"
-        headerBg="hsl(35 30% 9%)"
+        isPA={true}
       />
 
     </div>
@@ -412,7 +512,6 @@ function EventOddsPanel({
 
 export function BuscarOddsPage() {
   const today = todayBRT();
-  // selectedDate fixo em hoje — filtro de dias removido (dados importados são apenas do dia atual)
   const selectedDate = today;
 
   const [allOdds,       setAllOdds]       = useState<OddsSummary[]>([]);
@@ -432,7 +531,6 @@ export function BuscarOddsPage() {
         return;
       }
 
-      // fallback: APIs ao vivo
       const res  = await fetch('/api/dg/odds');
       const json = await res.json() as { ok: boolean; odds?: OddsSummary[]; error?: string };
       if (!json.ok) throw new Error(json.error ?? 'Erro ao carregar odds');
@@ -526,9 +624,9 @@ export function BuscarOddsPage() {
             </p>
           </div>
           {/* Badge "Hoje apenas" */}
-          <span className="flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold"
-            style={{ background: 'rgba(99,102,241,.12)', color: '#818cf8', border: '1px solid rgba(99,102,241,.25)' }}>
-            <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#818cf8] opacity-80" />
+          <span className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold"
+            style={{ background: 'rgba(99,102,241,.1)', color: '#818cf8', border: '1px solid rgba(99,102,241,.22)' }}>
+            <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: '#818cf8', boxShadow: '0 0 6px #818cf8' }} />
             Eventos de hoje apenas
           </span>
         </div>
@@ -536,8 +634,13 @@ export function BuscarOddsPage() {
         <button
           onClick={() => loadOdds(selectedDate)}
           disabled={loading}
-          className="flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-semibold transition-opacity hover:opacity-80 disabled:opacity-40"
-          style={{ background: 'var(--bg2)', border: '1px solid var(--b)', color: 'var(--t2)' }}>
+          className="flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-semibold transition-all hover:opacity-80 disabled:opacity-40"
+          style={{
+            background: 'rgba(255,255,255,.04)',
+            border: '1px solid rgba(255,255,255,.08)',
+            color: 'var(--t2)',
+            boxShadow: '0 2px 8px rgba(0,0,0,.2)',
+          }}>
           <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
           Atualizar
         </button>
@@ -545,13 +648,18 @@ export function BuscarOddsPage() {
 
       {/* ── Busca ───────────────────────────────────────────────────────── */}
       <div className="relative">
-        <Search size={13} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--t3)' }} />
+        <Search size={13} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2" style={{ color: 'var(--t3)' }} />
         <input
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder="Buscar time ou liga…"
-          className="w-full rounded-xl py-2.5 pl-9 pr-9 text-[13px] outline-none"
-          style={{ background: 'var(--bg2)', border: '1px solid var(--b)', color: 'var(--t)' }}
+          className="w-full rounded-xl py-2.5 pl-10 pr-9 text-[13px] outline-none transition-all"
+          style={{
+            background: 'rgba(13,17,23,0.8)',
+            border: '1px solid rgba(255,255,255,.08)',
+            color: 'var(--t)',
+            boxShadow: '0 2px 12px rgba(0,0,0,.2)',
+          }}
         />
         {search && (
           <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2"
@@ -597,7 +705,7 @@ export function BuscarOddsPage() {
       {/* ── Cabeçalho das colunas (desktop) ─────────────────────────────── */}
       {!loading && byLeague.length > 0 && (
         <div className="hidden md:grid items-center gap-2 px-4 text-[10px] font-black uppercase tracking-widest"
-          style={{ gridTemplateColumns: '44px 1fr 72px 120px 120px 120px', color: 'rgba(255,255,255,.3)' }}>
+          style={{ gridTemplateColumns: '44px 1fr 72px 120px 120px 120px', color: 'rgba(255,255,255,.25)' }}>
           <span>Hora</span>
           <span>Jogo</span>
           <span className="text-center">Margem</span>
@@ -609,23 +717,36 @@ export function BuscarOddsPage() {
 
       {/* ── Eventos por liga ────────────────────────────────────────────── */}
       {!loading && byLeague.map(([league, evs]) => (
-        <div key={league} className="overflow-hidden rounded-2xl"
-          style={{ border: '1px solid rgba(255,255,255,.07)' }}>
+        <div key={league} className="overflow-hidden rounded-2xl" style={{
+          background: 'rgba(13,17,23,0.75)',
+          border: '1px solid rgba(255,255,255,.08)',
+          boxShadow: '0 4px 20px rgba(0,0,0,.4), 0 1px 0 rgba(255,255,255,.04) inset',
+          backdropFilter: 'blur(10px)',
+        }}>
+
+          {/* Barra topo da liga */}
+          <div style={{ height: 2, background: 'linear-gradient(90deg, rgba(129,140,248,.7) 0%, rgba(129,140,248,.2) 50%, transparent 100%)' }} />
 
           {/* Cabeçalho da liga */}
           <div className="flex items-center justify-between px-4 py-2.5"
-            style={{ background: 'rgba(255,255,255,.03)', borderBottom: '1px solid rgba(255,255,255,.06)' }}>
-            <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: 'rgba(255,255,255,.45)' }}>
-              {league}
-            </span>
-            <span className="rounded px-1.5 py-0.5 text-[9px] font-bold"
-              style={{ background: 'rgba(255,255,255,.06)', color: 'rgba(255,255,255,.3)' }}>
+            style={{
+              background: 'linear-gradient(90deg, rgba(129,140,248,.06) 0%, transparent 60%)',
+              borderBottom: '1px solid rgba(255,255,255,.05)',
+            }}>
+            <div className="flex items-center gap-2">
+              <div style={{ width: 2, height: 12, borderRadius: 1, background: 'rgba(129,140,248,.6)' }} />
+              <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: 'rgba(255,255,255,.5)' }}>
+                {league}
+              </span>
+            </div>
+            <span className="rounded-full px-2 py-0.5 text-[9px] font-bold"
+              style={{ background: 'rgba(255,255,255,.05)', color: 'rgba(255,255,255,.3)', border: '1px solid rgba(255,255,255,.07)' }}>
               {evs.length}
             </span>
           </div>
 
           {/* Linhas dos eventos */}
-          <div className="divide-y divide-white/[.04]">
+          <div>
             {evs.map((ev, idx) => {
               const mgn = calcMargin(ev.bookmakers);
               const isSure = mgn !== null && mgn < 0;
@@ -637,8 +758,12 @@ export function BuscarOddsPage() {
                   key={ev.match_id}
                   type="button"
                   onClick={() => setSelectedEvent(ev)}
-                  className="group w-full text-left transition-colors hover:bg-white/[.03]"
-                  style={{ background: idx % 2 === 1 ? 'rgba(255,255,255,.015)' : undefined }}>
+                  className="event-row w-full text-left"
+                  style={{
+                    background: idx % 2 === 1 ? 'rgba(255,255,255,.012)' : undefined,
+                    borderTop: idx > 0 ? '1px solid rgba(255,255,255,.04)' : undefined,
+                    display: 'block',
+                  }}>
 
                   {/* ── Desktop layout ── */}
                   <div className="hidden md:grid items-center gap-2 px-4 py-3"
@@ -664,22 +789,22 @@ export function BuscarOddsPage() {
                       {mgn !== null ? (
                         <span className="rounded-md px-2 py-1 text-[11px] font-bold tabular-nums"
                           style={isSure ? {
-                            background: 'rgba(61,255,143,.15)', color: 'hsl(150 90% 55%)',
-                            border: '1px solid rgba(61,255,143,.3)',
+                            background: 'rgba(61,255,143,.12)',
+                            color: 'hsl(150 90% 55%)',
+                            border: '1px solid rgba(61,255,143,.25)',
+                            boxShadow: '0 0 8px rgba(61,255,143,.12)',
                           } : {
-                            background: 'rgba(248,113,113,.1)', color: '#f87171',
-                            border: '1px solid rgba(248,113,113,.2)',
+                            background: 'rgba(248,113,113,.08)',
+                            color: '#f87171',
+                            border: '1px solid rgba(248,113,113,.15)',
                           }}>
                           {isSure ? `+${Math.abs(mgn).toFixed(2)}%` : `${mgn.toFixed(1)}%`}
                         </span>
-                      ) : <span style={{ color: 'rgba(255,255,255,.15)', fontSize: 11 }}>—</span>}
+                      ) : <span style={{ color: 'rgba(255,255,255,.12)', fontSize: 11 }}>—</span>}
                     </div>
 
-                    {/* Odd Casa */}
                     <BestOddCell bk={bkH} type="home" />
-                    {/* Odd Empate */}
                     <BestOddCell bk={bkD} type="draw" />
-                    {/* Odd Fora */}
                     <BestOddCell bk={bkA} type="away" />
                   </div>
 
@@ -715,19 +840,22 @@ export function BuscarOddsPage() {
 
 // ── Célula de melhor odd (lista) ───────────────────────────────────────────────
 function BestOddCell({ bk, type }: { bk: BookmakerOdds | null; type: 'home' | 'draw' | 'away' }) {
-  if (!bk) return <div className="flex justify-center"><span style={{ color: 'rgba(255,255,255,.15)', fontSize: 11 }}>—</span></div>;
+  if (!bk) return <div className="flex justify-center"><span style={{ color: 'rgba(255,255,255,.12)', fontSize: 11 }}>—</span></div>;
   const val = bk[type] as number;
   const isPA = bk.is_pa ?? isPa(bk.slug);
   return (
     <div className="flex flex-col items-center gap-0.5">
-      <span className="text-[15px] font-black tabular-nums" style={{ color: 'hsl(150 85% 60%)' }}>
+      <span className="text-[15px] font-black tabular-nums" style={{
+        color: 'hsl(150 85% 62%)',
+        textShadow: '0 0 12px hsl(150 85% 55% / 0.4)',
+      }}>
         {val.toFixed(2)}
       </span>
-      <span className="flex items-center gap-1 text-[10px] font-medium" style={{ color: 'rgba(255,255,255,.45)' }}>
+      <span className="flex items-center gap-1 text-[10px] font-medium" style={{ color: 'rgba(255,255,255,.4)' }}>
         {bk.name}
         {isPA && (
           <span className="rounded px-1 text-[8px] font-bold"
-            style={{ background: 'rgba(255,159,10,.12)', color: 'rgba(255,159,10,.7)', border: '1px solid rgba(255,159,10,.2)' }}>
+            style={{ background: 'rgba(255,159,10,.1)', color: 'rgba(255,159,10,.7)', border: '1px solid rgba(255,159,10,.18)' }}>
             PA
           </span>
         )}
