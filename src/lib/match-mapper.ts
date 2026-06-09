@@ -161,53 +161,80 @@ export function normalizeTeamName(raw: string): string {
 
 // ── Similaridade entre dois strings ──────────────────────────────────────────
 
-/** Distância de Levenshtein normalizada (0 = igual, 1 = completamente diferente) */
-function levenshtein(a: string, b: string): number {
+/** Distância de Levenshtein normalizada com early exit por threshold */
+function levenshtein(a: string, b: string, maxDist = 0.25): number {
   if (a === b) return 0;
-  if (a.length === 0) return 1;
-  if (b.length === 0) return 1;
-
   const m = a.length, n = b.length;
-  const dp: number[] = Array.from({ length: n + 1 }, (_, i) => i);
+  if (m === 0 || n === 0) return 1;
 
+  // Early exit: se diferença de comprimento já excede threshold, skip
+  if (Math.abs(m - n) / Math.max(m, n) > maxDist) return 1;
+
+  const dp: number[] = Array.from({ length: n + 1 }, (_, i) => i);
   for (let i = 1; i <= m; i++) {
     let prev = i;
+    let rowMin = prev;
     for (let j = 1; j <= n; j++) {
       const curr = a[i - 1] === b[j - 1]
         ? dp[j - 1]
         : 1 + Math.min(dp[j - 1], dp[j], prev);
       dp[j - 1] = prev;
       prev = curr;
+      if (curr < rowMin) rowMin = curr;
     }
     dp[n] = prev;
+    // Early exit: se mínimo da linha já excede threshold, impossível melhorar
+    if (rowMin / Math.max(m, n) > maxDist) return 1;
   }
-
   return dp[n] / Math.max(m, n);
+}
+
+// Cache de normalização para evitar recalcular o mesmo nome várias vezes
+const normCache = new Map<string, string>();
+
+function cachedNorm(raw: string): string {
+  const cached = normCache.get(raw);
+  if (cached !== undefined) return cached;
+  const result = normalizeTeamName(raw);
+  normCache.set(raw, result);
+  return result;
 }
 
 /** Retorna true se os dois nomes provavelmente representam o mesmo time */
 export function teamsMatch(rawA: string, rawB: string): boolean {
-  const a = normalizeTeamName(rawA);
-  const b = normalizeTeamName(rawB);
+  // Fast path: idênticos sem normalizar
+  if (rawA === rawB) return true;
+
+  const a = cachedNorm(rawA);
+  const b = cachedNorm(rawB);
 
   if (a === b) return true;
   if (!a || !b) return false;
 
+  // Fast path: primeiros 3 chars completamente diferentes → provavelmente não casam
+  // (evita Levenshtein desnecessário)
+  if (a.length > 3 && b.length > 3) {
+    const a3 = a.slice(0, 3);
+    const b3 = b.slice(0, 3);
+    if (a3 !== b3 && !a.startsWith(b3) && !b.startsWith(a3)) {
+      // Ainda tenta token overlap (pode ser ordem diferente de palavras)
+      const tokA = new Set(a.split(' ').filter(t => t.length > 3));
+      const tokB = new Set(b.split(' ').filter(t => t.length > 3));
+      if (tokA.size > 0 && tokB.size > 0) {
+        const intersection = [...tokA].filter(t => tokB.has(t)).length;
+        const union = new Set([...tokA, ...tokB]).size;
+        if (intersection / union >= 0.6) return true;
+      }
+      return false;
+    }
+  }
+
   // Um contém o outro (ex: "Liverpool" vs "Liverpool FC")
   if (a.includes(b) || b.includes(a)) return true;
 
-  // Distância de Levenshtein normalizada ≤ 20%
-  const dist = levenshtein(a, b);
+  // Levenshtein normalizado ≤ 20%
+  const dist = levenshtein(a, b, 0.2);
   if (dist <= 0.2) return true;
-
-  // Token overlap: "Peru National Team" vs "Peru" → tokens em comum / total
-  const tokA = new Set(a.split(' ').filter(t => t.length > 2));
-  const tokB = new Set(b.split(' ').filter(t => t.length > 2));
-  if (tokA.size === 0 || tokB.size === 0) return false;
-  const intersection = [...tokA].filter(t => tokB.has(t)).length;
-  const union = new Set([...tokA, ...tokB]).size;
-  const jaccard = intersection / union;
-  if (jaccard >= 0.6) return true;
 
   return false;
 }
@@ -264,6 +291,7 @@ export interface SourceEvent {
 }
 
 export function mergeMatches(sources: SourceEvent[][]): UnifiedMatch[] {
+  normCache.clear(); // limpa cache entre requests
   const merged: UnifiedMatch[] = [];
   const now = new Date().toISOString();
 

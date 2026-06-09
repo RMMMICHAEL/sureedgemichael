@@ -19,7 +19,17 @@
  *   ?champ_id=N       → filtra por liga Altenar
  */
 export const dynamic     = 'force-dynamic';
-export const maxDuration = 30;
+export const maxDuration = 25;
+
+/** Limita tempo de cada fonte externa — evita que uma API travada derrube a rota inteira */
+function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<never>((_, rej) =>
+      setTimeout(() => rej(new Error(`[timeout] ${label} após ${ms}ms`)), ms)
+    ),
+  ]);
+}
 
 import { NextRequest, NextResponse }     from 'next/server';
 import { cookies }                        from 'next/headers';
@@ -98,21 +108,25 @@ export async function GET(req: NextRequest) {
   const dateParam = req.nextUrl.searchParams.get('date') ?? '';
 
   try {
+    const t0 = Date.now();
+
+    // Timeouts individuais por fonte (ms). Fontes mais lentas têm menos tempo.
     const [
       altenarOdds, kambiOdds, superbetOdds, bwinOdds,
       bet365Odds, betfairOdds, pinnacleOdds, betNacionalOdds, vivaSorteOdds, betanoOdds,
     ] = await Promise.allSettled([
-      champId ? getOddsByLeague(Number(champId)) : getAllFootballOdds(),
-      getKambiOdds(),
-      getSuperbetOdds(),
-      getBwinOdds(),
-      getBet365Odds(),
-      getBetfairOdds(),
-      getPinnacleOdds(),
-      getBetNacionalOdds(),
-      getVivaSorteOdds(),
-      getBetanoOdds(),
+      withTimeout(champId ? getOddsByLeague(Number(champId)) : getAllFootballOdds(), 10000, 'altenar'),
+      withTimeout(getKambiOdds(),       6000, 'kambi'),
+      withTimeout(getSuperbetOdds(),    8000, 'superbet'),
+      withTimeout(getBwinOdds(),        8000, 'bwin'),
+      withTimeout(getBet365Odds(),      8000, 'bet365'),
+      withTimeout(getBetfairOdds(),     5000, 'betfair'),
+      withTimeout(getPinnacleOdds(),    5000, 'pinnacle'),
+      withTimeout(getBetNacionalOdds(), 5000, 'betnacional'),
+      withTimeout(getVivaSorteOdds(),   5000, 'vivasorte'),
+      withTimeout(getBetanoOdds(),      8000, 'betano'),
     ]);
+    console.log('[odds:0-coleta] tempo total APIs:', Date.now() - t0, 'ms');
 
     const altenar    = altenarOdds.status     === 'fulfilled' ? altenarOdds.value     : [];
     const kambi      = kambiOdds.status       === 'fulfilled' ? kambiOdds.value       : [];
