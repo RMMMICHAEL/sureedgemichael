@@ -549,6 +549,9 @@ function EventOddsPanel({
             selectedEvent={{ name: eventName, start_utc: event.start_time }}
             externalFill={calcFill}
             defaultNumOutcomes={3}
+            hideFormula
+            accent="#4DA6FF"
+            initialOpType="surebet"
           />
         </div>
       </div>

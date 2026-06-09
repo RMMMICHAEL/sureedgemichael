@@ -327,6 +327,15 @@ interface SurebetCalcProps {
   defaultNumOutcomes?: number;
   /** Hide the "Nº de Casas" selector — useful when the number of outcomes is fixed by context */
   hideNumOutcomes?: boolean;
+  /** Hide the "Tipo de Entrada" (formula) selector — use when strategy is fixed by context */
+  hideFormula?: boolean;
+  /**
+   * Accent color that themes the calculator for the current strategy.
+   * - Freebet:      '#A855F7' (purple)
+   * - Duplo Green:  '#3DFF8F' (green)
+   * - Surebet/default: '#4DA6FF' (blue)
+   */
+  accent?: string;
   /**
    * Indices of legs to pre-activate as Freebet SNR.
    * E.g. [0] marks the first leg as freebet on mount.
@@ -336,7 +345,7 @@ interface SurebetCalcProps {
   initialOpType?: OpType;
 }
 
-export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 2, hideNumOutcomes, initialFreebet, initialOpType }: SurebetCalcProps = {}) {
+export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 2, hideNumOutcomes, hideFormula, accent, initialFreebet, initialOpType }: SurebetCalcProps = {}) {
   const [numOutcomes, setNumOutcomes] = useState<number>(defaultNumOutcomes);
   const [formulaVal,  setFormulaVal]  = useState(0);
   const [odds,        setOdds]        = useState(() =>
@@ -593,6 +602,25 @@ export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 
   const profitBg     = isSurebet ? 'rgba(61,255,143,.1)' : profitPct < -5 ? 'rgba(255,69,69,.1)' : 'rgba(255,191,0,.1)';
   const profitBorder = isSurebet ? 'rgba(61,255,143,.25)' : profitPct < -5 ? 'rgba(255,69,69,.25)' : 'rgba(255,191,0,.25)';
 
+  // Accent color for strategy theming — default blue
+  const ac = accent ?? '#4DA6FF';
+  // hex → rgba helper (works for 6-digit hex)
+  function acRgba(hex: string, alpha: number): string {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return `rgba(${r},${g},${b},${alpha})`;
+  }
+
+  // Strategy label map
+  const strategyLabel: Partial<Record<OpType, string>> = {
+    freebet:     'Free Bet',
+    duplo_green: 'Duplo Green',
+    surebet:     'Surebet',
+    delay:       'Delay',
+  };
+  const stratLabel = initialOpType ? (strategyLabel[initialOpType] ?? null) : null;
+
   // ── Layout ─────────────────────────────────────────────────────────────────
 
   return (
@@ -600,7 +628,7 @@ export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 
 
       {/* ── Config row ──────────────────────────────────────────────────── */}
       <div style={{
-        background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.08)',
+        background: acRgba(ac, 0.04), border: `1px solid ${acRgba(ac, 0.14)}`,
         borderRadius: 12, padding: '14px 16px',
         display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: 14,
       }}>
@@ -661,8 +689,8 @@ export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 
           </div>
         </div>}
 
-        {/* Formula selector — hidden for N>=4 (only one option) */}
-        {numOutcomes <= 3 && (
+        {/* Formula selector — hidden for N>=4 or when hideFormula=true */}
+        {!hideFormula && numOutcomes <= 3 && (
           <div style={{ flex: 1, minWidth: 200 }}>
             <span style={LABEL}>Tipo de Entrada</span>
             <select
@@ -674,6 +702,22 @@ export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 
                 <option key={opt.value} value={opt.value}>{opt.display}</option>
               ))}
             </select>
+          </div>
+        )}
+
+        {/* Strategy chip — shown when formula selector is hidden */}
+        {hideFormula && stratLabel && (
+          <div style={{ flex: 1, display: 'flex', alignItems: 'flex-end' }}>
+            <div style={{
+              display: 'inline-flex', alignItems: 'center', gap: 7,
+              padding: '6px 14px', borderRadius: 8,
+              background: acRgba(ac, 0.1), border: `1px solid ${acRgba(ac, 0.25)}`,
+            }}>
+              <div style={{ width: 6, height: 6, borderRadius: '50%', background: ac, boxShadow: `0 0 6px ${ac}` }} />
+              <span style={{ fontSize: 12, fontWeight: 800, color: ac, textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+                {stratLabel}
+              </span>
+            </div>
           </div>
         )}
 

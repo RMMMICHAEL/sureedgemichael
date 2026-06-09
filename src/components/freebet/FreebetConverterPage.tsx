@@ -587,6 +587,8 @@ export function FreebetConverterPage() {
                                 externalFill={calcFill}
                                 defaultNumOutcomes={3}
                                 hideNumOutcomes
+                                hideFormula
+                                accent="#A855F7"
                                 initialFreebet={[0]}
                                 initialOpType="freebet"
                               />

@@ -357,6 +357,9 @@ function DGDetailPanel({
               selectedEvent={{ name: `${o.home_team} x ${o.away_team}`, start_utc: o.kickoff ?? '' }}
               externalFill={calcFill}
               defaultNumOutcomes={3}
+              hideNumOutcomes
+              hideFormula
+              accent="#3DFF8F"
               initialOpType="duplo_green"
             />
           </div>
