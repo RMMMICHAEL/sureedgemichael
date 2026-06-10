@@ -1065,7 +1065,6 @@ export function BuscarOddsPage() {
                     last.events.push(ev);
                   }
                 }
-                const usePaFilter = paFilter !== 'ALL';
                 return (
                   <div>
                     {dateGroups.map((group) => (
@@ -1101,9 +1100,10 @@ export function BuscarOddsPage() {
                           const mgn     = calcMargin(ev.bookmakers);
                           const isSure  = mgn !== null && mgn < 0;
                           // Quando filtro PA ativo, mostra a melhor odd PA em casa/fora
-                          const bkH     = usePaFilter ? bestPaBk(ev.bookmakers, 'home') : bestBk(ev.bookmakers, 'home');
+                          // Sempre usa bestBk — a célula já mostra badge PA/SO conforme a casa
+                          const bkH     = bestBk(ev.bookmakers, 'home');
                           const bkD     = bestBk(ev.bookmakers, 'draw');
-                          const bkA     = usePaFilter ? bestPaBk(ev.bookmakers, 'away') : bestBk(ev.bookmakers, 'away');
+                          const bkA     = bestBk(ev.bookmakers, 'away');
                           // Empate mostra PA só se for a maior odd do jogo
                           const bestH   = bestVal(ev.bookmakers, 'home');
                           const bestD   = bestVal(ev.bookmakers, 'draw');
