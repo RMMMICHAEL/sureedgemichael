@@ -522,11 +522,18 @@ export const useStore = create<StoreState>()((set, get) => ({
       let bms = [...s.bms];
       let balancePatch: Partial<import('@/types').Leg> = {};
 
-      if (oldLeg && oldLeg.source !== 'import' && patch.re !== undefined && patch.re !== oldLeg.re) {
-        const bmKey         = normHouse(oldLeg.ho).toLowerCase();
-        const tentativeNew  = { ...oldLeg, ...patch };
+      // source é imutável: nunca deixa patch sobrescrever o valor original
+      const safePatch = { ...patch, source: oldLeg?.source };
 
-        if (oldLeg.re === 'Pendente' && patch.re !== 'Pendente' && oldLeg.balance_processed !== true) {
+      // Dupla proteção: se a leg veio de import, força source de volta mesmo que
+      // alguém tente forçar via patch direto
+      if (oldLeg?.source === 'import') safePatch.source = 'import';
+
+      if (oldLeg && oldLeg.source !== 'import' && safePatch.re !== undefined && safePatch.re !== oldLeg.re) {
+        const bmKey        = normHouse(oldLeg.ho).toLowerCase();
+        const tentativeNew = { ...oldLeg, ...safePatch };
+
+        if (oldLeg.re === 'Pendente' && safePatch.re !== 'Pendente' && oldLeg.balance_processed !== true) {
           // Stake foi debitada na criação; devolve stake + aplica lucro líquido
           const delta = +(oldLeg.st + calcLegProfit(tentativeNew)).toFixed(2);
           bms = bms.map(b =>
@@ -540,7 +547,7 @@ export const useStore = create<StoreState>()((set, get) => ({
           // Leg já processada — correção de resultado
           const oldProfit = calcLegProfit(oldLeg);
 
-          if (patch.re === 'Pendente') {
+          if (safePatch.re === 'Pendente') {
             // Revertendo para Pendente: estorna o lucro aplicado e debita a stake novamente
             bms = bms.map(b =>
               normHouse(b.name).toLowerCase() === bmKey
@@ -563,7 +570,7 @@ export const useStore = create<StoreState>()((set, get) => ({
 
       const legs = s.legs.map(l => {
         if (l.id !== id) return l;
-        const updated = { ...l, ...patch, ...balancePatch, updated_at: now };
+        const updated = { ...l, ...safePatch, ...balancePatch, updated_at: now };
         updated.pr = calcLegProfit(updated);
         return updated;
       });
