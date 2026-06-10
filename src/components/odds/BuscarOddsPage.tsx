@@ -106,19 +106,17 @@ function isBkPA(bk: BookmakerOdds): boolean {
 }
 
 /**
- * Quantas casas PA distintas têm odds válidas (>1) para Casa (1) OU Fora (2).
- * Empate NÃO conta no filtro PA — ele só exibe badge se for a maior odd do jogo.
+ * Quantos LADOS (Casa / Fora) têm ao menos uma casa PA com odd válida (>1).
+ * Retorna 0, 1 ou 2.
+ *   2 = PA 2 LADOS (tem PA tanto em home quanto em away)
+ *   1 = PA 1 LADO  (PA só em home OU só em away)
+ *   0 = sem PA em nenhum lado
+ * Empate nunca conta — só exibe badge se for a maior odd do jogo.
  */
-function paBkCount(ev: OddsSummary): number {
-  const seen = new Set<string>();
-  let cnt = 0;
-  for (const b of ev.bookmakers) {
-    if (!seen.has(b.slug) && isBkPA(b) && (b.home > 1 || b.away > 1)) {
-      seen.add(b.slug);
-      cnt++;
-    }
-  }
-  return cnt;
+function paSideCount(ev: OddsSummary): number {
+  const hasHomePA = ev.bookmakers.some(b => isBkPA(b) && b.home > 1);
+  const hasAwayPA = ev.bookmakers.some(b => isBkPA(b) && b.away > 1);
+  return (hasHomePA ? 1 : 0) + (hasAwayPA ? 1 : 0);
 }
 
 // ─── Ligas excluídas (virtuais / e-sports) ───────────────────────────────────
@@ -743,7 +741,7 @@ export function BuscarOddsPage() {
       .filter(ev => leagueFilter.size === 0 || leagueFilter.has(ev.league_name))
       .filter(ev => {
         if (paFilter === 'ALL') return true;
-        const cnt = paBkCount(ev);
+        const cnt = paSideCount(ev);
         if (paFilter === 'AMBOS_PA') return cnt >= 2;
         if (paFilter === 'UM_PA')    return cnt === 1;
         return true;
@@ -753,8 +751,8 @@ export function BuscarOddsPage() {
 
   // contadores p/ chips
   const cntAll   = useMemo(() => allOdds.filter(ev => !isExcluded(ev.league_name ?? '') && (() => { try { return new Date(ev.start_time).getTime() + GAME_DURATION_MS > Date.now(); } catch { return true; } })() && (leagueFilter.size === 0 || leagueFilter.has(ev.league_name))).length, [allOdds, leagueFilter, GAME_DURATION_MS]);
-  const cntAmbos = useMemo(() => filtered.filter(ev => paBkCount(ev) >= 2).length, [filtered]);
-  const cntUm    = useMemo(() => filtered.filter(ev => paBkCount(ev) === 1).length, [filtered]);
+  const cntAmbos = useMemo(() => filtered.filter(ev => paSideCount(ev) >= 2).length, [filtered]);
+  const cntUm    = useMemo(() => filtered.filter(ev => paSideCount(ev) === 1).length, [filtered]);
 
   // ── Agrupamento por liga ─────────────────────────────────────────────────────
   const byLeague = useMemo(() => {
@@ -1115,7 +1113,7 @@ export function BuscarOddsPage() {
                           const dgCol2  = dg ? dgColor(dg.dg_classification) : null;
                           const isToday2 = group.isToday;
                           const started  = new Date(ev.start_time).getTime() < Date.now();
-                          const paCnt    = paBkCount(ev);
+                          const paCnt    = paSideCount(ev);
                           // Jogos futuros (não hoje): leve opacidade reduzida para diferenciar
                           const futureOp = !isToday2 && !started ? 0.85 : 1;
 

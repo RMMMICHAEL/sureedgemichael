@@ -737,10 +737,14 @@ export function DGOpportunitiesSection() {
       // Liga filter
       if (leagueFilter.size > 0 && !leagueFilter.has(o.league ?? 'Outros')) return false;
 
-      // PA filter
-      const paCount = o.legs.filter(l => isLegPA(l)).length;
-      if (paFilter === 'AMBOS_PA' && paCount < 2)  return false;
-      if (paFilter === 'UM_PA'    && paCount !== 1) return false;
+      // PA filter — conta LADOS (home/away), não total de legs PA
+      if (paFilter !== 'ALL') {
+        const homeIsPA = o.legs.some(l => l.outcome === 'home' && isLegPA(l));
+        const awayIsPA = o.legs.some(l => l.outcome === 'away' && isLegPA(l));
+        const paSides  = (homeIsPA ? 1 : 0) + (awayIsPA ? 1 : 0);
+        if (paFilter === 'AMBOS_PA' && paSides < 2)  return false;
+        if (paFilter === 'UM_PA'    && paSides !== 1) return false;
+      }
 
       // Bookmaker deselect: ocultar oportunidades onde TODAS as legs estão desativadas
       if (hasAnyDesel) {
@@ -814,9 +818,17 @@ export function DGOpportunitiesSection() {
     </div>
   );
 
-  // Contagens para badges
-  const cntAmbosPa = opportunities.filter(o => o.legs.filter(l => isLegPA(l)).length >= 2).length;
-  const cntUmPa    = opportunities.filter(o => o.legs.filter(l => isLegPA(l)).length === 1).length;
+  // Contagens para badges — por LADOS (home/away), não por total de legs PA
+  const cntAmbosPa = opportunities.filter(o => {
+    const h = o.legs.some(l => l.outcome === 'home' && isLegPA(l));
+    const a = o.legs.some(l => l.outcome === 'away' && isLegPA(l));
+    return h && a;
+  }).length;
+  const cntUmPa = opportunities.filter(o => {
+    const h = o.legs.some(l => l.outcome === 'home' && isLegPA(l));
+    const a = o.legs.some(l => l.outcome === 'away' && isLegPA(l));
+    return (h ? 1 : 0) + (a ? 1 : 0) === 1;
+  }).length;
 
   return (
     <div className="flex flex-col gap-4">
@@ -1027,8 +1039,10 @@ export function DGOpportunitiesSection() {
               {evs.map((o, idx) => {
                 const rgb       = classRgb(o.dg_classification);
                 const col       = classColor(o.dg_classification);
-                const paCount   = o.legs.filter(l => isLegPA(l)).length;
-                const paLabel   = paCount >= 2 ? 'Ambos PA' : paCount === 1 ? '1 Lado PA' : '';
+                const homeIsPA  = o.legs.some(l => l.outcome === 'home' && isLegPA(l));
+                const awayIsPA  = o.legs.some(l => l.outcome === 'away' && isLegPA(l));
+                const paSides   = (homeIsPA ? 1 : 0) + (awayIsPA ? 1 : 0);
+                const paLabel   = paSides >= 2 ? 'Ambos PA' : paSides === 1 ? '1 Lado PA' : '';
                 const oppCount  = filtered.filter(x => x.match_id === o.match_id).length;
                 const hasFixed  = o.legs.some(l => fixedSlugs.has(l.bookmakerSlug));
                 const legHome   = o.legs.find(l => l.outcome === 'home');
