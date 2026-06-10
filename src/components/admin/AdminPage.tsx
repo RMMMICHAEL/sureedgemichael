@@ -11,7 +11,7 @@ import {
   Database, CheckCircle2, AlertCircle, BarChart3,
 } from 'lucide-react';
 
-const ADMIN_EMAIL = 'michael.martins.trader@gmail.com';
+const ADMIN_EMAILS = ['michael.martins.trader@gmail.com', 'rmmichael20@gmail.com'];
 
 // ── Reset confirmation modal ──────────────────────────────────────────────────
 
@@ -517,7 +517,7 @@ export function AdminPage() {
   const setView   = useStore(s => s.setView);
   const toastFn   = useStore(s => s.toast);
   const authEmail = useStore(s => s.authEmail);
-  const isAdmin   = authEmail === ADMIN_EMAIL;
+  const isAdmin   = ADMIN_EMAILS.includes(authEmail ?? '');
 
   async function handleConfirmReset() {
     setResetting(true);

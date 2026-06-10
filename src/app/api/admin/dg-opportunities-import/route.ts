@@ -18,7 +18,7 @@ import { NextRequest, NextResponse }  from 'next/server';
 import { cookies }                    from 'next/headers';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 
-const ADMIN_EMAIL = 'michael.martins.trader@gmail.com';
+const ADMIN_EMAILS = ['michael.martins.trader@gmail.com', 'rmmichael20@gmail.com'];
 
 interface Leg {
   bookmaker:     string;
@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
   const supabase    = createSupabaseServerClient(cookieStore);
   const { data: { user } } = await supabase.auth.getUser();
 
-  if (!user || user.email !== ADMIN_EMAIL) {
+  if (!user || !ADMIN_EMAILS.includes(user.email ?? '')) {
     return NextResponse.json({ ok: false, error: 'Acesso restrito ao administrador' }, { status: 403 });
   }
 
