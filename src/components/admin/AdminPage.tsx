@@ -8,7 +8,7 @@ import { saveToSupabase } from '@/lib/supabase/sync';
 import { loadSeedData, clearSeedData } from '@/lib/dev/seedData';
 import {
   AlertTriangle, Trash2, X, Loader2, Upload, FileJson, Zap, Gift,
-  Database, CheckCircle2, AlertCircle, BarChart3,
+  Database, CheckCircle2, AlertCircle, BarChart3, ArrowRight,
 } from 'lucide-react';
 
 const ADMIN_EMAILS = ['michael.martins.trader@gmail.com', 'rmmichael20@gmail.com'];
@@ -508,6 +508,92 @@ function SmartImportPanel() {
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 
+function TransferUserDataPanel() {
+  const [fromEmail, setFromEmail] = useState('michael.martins.trader@gmail.com');
+  const [toEmail,   setToEmail]   = useState('rmmichael20@gmail.com');
+  const [status,    setStatus]    = useState<'idle' | 'loading' | 'ok' | 'error'>('idle');
+  const [msg,       setMsg]       = useState('');
+
+  async function handleTransfer() {
+    if (!confirm(`Copiar todos os dados de ${fromEmail} para ${toEmail}? Os dados existentes em ${toEmail} serão sobrescritos.`)) return;
+    setStatus('loading');
+    setMsg('');
+    try {
+      const res  = await fetch('/api/admin/transfer-user-data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ from_email: fromEmail, to_email: toEmail }),
+      });
+      const json = await res.json();
+      if (json.ok) { setStatus('ok');    setMsg(json.message); }
+      else         { setStatus('error'); setMsg(json.error ?? 'Erro desconhecido'); }
+    } catch (e) {
+      setStatus('error');
+      setMsg((e as Error).message);
+    }
+  }
+
+  const accent = 'rgba(124,58,237,1)';
+  const accentBg = 'rgba(124,58,237,.08)';
+
+  return (
+    <div className="rounded-2xl p-5" style={{ background: accentBg, border: '1px solid rgba(124,58,237,.25)' }}>
+      <div className="font-bold mb-1" style={{ color: accent }}>Transferir Dados de Conta</div>
+      <p className="text-xs mb-4" style={{ color: 'var(--t2)' }}>
+        Copia todo o conteúdo (operações, casas, saldos, configurações) de uma conta para outra. A conta destino é sobrescrita.
+      </p>
+
+      <div className="flex items-center gap-2 flex-wrap mb-4">
+        <input
+          type="email"
+          value={fromEmail}
+          onChange={e => setFromEmail(e.target.value)}
+          placeholder="Email origem"
+          className="flex-1 min-w-[180px] px-3 py-2 rounded-xl text-sm outline-none"
+          style={{ background: 'rgba(255,255,255,.06)', border: '1px solid var(--b)', color: 'var(--t)' }}
+        />
+        <ArrowRight size={16} style={{ color: 'var(--t3)', flexShrink: 0 }} />
+        <input
+          type="email"
+          value={toEmail}
+          onChange={e => setToEmail(e.target.value)}
+          placeholder="Email destino"
+          className="flex-1 min-w-[180px] px-3 py-2 rounded-xl text-sm outline-none"
+          style={{ background: 'rgba(255,255,255,.06)', border: '1px solid var(--b)', color: 'var(--t)' }}
+        />
+      </div>
+
+      <button
+        type="button"
+        onClick={handleTransfer}
+        disabled={status === 'loading' || !fromEmail || !toEmail}
+        className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all"
+        style={{
+          background: status === 'loading' ? accentBg : accent,
+          color: '#fff',
+          opacity: status === 'loading' ? 0.7 : 1,
+          border: `1px solid ${accent}`,
+        }}
+      >
+        {status === 'loading' && <Loader2 size={14} className="animate-spin" />}
+        {status === 'loading' ? 'Transferindo...' : 'Transferir dados'}
+      </button>
+
+      {msg && (
+        <div className="flex items-start gap-2 mt-3 p-3 rounded-xl text-xs"
+          style={{
+            background: status === 'ok' ? 'rgba(0,230,118,.08)' : 'rgba(255,69,69,.08)',
+            border: `1px solid ${status === 'ok' ? 'rgba(0,230,118,.25)' : 'rgba(255,69,69,.25)'}`,
+            color: status === 'ok' ? 'var(--g)' : 'var(--r)',
+          }}>
+          {status === 'ok' ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />}
+          <span>{msg}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function AdminPage() {
   const [loadingDemo, setLoadingDemo] = useState(false);
   const [demoLoaded,  setDemoLoaded]  = useState(false);
@@ -621,6 +707,9 @@ export function AdminPage() {
             />
           </div>
         )}
+
+        {/* Transferir dados entre contas */}
+        {isAdmin && <TransferUserDataPanel />}
 
         {/* Zona de perigo */}
         <div className="rounded-2xl p-5" style={{ background: 'var(--rd)', border: '1px solid rgba(255,69,69,.25)' }}>
