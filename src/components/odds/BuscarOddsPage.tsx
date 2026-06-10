@@ -106,17 +106,19 @@ function isBkPA(bk: BookmakerOdds): boolean {
 }
 
 /**
- * Quantos LADOS (Casa / Fora) têm ao menos uma casa PA com odd válida (>1).
+ * Quantos lados (Casa / Fora) têm a sua MELHOR odd vinda de uma casa PA.
  * Retorna 0, 1 ou 2.
- *   2 = PA 2 LADOS (tem PA tanto em home quanto em away)
- *   1 = PA 1 LADO  (PA só em home OU só em away)
- *   0 = sem PA em nenhum lado
- * Empate nunca conta — só exibe badge se for a maior odd do jogo.
+ *   2 = PA 2 LADOS: melhor odd de home E melhor odd de away são de casas PA
+ *   1 = PA 1 LADO:  só a melhor home OU só a melhor away é de casa PA
+ *   0 = ambos os lados têm SO como melhor odd
+ *
+ * Critério: olha a bestBk() de home e de away — se essa casa é PA, conta.
+ * Empate nunca conta no filtro.
  */
 function paSideCount(ev: OddsSummary): number {
-  const hasHomePA = ev.bookmakers.some(b => isBkPA(b) && b.home > 1);
-  const hasAwayPA = ev.bookmakers.some(b => isBkPA(b) && b.away > 1);
-  return (hasHomePA ? 1 : 0) + (hasAwayPA ? 1 : 0);
+  const bh = bestBk(ev.bookmakers, 'home');
+  const ba = bestBk(ev.bookmakers, 'away');
+  return (bh && isBkPA(bh) ? 1 : 0) + (ba && isBkPA(ba) ? 1 : 0);
 }
 
 // ─── Ligas excluídas (virtuais / e-sports) ───────────────────────────────────
