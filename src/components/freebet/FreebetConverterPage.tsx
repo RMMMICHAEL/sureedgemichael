@@ -431,18 +431,16 @@ export function FreebetConverterPage() {
 
                       {(() => {
                         // Unifica freebet + coberturas e ordena sempre: Casa → Empate → Fora
-                        const OUTCOME_ORDER = { home: 0, draw: 1, away: 2 } as const;
-                        type BetEntry =
-                          | { kind: 'freebet'; outcome: 'home'|'draw'|'away' }
-                          | { kind: 'cover';   outcome: 'home'|'draw'|'away'; cover: CoverBet };
+                        const OUTCOME_ORDER: Record<string, number> = { home: 0, draw: 1, away: 2 };
+                        type BetEntry = { isFreebet: boolean; outcome: string; cover?: CoverBet };
                         const allBets: BetEntry[] = [
-                          { kind: 'freebet', outcome: r.freebet_outcome },
-                          ...r.covers.map(c => ({ kind: 'cover' as const, outcome: c.outcome, cover: c })),
-                        ].sort((a, b) => OUTCOME_ORDER[a.outcome] - OUTCOME_ORDER[b.outcome]);
+                          { isFreebet: true,  outcome: r.freebet_outcome },
+                          ...r.covers.map(c => ({ isFreebet: false, outcome: c.outcome, cover: c })),
+                        ].sort((a, b) => (OUTCOME_ORDER[a.outcome] ?? 0) - (OUTCOME_ORDER[b.outcome] ?? 0));
 
                         return (
                           <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(240px,1fr))' }}>
-                            {allBets.map(entry => entry.kind === 'freebet' ? (
+                            {allBets.map(entry => entry.isFreebet ? (
                               <div key="freebet" className="rounded-xl p-4" style={{
                                 background: 'rgba(99,102,241,.06)',
                                 border: '1px solid rgba(99,102,241,.2)',
@@ -471,17 +469,17 @@ export function FreebetConverterPage() {
                                 )}
                               </div>
                             ) : (
-                              <div key={entry.cover.outcome} className="rounded-xl p-4" style={{
-                                background: entry.cover.is_pa ? 'rgba(255,159,10,.05)' : 'rgba(255,255,255,.03)',
-                                border: `1px solid ${entry.cover.is_pa ? 'rgba(255,159,10,.2)' : 'rgba(255,255,255,.09)'}`,
+                              <div key={entry.cover!.outcome} className="rounded-xl p-4" style={{
+                                background: entry.cover!.is_pa ? 'rgba(255,159,10,.05)' : 'rgba(255,255,255,.03)',
+                                border: `1px solid ${entry.cover!.is_pa ? 'rgba(255,159,10,.2)' : 'rgba(255,255,255,.09)'}`,
                               }}>
                                 <div className="mb-3 flex items-center gap-2">
                                   <span className="text-[10px] font-black uppercase tracking-widest" style={{
-                                    color: entry.cover.is_pa ? 'rgba(255,159,10,.8)' : 'rgba(255,255,255,.35)',
+                                    color: entry.cover!.is_pa ? 'rgba(255,159,10,.8)' : 'rgba(255,255,255,.35)',
                                   }}>
-                                    Cobertura — {OUTCOME_LABEL[entry.cover.outcome]}
+                                    Cobertura — {OUTCOME_LABEL[entry.cover!.outcome]}
                                   </span>
-                                  {entry.cover.is_pa && (
+                                  {entry.cover!.is_pa && (
                                     <span className="rounded px-1 text-[8px] font-bold" style={{
                                       background: 'rgba(255,159,10,.12)',
                                       color: 'rgba(255,159,10,.8)',
@@ -490,16 +488,16 @@ export function FreebetConverterPage() {
                                   )}
                                 </div>
                                 <p className="text-[13px] font-bold" style={{ color: 'var(--t)' }}>
-                                  {entry.cover.bookmaker_name}
+                                  {entry.cover!.bookmaker_name}
                                 </p>
                                 <p className="text-[22px] font-black tabular-nums" style={{ color: 'hsl(150 85% 60%)' }}>
-                                  {entry.cover.odd.toFixed(2)}
+                                  {entry.cover!.odd.toFixed(2)}
                                 </p>
                                 <p className="mt-1 text-[11px]" style={{ color: 'rgba(255,255,255,.4)' }}>
-                                  Stake: R${fmtBRL(coverStake(entry.cover))}
+                                  Stake: R${fmtBRL(coverStake(entry.cover!))}
                                 </p>
-                                {entry.cover.url && (
-                                  <a href={entry.cover.url} target="_blank" rel="noopener noreferrer"
+                                {entry.cover!.url && (
+                                  <a href={entry.cover!.url} target="_blank" rel="noopener noreferrer"
                                     className="mt-2 flex items-center gap-1 text-[11px] font-semibold transition-colors hover:text-cyan-400"
                                     style={{ color: 'rgba(129,140,248,.7)' }}>
                                     <ExternalLink size={10} /> Abrir evento
