@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { ExternalLink, RefreshCw, ChevronLeft, ChevronRight, ArrowDown, ArrowUpDown, Check, X } from 'lucide-react';
+import { ExternalLink, RefreshCw, ChevronLeft, ChevronRight, ArrowDown, ArrowUpDown, Check, X, Trophy } from 'lucide-react';
 import { SurebetCalc } from '@/components/calcalendario/SurebetCalc';
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
@@ -543,6 +543,119 @@ function DGDetailPanel({
   );
 }
 
+// ── Cores locais (espelha palette do BuscarOddsPage) ─────────────────────────
+const DG_C = {
+  green:  '#00e676', greenDim: 'rgba(0,230,118,.12)', greenB: 'rgba(0,230,118,.3)',
+  surf: '#10141a', surfB: '#1a2030',
+  t1: '#e2e8f0', t2: '#94a3b8', t3: '#64748b',
+};
+
+// ── Modal de campeonatos (multi-select) ───────────────────────────────────────
+
+function LeagueFilterModal({
+  leagues, selected, onChange, onClose,
+}: {
+  leagues:  string[];
+  selected: Set<string>;
+  onChange: (next: Set<string>) => void;
+  onClose:  () => void;
+}) {
+  const [draft, setDraft] = useState<Set<string>>(() =>
+    selected.size === 0 ? new Set(leagues) : new Set(selected),
+  );
+
+  function toggle(lg: string) {
+    setDraft(prev => { const n = new Set(prev); n.has(lg) ? n.delete(lg) : n.add(lg); return n; });
+  }
+  const allSelected  = draft.size === leagues.length;
+
+  function confirm() {
+    onChange(allSelected ? new Set() : new Set(draft));
+    onClose();
+  }
+
+  const sorted = [...leagues].sort((a, b) => {
+    const aBr = a.toLowerCase().includes('brasil') || a.toLowerCase().includes('série');
+    const bBr = b.toLowerCase().includes('brasil') || b.toLowerCase().includes('série');
+    if (aBr && !bBr) return -1; if (!aBr && bBr) return 1;
+    return a.localeCompare(b);
+  });
+
+  return createPortal(
+    <div onClick={onClose} style={{
+      position: 'fixed', inset: 0, zIndex: 9000,
+      background: 'rgba(0,0,0,.7)', backdropFilter: 'blur(5px)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+    }}>
+      <div onClick={e => e.stopPropagation()} style={{
+        background: '#0d1117', border: `1px solid ${DG_C.surfB}`,
+        borderRadius: 18, boxShadow: '0 28px 80px rgba(0,0,0,.8)',
+        width: 560, maxWidth: '95vw', maxHeight: '88vh',
+        display: 'flex', flexDirection: 'column',
+      }}>
+        <div className="flex items-start justify-between px-6 pt-5 pb-4" style={{ borderBottom: `1px solid ${DG_C.surfB}` }}>
+          <div>
+            <div className="flex items-center gap-2">
+              <Trophy size={16} style={{ color: DG_C.green }} />
+              <h3 style={{ fontSize: 17, fontWeight: 900, color: DG_C.t1, margin: 0 }}>Campeonatos</h3>
+            </div>
+            <p style={{ fontSize: 12, color: DG_C.t3, marginTop: 3 }}>Selecione os campeonatos que deseja ver.</p>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: DG_C.t3, padding: 4, marginTop: -2 }}>
+            <X size={18} />
+          </button>
+        </div>
+        <div className="overflow-y-auto flex-1 p-5">
+          <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
+            {sorted.map(lg => {
+              const sel = draft.has(lg);
+              return (
+                <button key={lg} type="button" onClick={() => toggle(lg)}
+                  className="flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-left transition-all hover:opacity-90"
+                  style={{
+                    background: sel ? 'rgba(0,230,118,.1)' : 'rgba(255,255,255,.03)',
+                    border: `1px solid ${sel ? DG_C.greenB : DG_C.surfB}`,
+                    cursor: 'pointer',
+                  }}>
+                  <span style={{
+                    width: 18, height: 18, borderRadius: 5, flexShrink: 0,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    background: sel ? DG_C.green : 'rgba(255,255,255,.06)',
+                    border: `1.5px solid ${sel ? DG_C.green : 'rgba(255,255,255,.15)'}`,
+                  }}>
+                    {sel && <Check size={10} color="#060A07" strokeWidth={3} />}
+                  </span>
+                  <span style={{ fontSize: 13, fontWeight: sel ? 700 : 500, color: sel ? DG_C.t1 : DG_C.t2 }}>
+                    {lg}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <div className="flex items-center gap-3 px-6 py-4" style={{ borderTop: `1px solid ${DG_C.surfB}` }}>
+          <button onClick={() => setDraft(new Set(leagues))} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: DG_C.t3, textDecoration: 'underline', padding: 0 }}>
+            Marcar todas
+          </button>
+          <button onClick={() => setDraft(new Set())} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: DG_C.t3, textDecoration: 'underline', padding: 0 }}>
+            Limpar seleção
+          </button>
+          <span className="flex-1" />
+          <span style={{ fontSize: 12, fontWeight: 700, color: DG_C.t3 }}>
+            {draft.size} de {leagues.length} selecionados
+          </span>
+          <button onClick={confirm}
+            className="rounded-xl px-5 py-2 text-[13px] font-black transition-opacity hover:opacity-90"
+            style={{ background: 'linear-gradient(135deg, #3DFF8F 0%, #22c55e 100%)', color: '#0a1a0f' }}>
+            Confirmar
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
 // ── Componente principal ──────────────────────────────────────────────────────
 
 export function DGOpportunitiesSection() {
@@ -550,6 +663,8 @@ export function DGOpportunitiesSection() {
   const [loading,         setLoading]         = useState(true);
   const [error,           setError]           = useState('');
   const [paFilter,        setPaFilter]        = useState<PAFilter>('ALL');
+  const [leagueFilter,    setLeagueFilter]    = useState<Set<string>>(new Set()); // empty = todos
+  const [leagueModalOpen, setLeagueModalOpen] = useState(false);
   const [sortBy,          setSortBy]          = useState<SortBy>('maior_lucro');
   const [sortOpen,        setSortOpen]        = useState(false);
   const [bkDeselected,    setBkDeselected]    = useState<Set<string>>(new Set());
@@ -582,6 +697,17 @@ export function DGOpportunitiesSection() {
 
   useEffect(() => { load(); }, [load]);
 
+  // Ligas únicas
+  const allLeagues = useMemo(
+    () => [...new Set(opportunities.map(o => o.league ?? 'Outros').filter(Boolean))].sort((a, b) => {
+      const aBr = a.toLowerCase().includes('brasil') || a.toLowerCase().includes('série');
+      const bBr = b.toLowerCase().includes('brasil') || b.toLowerCase().includes('série');
+      if (aBr && !bBr) return -1; if (!aBr && bBr) return 1;
+      return a.localeCompare(b);
+    }),
+    [opportunities],
+  );
+
   // Bookmakers únicos com metadados
   const allBookmakers = useMemo<BkInfo[]>(() => {
     const map = new Map<string, BkInfo>();
@@ -608,6 +734,9 @@ export function DGOpportunitiesSection() {
   // ── Filtro principal ──────────────────────────────────────────────────────
   const filtered = useMemo(() => {
     return opportunities.filter(o => {
+      // Liga filter
+      if (leagueFilter.size > 0 && !leagueFilter.has(o.league ?? 'Outros')) return false;
+
       // PA filter
       const paCount = o.legs.filter(l => isLegPA(l)).length;
       if (paFilter === 'AMBOS_PA' && paCount < 2)  return false;
@@ -621,7 +750,7 @@ export function DGOpportunitiesSection() {
 
       return true;
     });
-  }, [opportunities, paFilter, bkDeselected, hasAnyDesel]);
+  }, [opportunities, leagueFilter, paFilter, bkDeselected, hasAnyDesel]);
 
   // Melhor por match (maior score), ordenado conforme sortBy
   const dedupList = useMemo(() => {
@@ -692,8 +821,40 @@ export function DGOpportunitiesSection() {
   return (
     <div className="flex flex-col gap-4">
 
-      {/* ── Barra de filtros simplificada ────────────────────────────────── */}
+      {/* ── Barra de filtros ─────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center gap-2">
+
+        {/* Campeonatos — modal multi-select */}
+        {(() => {
+          const active = leagueFilter.size > 0 && leagueFilter.size < allLeagues.length;
+          return (
+            <>
+              <button onClick={() => setLeagueModalOpen(true)}
+                className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-[12px] font-bold transition-all"
+                style={{
+                  background: active ? 'rgba(0,230,118,.1)' : 'rgba(255,255,255,.04)',
+                  border:     active ? '1px solid rgba(0,230,118,.3)' : '1px solid rgba(255,255,255,.08)',
+                  color:      active ? '#00e676' : 'rgba(255,255,255,.5)',
+                }}>
+                <Trophy size={11} />
+                <span>{active ? `${leagueFilter.size} campeonatos` : 'Campeonatos'}</span>
+                {active && (
+                  <span style={{ fontSize: 9, fontWeight: 900, borderRadius: 99, padding: '0 5px', background: 'rgba(0,230,118,.18)', color: '#00e676' }}>
+                    {leagueFilter.size}/{allLeagues.length}
+                  </span>
+                )}
+              </button>
+              {leagueModalOpen && (
+                <LeagueFilterModal
+                  leagues={allLeagues}
+                  selected={leagueFilter}
+                  onChange={setLeagueFilter}
+                  onClose={() => setLeagueModalOpen(false)}
+                />
+              )}
+            </>
+          );
+        })()}
 
         {/* PA filter */}
         <div className="flex items-center gap-1 rounded-xl p-1"
@@ -767,8 +928,8 @@ export function DGOpportunitiesSection() {
         </div>
 
         {/* Clear filtros */}
-        {(paFilter !== 'ALL' || hasAnyDesel) && (
-          <button onClick={() => { setPaFilter('ALL'); setBkDeselected(new Set()); }}
+        {(paFilter !== 'ALL' || hasAnyDesel || leagueFilter.size > 0) && (
+          <button onClick={() => { setPaFilter('ALL'); setBkDeselected(new Set()); setLeagueFilter(new Set()); }}
             className="flex items-center gap-1 rounded-xl px-2.5 py-2 text-[11px] font-semibold transition-all hover:opacity-80"
             style={{ color: 'rgba(248,113,113,.7)', background: 'rgba(248,113,113,.07)', border: '1px solid rgba(248,113,113,.15)' }}>
             <X size={10} /> Limpar
@@ -822,7 +983,7 @@ export function DGOpportunitiesSection() {
       {dedupList.length === 0 && (
         <div className="flex flex-col items-center gap-2 py-10" style={{ color: 'var(--t3)' }}>
           <p className="text-sm font-bold">Nenhum resultado para os filtros</p>
-          <button onClick={() => { setPaFilter('ALL'); setBkDeselected(new Set()); }}
+          <button onClick={() => { setPaFilter('ALL'); setBkDeselected(new Set()); setLeagueFilter(new Set()); }}
             className="text-xs underline"
             style={{ color: '#818cf8', background: 'none', border: 'none', cursor: 'pointer' }}>
             Limpar filtros

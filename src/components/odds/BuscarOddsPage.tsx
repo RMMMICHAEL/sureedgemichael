@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import {
   X, ScanSearch, ChevronLeft, ChevronRight, ExternalLink,
-  ArrowDown, RefreshCw, Zap, TrendingUp, ChevronDown, Star, Check,
+  ArrowDown, RefreshCw, Zap, TrendingUp, ChevronDown, Star, Check, Trophy,
 } from 'lucide-react';
 import { SurebetCalc } from '@/components/calcalendario/SurebetCalc';
 import { DGOpportunitiesSection } from './DGOpportunitiesSection';
@@ -500,6 +501,135 @@ function EventOddsPanel({
   );
 }
 
+// ─── Modal de campeonatos (multi-select) ─────────────────────────────────────
+
+function LeagueFilterModal({
+  leagues,
+  selected,   // empty Set = todos selecionados
+  onChange,
+  onClose,
+}: {
+  leagues:  string[];
+  selected: Set<string>;
+  onChange: (next: Set<string>) => void;
+  onClose:  () => void;
+}) {
+  // draft: conjunto dos SELECIONADOS (tudo selecionado = todos os slugs)
+  const [draft, setDraft] = useState<Set<string>>(() => {
+    // se o pai tem set vazio (= todos), pré-preenche com todos
+    return selected.size === 0 ? new Set(leagues) : new Set(selected);
+  });
+
+  function toggle(lg: string) {
+    setDraft(prev => {
+      const n = new Set(prev);
+      n.has(lg) ? n.delete(lg) : n.add(lg);
+      return n;
+    });
+  }
+  function selectAll()  { setDraft(new Set(leagues)); }
+  function clearAll()   { setDraft(new Set()); }
+
+  const allSelected = draft.size === leagues.length;
+  const noneSelected = draft.size === 0;
+
+  function confirm() {
+    // se todos selecionados → retorna Set vazio (= sem filtro)
+    onChange(allSelected ? new Set() : new Set(draft));
+    onClose();
+  }
+
+  // ordena: Brasil primeiro, depois alfabético
+  const sorted = [...leagues].sort((a, b) => {
+    const aBr = a.toLowerCase().includes('brasil') || a.toLowerCase().includes('série');
+    const bBr = b.toLowerCase().includes('brasil') || b.toLowerCase().includes('série');
+    if (aBr && !bBr) return -1;
+    if (!aBr && bBr) return 1;
+    return a.localeCompare(b);
+  });
+
+  return createPortal(
+    <div onClick={onClose} style={{
+      position: 'fixed', inset: 0, zIndex: 9000,
+      background: 'rgba(0,0,0,.7)', backdropFilter: 'blur(5px)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+    }}>
+      <div onClick={e => e.stopPropagation()} style={{
+        background: '#0d1117',
+        border: `1px solid ${C.surfB}`,
+        borderRadius: 18,
+        boxShadow: '0 28px 80px rgba(0,0,0,.8)',
+        width: 560, maxWidth: '95vw', maxHeight: '88vh',
+        display: 'flex', flexDirection: 'column',
+      }}>
+        {/* Header */}
+        <div className="flex items-start justify-between px-6 pt-5 pb-4" style={{ borderBottom: `1px solid ${C.surfB}` }}>
+          <div>
+            <div className="flex items-center gap-2">
+              <Trophy size={16} style={{ color: C.green }} />
+              <h3 style={{ fontSize: 17, fontWeight: 900, color: C.t1, margin: 0 }}>Campeonatos</h3>
+            </div>
+            <p style={{ fontSize: 12, color: C.t3, marginTop: 3 }}>Selecione os campeonatos que deseja ver.</p>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.t3, padding: 4, marginTop: -2 }}>
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Grid de ligas */}
+        <div className="overflow-y-auto flex-1 p-5">
+          <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
+            {sorted.map(lg => {
+              const sel = draft.has(lg);
+              return (
+                <button key={lg} type="button" onClick={() => toggle(lg)}
+                  className="flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-left transition-all hover:opacity-90"
+                  style={{
+                    background: sel ? 'rgba(0,230,118,.1)' : 'rgba(255,255,255,.03)',
+                    border: `1px solid ${sel ? C.greenB : C.surfB}`,
+                    cursor: 'pointer',
+                  }}>
+                  <span style={{
+                    width: 18, height: 18, borderRadius: 5, flexShrink: 0,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    background: sel ? C.green : 'rgba(255,255,255,.06)',
+                    border: `1.5px solid ${sel ? C.green : 'rgba(255,255,255,.15)'}`,
+                  }}>
+                    {sel && <Check size={10} color="#060A07" strokeWidth={3} />}
+                  </span>
+                  <span style={{ fontSize: 13, fontWeight: sel ? 700 : 500, color: sel ? C.t1 : C.t2 }}>
+                    {lg}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center gap-3 px-6 py-4" style={{ borderTop: `1px solid ${C.surfB}` }}>
+          <button onClick={selectAll} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: C.t3, textDecoration: 'underline', padding: 0 }}>
+            Marcar todas
+          </button>
+          <button onClick={clearAll} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: C.t3, textDecoration: 'underline', padding: 0 }}>
+            Limpar seleção
+          </button>
+          <span className="flex-1" />
+          <span style={{ fontSize: 12, fontWeight: 700, color: C.t3 }}>
+            {noneSelected ? '0' : draft.size} de {leagues.length} selecionados
+          </span>
+          <button onClick={confirm}
+            className="rounded-xl px-5 py-2 text-[13px] font-black transition-opacity hover:opacity-90"
+            style={{ background: C.green, color: '#060A07' }}>
+            Confirmar
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
 // ─── Componente principal ─────────────────────────────────────────────────────
 
 export function BuscarOddsPage() {
@@ -513,13 +643,11 @@ export function BuscarOddsPage() {
   const [paFilter,        setPaFilter]       = useState<PAFilter>('ALL');
   const [leagueFav,       setLeagueFav]      = useState<Set<string>>(new Set());
   const [leagueCollapsed, setLeagueCollapsed]= useState<Set<string>>(new Set());
-  const [leagueFilter,    setLeagueFilter]   = useState('');
-  const [leagueOpen,      setLeagueOpen]     = useState(false);
+  const [leagueFilter,    setLeagueFilter]   = useState<Set<string>>(new Set()); // empty = todos
+  const [leagueModalOpen, setLeagueModalOpen]= useState(false);
   const [lastUpdated,     setLastUpdated]    = useState(Date.now());
   const [tick,            setTick]           = useState(0);
   const [dgMap,           setDgMap]          = useState<Map<string, DGInfo>>(new Map());
-
-  const leagueRef = useRef<HTMLDivElement>(null);
 
   // ── Tick "atualizado há Xs" ─────────────────────────────────────────────────
   useEffect(() => {
@@ -527,15 +655,6 @@ export function BuscarOddsPage() {
     return () => clearInterval(id);
   }, []);
   void tick;
-
-  // ── Close dropdown on outside click ─────────────────────────────────────────
-  useEffect(() => {
-    function down(e: MouseEvent) {
-      if (leagueOpen && leagueRef.current && !leagueRef.current.contains(e.target as Node)) setLeagueOpen(false);
-    }
-    document.addEventListener('mousedown', down);
-    return () => document.removeEventListener('mousedown', down);
-  }, [leagueOpen]);
 
   // ── Carregar DG map ─────────────────────────────────────────────────────────
   const loadDGMap = useCallback(async () => {
@@ -595,7 +714,7 @@ export function BuscarOddsPage() {
     return allOdds
       .filter(ev => !isExcluded(ev.league_name ?? ''))
       .filter(ev => { try { return new Date(ev.start_time).getTime() + GAME_DURATION_MS > Date.now(); } catch { return true; } })
-      .filter(ev => !leagueFilter || ev.league_name === leagueFilter)
+      .filter(ev => leagueFilter.size === 0 || leagueFilter.has(ev.league_name))
       .filter(ev => {
         if (paFilter === 'ALL') return true;
         const cnt = paBkCount(ev);
@@ -607,7 +726,7 @@ export function BuscarOddsPage() {
   }, [allOdds, leagueFilter, paFilter]);
 
   // contadores p/ chips
-  const cntAll   = useMemo(() => allOdds.filter(ev => !isExcluded(ev.league_name ?? '') && (() => { try { return new Date(ev.start_time).getTime() + GAME_DURATION_MS > Date.now(); } catch { return true; } })() && (!leagueFilter || ev.league_name === leagueFilter)).length, [allOdds, leagueFilter, GAME_DURATION_MS]);
+  const cntAll   = useMemo(() => allOdds.filter(ev => !isExcluded(ev.league_name ?? '') && (() => { try { return new Date(ev.start_time).getTime() + GAME_DURATION_MS > Date.now(); } catch { return true; } })() && (leagueFilter.size === 0 || leagueFilter.has(ev.league_name))).length, [allOdds, leagueFilter, GAME_DURATION_MS]);
   const cntAmbos = useMemo(() => filtered.filter(ev => paBkCount(ev) >= 2).length, [filtered]);
   const cntUm    = useMemo(() => filtered.filter(ev => paBkCount(ev) === 1).length, [filtered]);
 
@@ -635,7 +754,7 @@ export function BuscarOddsPage() {
     });
   }, [filtered, leagueFav]);
 
-  const hasActiveFilter = paFilter !== 'ALL' || !!leagueFilter;
+  const hasActiveFilter = paFilter !== 'ALL' || leagueFilter.size > 0;
 
   function toggleFav(lg: string) {
     setLeagueFav(prev => { const n = new Set(prev); n.has(lg) ? n.delete(lg) : n.add(lg); return n; });
@@ -643,7 +762,7 @@ export function BuscarOddsPage() {
   function toggleCollapse(lg: string) {
     setLeagueCollapsed(prev => { const n = new Set(prev); n.has(lg) ? n.delete(lg) : n.add(lg); return n; });
   }
-  function clearFilters() { setPaFilter('ALL'); setLeagueFilter(''); }
+  function clearFilters() { setPaFilter('ALL'); setLeagueFilter(new Set()); }
 
   // ── Modo evento ─────────────────────────────────────────────────────────────
   if (selectedEvent) {
@@ -710,46 +829,39 @@ export function BuscarOddsPage() {
         {/* ── Barra de filtros: Campeonatos + PA chips ──────────────────────── */}
         <div className="flex flex-wrap items-center gap-2">
 
-          {/* Campeonatos dropdown */}
-          <div className="relative" ref={leagueRef}>
-            <button onClick={() => setLeagueOpen(v => !v)}
-              className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-[12px] font-bold transition-all"
-              style={{
-                background: leagueFilter ? 'rgba(0,230,118,.1)' : `${C.surf}cc`,
-                border:     leagueFilter ? `1px solid ${C.greenB}` : `1px solid ${C.surfB}`,
-                color:      leagueFilter ? C.green : C.t2,
-                minWidth: 150,
-              }}>
-              <TrendingUp size={11} />
-              <span className="truncate max-w-[160px]">{leagueFilter || 'Campeonatos'}</span>
-              <ChevronDown size={11} style={{ opacity: .5, flexShrink: 0 }} />
-            </button>
-            {leagueOpen && (
-              <div className="absolute left-0 top-full z-50 mt-1 overflow-y-auto rounded-xl py-1"
-                style={{ background: '#0e131a', border: `1px solid ${C.surfB}`, minWidth: 240, maxHeight: 300, boxShadow: '0 12px 40px rgba(0,0,0,.7)' }}>
-                <button onClick={() => { setLeagueFilter(''); setLeagueOpen(false); }}
-                  className="flex w-full items-center gap-2 px-4 py-2.5 text-[12px] font-semibold hover:bg-white/5 text-left"
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: !leagueFilter ? C.green : C.t2 }}>
-                  {!leagueFilter && <Check size={10} style={{ color: C.green }} />}
-                  Todos os campeonatos
-                  <span className="ml-auto text-[10px]" style={{ color: C.t3 }}>{cntAll}</span>
-                </button>
-                <div style={{ height: 1, background: C.surfB, margin: '2px 12px' }} />
-                {allLeagues.map(lg => {
-                  const cnt = allOdds.filter(ev => ev.league_name === lg).length;
-                  return (
-                    <button key={lg} onClick={() => { setLeagueFilter(lg); setLeagueOpen(false); }}
-                      className="flex w-full items-center gap-2 px-4 py-2.5 text-[12px] font-semibold hover:bg-white/5 text-left"
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: leagueFilter === lg ? C.green : C.t2 }}>
-                      {leagueFilter === lg && <Check size={10} style={{ color: C.green }} />}
-                      <span className="flex-1 truncate">{lg}</span>
-                      <span className="text-[10px]" style={{ color: C.t3 }}>{cnt}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+          {/* Campeonatos — abre modal multi-select */}
+          {(() => {
+            const active = leagueFilter.size > 0 && leagueFilter.size < allLeagues.length;
+            const label  = active ? `${leagueFilter.size} campeonatos` : 'Campeonatos';
+            return (
+              <button onClick={() => setLeagueModalOpen(true)}
+                className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-[12px] font-bold transition-all"
+                style={{
+                  background: active ? 'rgba(0,230,118,.1)' : `${C.surf}cc`,
+                  border:     active ? `1px solid ${C.greenB}` : `1px solid ${C.surfB}`,
+                  color:      active ? C.green : C.t2,
+                }}>
+                <Trophy size={11} />
+                <span>{label}</span>
+                {active && (
+                  <span style={{ fontSize: 9, fontWeight: 900, borderRadius: 99, padding: '0 5px', background: 'rgba(0,230,118,.18)', color: C.green }}>
+                    {leagueFilter.size}/{allLeagues.length}
+                  </span>
+                )}
+                <ChevronDown size={11} style={{ opacity: .5 }} />
+              </button>
+            );
+          })()}
+
+          {/* Modal campeonatos */}
+          {leagueModalOpen && (
+            <LeagueFilterModal
+              leagues={allLeagues}
+              selected={leagueFilter}
+              onChange={setLeagueFilter}
+              onClose={() => setLeagueModalOpen(false)}
+            />
+          )}
 
           {/* PA chips */}
           <div className="flex items-center gap-1 rounded-xl p-1" style={{ background: 'rgba(255,255,255,.03)', border: `1px solid ${C.surfB}` }}>
