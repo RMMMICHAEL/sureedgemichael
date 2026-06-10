@@ -429,76 +429,87 @@ export function FreebetConverterPage() {
                   {isOpen && (
                     <div className="border-t px-5 pb-5 pt-4" style={{ borderColor: 'rgba(255,255,255,.06)' }}>
 
-                      <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(240px,1fr))' }}>
+                      {(() => {
+                        // Unifica freebet + coberturas e ordena sempre: Casa → Empate → Fora
+                        const OUTCOME_ORDER = { home: 0, draw: 1, away: 2 } as const;
+                        type BetEntry =
+                          | { kind: 'freebet'; outcome: 'home'|'draw'|'away' }
+                          | { kind: 'cover';   outcome: 'home'|'draw'|'away'; cover: CoverBet };
+                        const allBets: BetEntry[] = [
+                          { kind: 'freebet', outcome: r.freebet_outcome },
+                          ...r.covers.map(c => ({ kind: 'cover' as const, outcome: c.outcome, cover: c })),
+                        ].sort((a, b) => OUTCOME_ORDER[a.outcome] - OUTCOME_ORDER[b.outcome]);
 
-                        {/* Freebet */}
-                        <div className="rounded-xl p-4" style={{
-                          background: 'rgba(99,102,241,.06)',
-                          border: '1px solid rgba(99,102,241,.2)',
-                        }}>
-                          <div className="mb-3 flex items-center gap-2">
-                            <Gift size={12} style={{ color: '#818cf8' }} />
-                            <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: '#818cf8' }}>
-                              Freebet — aposta
-                            </span>
-                          </div>
-                          <p className="text-[13px] font-bold" style={{ color: 'var(--t)' }}>
-                            {OUTCOME_LABEL[r.freebet_outcome]} ({OUTCOME_ABBR[r.freebet_outcome]})
-                          </p>
-                          <p className="text-[22px] font-black tabular-nums" style={{ color: '#818cf8' }}>
-                            {r.freebet_odd.toFixed(2)}
-                          </p>
-                          <p className="mt-1 text-[11px]" style={{ color: 'rgba(255,255,255,.4)' }}>
-                            Stake: R${fmtBRL(amount)} <span style={{ color: 'rgba(255,255,255,.25)' }}>(freebet — não sai do bolso)</span>
-                          </p>
-                          {r.freebet_url && (
-                            <a href={r.freebet_url} target="_blank" rel="noopener noreferrer"
-                              className="mt-2 flex items-center gap-1 text-[11px] font-semibold transition-colors hover:text-cyan-400"
-                              style={{ color: 'rgba(129,140,248,.7)' }}>
-                              <ExternalLink size={10} /> Abrir evento
-                            </a>
-                          )}
-                        </div>
-
-                        {/* Coberturas */}
-                        {r.covers.map(c => (
-                          <div key={c.outcome} className="rounded-xl p-4" style={{
-                            background: c.is_pa ? 'rgba(255,159,10,.05)' : 'rgba(255,255,255,.03)',
-                            border: `1px solid ${c.is_pa ? 'rgba(255,159,10,.2)' : 'rgba(255,255,255,.09)'}`,
-                          }}>
-                            <div className="mb-3 flex items-center gap-2">
-                              <span className="text-[10px] font-black uppercase tracking-widest" style={{
-                                color: c.is_pa ? 'rgba(255,159,10,.8)' : 'rgba(255,255,255,.35)',
+                        return (
+                          <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(240px,1fr))' }}>
+                            {allBets.map(entry => entry.kind === 'freebet' ? (
+                              <div key="freebet" className="rounded-xl p-4" style={{
+                                background: 'rgba(99,102,241,.06)',
+                                border: '1px solid rgba(99,102,241,.2)',
                               }}>
-                                Cobertura — {OUTCOME_LABEL[c.outcome]}
-                              </span>
-                              {c.is_pa && (
-                                <span className="rounded px-1 text-[8px] font-bold" style={{
-                                  background: 'rgba(255,159,10,.12)',
-                                  color: 'rgba(255,159,10,.8)',
-                                  border: '1px solid rgba(255,159,10,.25)',
-                                }}>PA</span>
-                              )}
-                            </div>
-                            <p className="text-[13px] font-bold" style={{ color: 'var(--t)' }}>
-                              {c.bookmaker_name}
-                            </p>
-                            <p className="text-[22px] font-black tabular-nums" style={{ color: 'hsl(150 85% 60%)' }}>
-                              {c.odd.toFixed(2)}
-                            </p>
-                            <p className="mt-1 text-[11px]" style={{ color: 'rgba(255,255,255,.4)' }}>
-                              Stake: R${fmtBRL(coverStake(c))}
-                            </p>
-                            {c.url && (
-                              <a href={c.url} target="_blank" rel="noopener noreferrer"
-                                className="mt-2 flex items-center gap-1 text-[11px] font-semibold transition-colors hover:text-cyan-400"
-                                style={{ color: 'rgba(129,140,248,.7)' }}>
-                                <ExternalLink size={10} /> Abrir evento
-                              </a>
-                            )}
+                                <div className="mb-3 flex items-center gap-2">
+                                  <Gift size={12} style={{ color: '#818cf8' }} />
+                                  <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: '#818cf8' }}>
+                                    Freebet — aposta
+                                  </span>
+                                </div>
+                                <p className="text-[13px] font-bold" style={{ color: 'var(--t)' }}>
+                                  {OUTCOME_LABEL[r.freebet_outcome]} ({OUTCOME_ABBR[r.freebet_outcome]})
+                                </p>
+                                <p className="text-[22px] font-black tabular-nums" style={{ color: '#818cf8' }}>
+                                  {r.freebet_odd.toFixed(2)}
+                                </p>
+                                <p className="mt-1 text-[11px]" style={{ color: 'rgba(255,255,255,.4)' }}>
+                                  Stake: R${fmtBRL(amount)} <span style={{ color: 'rgba(255,255,255,.25)' }}>(freebet — não sai do bolso)</span>
+                                </p>
+                                {r.freebet_url && (
+                                  <a href={r.freebet_url} target="_blank" rel="noopener noreferrer"
+                                    className="mt-2 flex items-center gap-1 text-[11px] font-semibold transition-colors hover:text-cyan-400"
+                                    style={{ color: 'rgba(129,140,248,.7)' }}>
+                                    <ExternalLink size={10} /> Abrir evento
+                                  </a>
+                                )}
+                              </div>
+                            ) : (
+                              <div key={entry.cover.outcome} className="rounded-xl p-4" style={{
+                                background: entry.cover.is_pa ? 'rgba(255,159,10,.05)' : 'rgba(255,255,255,.03)',
+                                border: `1px solid ${entry.cover.is_pa ? 'rgba(255,159,10,.2)' : 'rgba(255,255,255,.09)'}`,
+                              }}>
+                                <div className="mb-3 flex items-center gap-2">
+                                  <span className="text-[10px] font-black uppercase tracking-widest" style={{
+                                    color: entry.cover.is_pa ? 'rgba(255,159,10,.8)' : 'rgba(255,255,255,.35)',
+                                  }}>
+                                    Cobertura — {OUTCOME_LABEL[entry.cover.outcome]}
+                                  </span>
+                                  {entry.cover.is_pa && (
+                                    <span className="rounded px-1 text-[8px] font-bold" style={{
+                                      background: 'rgba(255,159,10,.12)',
+                                      color: 'rgba(255,159,10,.8)',
+                                      border: '1px solid rgba(255,159,10,.25)',
+                                    }}>PA</span>
+                                  )}
+                                </div>
+                                <p className="text-[13px] font-bold" style={{ color: 'var(--t)' }}>
+                                  {entry.cover.bookmaker_name}
+                                </p>
+                                <p className="text-[22px] font-black tabular-nums" style={{ color: 'hsl(150 85% 60%)' }}>
+                                  {entry.cover.odd.toFixed(2)}
+                                </p>
+                                <p className="mt-1 text-[11px]" style={{ color: 'rgba(255,255,255,.4)' }}>
+                                  Stake: R${fmtBRL(coverStake(entry.cover))}
+                                </p>
+                                {entry.cover.url && (
+                                  <a href={entry.cover.url} target="_blank" rel="noopener noreferrer"
+                                    className="mt-2 flex items-center gap-1 text-[11px] font-semibold transition-colors hover:text-cyan-400"
+                                    style={{ color: 'rgba(129,140,248,.7)' }}>
+                                    <ExternalLink size={10} /> Abrir evento
+                                  </a>
+                                )}
+                              </div>
+                            ))}
                           </div>
-                        ))}
-                      </div>
+                        );
+                      })()}
 
                       {/* Resumo financeiro */}
                       <div className="mt-4 rounded-xl px-4 py-3 flex flex-wrap gap-5" style={{
