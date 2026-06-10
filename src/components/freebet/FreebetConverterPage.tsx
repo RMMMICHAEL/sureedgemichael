@@ -557,9 +557,11 @@ export function FreebetConverterPage() {
 
                         const calcFill = {
                           odds:   slots.map(s => String(s.odd)),
-                          houses: slots.map(s => s.name),  // nome limpo para AddToPanelModal
+                          houses: slots.map(s => s.name),
                           urls:   slots.map(s => s.url),
                         };
+                        // índice da freebet após ordenação (pode ser 0, 1 ou 2)
+                        const freebetIdx = slots.findIndex(s => s.displayName.includes('(freebet)'));
 
                         return (
                           <div data-calc-id={r.match_id + r.freebet_outcome} className="calc-reveal mt-4 overflow-hidden rounded-2xl" style={{
@@ -600,7 +602,7 @@ export function FreebetConverterPage() {
                                 hideNumOutcomes
                                 hideFormula
                                 accent="#A855F7"
-                                initialFreebet={[0]}
+                                initialFreebet={[freebetIdx >= 0 ? freebetIdx : 0]}
                                 initialOpType="freebet"
                               />
                             </div>
