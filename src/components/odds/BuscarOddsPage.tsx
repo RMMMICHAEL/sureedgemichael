@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import {
   X, ScanSearch, ChevronLeft, ChevronRight, ExternalLink,
@@ -105,12 +105,15 @@ function isBkPA(bk: BookmakerOdds): boolean {
   return isPa(bk.slug);
 }
 
-/** Quantas casas PA distintas têm odds válidas (>1) no evento */
+/**
+ * Quantas casas PA distintas têm odds válidas (>1) para Casa (1) OU Fora (2).
+ * Empate NÃO conta no filtro PA — ele só exibe badge se for a maior odd do jogo.
+ */
 function paBkCount(ev: OddsSummary): number {
   const seen = new Set<string>();
   let cnt = 0;
   for (const b of ev.bookmakers) {
-    if (!seen.has(b.slug) && isBkPA(b) && (b.home > 1 || b.draw > 1 || b.away > 1)) {
+    if (!seen.has(b.slug) && isBkPA(b) && (b.home > 1 || b.away > 1)) {
       seen.add(b.slug);
       cnt++;
     }
@@ -210,7 +213,11 @@ const SLOT_LABELS = ['1ª', '2ª', '3ª'];
 
 // ─── Célula de melhor odd (estilo com badge PA/SO) ───────────────────────────
 
-function BestOddCell({ bk, type }: { bk: BookmakerOdds | null; type: OddType }) {
+/**
+ * showPaBadge: override para controlar se o badge PA/SO aparece.
+ * Para empate, só mostra PA se o draw for a maior odd do jogo (passado pelo chamador).
+ */
+function BestOddCell({ bk, type, showPaBadge }: { bk: BookmakerOdds | null; type: OddType; showPaBadge?: boolean }) {
   if (!bk) return (
     <div className="relative flex h-[52px] w-full items-center justify-center rounded-lg"
       style={{ background: 'rgba(255,255,255,.025)', border: '1px solid rgba(255,255,255,.06)' }}>
@@ -218,7 +225,7 @@ function BestOddCell({ bk, type }: { bk: BookmakerOdds | null; type: OddType }) 
     </div>
   );
   const val = bk[type] as number;
-  const pa  = isBkPA(bk);
+  const pa  = showPaBadge !== undefined ? showPaBadge : isBkPA(bk);
   return (
     <div className="relative flex h-[52px] w-full flex-col items-center justify-center gap-0.5 rounded-lg transition-opacity hover:opacity-80"
       style={{
@@ -254,7 +261,6 @@ function EventOddsPanel({
 }) {
   const [slots, setSlots] = useState<(CalcSlot | null)[]>([null, null, null]);
   const [calcFill, setCalcFill] = useState<{ odds: string[]; houses: string[]; urls: string[] } | null>(null);
-  const calcRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const active = slots.filter(Boolean) as CalcSlot[];
@@ -264,7 +270,7 @@ function EventOddsPanel({
       houses: slots.map(s => s ? s.bk.name : ''),
       urls:   slots.map(s => s ? (s.bk.url ?? '') : ''),
     });
-    if (active.length === 1) setTimeout(() => calcRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 80);
+    // Não faz scroll automático — evita que a tela suba ao clicar nas odds de baixo
   }, [slots]);
 
   useEffect(() => {
@@ -454,7 +460,7 @@ function EventOddsPanel({
       }}>
         <div style={{ height: 2, background: activeSlots.length > 0 ? `linear-gradient(90deg, ${C.green} 0%, ${C.green}33 60%, transparent 100%)` : `linear-gradient(90deg, rgba(255,255,255,.06) 0%, transparent 100%)` }} />
         <div className="flex flex-wrap items-center gap-2 px-4 py-3" style={{ borderBottom: `1px solid ${C.surfB}` }}>
-          <span style={{ fontSize: 10, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em', color: C.t3 }}>Calculadora</span>
+          <span style={{ fontSize: 10, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em', color: C.t3 }}>Duplo Green</span>
           <div className="flex flex-1 flex-wrap gap-2">
             {slots.map((slot, i) => (
               <div key={i} className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-[10px] font-semibold"
@@ -479,11 +485,12 @@ function EventOddsPanel({
               style={{ color: C.t3, border: '1px solid rgba(255,255,255,.1)', background: 'none', cursor: 'pointer' }}>Limpar</button>
           )}
         </div>
-        <div className="p-4" ref={calcRef}>
+        <div className="p-4">
           <SurebetCalc
             selectedEvent={{ name: eventName, start_utc: event.start_time }}
             externalFill={calcFill}
             defaultNumOutcomes={3}
+            hideNumOutcomes
             hideFormula
             accent={dgInfo ? C.green : '#4DA6FF'}
             initialOpType={dgInfo ? 'duplo_green' : 'surebet'}
@@ -1032,6 +1039,12 @@ export function BuscarOddsPage() {
                     const bkH     = bestBk(ev.bookmakers, 'home');
                     const bkD     = bestBk(ev.bookmakers, 'draw');
                     const bkA     = bestBk(ev.bookmakers, 'away');
+                    // Empate mostra PA só se o draw for a maior odd do jogo
+                    const bestH   = bestVal(ev.bookmakers, 'home');
+                    const bestD   = bestVal(ev.bookmakers, 'draw');
+                    const bestAw  = bestVal(ev.bookmakers, 'away');
+                    const drawIsHighest = bestD > 0 && bestD >= bestH && bestD >= bestAw;
+                    const drawPaBadge   = bkD && isBkPA(bkD) && drawIsHighest ? true : (bkD ? false : undefined);
                     const dg      = dgMap.get(ev.match_id);
                     const dgRgb2  = dg ? dgRGB(dg.dg_classification) : null;
                     const dgCol2  = dg ? dgColor(dg.dg_classification) : null;
@@ -1074,7 +1087,7 @@ export function BuscarOddsPage() {
                             {/* Jogo */}
                             <div className="min-w-0 flex flex-col gap-0.5">
                               <div className="flex items-center gap-2 min-w-0">
-                                <p className="truncate text-[13px] font-semibold" style={{ color: C.t1 }}>{ev.home_team}</p>
+                                <p className="truncate text-[13px] font-bold" style={{ color: C.t1 }}>{ev.home_team}</p>
                                 {dg && dgRgb2 && dgCol2 && (
                                   <span className="shrink-0 flex items-center gap-1 rounded px-1.5 py-px"
                                     style={{ fontSize: 8, fontWeight: 900, background: `rgba(${dgRgb2},.1)`, color: dgCol2, border: `1px solid rgba(${dgRgb2},.25)` }}>
@@ -1092,15 +1105,15 @@ export function BuscarOddsPage() {
                                   </span>
                                 )}
                               </div>
-                              <p className="truncate text-[11px]" style={{ color: C.t3 }}>{ev.away_team}</p>
+                              <p className="truncate text-[13px] font-semibold" style={{ color: C.t2 }}>{ev.away_team}</p>
                               <p className="text-[10px]" style={{ color: C.t3 }}>
                                 {ev.bookmakers.length} casas
                               </p>
                             </div>
 
-                            {/* Odds com badge PA/SO */}
+                            {/* Odds com badge PA/SO — empate mostra PA só se for a maior odd */}
                             <BestOddCell bk={bkH} type="home" />
-                            <BestOddCell bk={bkD} type="draw" />
+                            <BestOddCell bk={bkD} type="draw" showPaBadge={drawPaBadge ?? undefined} />
                             <BestOddCell bk={bkA} type="away" />
                           </div>
 
