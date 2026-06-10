@@ -98,10 +98,9 @@ function isPa(slug: string): boolean {
 }
 
 function isBkPA(bk: BookmakerOdds): boolean {
-  // is_pa explícito (do banco) tem prioridade
-  if (bk.is_pa === true)  return true;
-  if (bk.is_pa === false) return false;
-  // Fallback: deriva do slug
+  if (bk.is_pa === true) return true;
+  // is_pa=false vem do market_type, não de um flag explícito da casa.
+  // O slug ainda pode identificar casas PA que importaram só o mercado 1x2.
   return isPa(bk.slug);
 }
 
