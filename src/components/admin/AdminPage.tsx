@@ -506,6 +506,88 @@ function SmartImportPanel() {
   );
 }
 
+// ── Merge Legs Panel ──────────────────────────────────────────────────────────
+
+function MergeLegsPanel() {
+  const [status, setStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle');
+  const [result, setResult] = useState<Record<string, unknown> | null>(null);
+
+  async function handleMerge() {
+    if (!confirm(
+      'Copiar operações (surebet, duplo green, freebet) de 01/06 a 10/06/2026\n' +
+      'de michael.martins.trader@gmail.com → rmmichael20@gmail.com?\n\n' +
+      'Os dados da origem NÃO serão removidos.'
+    )) return;
+
+    setStatus('loading');
+    setResult(null);
+    try {
+      const res  = await fetch('/api/admin/merge-legs', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          from_email: 'michael.martins.trader@gmail.com',
+          to_email:   'rmmichael20@gmail.com',
+          date_from:  '2026-06-01',
+          date_to:    '2026-06-10',
+          op_types:   ['surebet', 'duplo_green', 'freebet', 'delay', 'outros'],
+        }),
+      });
+      const json = await res.json();
+      setResult(json);
+      setStatus(json.ok ? 'ok' : 'error');
+    } catch (e) {
+      setStatus('error');
+      setResult({ error: (e as Error).message });
+    }
+  }
+
+  return (
+    <div className="rounded-2xl p-5" style={{ background: 'rgba(124,58,237,.08)', border: '1px solid rgba(124,58,237,.25)' }}>
+      <div className="font-bold mb-1" style={{ color: 'rgba(124,58,237,1)' }}>Copiar Operações Jun/2026</div>
+      <p className="text-xs mb-4" style={{ color: 'var(--t2)' }}>
+        Copia as legs de <strong>surebet, duplo green, freebet</strong> do período <strong>01/06 ~ 10/06/2026</strong> da conta
+        {' '}<span style={{ color: 'var(--t)' }}>michael.martins.trader</span> para{' '}
+        <span style={{ color: 'var(--t)' }}>rmmichael20</span>. A origem não é alterada.
+      </p>
+
+      <button
+        type="button"
+        onClick={handleMerge}
+        disabled={status === 'loading'}
+        className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all"
+        style={{
+          background: status === 'loading' ? 'rgba(124,58,237,.15)' : 'rgba(124,58,237,1)',
+          color: '#fff',
+          opacity: status === 'loading' ? 0.7 : 1,
+        }}
+      >
+        {status === 'loading' && <Loader2 size={14} className="animate-spin" />}
+        {status === 'loading' ? 'Copiando...' : 'Copiar operações'}
+      </button>
+
+      {result && (
+        <div className="mt-3 p-3 rounded-xl text-xs font-mono"
+          style={{
+            background: status === 'ok' ? 'rgba(0,230,118,.08)' : 'rgba(255,69,69,.08)',
+            border: `1px solid ${status === 'ok' ? 'rgba(0,230,118,.2)' : 'rgba(255,69,69,.2)'}`,
+            color: status === 'ok' ? 'var(--g)' : 'var(--r)',
+          }}>
+          {status === 'ok' ? (
+            <>
+              <div>Copiadas: <strong>{String(result.copied)}</strong> legs</div>
+              {Number(result.already_existed) > 0 && <div style={{ color: 'var(--t3)' }}>Já existiam: {String(result.already_existed)}</div>}
+              <div style={{ color: 'var(--t3)' }}>Periodo: {String(result.date_range)}</div>
+            </>
+          ) : (
+            <div>{String(result.error ?? 'Erro desconhecido')}</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export function AdminPage() {
@@ -621,6 +703,9 @@ export function AdminPage() {
             />
           </div>
         )}
+
+        {/* Copiar operações Jun/2026 */}
+        {isAdmin && <MergeLegsPanel />}
 
         {/* Zona de perigo */}
         <div className="rounded-2xl p-5" style={{ background: 'var(--rd)', border: '1px solid rgba(255,69,69,.25)' }}>
