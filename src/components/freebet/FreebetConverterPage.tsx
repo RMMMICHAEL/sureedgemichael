@@ -548,12 +548,14 @@ export function FreebetConverterPage() {
                         const SLOT_LABELS = ['1ª', '2ª', '3ª'];
                         const OUTCOME_ABBR2: Record<string, string> = { home: '1', draw: 'X', away: '2' };
 
-                        // slots: freebet + 2 coberturas
-                        // house name for slot 0 = selected (sem "(freebet)") para match com ALL_HOUSES no modal
+                        // slots: freebet + coberturas — ordenados sempre Casa → Empate → Fora
+                        const SLOT_OUTCOME_ORDER: Record<string, number> = { home: 0, draw: 1, away: 2 };
                         const slots = [
                           { name: selected, displayName: `${selected} (freebet)`, odd: r.freebet_odd, outcome: r.freebet_outcome, url: r.freebet_url ?? '' },
                           ...r.covers.map(c => ({ name: c.bookmaker_name, displayName: c.bookmaker_name, odd: c.odd, outcome: c.outcome, url: c.url ?? '' })),
-                        ].slice(0, 3);
+                        ]
+                          .sort((a, b) => (SLOT_OUTCOME_ORDER[a.outcome] ?? 0) - (SLOT_OUTCOME_ORDER[b.outcome] ?? 0))
+                          .slice(0, 3);
 
                         const calcFill = {
                           odds:   slots.map(s => String(s.odd)),
