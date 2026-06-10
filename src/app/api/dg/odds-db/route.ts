@@ -111,21 +111,24 @@ export async function GET(req: NextRequest) {
     const match = matchMap.get(row.match_id)!;
     const isPA  = row.market_type === '1x2_pa';
 
-    // Evita duplicata do mesmo bookmaker + market_type
-    const already = match.bookmakers.find(
-      b => b.slug === row.bookmaker_slug && b.market_type === row.market_type
-    );
-    if (!already) {
-      match.bookmakers.push({
-        slug:        row.bookmaker_slug,
-        name:        row.bookmaker_name ?? row.bookmaker_slug,
-        home:        row.odd_home,
-        draw:        row.odd_draw ?? 0,
-        away:        row.odd_away,
-        url:         row.match_url ?? '',
-        is_pa:       isPA,
-        market_type: row.market_type,
-      });
+    // Um bookmaker por slug: se já existe, substituir só se o novo for 1x2_pa
+    // (1x2_pa tem odds melhores e é o mercado correto para PA)
+    const existingIdx = match.bookmakers.findIndex(b => b.slug === row.bookmaker_slug);
+    const entry = {
+      slug:        row.bookmaker_slug,
+      name:        row.bookmaker_name ?? row.bookmaker_slug,
+      home:        row.odd_home,
+      draw:        row.odd_draw ?? 0,
+      away:        row.odd_away,
+      url:         row.match_url ?? '',
+      is_pa:       isPA,
+      market_type: row.market_type,
+    };
+    if (existingIdx === -1) {
+      match.bookmakers.push(entry);
+    } else if (isPA) {
+      // 1x2_pa substitui 1x2 do mesmo bookmaker
+      match.bookmakers[existingIdx] = entry;
     }
   }
 
