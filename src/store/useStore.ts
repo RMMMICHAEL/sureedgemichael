@@ -226,6 +226,18 @@ export const useStore = create<StoreState>()((set, get) => ({
         }
         return l;
       });
+      // ── Migração balance_processed: marca legs manuais já liquidadas como processadas
+      //    Legs liquidadas antes desta versão já tiveram seus saldos ajustados pelo modelo
+      //    anterior (deduct stake on Pending → add back on settle). Marcamos como true
+      //    para evitar reprocessamento e habilitar correções futuras de resultado.
+      let balanceMigrated = false;
+      const legsWithBalance = legsWithComm.map(l => {
+        if (l.source !== 'import' && l.re !== 'Pendente' && l.balance_processed === undefined) {
+          balanceMigrated = true;
+          return { ...l, balance_processed: true as const };
+        }
+        return l;
+      });
       const expenses           = db.expenses           ?? [];
       const partnerAccounts    = db.partnerAccounts    ?? [];
       const clients            = db.clients            ?? [];
@@ -236,12 +248,13 @@ export const useStore = create<StoreState>()((set, get) => ({
       const transfers          = db.transfers          ?? [];
       const operators          = db.operators          ?? [];
       const goalConfig         = db.goalConfig;
-      const migrated = { ...db, bms: bmsNorm, legs: legsWithComm, expenses, partnerAccounts, clients, targetHouses, sheetSync, excludedImportKeys, notes, transfers, operators, goalConfig };
+      const migrated = { ...db, bms: bmsNorm, legs: legsWithBalance, expenses, partnerAccounts, clients, targetHouses, sheetSync, excludedImportKeys, notes, transfers, operators, goalConfig };
       const { bms, totalCash } = recalc(migrated);
       set({ ...migrated, bms, totalCash, initialized: true, toasts: [] });
       // Persiste se alguma migração foi aplicada
-      if (bmsMigrated || betbraMigrated) {
+      if (bmsMigrated || betbraMigrated || balanceMigrated) {
         if (betbraMigrated) console.log('[migration] Betbra: cm=2.8 aplicado em legs existentes');
+        if (balanceMigrated) console.log('[migration] balance_processed: legs liquidadas marcadas como processadas');
         persist(migrated);
       }
     }
@@ -402,19 +415,40 @@ export const useStore = create<StoreState>()((set, get) => ({
       const legWithComm = (leg.ho === 'Betbra' && (leg.cm === undefined || leg.cm === 0))
         ? { ...leg, cm: 2.8 }
         : leg;
-      const newLeg = { ...legWithComm, pr: calcLegProfit(legWithComm), updated_at: legWithComm.updated_at ?? now };
-      const legs   = [...s.legs, newLeg];
+      const computed = calcLegProfit(legWithComm);
 
-      // Auto-deduct stake when registering a manual pending bet
       let bms = [...s.bms];
-      if (leg.re === 'Pendente' && leg.source !== 'import') {
+      let processedFlag: boolean | undefined = undefined;
+
+      if (leg.source !== 'import') {
         const bmKey = normHouse(leg.ho).toLowerCase();
-        bms = bms.map(b =>
-          normHouse(b.name).toLowerCase() === bmKey
-            ? { ...b, balance: +(b.balance - leg.st).toFixed(2) }
-            : b
-        );
+        if (leg.re === 'Pendente') {
+          // Aposta pendente: debita a stake imediatamente para refletir saldo disponível
+          bms = bms.map(b =>
+            normHouse(b.name).toLowerCase() === bmKey
+              ? { ...b, balance: +(b.balance - leg.st).toFixed(2) }
+              : b
+          );
+          processedFlag = false;
+        } else {
+          // Leg já encerrada no ato do registro: aplica o lucro líquido diretamente
+          // (profit já inclui -stake para Red, +(od-1)*stake para Green)
+          bms = bms.map(b =>
+            normHouse(b.name).toLowerCase() === bmKey
+              ? { ...b, balance: +(b.balance + computed).toFixed(2) }
+              : b
+          );
+          processedFlag = true;
+        }
       }
+
+      const newLeg = {
+        ...legWithComm,
+        pr: computed,
+        updated_at: legWithComm.updated_at ?? now,
+        ...(processedFlag !== undefined ? { balance_processed: processedFlag } : {}),
+      };
+      const legs = [...s.legs, newLeg];
 
       const { bms: recalcedBms, totalCash } = recalc({ ...s, legs, bms });
       persist({ ...s, legs, bms: recalcedBms });
@@ -440,17 +474,28 @@ export const useStore = create<StoreState>()((set, get) => ({
     set(s => {
       const deletedLegs = s.legs.filter(l => idSet.has(l.id));
 
-      // Refund stakes for any pending manual bets being deleted
+      // Estornar efeito no saldo para todas as legs manuais deletadas
       let bms = [...s.bms];
       deletedLegs
-        .filter(l => l.re === 'Pendente' && l.source !== 'import')
+        .filter(l => l.source !== 'import')
         .forEach(leg => {
           const bmKey = normHouse(leg.ho).toLowerCase();
-          bms = bms.map(b =>
-            normHouse(b.name).toLowerCase() === bmKey
-              ? { ...b, balance: +(b.balance + leg.st).toFixed(2) }
-              : b
-          );
+          if (leg.re === 'Pendente' && leg.balance_processed !== true) {
+            // Stake debitada → devolver
+            bms = bms.map(b =>
+              normHouse(b.name).toLowerCase() === bmKey
+                ? { ...b, balance: +(b.balance + leg.st).toFixed(2) }
+                : b
+            );
+          } else if (leg.balance_processed === true) {
+            // Lucro aplicado → estornar
+            const profit = calcLegProfit(leg);
+            bms = bms.map(b =>
+              normHouse(b.name).toLowerCase() === bmKey
+                ? { ...b, balance: +(b.balance - profit).toFixed(2) }
+                : b
+            );
+          }
         });
 
       // Permanently exclude rowKeys of deleted import legs so auto-sync
@@ -473,32 +518,55 @@ export const useStore = create<StoreState>()((set, get) => ({
       const now    = new Date().toISOString();
       const oldLeg = s.legs.find(l => l.id === id);
 
+      // ── Calcular delta de saldo ANTES de atualizar o array de legs ──────────
+      let bms = [...s.bms];
+      let balancePatch: Partial<import('@/types').Leg> = {};
+
+      if (oldLeg && oldLeg.source !== 'import' && patch.re !== undefined && patch.re !== oldLeg.re) {
+        const bmKey         = normHouse(oldLeg.ho).toLowerCase();
+        const tentativeNew  = { ...oldLeg, ...patch };
+
+        if (oldLeg.re === 'Pendente' && patch.re !== 'Pendente' && oldLeg.balance_processed !== true) {
+          // Stake foi debitada na criação; devolve stake + aplica lucro líquido
+          const delta = +(oldLeg.st + calcLegProfit(tentativeNew)).toFixed(2);
+          bms = bms.map(b =>
+            normHouse(b.name).toLowerCase() === bmKey
+              ? { ...b, balance: +(b.balance + delta).toFixed(2) }
+              : b
+          );
+          balancePatch = { balance_processed: true };
+
+        } else if (oldLeg.balance_processed === true) {
+          // Leg já processada — correção de resultado
+          const oldProfit = calcLegProfit(oldLeg);
+
+          if (patch.re === 'Pendente') {
+            // Revertendo para Pendente: estorna o lucro aplicado e debita a stake novamente
+            bms = bms.map(b =>
+              normHouse(b.name).toLowerCase() === bmKey
+                ? { ...b, balance: +(b.balance - oldProfit - oldLeg.st).toFixed(2) }
+                : b
+            );
+            balancePatch = { balance_processed: false };
+          } else {
+            // Mudança entre resultados liquidados (ex: Green → Red): aplica a diferença
+            const newProfit = calcLegProfit(tentativeNew);
+            const delta     = +(newProfit - oldProfit).toFixed(2);
+            bms = bms.map(b =>
+              normHouse(b.name).toLowerCase() === bmKey
+                ? { ...b, balance: +(b.balance + delta).toFixed(2) }
+                : b
+            );
+          }
+        }
+      }
+
       const legs = s.legs.map(l => {
         if (l.id !== id) return l;
-        const updated = { ...l, ...patch, updated_at: now };
+        const updated = { ...l, ...patch, ...balancePatch, updated_at: now };
         updated.pr = calcLegProfit(updated);
         return updated;
       });
-
-      // If a pending manual bet just got settled, apply stake + profit to balance
-      let bms = [...s.bms];
-      if (
-        oldLeg &&
-        oldLeg.re === 'Pendente' &&
-        oldLeg.source !== 'import' &&
-        patch.re &&
-        patch.re !== 'Pendente'
-      ) {
-        const settledLeg = legs.find(l => l.id === id)!;
-        const bmKey      = normHouse(oldLeg.ho).toLowerCase();
-        // stake was already deducted on registration; add back stake + net P&L
-        const delta = +(oldLeg.st + calcLegProfit(settledLeg)).toFixed(2);
-        bms = bms.map(b =>
-          normHouse(b.name).toLowerCase() === bmKey
-            ? { ...b, balance: +(b.balance + delta).toFixed(2) }
-            : b
-        );
-      }
 
       const { bms: recalcedBms, totalCash } = recalc({ ...s, legs, bms });
       persist({ ...s, legs, bms: recalcedBms });
@@ -510,15 +578,26 @@ export const useStore = create<StoreState>()((set, get) => ({
     set(s => {
       const leg = s.legs.find(l => l.id === id);
 
-      // Refund stake if deleting a pending manual bet
+      // Estornar efeito no saldo ao deletar leg manual
       let bms = [...s.bms];
-      if (leg && leg.re === 'Pendente' && leg.source !== 'import') {
+      if (leg && leg.source !== 'import') {
         const bmKey = normHouse(leg.ho).toLowerCase();
-        bms = bms.map(b =>
-          normHouse(b.name).toLowerCase() === bmKey
-            ? { ...b, balance: +(b.balance + leg.st).toFixed(2) }
-            : b
-        );
+        if (leg.re === 'Pendente' && leg.balance_processed !== true) {
+          // Stake foi debitada na criação → devolver
+          bms = bms.map(b =>
+            normHouse(b.name).toLowerCase() === bmKey
+              ? { ...b, balance: +(b.balance + leg.st).toFixed(2) }
+              : b
+          );
+        } else if (leg.balance_processed === true) {
+          // Lucro foi aplicado → estornar
+          const profit = calcLegProfit(leg);
+          bms = bms.map(b =>
+            normHouse(b.name).toLowerCase() === bmKey
+              ? { ...b, balance: +(b.balance - profit).toFixed(2) }
+              : b
+          );
+        }
       }
 
       // If the leg came from an import, permanently exclude its rowKey so the
@@ -965,10 +1044,10 @@ export const useStore = create<StoreState>()((set, get) => ({
     set(s => {
       const newTx: BookmakerTransaction = { ...tx, id: `bmt_${Date.now()}` };
       const now = new Date().toISOString();
-      // adjust initial_balance + balance: deposito = +amount, saque = -amount
+      // adjust initial_balance + balance: deposito = +amount, saque = -amount, transferencia = -amount (debita origem)
       const bms = s.bms.map(b => {
         if (b.id !== bmId) return b;
-        const delta = tx.type === 'deposito' ? tx.amount : tx.type === 'saque' ? -tx.amount : 0;
+        const delta = tx.type === 'deposito' ? tx.amount : (tx.type === 'saque' || tx.type === 'transferencia') ? -tx.amount : 0;
         return {
           ...b,
           initial_balance: b.initial_balance + delta,

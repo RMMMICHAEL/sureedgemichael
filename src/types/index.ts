@@ -51,6 +51,13 @@ export interface Leg {
    * 'manual' ou undefined = operação registrada manualmente → afeta saldo.
    */
   source?: 'manual' | 'import';
+  /**
+   * Controle anti-duplicidade de saldo:
+   * - undefined / false = saldo ainda não foi movimentado para este resultado
+   * - true = saldo já foi aplicado (stake + retorno processados)
+   * Impede que edições ou recarregamentos dupliquem a movimentação.
+   */
+  balance_processed?: boolean;
   /** ISO timestamp da última modificação — usado no merge local↔Supabase ("mais recente vence") */
   updated_at?: string;
 }
