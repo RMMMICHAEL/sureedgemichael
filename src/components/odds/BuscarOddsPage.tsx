@@ -509,7 +509,7 @@ function EventOddsPanel({
             hideNumOutcomes
             hideFormula
             accent={dgInfo ? C.green : '#4DA6FF'}
-            initialOpType={dgInfo ? 'duplo_green' : 'surebet'}
+            initialOpType="duplo_green"
           />
         </div>
       </div>
