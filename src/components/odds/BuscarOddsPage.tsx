@@ -186,6 +186,17 @@ function bestBk(bks: BookmakerOdds[], key: 'home'|'draw'|'away'): BookmakerOdds 
   const v = bestVal(bks, key);
   return bks.find(b => b[key] === v && v > 1) ?? null;
 }
+/** Melhor casa com PA para o outcome (home|away). Empate não usa PA filter. */
+function bestPaBk(bks: BookmakerOdds[], key: 'home'|'away'): BookmakerOdds | null {
+  let best: BookmakerOdds | null = null; let bestV = 0;
+  for (const b of bks) {
+    if (isBkPA(b)) {
+      const v = b[key] as number;
+      if (v > bestV && v > 1) { bestV = v; best = b; }
+    }
+  }
+  return best;
+}
 function calcMargin(bks: BookmakerOdds[]): number | null {
   const h = bestVal(bks, 'home'), d = bestVal(bks, 'draw'), a = bestVal(bks, 'away');
   if (!h || !d || !a) return null;
@@ -214,25 +225,31 @@ const SLOT_LABELS = ['1ª', '2ª', '3ª'];
 // ─── Célula de melhor odd (estilo com badge PA/SO) ───────────────────────────
 
 /**
- * showPaBadge: override para controlar se o badge PA/SO aparece.
- * Para empate, só mostra PA se o draw for a maior odd do jogo (passado pelo chamador).
+ * Célula de melhor odd.
+ * PA → fundo verde + odds em verde (igual DG Opportunities).
+ * SO → fundo neutro + odds em cinza.
+ * showPaBadge: override — usado no empate para só mostrar PA se for a maior odd do jogo.
  */
 function BestOddCell({ bk, type, showPaBadge }: { bk: BookmakerOdds | null; type: OddType; showPaBadge?: boolean }) {
   if (!bk) return (
     <div className="relative flex h-[52px] w-full items-center justify-center rounded-lg"
-      style={{ background: 'rgba(255,255,255,.025)', border: '1px solid rgba(255,255,255,.06)' }}>
-      <span style={{ color: 'rgba(255,255,255,.15)', fontSize: 11 }}>—</span>
+      style={{ background: 'rgba(255,255,255,.02)', border: '1px solid rgba(255,255,255,.05)' }}>
+      <span style={{ color: 'rgba(255,255,255,.12)', fontSize: 11 }}>—</span>
     </div>
   );
   const val = bk[type] as number;
   const pa  = showPaBadge !== undefined ? showPaBadge : isBkPA(bk);
   return (
     <div className="relative flex h-[52px] w-full flex-col items-center justify-center gap-0.5 rounded-lg transition-opacity hover:opacity-80"
-      style={{
-        background: `rgba(0,230,118,.06)`,
-        border: `1px solid rgba(0,230,118,.22)`,
+      style={pa ? {
+        background: 'rgba(0,230,118,.08)',
+        border: '1px solid rgba(0,230,118,.28)',
+      } : {
+        background: 'rgba(255,255,255,.03)',
+        border: '1px solid rgba(255,255,255,.08)',
       }}>
-      <span className="tabular-nums text-[15px] font-black" style={{ color: C.green, textShadow: `0 0 10px ${C.green}44` }}>
+      <span className="tabular-nums text-[15px] font-black"
+        style={{ color: pa ? C.green : C.t2, textShadow: pa ? `0 0 10px ${C.green}33` : 'none' }}>
         {val.toFixed(2)}
       </span>
       <span className="max-w-full truncate px-2 text-[9px]" style={{ color: C.t3 }}>
@@ -241,8 +258,8 @@ function BestOddCell({ bk, type, showPaBadge }: { bk: BookmakerOdds | null; type
       {/* badge PA / SO */}
       <span className="absolute -right-1 -top-1 rounded border px-[3px] py-px text-[7px] font-bold"
         style={pa
-          ? { background: C.greenDim, color: C.green,   borderColor: C.greenB }
-          : { background: 'rgba(255,255,255,.05)', color: C.t3, borderColor: 'rgba(255,255,255,.14)' }
+          ? { background: C.greenDim, color: C.green, borderColor: C.greenB }
+          : { background: 'rgba(255,255,255,.04)', color: C.t3, borderColor: 'rgba(255,255,255,.1)' }
         }>
         {pa ? 'PA' : 'SO'}
       </span>
@@ -1030,134 +1047,194 @@ export function BuscarOddsPage() {
                 </button>
               </div>
 
-              {/* Linhas dos eventos */}
-              {!isCollapsed && (
-                <div>
-                  {evs.map((ev, idx) => {
-                    const mgn     = calcMargin(ev.bookmakers);
-                    const isSure  = mgn !== null && mgn < 0;
-                    const bkH     = bestBk(ev.bookmakers, 'home');
-                    const bkD     = bestBk(ev.bookmakers, 'draw');
-                    const bkA     = bestBk(ev.bookmakers, 'away');
-                    // Empate mostra PA só se o draw for a maior odd do jogo
-                    const bestH   = bestVal(ev.bookmakers, 'home');
-                    const bestD   = bestVal(ev.bookmakers, 'draw');
-                    const bestAw  = bestVal(ev.bookmakers, 'away');
-                    const drawIsHighest = bestD > 0 && bestD >= bestH && bestD >= bestAw;
-                    const drawPaBadge   = bkD && isBkPA(bkD) && drawIsHighest ? true : (bkD ? false : undefined);
-                    const dg      = dgMap.get(ev.match_id);
-                    const dgRgb2  = dg ? dgRGB(dg.dg_classification) : null;
-                    const dgCol2  = dg ? dgColor(dg.dg_classification) : null;
-                    const isToday = dateBRT(ev.start_time) === today;
-                    const dayLabel = weekdayLabel(ev.start_time, today);
-                    const started  = new Date(ev.start_time).getTime() < Date.now();
-                    const paCnt    = paBkCount(ev);
-
-                    return (
-                      <div key={ev.match_id} className="group relative"
-                        style={{
-                          borderTop: idx > 0 ? `1px solid ${C.surfB}` : undefined,
-                        }}>
-                        {/* left accent bar on hover */}
-                        <div className="pointer-events-none absolute inset-y-0 left-0 w-[3px] opacity-0 group-hover:opacity-100 transition-opacity duration-150"
-                          style={{ background: C.green }} />
-
-                        <button type="button" onClick={() => setSelectedEvent(ev)} className="w-full text-left">
-
-                          {/* Desktop — grid: hora | jogo | Casa(1) | Empate | Fora */}
-                          <div className="hidden md:grid items-center gap-3 pl-5 pr-4 py-3"
-                            style={{ gridTemplateColumns: '80px 1fr 70px 70px 70px' }}>
-
-                            {/* Hora + margem */}
-                            <div className="flex flex-col gap-1">
-                              <span style={{ fontSize: 13, fontWeight: 900, fontVariantNumeric: 'tabular-nums', color: started ? C.amber : isToday ? C.green : C.t2 }}>
-                                {fmtTime(ev.start_time)}
-                              </span>
-                              <span style={{ fontSize: 9, fontWeight: 700, color: started ? `${C.amber}88` : C.t3 }}>
-                                {started ? 'Em andamento' : dayLabel}
-                              </span>
-                              {mgn !== null && (
-                                <span className="rounded px-1.5 py-px tabular-nums text-center"
-                                  style={{ fontSize: 9, fontWeight: 900, color: marginColor(mgn), background: marginBg(mgn), border: `1px solid ${marginColor(mgn)}33`, display: 'inline-block', alignSelf: 'flex-start' }}>
-                                  {isSure ? `+${Math.abs(mgn).toFixed(2)}%` : `${mgn.toFixed(1)}%`}
-                                </span>
-                              )}
-                            </div>
-
-                            {/* Jogo */}
-                            <div className="min-w-0 flex flex-col gap-0.5">
-                              <div className="flex items-center gap-2 min-w-0">
-                                <p className="truncate text-[13px] font-bold" style={{ color: C.t1 }}>{ev.home_team}</p>
-                                {dg && dgRgb2 && dgCol2 && (
-                                  <span className="shrink-0 flex items-center gap-1 rounded px-1.5 py-px"
-                                    style={{ fontSize: 8, fontWeight: 900, background: `rgba(${dgRgb2},.1)`, color: dgCol2, border: `1px solid rgba(${dgRgb2},.25)` }}>
-                                    <Zap size={7} />{dg.dg_score}
-                                  </span>
-                                )}
-                                {paCnt >= 2 && (
-                                  <span style={{ fontSize: 7, fontWeight: 900, borderRadius: 4, padding: '1px 4px', background: C.greenDim, color: C.green, border: `1px solid ${C.greenB}`, flexShrink: 0 }}>
-                                    PA×2
-                                  </span>
-                                )}
-                                {paCnt === 1 && (
-                                  <span style={{ fontSize: 7, fontWeight: 900, borderRadius: 4, padding: '1px 4px', background: 'rgba(0,230,118,.05)', color: `${C.green}99`, border: 'rgba(0,230,118,.18) 1px solid', flexShrink: 0 }}>
-                                    PA
-                                  </span>
-                                )}
-                              </div>
-                              <p className="truncate text-[13px] font-semibold" style={{ color: C.t2 }}>{ev.away_team}</p>
-                              <p className="text-[10px]" style={{ color: C.t3 }}>
-                                {ev.bookmakers.length} casas
-                              </p>
-                            </div>
-
-                            {/* Odds com badge PA/SO — empate mostra PA só se for a maior odd */}
-                            <BestOddCell bk={bkH} type="home" />
-                            <BestOddCell bk={bkD} type="draw" showPaBadge={drawPaBadge ?? undefined} />
-                            <BestOddCell bk={bkA} type="away" />
+              {/* Linhas dos eventos — agrupadas por data */}
+              {!isCollapsed && (() => {
+                // Agrupar eventos por data para inserir separadores
+                const dateGroups: Array<{ date: string; isToday: boolean; label: string; events: OddsSummary[] }> = [];
+                for (const ev of evs) {
+                  const d = dateBRT(ev.start_time);
+                  const last = dateGroups[dateGroups.length - 1];
+                  if (!last || last.date !== d) {
+                    dateGroups.push({
+                      date: d,
+                      isToday: d === today,
+                      label: weekdayLabel(ev.start_time, today),
+                      events: [ev],
+                    });
+                  } else {
+                    last.events.push(ev);
+                  }
+                }
+                const usePaFilter = paFilter !== 'ALL';
+                return (
+                  <div>
+                    {dateGroups.map((group) => (
+                      <React.Fragment key={group.date}>
+                        {/* Separador de data — só aparece se a liga tiver jogos em múltiplos dias */}
+                        {dateGroups.length > 1 && (
+                          <div className="flex items-center gap-2 px-5 py-1.5"
+                            style={{
+                              borderTop: `1px solid ${C.surfB}`,
+                              background: group.isToday
+                                ? 'rgba(0,230,118,.04)'
+                                : 'rgba(255,255,255,.01)',
+                            }}>
+                            <span style={{
+                              fontSize: 10, fontWeight: 800,
+                              color: group.isToday ? C.green : C.t3,
+                              letterSpacing: '0.06em', textTransform: 'uppercase',
+                            }}>
+                              {group.label}
+                            </span>
+                            {group.isToday && (
+                              <span style={{
+                                fontSize: 8, fontWeight: 900, borderRadius: 99, padding: '1px 5px',
+                                background: C.greenDim, color: C.green, border: `1px solid ${C.greenB}`,
+                              }}>AO VIVO HOJE</span>
+                            )}
+                            <div style={{ flex: 1, height: 1, background: group.isToday ? 'rgba(0,230,118,.12)' : 'rgba(255,255,255,.04)' }} />
+                            <span style={{ fontSize: 10, fontWeight: 700, color: C.t3 }}>{group.events.length}</span>
                           </div>
+                        )}
 
-                          {/* Mobile */}
-                          <div className="flex items-center gap-3 px-4 py-3 md:hidden">
-                            <div className="flex flex-col items-center shrink-0" style={{ width: 44 }}>
-                              <span style={{ fontSize: 13, fontWeight: 900, color: started ? C.amber : isToday ? C.green : C.t2 }}>{fmtTime(ev.start_time)}</span>
-                              {mgn !== null && (
-                                <span style={{ fontSize: 9, fontWeight: 700, color: marginColor(mgn) }}>
-                                  {isSure ? `+${Math.abs(mgn).toFixed(1)}%` : `${mgn.toFixed(1)}%`}
-                                </span>
-                              )}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="truncate text-[13px] font-semibold" style={{ color: C.t1 }}>{ev.home_team} x {ev.away_team}</p>
-                              <p className="text-[11px]" style={{ color: C.t3 }}>
-                                {ev.bookmakers.length} casas
-                                {paCnt > 0 && <span className="ml-2 font-bold" style={{ color: C.green }}>· PA×{paCnt}</span>}
-                              </p>
-                            </div>
-                            {/* Mini odds mobile */}
-                            <div className="flex gap-1 shrink-0">
-                              {([bkH, bkD, bkA] as const).map((bk, ki) => {
-                                const type = (['home','draw','away'] as const)[ki];
-                                if (!bk) return <div key={ki} style={{ width: 36, height: 36, borderRadius: 6, background: 'rgba(255,255,255,.025)' }} />;
-                                const val = bk[type] as number;
-                                const pa2 = isBkPA(bk);
-                                return (
-                                  <div key={ki} className="relative flex flex-col items-center justify-center rounded-md"
-                                    style={{ width: 36, height: 36, background: 'rgba(0,230,118,.06)', border: '1px solid rgba(0,230,118,.2)' }}>
-                                    <span style={{ fontSize: 11, fontWeight: 900, color: C.green }}>{val.toFixed(2)}</span>
-                                    {pa2 && <span className="absolute -right-1 -top-1 rounded border px-px text-[6px] font-bold" style={{ background: C.greenDim, color: C.green, borderColor: C.greenB }}>PA</span>}
+                        {group.events.map((ev, idx) => {
+                          const mgn     = calcMargin(ev.bookmakers);
+                          const isSure  = mgn !== null && mgn < 0;
+                          // Quando filtro PA ativo, mostra a melhor odd PA em casa/fora
+                          const bkH     = usePaFilter ? bestPaBk(ev.bookmakers, 'home') : bestBk(ev.bookmakers, 'home');
+                          const bkD     = bestBk(ev.bookmakers, 'draw');
+                          const bkA     = usePaFilter ? bestPaBk(ev.bookmakers, 'away') : bestBk(ev.bookmakers, 'away');
+                          // Empate mostra PA só se for a maior odd do jogo
+                          const bestH   = bestVal(ev.bookmakers, 'home');
+                          const bestD   = bestVal(ev.bookmakers, 'draw');
+                          const bestAw  = bestVal(ev.bookmakers, 'away');
+                          const drawIsHighest = bestD > 0 && bestD >= bestH && bestD >= bestAw;
+                          const drawPaBadge   = bkD && isBkPA(bkD) && drawIsHighest ? true : (bkD ? false : undefined);
+                          const dg      = dgMap.get(ev.match_id);
+                          const dgRgb2  = dg ? dgRGB(dg.dg_classification) : null;
+                          const dgCol2  = dg ? dgColor(dg.dg_classification) : null;
+                          const isToday2 = group.isToday;
+                          const started  = new Date(ev.start_time).getTime() < Date.now();
+                          const paCnt    = paBkCount(ev);
+                          // Jogos futuros (não hoje): leve opacidade reduzida para diferenciar
+                          const futureOp = !isToday2 && !started ? 0.85 : 1;
+
+                          return (
+                            <div key={ev.match_id} className="group relative"
+                              style={{
+                                borderTop: idx > 0 || dateGroups.length > 1 ? `1px solid ${C.surfB}` : undefined,
+                                opacity: futureOp,
+                              }}>
+                              {/* left accent bar on hover */}
+                              <div className="pointer-events-none absolute inset-y-0 left-0 w-[3px] opacity-0 group-hover:opacity-100 transition-opacity duration-150"
+                                style={{ background: isToday2 ? C.green : C.amber }} />
+
+                              <button type="button" onClick={() => setSelectedEvent(ev)} className="w-full text-left">
+
+                                {/* Desktop — grid: hora | jogo | Casa(1) | Empate | Fora */}
+                                <div className="hidden md:grid items-center gap-3 pl-5 pr-4 py-3"
+                                  style={{ gridTemplateColumns: '80px 1fr 70px 70px 70px' }}>
+
+                                  {/* Hora + margem */}
+                                  <div className="flex flex-col gap-1">
+                                    <span style={{ fontSize: 13, fontWeight: 900, fontVariantNumeric: 'tabular-nums', color: started ? C.amber : isToday2 ? C.green : C.t2 }}>
+                                      {fmtTime(ev.start_time)}
+                                    </span>
+                                    <span style={{ fontSize: 9, fontWeight: 700, color: started ? `${C.amber}88` : isToday2 ? C.t3 : C.amber + '99' }}>
+                                      {started ? 'Em andamento' : isToday2 ? 'Hoje' : fmtDateShort(ev.start_time)}
+                                    </span>
+                                    {mgn !== null && (
+                                      <span className="rounded px-1.5 py-px tabular-nums text-center"
+                                        style={{ fontSize: 9, fontWeight: 900, color: marginColor(mgn), background: marginBg(mgn), border: `1px solid ${marginColor(mgn)}33`, display: 'inline-block', alignSelf: 'flex-start' }}>
+                                        {isSure ? `+${Math.abs(mgn).toFixed(2)}%` : `${mgn.toFixed(1)}%`}
+                                      </span>
+                                    )}
                                   </div>
-                                );
-                              })}
+
+                                  {/* Jogo */}
+                                  <div className="min-w-0 flex flex-col gap-0.5">
+                                    <div className="flex items-center gap-2 min-w-0">
+                                      <p className="truncate text-[13px] font-bold" style={{ color: C.t1 }}>{ev.home_team}</p>
+                                      {dg && dgRgb2 && dgCol2 && (
+                                        <span className="shrink-0 flex items-center gap-1 rounded px-1.5 py-px"
+                                          style={{ fontSize: 8, fontWeight: 900, background: `rgba(${dgRgb2},.1)`, color: dgCol2, border: `1px solid rgba(${dgRgb2},.25)` }}>
+                                          <Zap size={7} />{dg.dg_score}
+                                        </span>
+                                      )}
+                                      {paCnt >= 2 && (
+                                        <span style={{ fontSize: 7, fontWeight: 900, borderRadius: 4, padding: '1px 4px', background: C.greenDim, color: C.green, border: `1px solid ${C.greenB}`, flexShrink: 0 }}>
+                                          PA×2
+                                        </span>
+                                      )}
+                                      {paCnt === 1 && (
+                                        <span style={{ fontSize: 7, fontWeight: 900, borderRadius: 4, padding: '1px 4px', background: 'rgba(0,230,118,.05)', color: `${C.green}99`, border: 'rgba(0,230,118,.18) 1px solid', flexShrink: 0 }}>
+                                          PA
+                                        </span>
+                                      )}
+                                    </div>
+                                    <p className="truncate text-[13px] font-semibold" style={{ color: C.t2 }}>{ev.away_team}</p>
+                                    <p className="text-[10px]" style={{ color: C.t3 }}>
+                                      {ev.bookmakers.length} casas
+                                    </p>
+                                  </div>
+
+                                  {/* Odds com badge PA/SO — empate mostra PA só se for a maior odd */}
+                                  <BestOddCell bk={bkH} type="home" />
+                                  <BestOddCell bk={bkD} type="draw" showPaBadge={drawPaBadge ?? undefined} />
+                                  <BestOddCell bk={bkA} type="away" />
+                                </div>
+
+                                {/* Mobile */}
+                                <div className="flex items-center gap-3 px-4 py-3 md:hidden">
+                                  <div className="flex flex-col items-center shrink-0" style={{ width: 44 }}>
+                                    <span style={{ fontSize: 13, fontWeight: 900, color: started ? C.amber : isToday2 ? C.green : C.t2 }}>{fmtTime(ev.start_time)}</span>
+                                    {mgn !== null && (
+                                      <span style={{ fontSize: 9, fontWeight: 700, color: marginColor(mgn) }}>
+                                        {isSure ? `+${Math.abs(mgn).toFixed(1)}%` : `${mgn.toFixed(1)}%`}
+                                      </span>
+                                    )}
+                                    {!isToday2 && !started && (
+                                      <span style={{ fontSize: 8, color: C.amber + '99', fontWeight: 700 }}>{fmtDateShort(ev.start_time)}</span>
+                                    )}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="truncate text-[13px] font-semibold" style={{ color: C.t1 }}>{ev.home_team} x {ev.away_team}</p>
+                                    <p className="text-[11px]" style={{ color: C.t3 }}>
+                                      {ev.bookmakers.length} casas
+                                      {paCnt > 0 && <span className="ml-2 font-bold" style={{ color: C.green }}>· PA×{paCnt}</span>}
+                                    </p>
+                                  </div>
+                                  {/* Mini odds mobile — PA verde, SO neutro */}
+                                  <div className="flex gap-1 shrink-0">
+                                    {([bkH, bkD, bkA] as const).map((bk, ki) => {
+                                      const type = (['home','draw','away'] as const)[ki];
+                                      if (!bk) return <div key={ki} style={{ width: 36, height: 36, borderRadius: 6, background: 'rgba(255,255,255,.02)' }} />;
+                                      const val = bk[type] as number;
+                                      const pa2 = ki === 1
+                                        ? (drawPaBadge ?? isBkPA(bk))
+                                        : isBkPA(bk);
+                                      return (
+                                        <div key={ki} className="relative flex flex-col items-center justify-center rounded-md"
+                                          style={pa2
+                                            ? { width: 36, height: 36, background: 'rgba(0,230,118,.08)', border: '1px solid rgba(0,230,118,.25)' }
+                                            : { width: 36, height: 36, background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.08)' }}>
+                                          <span style={{ fontSize: 11, fontWeight: 900, color: pa2 ? C.green : C.t2 }}>{val.toFixed(2)}</span>
+                                          {pa2 && <span className="absolute -right-1 -top-1 rounded border px-px text-[6px] font-bold" style={{ background: C.greenDim, color: C.green, borderColor: C.greenB }}>PA</span>}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                  <ChevronRight size={13} style={{ color: C.t3, opacity: .4, flexShrink: 0 }} />
+                                </div>
+                              </button>
                             </div>
-                            <ChevronRight size={13} style={{ color: C.t3, opacity: .4, flexShrink: 0 }} />
-                          </div>
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+                          );
+                        })}
+                      </React.Fragment>
+                    ))}
+                  </div>
+                );
+              })()}
             </div>
           );
         })}
