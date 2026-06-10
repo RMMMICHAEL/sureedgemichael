@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { ExternalLink, RefreshCw, ChevronLeft, ChevronRight, ArrowDown, ArrowUpDown, Pin, X } from 'lucide-react';
+import { ExternalLink, RefreshCw, ChevronLeft, ChevronRight, ArrowDown, ArrowUpDown, Check, X } from 'lucide-react';
 import { SurebetCalc } from '@/components/calcalendario/SurebetCalc';
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
@@ -31,7 +31,6 @@ interface DGOpportunity {
   legs:              Leg[];
 }
 
-type BkState  = 'off' | 'on' | 'fixed';
 type PAFilter = 'ALL' | 'AMBOS_PA' | 'UM_PA';
 type SortBy   = 'maior_lucro' | 'menor_lucro' | 'recentes';
 
@@ -41,23 +40,40 @@ const SORT_OPTS: { value: SortBy; label: string }[] = [
   { value: 'recentes',    label: 'Mais Recentes'  },
 ];
 
-// ── Casas com PA ──────────────────────────────────────────────────────────────
-// Altenar (todas is_pa: true) + Superbet + Sportingbet.
-// Usado como fallback quando o JSON importado não inclui isPA nas legs.
+// ── Casas com PA ─────────────────────────────────────────────────────────────
+// Lista expandida — mantida em sincronia com BuscarOddsPage.tsx
 
-const PA_SLUGS = new Set([
-  'estrelabet', 'br4bet', 'esportivabet', 'jogodeouro', 'vaidebet',
-  'sortenabet', 'lotogreen', 'betpix365', 'f12', 'vupi',
-  'superbet', 'sportingbet',
+const PA_SET_DG = new Set([
+  'betano','bet365','betfair','kto','superbet','vivasorte','betao',
+  '7games','betesporte','novibet','estrelabet','esportivabet','jogodeouro',
+  '7k','bet7k','versusbet','meridianbet','betmgm','betsson','betvip',
+  'br4bet','br4','esportesdasorte','vaidebet','pixbet','sportingbet',
+  'apostabeat','apostabet','lotogreen','betpix365','betpix','f12',
+  'vupibet','vupibr','vupi','sortenabet','sorte','brasilbet',
+  'esportivabr','estrelabeat','betnacional','pixbetsports',
+  'betnow','sportbr','betbr','apostaganha',
 ]);
+
+function normSlugDG(s: string): string {
+  return s.toLowerCase().replace(/[\s\-_.]/g, '');
+}
+
+function isSlugPA(slug: string): boolean {
+  if (!slug) return false;
+  const n = normSlugDG(slug);
+  if (PA_SET_DG.has(n)) return true;
+  for (const pa of PA_SET_DG) {
+    if (n.includes(pa) || pa.includes(n)) return true;
+    const prefix = Math.min(n.length, pa.length, 6);
+    if (prefix >= 4 && n.slice(0, prefix) === pa.slice(0, prefix)) return true;
+  }
+  return false;
+}
 
 function isLegPA(leg: Leg): boolean {
   if (leg.isPA === true)  return true;
   if (leg.isPA === false) return false;
-  const slug = (leg.bookmakerSlug ?? '').toLowerCase().trim();
-  if (PA_SLUGS.has(slug)) return true;
-  for (const s of PA_SLUGS) { if (slug.includes(s)) return true; }
-  return false;
+  return isSlugPA(leg.bookmakerSlug ?? '');
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -102,35 +118,46 @@ function LegCell({ leg, highlight }: { leg: Leg | undefined; highlight?: boolean
   );
   const pa = isLegPA(leg);
   return (
-    <div className="flex flex-col items-center gap-0.5">
-      <span className="text-[15px] font-black tabular-nums" style={{
-        color: highlight ? 'hsl(150 85% 62%)' : 'hsl(150 85% 62%)',
-        textShadow: '0 0 12px hsl(150 85% 55% / 0.4)',
+    <div className="relative flex h-[52px] w-full flex-col items-center justify-center gap-0.5 rounded-lg"
+      style={{
+        background: pa
+          ? 'rgba(61,255,143,.05)'
+          : 'rgba(255,255,255,.025)',
+        border: pa
+          ? '1px solid rgba(61,255,143,.2)'
+          : '1px solid rgba(255,255,255,.07)',
+      }}>
+      <span className="tabular-nums text-[15px] font-black" style={{
+        color: pa ? 'hsl(150 85% 62%)' : 'rgba(255,255,255,.75)',
+        textShadow: pa ? '0 0 10px hsl(150 85% 55% / 0.35)' : 'none',
       }}>
         {leg.odd.toFixed(2)}
       </span>
-      <div className="flex items-center gap-1">
-        {leg.matchUrl ? (
-          <a href={leg.matchUrl} target="_blank" rel="noopener noreferrer"
-            onClick={e => e.stopPropagation()}
-            className="flex items-center gap-1 text-[10px] font-medium transition-colors hover:text-cyan-400 truncate max-w-[90px]"
-            style={{ color: 'rgba(255,255,255,.4)' }}>
-            <ExternalLink size={9} className="shrink-0 opacity-60" />
-            <span className="truncate">{leg.bookmaker}</span>
-          </a>
-        ) : (
-          <span className="text-[10px] font-medium truncate max-w-[90px]" style={{ color: 'rgba(255,255,255,.4)' }}>
-            {leg.bookmaker}
-          </span>
-        )}
-        {pa && (
-          <span className="shrink-0 rounded px-1 text-[8px] font-bold" style={{
-            background: 'rgba(255,159,10,.1)',
-            color: 'rgba(255,159,10,.75)',
-            border: '1px solid rgba(255,159,10,.2)',
-          }}>PA</span>
-        )}
-      </div>
+
+      {/* nome da casa + link */}
+      {leg.matchUrl ? (
+        <a href={leg.matchUrl} target="_blank" rel="noopener noreferrer"
+          onClick={e => e.stopPropagation()}
+          className="flex items-center gap-0.5 transition-colors hover:opacity-80 max-w-full px-1"
+          style={{ color: 'rgba(255,255,255,.35)', fontSize: 9 }}>
+          <ExternalLink size={8} className="shrink-0 opacity-60" />
+          <span className="truncate">{leg.bookmaker}</span>
+        </a>
+      ) : (
+        <span className="max-w-full truncate px-1 text-[9px]"
+          style={{ color: pa ? 'rgba(255,255,255,.45)' : 'rgba(255,255,255,.3)' }}>
+          {leg.bookmaker}
+        </span>
+      )}
+
+      {/* badge PA / SO */}
+      <span className="absolute -right-1 -top-1 rounded border px-[3px] py-px text-[7px] font-bold"
+        style={pa
+          ? { background: 'rgba(61,255,143,.1)',  color: 'rgba(61,255,143,.85)',  borderColor: 'rgba(61,255,143,.25)' }
+          : { background: 'rgba(255,255,255,.05)', color: 'rgba(255,255,255,.3)',  borderColor: 'rgba(255,255,255,.12)' }
+        }>
+        {pa ? 'PA' : 'SO'}
+      </span>
     </div>
   );
 }
@@ -139,103 +166,53 @@ function LegCell({ leg, highlight }: { leg: Leg | undefined; highlight?: boolean
 
 interface BkInfo { slug: string; name: string; isPA: boolean; }
 
+/** Deselected = oculto dos resultados (igual ao modal da BuscarOddsPage) */
 function BookmakerModal({
   bookmakers,
-  states,
+  deselected,
   onChange,
   onClose,
 }: {
   bookmakers: BkInfo[];
-  states: Record<string, BkState>;
-  onChange: (slug: string, next: BkState) => void;
+  deselected: Set<string>;
+  onChange: (next: Set<string>) => void;
   onClose: () => void;
 }) {
-  const [draft, setDraft] = useState<Record<string, BkState>>({ ...states });
-  const saved = useRef<Record<string, BkState>>({ ...states });
+  const [draft, setDraft] = useState(new Set(deselected));
 
-  function cycle(slug: string) {
+  function toggle(slug: string) {
     setDraft(prev => {
-      const cur = prev[slug] ?? 'off';
-      // off → on → fixed → off
-      const next: BkState = cur === 'off' ? 'on' : cur === 'on' ? 'fixed' : 'off';
-      return { ...prev, [slug]: next };
+      const n = new Set(prev);
+      n.has(slug) ? n.delete(slug) : n.add(slug);
+      return n;
     });
   }
-
-  function resetAll() {
-    const cleared: Record<string, BkState> = {};
-    for (const bk of bookmakers) cleared[bk.slug] = 'off';
-    setDraft(cleared);
-  }
-
-  function confirm() {
-    for (const bk of bookmakers) {
-      onChange(bk.slug, draft[bk.slug] ?? 'off');
-    }
-    onClose();
-  }
+  function deselectAll() { setDraft(new Set(bookmakers.map(b => b.slug))); }
+  function selectAll()   { setDraft(new Set()); }
 
   const paList    = bookmakers.filter(b => b.isPA);
   const nonPaList = bookmakers.filter(b => !b.isPA);
-  const anyActive = Object.values(draft).some(s => s !== 'off');
+  const selectedCount = bookmakers.length - draft.size;
 
-  function BkButton({ bk }: { bk: BkInfo }) {
-    const state = draft[bk.slug] ?? 'off';
-    const isOn    = state === 'on';
-    const isFixed = state === 'fixed';
+  function BkCheck({ bk }: { bk: BkInfo }) {
+    const sel = !draft.has(bk.slug);
     return (
-      <button
-        type="button"
-        onClick={() => cycle(bk.slug)}
-        className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-all"
-        style={{
-          background: isFixed
-            ? 'rgba(168,85,247,.15)'
-            : isOn
-            ? 'rgba(61,255,143,.08)'
-            : 'rgba(255,255,255,.03)',
-          border: isFixed
-            ? '1px solid rgba(168,85,247,.35)'
-            : isOn
-            ? '1px solid rgba(61,255,143,.25)'
-            : '1px solid rgba(255,255,255,.06)',
+      <button type="button" onClick={() => toggle(bk.slug)}
+        className="flex items-center gap-2 py-1 text-left transition-opacity hover:opacity-80"
+        style={{ background: 'none', border: 'none', cursor: 'pointer', color: sel ? 'rgba(255,255,255,.9)' : 'rgba(255,255,255,.3)' }}>
+        <span style={{
+          width: 20, height: 20, borderRadius: '50%', flexShrink: 0,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: sel ? 'hsl(150 85% 55%)' : 'rgba(255,255,255,.06)',
+          border: `1.5px solid ${sel ? 'hsl(150 85% 55%)' : 'rgba(255,255,255,.15)'}`,
         }}>
-        {/* Estado visual */}
-        <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md" style={{
-          background: isFixed
-            ? 'rgba(168,85,247,.3)'
-            : isOn
-            ? 'rgba(61,255,143,.2)'
-            : 'rgba(255,255,255,.06)',
-          border: isFixed
-            ? '1px solid rgba(168,85,247,.5)'
-            : isOn
-            ? '1px solid rgba(61,255,143,.4)'
-            : '1px solid rgba(255,255,255,.12)',
-        }}>
-          {isFixed
-            ? <Pin size={10} style={{ color: '#A855F7' }} />
-            : isOn
-            ? <span style={{ fontSize: 10, color: '#3DFF8F', fontWeight: 900 }}>✓</span>
-            : null}
-        </div>
-
-        {/* Nome */}
-        <span className="flex-1 text-[13px] font-semibold" style={{
-          color: isFixed ? '#c084fc' : isOn ? '#3DFF8F' : 'rgba(255,255,255,.6)',
-        }}>
-          {bk.name}
+          {sel && <Check size={11} color="#060A07" strokeWidth={3} />}
         </span>
-
-        {/* Label estado */}
-        {isFixed && (
-          <span className="text-[9px] font-black uppercase tracking-wider" style={{ color: 'rgba(168,85,247,.7)' }}>
-            Fixada
-          </span>
-        )}
-        {isOn && (
-          <span className="text-[9px] font-black uppercase tracking-wider" style={{ color: 'rgba(61,255,143,.6)' }}>
-            Selecionada
+        <span style={{ fontSize: 13, fontWeight: sel ? 600 : 400 }}>{bk.name}</span>
+        {!bk.isPA && (
+          <span className="rounded border px-[3px] py-px text-[7px] font-bold"
+            style={{ background: 'rgba(255,255,255,.05)', color: 'rgba(255,255,255,.3)', borderColor: 'rgba(255,255,255,.12)' }}>
+            SO
           </span>
         )}
       </button>
@@ -245,73 +222,50 @@ function BookmakerModal({
   function Section({ title, list, accent }: { title: string; list: BkInfo[]; accent: string }) {
     if (!list.length) return null;
     return (
-      <div>
-        <div className="mb-2 flex items-center gap-2 px-1">
+      <div className="mb-4">
+        <div className="mb-2.5 flex items-center gap-2 pb-2" style={{ borderBottom: '1px solid rgba(255,255,255,.06)' }}>
           <div style={{ width: 3, height: 12, borderRadius: 2, background: accent }} />
-          <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: accent }}>
-            {title}
-          </span>
-          <span className="rounded-full px-1.5 py-px text-[9px] font-bold"
-            style={{ background: `${accent}22`, color: accent }}>
+          <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: accent }}>{title}</span>
+          <span className="rounded-full px-1.5 py-px text-[9px] font-bold" style={{ background: `${accent}22`, color: accent }}>
             {list.length}
           </span>
         </div>
-        <div className="flex flex-col gap-1.5">
-          {list.map(bk => <BkButton key={bk.slug} bk={bk} />)}
+        <div className="grid gap-y-0.5" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+          {list.map(bk => <BkCheck key={bk.slug} bk={bk} />)}
         </div>
       </div>
     );
   }
 
   return createPortal(
-    <div className="fixed inset-0 z-[999] flex items-end justify-center md:items-center"
-      style={{ background: 'rgba(0,0,0,.65)', backdropFilter: 'blur(6px)' }}
-      onMouseDown={e => { if (e.target === e.currentTarget) { setDraft(saved.current); onClose(); } }}>
-
-      <div className="relative flex w-full max-w-md flex-col overflow-hidden rounded-t-3xl md:rounded-3xl"
-        style={{
-          background: 'rgba(13,17,23,0.97)',
-          border: '1px solid rgba(255,255,255,.1)',
-          boxShadow: '0 24px 80px rgba(0,0,0,.8)',
-          maxHeight: '85vh',
-        }}>
-
-        {/* Handle mobile */}
-        <div className="mx-auto mt-3 h-1 w-10 rounded-full md:hidden" style={{ background: 'rgba(255,255,255,.12)' }} />
-
+    <div onClick={onClose} style={{
+      position: 'fixed', inset: 0, zIndex: 9000,
+      background: 'rgba(0,0,0,.65)', backdropFilter: 'blur(4px)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+    }}>
+      <div onClick={e => e.stopPropagation()} style={{
+        background: '#0e131a',
+        border: '1px solid rgba(255,255,255,.1)',
+        borderRadius: 16,
+        boxShadow: '0 24px 80px rgba(0,0,0,.8)',
+        width: 680, maxWidth: '95vw', maxHeight: '88vh',
+        display: 'flex', flexDirection: 'column',
+      }}>
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid rgba(255,255,255,.07)' }}>
-          <div>
-            <p className="text-[15px] font-black" style={{ color: 'var(--t)' }}>Casas de Apostas</p>
-            <p className="text-[11px] mt-0.5" style={{ color: 'rgba(255,255,255,.35)' }}>
-              clique para selecionar · clique 2× para fixar · 3× para remover
-            </p>
-          </div>
-          <button onClick={() => { setDraft(saved.current); onClose(); }}
-            className="flex h-8 w-8 items-center justify-center rounded-xl transition-colors hover:bg-white/10"
-            style={{ color: 'rgba(255,255,255,.4)', background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.08)' }}>
-            <X size={14} />
+        <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid rgba(255,255,255,.07)' }}>
+          <h3 style={{ fontSize: 16, fontWeight: 800, color: 'rgba(255,255,255,.9)', margin: 0 }}>Casas de Apostas</h3>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,.4)', padding: 4 }}>
+            <X size={18} />
           </button>
         </div>
-
-        {/* Legenda */}
-        <div className="flex items-center gap-4 px-5 py-2.5" style={{ background: 'rgba(255,255,255,.02)', borderBottom: '1px solid rgba(255,255,255,.05)' }}>
-          {[
-            { color: 'rgba(255,255,255,.35)', label: 'Desmarcada', icon: null },
-            { color: '#3DFF8F', label: 'Selecionada', icon: '✓' },
-            { color: '#A855F7', label: 'Fixada', icon: '📌' },
-          ].map(({ color, label, icon }) => (
-            <div key={label} className="flex items-center gap-1.5">
-              <span style={{ fontSize: 10, color }}>{icon}</span>
-              <span className="text-[10px] font-semibold" style={{ color: 'rgba(255,255,255,.4)' }}>{label}</span>
-            </div>
-          ))}
-        </div>
+        <p style={{ fontSize: 12, color: 'rgba(255,255,255,.4)', padding: '8px 24px 0', margin: 0 }}>
+          Desmarque as casas que não utiliza para filtrar oportunidades.
+        </p>
 
         {/* Lista */}
-        <div className="overflow-y-auto flex-1 p-5 flex flex-col gap-5">
-          <Section title="Com Pagamento Antecipado (PA)" list={paList} accent="rgba(255,159,10,.9)" />
-          <Section title="Sem Pagamento Antecipado" list={nonPaList} accent="rgba(129,140,248,.8)" />
+        <div className="overflow-y-auto flex-1 px-6 py-4">
+          <Section title="Com Pagamento Antecipado (PA)" list={paList} accent="rgba(61,255,143,.85)" />
+          <Section title="Sem Pagamento Antecipado" list={nonPaList} accent="rgba(129,140,248,.75)" />
           {!paList.length && !nonPaList.length && (
             <p className="py-8 text-center text-sm" style={{ color: 'rgba(255,255,255,.3)' }}>
               Nenhuma casa encontrada nos dados importados
@@ -320,23 +274,22 @@ function BookmakerModal({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center gap-2 px-5 py-4" style={{ borderTop: '1px solid rgba(255,255,255,.07)' }}>
-          <button onClick={resetAll}
-            className="rounded-xl px-4 py-2 text-[12px] font-bold transition-colors hover:bg-white/10"
-            style={{ color: 'rgba(255,255,255,.45)', background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.08)' }}>
-            Desmarcar todas
-          </button>
-          <div className="flex-1" />
-          {anyActive && (
-            <span className="text-[10px] font-semibold" style={{ color: 'rgba(255,255,255,.3)' }}>
-              {Object.values(draft).filter(s => s !== 'off').length} selecionada(s)
-            </span>
-          )}
-          <button onClick={confirm}
-            className="rounded-xl px-5 py-2 text-[13px] font-black transition-opacity hover:opacity-90"
-            style={{ background: 'linear-gradient(135deg, #3DFF8F 0%, #22c55e 100%)', color: '#0a1a0f' }}>
-            Confirmar
-          </button>
+        <div className="flex items-center justify-between px-6 py-4" style={{ borderTop: '1px solid rgba(255,255,255,.07)' }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,.35)' }}>
+            {selectedCount} de {bookmakers.length} selecionadas
+          </span>
+          <div className="flex gap-2">
+            <button onClick={draft.size === bookmakers.length ? selectAll : deselectAll}
+              className="rounded-xl px-4 py-2 text-[12px] font-bold hover:bg-white/10 transition-colors"
+              style={{ background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.08)', color: 'rgba(255,255,255,.5)' }}>
+              {draft.size === bookmakers.length ? 'Marcar todas' : 'Desmarcar todas'}
+            </button>
+            <button onClick={() => { onChange(draft); onClose(); }}
+              className="rounded-xl px-5 py-2 text-[12px] font-black transition-opacity hover:opacity-90"
+              style={{ background: 'linear-gradient(135deg, #3DFF8F 0%, #22c55e 100%)', color: '#060A07' }}>
+              Confirmar
+            </button>
+          </div>
         </div>
       </div>
     </div>,
@@ -599,7 +552,7 @@ export function DGOpportunitiesSection() {
   const [paFilter,        setPaFilter]        = useState<PAFilter>('ALL');
   const [sortBy,          setSortBy]          = useState<SortBy>('maior_lucro');
   const [sortOpen,        setSortOpen]        = useState(false);
-  const [bkStates,        setBkStates]        = useState<Record<string, BkState>>({});
+  const [bkDeselected,    setBkDeselected]    = useState<Set<string>>(new Set());
   const [bkModalOpen,     setBkModalOpen]     = useState(false);
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
   const sortRef = useRef<HTMLDivElement>(null);
@@ -649,9 +602,8 @@ export function DGOpportunitiesSection() {
     });
   }, [opportunities]);
 
-  const fixedSlugs   = useMemo(() => new Set(Object.entries(bkStates).filter(([, s]) => s === 'fixed').map(([k]) => k)), [bkStates]);
-  const activeSlugs  = useMemo(() => new Set(Object.entries(bkStates).filter(([, s]) => s !== 'off').map(([k]) => k)), [bkStates]);
-  const hasAnyActive = activeSlugs.size > 0;
+  const fixedSlugs   = useMemo(() => new Set<string>(), []); // sem fixed no novo modelo
+  const hasAnyDesel  = bkDeselected.size > 0;
 
   // ── Filtro principal ──────────────────────────────────────────────────────
   const filtered = useMemo(() => {
@@ -661,29 +613,24 @@ export function DGOpportunitiesSection() {
       if (paFilter === 'AMBOS_PA' && paCount < 2)  return false;
       if (paFilter === 'UM_PA'    && paCount !== 1) return false;
 
-      // Bookmaker filter: se há casas selecionadas, a oportunidade deve conter ao menos uma
-      if (hasAnyActive) {
-        const legSlugs = new Set(o.legs.map(l => l.bookmakerSlug));
-        const matches  = [...activeSlugs].some(s => legSlugs.has(s));
-        if (!matches) return false;
+      // Bookmaker deselect: ocultar oportunidades onde TODAS as legs estão desativadas
+      if (hasAnyDesel) {
+        const hasActive = o.legs.some(l => !bkDeselected.has(l.bookmakerSlug));
+        if (!hasActive) return false;
       }
 
       return true;
     });
-  }, [opportunities, paFilter, activeSlugs, hasAnyActive]);
+  }, [opportunities, paFilter, bkDeselected, hasAnyDesel]);
 
-  // Melhor por match (maior score), ordenado por score desc
+  // Melhor por match (maior score), ordenado conforme sortBy
   const dedupList = useMemo(() => {
     const best = new Map<string, DGOpportunity>();
     for (const o of filtered) {
       const ex = best.get(o.match_id);
       if (!ex || (o.dg_score ?? 0) > (ex.dg_score ?? 0)) best.set(o.match_id, o);
     }
-    // Fixadas primeiro, depois pela ordenação escolhida
     return Array.from(best.values()).sort((a, b) => {
-      const aFixed = a.legs.some(l => fixedSlugs.has(l.bookmakerSlug));
-      const bFixed = b.legs.some(l => fixedSlugs.has(l.bookmakerSlug));
-      if (aFixed !== bFixed) return aFixed ? -1 : 1;
       if (sortBy === 'maior_lucro') return (b.dg_profit_pct ?? -999) - (a.dg_profit_pct ?? -999);
       if (sortBy === 'menor_lucro') return (a.dg_profit_pct ?? 999)  - (b.dg_profit_pct ?? 999);
       if (sortBy === 'recentes') {
@@ -693,7 +640,7 @@ export function DGOpportunitiesSection() {
       }
       return 0;
     });
-  }, [filtered, fixedSlugs]);
+  }, [filtered, sortBy]);
 
   // ── Detail view ───────────────────────────────────────────────────────────
   if (selectedMatchId) {
@@ -780,22 +727,16 @@ export function DGOpportunitiesSection() {
           onClick={() => setBkModalOpen(true)}
           className="flex items-center gap-2 rounded-xl px-3 py-2 text-[12px] font-bold transition-all"
           style={{
-            background: hasAnyActive ? 'rgba(168,85,247,.12)' : 'rgba(255,255,255,.04)',
-            border:     hasAnyActive ? '1px solid rgba(168,85,247,.3)' : '1px solid rgba(255,255,255,.08)',
-            color:      hasAnyActive ? '#c084fc' : 'rgba(255,255,255,.5)',
+            background: hasAnyDesel ? 'rgba(245,158,11,.12)' : 'rgba(255,255,255,.04)',
+            border:     hasAnyDesel ? '1px solid rgba(245,158,11,.3)' : '1px solid rgba(255,255,255,.08)',
+            color:      hasAnyDesel ? '#f59e0b' : 'rgba(255,255,255,.5)',
           }}>
-          <Pin size={12} />
+          <X size={12} style={{ opacity: hasAnyDesel ? 1 : 0.5 }} />
           Casas
-          {hasAnyActive && (
+          {hasAnyDesel && (
             <span className="rounded-full px-1.5 py-px text-[9px] font-black"
-              style={{ background: 'rgba(168,85,247,.2)', color: '#c084fc' }}>
-              {activeSlugs.size}
-            </span>
-          )}
-          {hasAnyActive && fixedSlugs.size > 0 && (
-            <span className="rounded-full px-1.5 py-px text-[9px] font-black"
-              style={{ background: 'rgba(168,85,247,.3)', color: '#e9d5ff' }}>
-              {fixedSlugs.size} fixada{fixedSlugs.size !== 1 ? 's' : ''}
+              style={{ background: 'rgba(245,158,11,.2)', color: '#f59e0b' }}>
+              -{bkDeselected.size}
             </span>
           )}
         </button>
@@ -826,8 +767,8 @@ export function DGOpportunitiesSection() {
         </div>
 
         {/* Clear filtros */}
-        {(paFilter !== 'ALL' || hasAnyActive) && (
-          <button onClick={() => { setPaFilter('ALL'); setBkStates({}); }}
+        {(paFilter !== 'ALL' || hasAnyDesel) && (
+          <button onClick={() => { setPaFilter('ALL'); setBkDeselected(new Set()); }}
             className="flex items-center gap-1 rounded-xl px-2.5 py-2 text-[11px] font-semibold transition-all hover:opacity-80"
             style={{ color: 'rgba(248,113,113,.7)', background: 'rgba(248,113,113,.07)', border: '1px solid rgba(248,113,113,.15)' }}>
             <X size={10} /> Limpar
@@ -848,8 +789,8 @@ export function DGOpportunitiesSection() {
       {bkModalOpen && (
         <BookmakerModal
           bookmakers={allBookmakers}
-          states={bkStates}
-          onChange={(slug, next) => setBkStates(prev => ({ ...prev, [slug]: next }))}
+          deselected={bkDeselected}
+          onChange={setBkDeselected}
           onClose={() => setBkModalOpen(false)}
         />
       )}
@@ -881,7 +822,7 @@ export function DGOpportunitiesSection() {
       {dedupList.length === 0 && (
         <div className="flex flex-col items-center gap-2 py-10" style={{ color: 'var(--t3)' }}>
           <p className="text-sm font-bold">Nenhum resultado para os filtros</p>
-          <button onClick={() => { setPaFilter('ALL'); setBkStates({}); }}
+          <button onClick={() => { setPaFilter('ALL'); setBkDeselected(new Set()); }}
             className="text-xs underline"
             style={{ color: '#818cf8', background: 'none', border: 'none', cursor: 'pointer' }}>
             Limpar filtros
@@ -984,9 +925,6 @@ export function DGOpportunitiesSection() {
                             <span className="shrink-0 rounded px-1" style={{ fontSize: 8, fontWeight: 700, background: `rgba(${rgb},.1)`, color: col, border: `1px solid rgba(${rgb},.2)` }}>
                               +{oppCount - 1}
                             </span>
-                          )}
-                          {hasFixed && (
-                            <Pin size={9} className="shrink-0" style={{ color: 'rgba(168,85,247,.6)' }} />
                           )}
                         </div>
                         <p className="truncate" style={{ fontSize: 12, color: 'var(--t3)' }}>{o.away_team}</p>
