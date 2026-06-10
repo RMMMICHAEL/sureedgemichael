@@ -1,10 +1,11 @@
 'use client';
 
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Search, X, ScanSearch, ChevronLeft, ChevronRight, ExternalLink,
   ArrowDown, RefreshCw, Zap, TrendingUp, ChevronDown, Star,
-  HelpCircle, ArrowUpDown,
+  HelpCircle, Check, Sliders,
 } from 'lucide-react';
 import { SurebetCalc } from '@/components/calcalendario/SurebetCalc';
 import { DGOpportunitiesSection } from './DGOpportunitiesSection';
@@ -39,7 +40,7 @@ interface BookmakerOdds {
   draw:  number;
   away:  number;
   url:   string;
-  is_pa?: boolean;
+  is_pa?: boolean | null;
 }
 
 interface OddsSummary {
@@ -58,44 +59,78 @@ interface DGInfo {
   dg_profit_pct:     number | null;
 }
 
-type PAFilter = 'ALL' | 'AMBOS_PA' | 'UM_PA' | 'SEM_PA';
+type PAFilter = 'ALL' | 'AMBOS_PA' | 'UM_PA';
+type SortBy   = 'maior_lucro' | 'menor_lucro' | 'padrao';
 
-// ─── Casas com Pagamento Antecipado ──────────────────────────────────────────
-
+// ─── Set expandido de casas com Pagamento Antecipado ─────────────────────────
+// Fonte: lista do concorrente + casas conhecidas via Altenar/Bwin
 const PA_SET = new Set([
-  'estrelabet','br4bet','esportivabet','jogodeouro','vaidebet',
-  'sortenabet','lotogreen','betpix365','f12','vupibet','vupibr',
-  'bet7k','esportesdasorte','apostabet','brasilbet','superbet','sportingbet',
+  // Por nome normalizado (sem espaços/traços/pontos, lowercase)
+  'betano','bet365','betfair','kto','superbet','vivasorte','betao',
+  '7games','betesporte','novibet','estrelabet','esportivabet','jogodeouro',
+  '7k','bet7k','versusbet','meridianbet','betmgm','betsson','betvip',
+  'br4bet','br4','esportesdasorte','vaidebet','pixbet','sportingbet',
+  'apostabeat','apostabet','lotogreen','betpix365','betpix','f12',
+  'vupibet','vupibr','vupi','sortenabet','sorte','brasilbet',
+  'esportivabr','estrelabeat','betnacional','pixbetsports',
+  'betnow','sportbr','betbr','apostaganha',
 ]);
 
+/**
+ * Normaliza o slug para comparação: lowercase, sem espaços/traços/pontos/números.
+ * Exemplo: "Estrela-Bet" → "estrelabet"  |  "br4bet" → "brbet" → na verdade mantemos dígitos
+ */
+function normSlug(s: string): string {
+  return s.toLowerCase().replace(/[\s\-_.]/g, '');
+}
+
 function isPa(slug: string): boolean {
-  const n = slug.toLowerCase().replace(/[\s\-_.]/g, '');
+  if (!slug) return false;
+  const n = normSlug(slug);
+  // Correspondência exata ou substring
+  if (PA_SET.has(n)) return true;
   for (const pa of PA_SET) {
-    if (n === pa || n.startsWith(pa.slice(0, 5)) || pa.startsWith(n.slice(0, 5))) return true;
+    if (n.includes(pa) || pa.includes(n)) return true;
+    // Prefixo de 6 chars (evita falsos positivos curtos)
+    const prefix = Math.min(n.length, pa.length, 6);
+    if (prefix >= 4 && n.slice(0, prefix) === pa.slice(0, prefix)) return true;
   }
   return false;
 }
 
 function isBkPA(bk: BookmakerOdds): boolean {
-  return bk.is_pa ?? isPa(bk.slug);
+  // is_pa explícito (do banco) tem prioridade
+  if (bk.is_pa === true)  return true;
+  if (bk.is_pa === false) return false;
+  // Fallback: deriva do slug
+  return isPa(bk.slug);
 }
 
-/** Quantas casas com PA têm odds válidas (>1) no evento */
+/** Quantas casas PA distintas têm odds válidas (>1) no evento */
 function paBkCount(ev: OddsSummary): number {
-  return ev.bookmakers.filter(b => isBkPA(b) && (b.home > 1 || b.draw > 1 || b.away > 1)).length;
+  const seen = new Set<string>();
+  let cnt = 0;
+  for (const b of ev.bookmakers) {
+    if (!seen.has(b.slug) && isBkPA(b) && (b.home > 1 || b.draw > 1 || b.away > 1)) {
+      seen.add(b.slug);
+      cnt++;
+    }
+  }
+  return cnt;
 }
 
-// ─── Ligas excluídas ──────────────────────────────────────────────────────────
+// ─── Ligas excluídas (virtuais / e-sports) ───────────────────────────────────
 
-const EXCL = ['e-futebol','e-soccer','esoccer','futebol virtual','virtual','efootball','cyber','esport','h2h'];
+const EXCL = ['e-futebol','e-soccer','esoccer','virtual','efootball','cyber','esport','h2h'];
 function isExcluded(n: string): boolean { const s = n.toLowerCase(); return EXCL.some(e => s.includes(e)); }
 
-// ─── Helpers de data ──────────────────────────────────────────────────────────
+// ─── Helpers de data / hora ───────────────────────────────────────────────────
 
 function p2(n: number) { return String(n).padStart(2, '0'); }
+
 function todayBRT(): string {
-  const d = new Date(Date.now() - 3 * 60 * 60 * 1000);
-  return `${d.getUTCFullYear()}-${p2(d.getUTCMonth()+1)}-${p2(d.getUTCDate())}`;
+  const d = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+  return `${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())}`;
 }
 function dateBRT(utc: string): string {
   try {
@@ -105,16 +140,25 @@ function dateBRT(utc: string): string {
 }
 function fmtTime(utc: string): string {
   try { return new Date(utc).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' }); }
-  catch { return utc; }
+  catch { return '—'; }
 }
-function fmtDate(utc: string): string {
+function fmtDateShort(utc: string): string {
   try { return new Date(utc).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', timeZone: 'America/Sao_Paulo' }); }
-  catch { return utc; }
+  catch { return '—'; }
 }
 function secsAgo(ts: number): string {
   const s = Math.floor((Date.now() - ts) / 1000);
   if (s < 60) return `${s}s`;
   return `${Math.floor(s / 60)}min`;
+}
+function weekdayLabel(utc: string, today: string): string {
+  const d = dateBRT(utc);
+  if (d === today) return 'Hoje';
+  const tomorrow = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const tStr = `${tomorrow.getFullYear()}-${p2(tomorrow.getMonth()+1)}-${p2(tomorrow.getDate())}`;
+  if (d === tStr) return 'Amanhã';
+  return fmtDateShort(utc);
 }
 
 // ─── DG helpers ──────────────────────────────────────────────────────────────
@@ -130,7 +174,7 @@ function dgRGB(c: string | null): string {
   return '100,116,139';
 }
 
-// ─── Cálculo de margem ────────────────────────────────────────────────────────
+// ─── Margem ───────────────────────────────────────────────────────────────────
 
 function bestVal(bks: BookmakerOdds[], key: 'home'|'draw'|'away'): number {
   const vals = bks.map(b => b[key]).filter(v => v > 1);
@@ -158,14 +202,14 @@ function marginBg(mgn: number): string {
   return C.redDim;
 }
 
-// ─── Slots de calculadora ─────────────────────────────────────────────────────
+// ─── Calculadora ─────────────────────────────────────────────────────────────
 
 type OddType = 'home' | 'draw' | 'away';
 interface CalcSlot { bk: BookmakerOdds; type: OddType; value: number }
 const SLOT_COLORS = ['#00e676', '#4DA6FF', '#FF9F0A'];
 const SLOT_LABELS = ['1ª', '2ª', '3ª'];
 
-// ─── Célula de melhor odd (lista) ─────────────────────────────────────────────
+// ─── Célula de melhor odd ─────────────────────────────────────────────────────
 
 function BestOddCell({ bk, type }: { bk: BookmakerOdds | null; type: OddType }) {
   if (!bk) return <div className="flex justify-center"><span style={{ color: 'rgba(255,255,255,.1)', fontSize: 11 }}>—</span></div>;
@@ -184,6 +228,135 @@ function BestOddCell({ bk, type }: { bk: BookmakerOdds | null; type: OddType }) 
         )}
       </span>
     </div>
+  );
+}
+
+// ─── Modal de casas (filtro) ──────────────────────────────────────────────────
+
+interface BkEntry { slug: string; name: string; isPA: boolean }
+
+function BookmakerFilterModal({
+  entries, deselected, onChange, onClose,
+}: {
+  entries: BkEntry[];
+  deselected: Set<string>;
+  onChange: (s: Set<string>) => void;
+  onClose: () => void;
+}) {
+  const [draft, setDraft] = useState(new Set(deselected));
+  const pa    = entries.filter(e => e.isPA);
+  const nonPa = entries.filter(e => !e.isPA);
+  const selectedCount = entries.length - draft.size;
+
+  function toggle(slug: string) {
+    setDraft(prev => {
+      const n = new Set(prev);
+      n.has(slug) ? n.delete(slug) : n.add(slug);
+      return n;
+    });
+  }
+  function deselectAll() { setDraft(new Set(entries.map(e => e.slug))); }
+  function selectAll()   { setDraft(new Set()); }
+
+  function BkCheck({ e }: { e: BkEntry }) {
+    const sel = !draft.has(e.slug);
+    return (
+      <button onClick={() => toggle(e.slug)}
+        className="flex items-center gap-2 py-1 text-left transition-opacity hover:opacity-80"
+        style={{ background: 'none', border: 'none', cursor: 'pointer', color: sel ? C.t1 : C.t3 }}>
+        <span style={{
+          width: 20, height: 20, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: sel ? C.green : 'rgba(255,255,255,.06)',
+          border: `1.5px solid ${sel ? C.green : 'rgba(255,255,255,.15)'}`,
+        }}>
+          {sel && <Check size={11} color="#060A07" strokeWidth={3} />}
+        </span>
+        <span style={{ fontSize: 13, fontWeight: sel ? 600 : 400 }}>{e.name}</span>
+      </button>
+    );
+  }
+
+  function Section({ label, bks, icon }: { label: string; bks: BkEntry[]; icon: React.ReactNode }) {
+    if (!bks.length) return null;
+    return (
+      <div className="mb-4">
+        <div className="flex items-center gap-1.5 mb-3 pb-2" style={{ borderBottom: `1px solid ${C.surfB}` }}>
+          {icon}
+          <span style={{ fontSize: 10, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em', color: C.t3 }}>{label}</span>
+        </div>
+        <div className="grid gap-y-1" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+          {bks.map(e => <BkCheck key={e.slug} e={e} />)}
+        </div>
+      </div>
+    );
+  }
+
+  return createPortal(
+    <div onClick={onClose} style={{
+      position: 'fixed', inset: 0, zIndex: 9000,
+      background: 'rgba(0,0,0,.65)', backdropFilter: 'blur(4px)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+    }}>
+      <div onClick={e => e.stopPropagation()} style={{
+        background: '#0e131a',
+        border: `1px solid ${C.surfB}`,
+        borderRadius: 16,
+        boxShadow: '0 24px 80px rgba(0,0,0,.7)',
+        width: 680,
+        maxWidth: '95vw',
+        maxHeight: '88vh',
+        display: 'flex',
+        flexDirection: 'column',
+      }}>
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: `1px solid ${C.surfB}` }}>
+          <div className="flex items-center gap-2">
+            <Sliders size={16} style={{ color: C.amber }} />
+            <h3 style={{ fontSize: 16, fontWeight: 800, color: C.t1, margin: 0 }}>Casas de Aposta</h3>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.t3, padding: 4 }}>
+            <X size={18} />
+          </button>
+        </div>
+        <p style={{ fontSize: 12, color: C.t2, padding: '8px 24px 0', margin: 0 }}>
+          Desmarque as casas que você não utiliza para filtrar as odds.
+        </p>
+
+        {/* Conteúdo */}
+        <div className="overflow-y-auto flex-1 px-6 py-4">
+          <Section
+            label="Casas com Pagamento Antecipado"
+            bks={pa}
+            icon={<span style={{ fontSize: 10, color: C.amber }}>★</span>}
+          />
+          <Section
+            label="Casas sem Pagamento Antecipado"
+            bks={nonPa}
+            icon={<span style={{ fontSize: 10, color: C.t3 }}>○</span>}
+          />
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between px-6 py-4" style={{ borderTop: `1px solid ${C.surfB}` }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: C.t3 }}>
+            {selectedCount} de {entries.length} selecionadas
+          </span>
+          <div className="flex gap-2">
+            <button onClick={draft.size === entries.length ? selectAll : deselectAll}
+              className="rounded-xl px-4 py-2 text-[12px] font-bold hover:bg-white/10 transition-colors"
+              style={{ background: 'rgba(255,255,255,.04)', border: `1px solid ${C.surfB}`, color: C.t2 }}>
+              {draft.size === entries.length ? 'Marcar todas' : 'Desmarcar todas'}
+            </button>
+            <button onClick={() => { onChange(draft); onClose(); }}
+              className="rounded-xl px-5 py-2 text-[12px] font-bold transition-all hover:opacity-90"
+              style={{ background: C.green, color: '#060A07' }}>
+              Confirmar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -299,7 +472,7 @@ function EventOddsPanel({
       <div className="overflow-hidden rounded-2xl" style={{
         background: `rgba(${acRgb},.03)`,
         border: `1px solid rgba(${acRgb},.2)`,
-        boxShadow: `0 4px 24px rgba(0,0,0,.3), 0 0 0 1px rgba(${acRgb},.05) inset`,
+        boxShadow: `0 4px 24px rgba(0,0,0,.3)`,
       }}>
         <div style={{ height: 2, background: `linear-gradient(90deg, ${accent} 0%, ${accent}44 60%, transparent 100%)` }} />
         <div className="flex items-center gap-2.5 px-5 py-3" style={{ background: `rgba(${acRgb},.07)`, borderBottom: `1px solid rgba(${acRgb},.1)` }}>
@@ -314,7 +487,7 @@ function EventOddsPanel({
           {cols.map(c => (
             <button key={c.key} type="button" onClick={() => setSortCol(c.key)}
               className="flex items-center justify-center gap-0.5 transition-colors"
-              style={{ fontSize: 11, fontWeight: 700, color: sortCol === c.key ? C.t1 : C.t3, borderBottom: sortCol === c.key ? `2px solid rgba(${acRgb},.7)` : '2px solid transparent', paddingBottom: 2 }}>
+              style={{ fontSize: 11, fontWeight: 700, color: sortCol === c.key ? C.t1 : C.t3, borderBottom: sortCol === c.key ? `2px solid rgba(${acRgb},.7)` : '2px solid transparent', paddingBottom: 2, background: 'none', border: 'none', cursor: 'pointer' }}>
               {c.label}{sortCol === c.key && <ArrowDown size={9} style={{ marginLeft: 2 }} />}
             </button>
           ))}
@@ -325,7 +498,7 @@ function EventOddsPanel({
             const pa = isBkPA(bk);
             return (
               <div key={bk.slug} className="grid items-center gap-3 px-5 py-3"
-                style={{ gridTemplateColumns: '1fr 72px 72px 72px', background: anySelected ? `rgba(${acRgb},.04)` : idx % 2 === 1 ? 'rgba(255,255,255,.01)' : undefined, borderTop: idx > 0 ? '1px solid rgba(255,255,255,.04)' : undefined }}>
+                style={{ gridTemplateColumns: '1fr 72px 72px 72px', background: anySelected ? `rgba(${acRgb},.04)` : idx % 2 === 1 ? 'rgba(255,255,255,.01)' : undefined, borderTop: idx > 0 ? `1px solid rgba(255,255,255,.04)` : undefined }}>
                 <div className="flex items-center gap-2 min-w-0">
                   {bk.url ? (
                     <a href={bk.url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
@@ -357,7 +530,6 @@ function EventOddsPanel({
         background: `linear-gradient(135deg, ${C.purpleDim} 0%, ${C.surf}ee 60%)`,
         border: `1px solid ${C.purpleB}`,
         boxShadow: `0 4px 32px rgba(0,0,0,.5)`,
-        backdropFilter: 'blur(20px)',
       }}>
         <button onClick={onBack} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl hover:bg-white/10 transition-colors"
           style={{ background: C.purpleDim, border: `1px solid ${C.purpleB}`, color: C.purple }}>
@@ -375,7 +547,7 @@ function EventOddsPanel({
               <Zap size={9} style={{ color: dgCol }} />
               <span style={{ fontSize: 18, fontWeight: 900, lineHeight: 1, color: dgCol }}>{dgInfo.dg_score ?? '—'}</span>
             </div>
-            <span style={{ fontSize: 8, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em', color: `rgba(${dgRgb},.5)` }}>DG score</span>
+            <span style={{ fontSize: 8, fontWeight: 900, textTransform: 'uppercase', color: `rgba(${dgRgb},.5)` }}>DG score</span>
             {dgInfo.dg_profit_pct != null && (
               <span style={{ fontSize: 9, fontWeight: 700, marginTop: 2, color: dgInfo.dg_profit_pct >= 0 ? C.green : C.red }}>
                 {dgInfo.dg_profit_pct >= 0 ? '+' : ''}{dgInfo.dg_profit_pct.toFixed(1)}%
@@ -394,7 +566,6 @@ function EventOddsPanel({
         background: `${C.surf}cc`,
         border: `1px solid ${activeSlots.length > 0 ? C.greenB : C.surfB}`,
         boxShadow: activeSlots.length > 0 ? `0 4px 24px rgba(0,0,0,.3), 0 0 20px ${C.green}08` : '0 4px 24px rgba(0,0,0,.3)',
-        backdropFilter: 'blur(12px)',
       }}>
         <div style={{ height: 2, background: activeSlots.length > 0 ? `linear-gradient(90deg, ${C.green} 0%, ${C.green}33 60%, transparent 100%)` : `linear-gradient(90deg, rgba(255,255,255,.06) 0%, transparent 100%)` }} />
         <div className="flex flex-wrap items-center gap-2 px-4 py-3" style={{ borderBottom: `1px solid ${C.surfB}` }}>
@@ -420,7 +591,7 @@ function EventOddsPanel({
           </div>
           {activeSlots.length > 0 && (
             <button onClick={() => setSlots([null, null, null])} className="rounded-md px-2 py-1 text-[9px] font-bold hover:bg-white/10"
-              style={{ color: C.t3, border: '1px solid rgba(255,255,255,.1)' }}>Limpar</button>
+              style={{ color: C.t3, border: '1px solid rgba(255,255,255,.1)', background: 'none', cursor: 'pointer' }}>Limpar</button>
           )}
         </div>
         <div className="p-4" ref={calcRef}>
@@ -447,34 +618,40 @@ function EventOddsPanel({
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 
+const SORT_OPTS: { value: SortBy; label: string }[] = [
+  { value: 'padrao',      label: 'Padrão (horário)'  },
+  { value: 'maior_lucro', label: 'Maior Lucro DG'    },
+  { value: 'menor_lucro', label: 'Menor Lucro DG'    },
+];
+
 export function BuscarOddsPage() {
   const today = todayBRT();
 
-  const [tab,              setTab]             = useState<'odds' | 'dg'>('odds');
-  const [allOdds,          setAllOdds]         = useState<OddsSummary[]>([]);
-  const [loading,          setLoading]         = useState(true);
-  const [fetchErr,         setFetchErr]        = useState('');
-  const [search,           setSearch]          = useState('');
-  const [selectedEvent,    setSelectedEvent]   = useState<OddsSummary | null>(null);
-  const [dgOnly,           setDgOnly]          = useState(false);
-  const [paFilter,         setPaFilter]        = useState<PAFilter>('ALL');
-  const [onlyToday,        setOnlyToday]       = useState(false);
-  const [sortByProfit,     setSortByProfit]    = useState(false);
-  const [leagueFav,        setLeagueFav]       = useState<Set<string>>(new Set());
-  const [leagueCollapsed,  setLeagueCollapsed] = useState<Set<string>>(new Set());
-  const [leagueFilter,     setLeagueFilter]    = useState('');
-  const [bkFilter,         setBkFilter]        = useState('');
-  const [leagueOpen,       setLeagueOpen]      = useState(false);
-  const [bkOpen,           setBkOpen]          = useState(false);
-  const [lastUpdated,      setLastUpdated]     = useState(Date.now());
-  const [tick,             setTick]            = useState(0);
+  const [tab,             setTab]            = useState<'odds' | 'dg'>('odds');
+  const [allOdds,         setAllOdds]        = useState<OddsSummary[]>([]);
+  const [loading,         setLoading]        = useState(true);
+  const [fetchErr,        setFetchErr]       = useState('');
+  const [search,          setSearch]         = useState('');
+  const [selectedEvent,   setSelectedEvent]  = useState<OddsSummary | null>(null);
+  const [dgOnly,          setDgOnly]         = useState(false);
+  const [paFilter,        setPaFilter]       = useState<PAFilter>('ALL');
+  const [sortBy,          setSortBy]         = useState<SortBy>('padrao');
+  const [sortOpen,        setSortOpen]       = useState(false);
+  const [leagueFav,       setLeagueFav]      = useState<Set<string>>(new Set());
+  const [leagueCollapsed, setLeagueCollapsed]= useState<Set<string>>(new Set());
+  const [leagueFilter,    setLeagueFilter]   = useState('');
+  const [leagueOpen,      setLeagueOpen]     = useState(false);
+  const [bkDeselected,    setBkDeselected]   = useState<Set<string>>(new Set()); // slugs desativados
+  const [bkModalOpen,     setBkModalOpen]    = useState(false);
+  const [lastUpdated,     setLastUpdated]    = useState(Date.now());
+  const [tick,            setTick]           = useState(0);
 
   const leagueRef = useRef<HTMLDivElement>(null);
-  const bkRef     = useRef<HTMLDivElement>(null);
+  const sortRef   = useRef<HTMLDivElement>(null);
 
   const [dgMap, setDgMap] = useState<Map<string, DGInfo>>(new Map());
 
-  // ── Tick para "atualizado há Xs" ────────────────────────────────────────────
+  // ── Tick "atualizado há Xs" ─────────────────────────────────────────────────
   useEffect(() => {
     const id = setInterval(() => setTick(t => t + 1), 10_000);
     return () => clearInterval(id);
@@ -485,11 +662,11 @@ export function BuscarOddsPage() {
   useEffect(() => {
     function down(e: MouseEvent) {
       if (leagueOpen && leagueRef.current && !leagueRef.current.contains(e.target as Node)) setLeagueOpen(false);
-      if (bkOpen && bkRef.current && !bkRef.current.contains(e.target as Node)) setBkOpen(false);
+      if (sortOpen && sortRef.current && !sortRef.current.contains(e.target as Node)) setSortOpen(false);
     }
     document.addEventListener('mousedown', down);
     return () => document.removeEventListener('mousedown', down);
-  }, [leagueOpen, bkOpen]);
+  }, [leagueOpen, sortOpen]);
 
   // ── Carregar DG map ─────────────────────────────────────────────────────────
   const loadDGMap = useCallback(async () => {
@@ -500,7 +677,8 @@ export function BuscarOddsPage() {
       const map = new Map<string, DGInfo>();
       for (const r of data.results) {
         const ex = map.get(r.match_id);
-        if (!ex || (r.dg_score ?? 0) > (ex.dg_score ?? 0)) map.set(r.match_id, { dg_score: r.dg_score, dg_classification: r.dg_classification, dg_profit_pct: r.dg_profit_pct });
+        if (!ex || (r.dg_score ?? 0) > (ex.dg_score ?? 0))
+          map.set(r.match_id, { dg_score: r.dg_score, dg_classification: r.dg_classification, dg_profit_pct: r.dg_profit_pct });
       }
       setDgMap(map);
     } catch { /* silencia */ }
@@ -535,38 +713,65 @@ export function BuscarOddsPage() {
     return () => clearInterval(id);
   }, [loadOdds]);
 
-  // ── Normalizador ────────────────────────────────────────────────────────────
+  // ── Helpers ─────────────────────────────────────────────────────────────────
   const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 
-  // ── Dados derivados ─────────────────────────────────────────────────────────
+  // ── Lista de casas p/ modal ─────────────────────────────────────────────────
+  const bkEntries = useMemo<BkEntry[]>(() => {
+    const seen = new Map<string, BkEntry>();
+    for (const ev of allOdds) {
+      for (const b of ev.bookmakers) {
+        if (!seen.has(b.slug)) seen.set(b.slug, { slug: b.slug, name: b.name, isPA: isBkPA(b) });
+      }
+    }
+    // Ordena: PA primeiro, depois alfabético dentro de cada grupo
+    return Array.from(seen.values()).sort((a, b) => {
+      if (a.isPA !== b.isPA) return a.isPA ? -1 : 1;
+      return a.name.localeCompare(b.name);
+    });
+  }, [allOdds]);
+
+  // ── Ligas disponíveis ────────────────────────────────────────────────────────
   const allLeagues = useMemo(() => [...new Set(allOdds.filter(e => !isExcluded(e.league_name)).map(e => e.league_name))].sort(), [allOdds]);
-  const allBks     = useMemo(() => [...new Set(allOdds.flatMap(e => e.bookmakers.map(b => b.name)))].sort(), [allOdds]);
+
+  // ── Filtros ──────────────────────────────────────────────────────────────────
+  const now = Date.now();
+  // Jogo ainda não terminou: start_time + 110 min no futuro
+  const GAME_DURATION_MS = 110 * 60 * 1000;
 
   const filtered = useMemo(() => {
-    const now = Date.now();
     return allOdds
       .filter(ev => !isExcluded(ev.league_name ?? ''))
-      .filter(ev => { try { return new Date(ev.start_time).getTime() > now; } catch { return true; } })
-      .filter(ev => !dgOnly     || dgMap.has(ev.match_id))
-      .filter(ev => !onlyToday  || dateBRT(ev.start_time) === today)
+      // Jogo ainda não terminou
+      .filter(ev => { try { return new Date(ev.start_time).getTime() + GAME_DURATION_MS > Date.now(); } catch { return true; } })
+      // DG only
+      .filter(ev => !dgOnly || dgMap.has(ev.match_id))
+      // Liga específica
       .filter(ev => !leagueFilter || ev.league_name === leagueFilter)
-      .filter(ev => !bkFilter   || ev.bookmakers.some(b => b.name === bkFilter))
+      // Casas ativadas: se alguma casa estiver desativada, o evento deve ter pelo menos uma casa ativada
+      .filter(ev => {
+        if (bkDeselected.size === 0) return true;
+        // Verifica se o evento tem ao menos uma casa selecionada (não desativada)
+        return ev.bookmakers.some(b => !bkDeselected.has(b.slug));
+      })
+      // Filtro PA
       .filter(ev => {
         if (paFilter === 'ALL') return true;
         const cnt = paBkCount(ev);
         if (paFilter === 'AMBOS_PA') return cnt >= 2;
         if (paFilter === 'UM_PA')    return cnt === 1;
-        if (paFilter === 'SEM_PA')   return cnt === 0;
         return true;
       })
+      // Busca de texto
       .filter(ev => {
         if (!search.trim()) return true;
         const q = norm(search.trim());
         return norm(ev.home_team).includes(q) || norm(ev.away_team).includes(q) || norm(ev.league_name ?? '').includes(q);
       });
-  }, [allOdds, dgOnly, onlyToday, today, leagueFilter, bkFilter, paFilter, search, dgMap]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allOdds, dgOnly, leagueFilter, bkDeselected, paFilter, search, dgMap, now]);
 
-  // ── Agrupamento por liga ────────────────────────────────────────────────────
+  // ── Agrupamento por liga ─────────────────────────────────────────────────────
   const byLeague = useMemo(() => {
     const map = new Map<string, OddsSummary[]>();
     for (const ev of filtered) {
@@ -576,19 +781,20 @@ export function BuscarOddsPage() {
     }
     let entries = Array.from(map.entries());
 
-    // Sort events within each league
-    if (sortByProfit) {
-      entries = entries.map(([lg, evs]) => [
-        lg,
-        [...evs].sort((a, b) => {
-          const dA = dgMap.get(a.match_id)?.dg_profit_pct ?? -999;
-          const dB = dgMap.get(b.match_id)?.dg_profit_pct ?? -999;
-          return dB - dA;
-        }),
-      ] as [string, OddsSummary[]]);
-    }
+    // Ordena eventos dentro de cada liga
+    entries = entries.map(([lg, evs]) => {
+      const sorted = [...evs];
+      if (sortBy === 'maior_lucro') {
+        sorted.sort((a, b) => (dgMap.get(b.match_id)?.dg_profit_pct ?? -999) - (dgMap.get(a.match_id)?.dg_profit_pct ?? -999));
+      } else if (sortBy === 'menor_lucro') {
+        sorted.sort((a, b) => (dgMap.get(a.match_id)?.dg_profit_pct ?? 999) - (dgMap.get(b.match_id)?.dg_profit_pct ?? 999));
+      } else {
+        sorted.sort((a, b) => a.start_time.localeCompare(b.start_time));
+      }
+      return [lg, sorted] as [string, OddsSummary[]];
+    });
 
-    // Sort leagues: favoritas primeiro, depois brasileirao, depois ordem cronológica
+    // Ordena ligas: favoritas primeiro, depois Brazil, depois alfabético
     return entries.sort((a, b) => {
       const aFav = leagueFav.has(a[0]);
       const bFav = leagueFav.has(b[0]);
@@ -597,14 +803,16 @@ export function BuscarOddsPage() {
       const bBr = b[0].toLowerCase().includes('brasil') || b[0].toLowerCase().includes('série');
       if (aBr && !bBr) return -1;
       if (!aBr && bBr) return 1;
-      return (a[1][0]?.start_time ?? '').localeCompare(b[1][0]?.start_time ?? '');
+      return a[0].localeCompare(b[0]);
     });
-  }, [filtered, sortByProfit, leagueFav, dgMap]);
+  }, [filtered, sortBy, leagueFav, dgMap]);
 
-  const dgCount   = useMemo(() => allOdds.filter(ev => !isExcluded(ev.league_name ?? '') && dgMap.has(ev.match_id)).length, [allOdds, dgMap]);
-  const cntAmbos  = useMemo(() => filtered.filter(ev => paBkCount(ev) >= 2).length, [filtered]);
-  const cntUm     = useMemo(() => filtered.filter(ev => paBkCount(ev) === 1).length, [filtered]);
-  const cntSem    = useMemo(() => filtered.filter(ev => paBkCount(ev) === 0).length, [filtered]);
+  const dgCount  = useMemo(() => allOdds.filter(ev => !isExcluded(ev.league_name ?? '') && dgMap.has(ev.match_id)).length, [allOdds, dgMap]);
+  const cntAmbos = useMemo(() => filtered.filter(ev => paBkCount(ev) >= 2).length, [filtered]);
+  const cntUm    = useMemo(() => filtered.filter(ev => paBkCount(ev) === 1).length, [filtered]);
+
+  const bkDeselCount = bkDeselected.size;
+  const hasActiveFilter = paFilter !== 'ALL' || leagueFilter || dgOnly || sortBy !== 'padrao' || bkDeselCount > 0 || search.trim();
 
   function toggleFav(lg: string) {
     setLeagueFav(prev => { const n = new Set(prev); n.has(lg) ? n.delete(lg) : n.add(lg); return n; });
@@ -613,10 +821,11 @@ export function BuscarOddsPage() {
     setLeagueCollapsed(prev => { const n = new Set(prev); n.has(lg) ? n.delete(lg) : n.add(lg); return n; });
   }
   function clearFilters() {
-    setPaFilter('ALL'); setLeagueFilter(''); setBkFilter(''); setDgOnly(false); setOnlyToday(false); setSearch(''); setSortByProfit(false);
+    setPaFilter('ALL'); setLeagueFilter(''); setDgOnly(false); setSortBy('padrao');
+    setBkDeselected(new Set()); setSearch('');
   }
 
-  const hasActiveFilter = paFilter !== 'ALL' || leagueFilter || bkFilter || dgOnly || onlyToday || sortByProfit;
+  const curSortLabel = SORT_OPTS.find(o => o.value === sortBy)?.label ?? 'Ordenar';
 
   // ── Modo evento ─────────────────────────────────────────────────────────────
   if (selectedEvent) {
@@ -635,7 +844,7 @@ export function BuscarOddsPage() {
   return (
     <div className="mx-auto flex flex-col gap-4" style={{ maxWidth: 960 }}>
 
-      {/* ── Header ───────────────────────────────────────────────────────── */}
+      {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
           <h1 style={{ fontSize: 20, fontWeight: 900, letterSpacing: '-0.02em', color: C.t1 }}>Buscar Odds</h1>
@@ -643,25 +852,21 @@ export function BuscarOddsPage() {
             {loading
               ? 'Carregando…'
               : tab === 'odds'
-                ? `${allLeagues.length} campeonatos monitorados · atualizado há ${secsAgo(lastUpdated)}`
+                ? `${allLeagues.length} campeonatos · atualizado há ${secsAgo(lastUpdated)}`
                 : 'Oportunidades DuploGreen importadas'}
           </p>
         </div>
-
         {/* Tab switcher */}
         <div className="flex items-center rounded-xl overflow-hidden" style={{ background: 'rgba(255,255,255,.03)', border: `1px solid ${C.surfB}` }}>
           {([
-            { key: 'odds' as const, icon: <Zap size={12} />, label: 'Odds do Dia',       color: '#94a3b8', bg: 'rgba(99,102,241,.1)'  },
-            { key: 'dg'   as const, icon: <TrendingUp size={12} />, label: 'Oportunidades DG', color: C.green,   bg: `${C.greenDim}` },
-          ] as const).map((t, i) => (
+            { key: 'odds' as const, icon: <Zap size={12} />, label: 'Odds do Dia', color: '#94a3b8', bg: 'rgba(99,102,241,.1)' },
+            { key: 'dg'   as const, icon: <TrendingUp size={12} />, label: 'Oportunidades DG', color: C.green, bg: C.greenDim },
+          ]).map((t, i) => (
             <React.Fragment key={t.key}>
               {i > 0 && <div style={{ width: 1, height: 24, background: 'rgba(255,255,255,.07)' }} />}
               <button onClick={() => setTab(t.key)}
                 className="flex items-center gap-1.5 px-4 py-2 text-[12px] font-bold transition-all"
-                style={{
-                  background: tab === t.key ? t.bg : 'transparent',
-                  color:      tab === t.key ? t.color : C.t3,
-                }}>
+                style={{ background: tab === t.key ? t.bg : 'transparent', color: tab === t.key ? t.color : C.t3 }}>
                 {t.icon} {t.label}
               </button>
             </React.Fragment>
@@ -669,10 +874,10 @@ export function BuscarOddsPage() {
         </div>
       </div>
 
-      {/* ── Tab DG ──────────────────────────────────────────────────────── */}
+      {/* ── Tab DG ────────────────────────────────────────────────────────── */}
       {tab === 'dg' && <DGOpportunitiesSection />}
 
-      {/* ── Tab Odds ─────────────────────────────────────────────────────── */}
+      {/* ── Tab Odds ──────────────────────────────────────────────────────── */}
       {tab === 'odds' && <>
 
         {/* ── Filtros linha 1 ─────────────────────────────────────────────── */}
@@ -687,37 +892,39 @@ export function BuscarOddsPage() {
               style={{ background: `${C.surf}cc`, border: `1px solid ${C.surfB}`, color: C.t1 }} />
             {search && (
               <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2"
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.t3 }}><X size={12} /></button>
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.t3 }}>
+                <X size={12} />
+              </button>
             )}
           </div>
 
           {/* Campeonatos dropdown */}
           <div className="relative" ref={leagueRef}>
-            <button onClick={() => { setLeagueOpen(v => !v); setBkOpen(false); }}
+            <button onClick={() => setLeagueOpen(v => !v)}
               className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-[12px] font-bold transition-all"
               style={{
-                background: leagueFilter ? `${C.purpleDim}` : `${C.surf}cc`,
+                background: leagueFilter ? C.purpleDim : `${C.surf}cc`,
                 border:     leagueFilter ? `1px solid ${C.purpleB}` : `1px solid ${C.surfB}`,
                 color:      leagueFilter ? C.purple : C.t2,
               }}>
               <TrendingUp size={11} />
-              {leagueFilter ? leagueFilter.slice(0, 18) : 'Campeonatos'}
+              {leagueFilter ? leagueFilter.slice(0, 20) : 'Campeonatos'}
               <ChevronDown size={11} style={{ opacity: .5 }} />
             </button>
             {leagueOpen && (
               <div className="absolute left-0 top-full z-50 mt-1 overflow-y-auto rounded-xl py-1"
                 style={{ background: '#0e131a', border: `1px solid ${C.surfB}`, minWidth: 220, maxHeight: 280, boxShadow: '0 8px 32px rgba(0,0,0,.6)' }}>
                 <button onClick={() => { setLeagueFilter(''); setLeagueOpen(false); }}
-                  className="flex w-full items-center px-4 py-2.5 text-[12px] font-semibold hover:bg-white/5"
-                  style={{ color: !leagueFilter ? C.green : C.t2 }}>
-                  {!leagueFilter && <span style={{ fontSize: 9, color: C.green, marginRight: 6 }}>✓</span>}
+                  className="flex w-full items-center gap-2 px-4 py-2.5 text-[12px] font-semibold hover:bg-white/5 text-left"
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: !leagueFilter ? C.green : C.t2 }}>
+                  {!leagueFilter && <Check size={10} style={{ color: C.green }} />}
                   Todos os campeonatos
                 </button>
                 {allLeagues.map(lg => (
                   <button key={lg} onClick={() => { setLeagueFilter(lg); setLeagueOpen(false); }}
-                    className="flex w-full items-center px-4 py-2.5 text-[12px] font-semibold hover:bg-white/5 text-left"
-                    style={{ color: leagueFilter === lg ? C.purple : C.t2 }}>
-                    {leagueFilter === lg && <span style={{ fontSize: 9, color: C.purple, marginRight: 6 }}>✓</span>}
+                    className="flex w-full items-center gap-2 px-4 py-2.5 text-[12px] font-semibold hover:bg-white/5 text-left"
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: leagueFilter === lg ? C.purple : C.t2 }}>
+                    {leagueFilter === lg && <Check size={10} style={{ color: C.purple }} />}
                     <span className="truncate">{lg}</span>
                   </button>
                 ))}
@@ -725,50 +932,49 @@ export function BuscarOddsPage() {
             )}
           </div>
 
-          {/* Casas dropdown */}
-          <div className="relative" ref={bkRef}>
-            <button onClick={() => { setBkOpen(v => !v); setLeagueOpen(false); }}
+          {/* Casas (modal) */}
+          <button onClick={() => setBkModalOpen(true)}
+            className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-[12px] font-bold transition-all"
+            style={{
+              background: bkDeselCount > 0 ? C.amberDim : `${C.surf}cc`,
+              border:     bkDeselCount > 0 ? `1px solid ${C.amberB}` : `1px solid ${C.surfB}`,
+              color:      bkDeselCount > 0 ? C.amber : C.t2,
+            }}>
+            <Sliders size={11} />
+            Casas
+            {bkDeselCount > 0 && (
+              <span style={{ fontSize: 9, fontWeight: 700, borderRadius: 99, padding: '0 4px', background: C.amberDim, color: C.amber, border: `1px solid ${C.amberB}` }}>
+                -{bkDeselCount}
+              </span>
+            )}
+          </button>
+
+          {/* Sort dropdown */}
+          <div className="relative" ref={sortRef}>
+            <button onClick={() => setSortOpen(v => !v)}
               className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-[12px] font-bold transition-all"
               style={{
-                background: bkFilter ? `${C.greenDim}` : `${C.surf}cc`,
-                border:     bkFilter ? `1px solid ${C.greenB}` : `1px solid ${C.surfB}`,
-                color:      bkFilter ? C.green : C.t2,
+                background: sortBy !== 'padrao' ? C.greenDim : `${C.surf}cc`,
+                border:     sortBy !== 'padrao' ? `1px solid ${C.greenB}` : `1px solid ${C.surfB}`,
+                color:      sortBy !== 'padrao' ? C.green : C.t2,
               }}>
-              <Star size={11} />
-              {bkFilter || 'Casas'}
+              {curSortLabel}
               <ChevronDown size={11} style={{ opacity: .5 }} />
             </button>
-            {bkOpen && (
-              <div className="absolute left-0 top-full z-50 mt-1 overflow-y-auto rounded-xl py-1"
-                style={{ background: '#0e131a', border: `1px solid ${C.surfB}`, minWidth: 180, maxHeight: 260, boxShadow: '0 8px 32px rgba(0,0,0,.6)' }}>
-                <button onClick={() => { setBkFilter(''); setBkOpen(false); }}
-                  className="flex w-full items-center px-4 py-2.5 text-[12px] font-semibold hover:bg-white/5"
-                  style={{ color: !bkFilter ? C.green : C.t2 }}>
-                  {!bkFilter && <span style={{ fontSize: 9, color: C.green, marginRight: 6 }}>✓</span>}
-                  Todas as casas
-                </button>
-                {allBks.map(bk => (
-                  <button key={bk} onClick={() => { setBkFilter(bk); setBkOpen(false); }}
-                    className="flex w-full items-center px-4 py-2.5 text-[12px] font-semibold hover:bg-white/5"
-                    style={{ color: bkFilter === bk ? C.green : C.t2 }}>
-                    {bkFilter === bk && <span style={{ fontSize: 9, color: C.green, marginRight: 6 }}>✓</span>}
-                    {bk}
+            {sortOpen && (
+              <div className="absolute right-0 top-full z-50 mt-1 rounded-xl py-1"
+                style={{ background: '#0e131a', border: `1px solid ${C.surfB}`, minWidth: 170, boxShadow: '0 8px 32px rgba(0,0,0,.6)' }}>
+                {SORT_OPTS.map(o => (
+                  <button key={o.value} onClick={() => { setSortBy(o.value); setSortOpen(false); }}
+                    className="flex w-full items-center gap-2 px-4 py-2.5 text-[12px] font-semibold hover:bg-white/5 text-left"
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: sortBy === o.value ? C.green : C.t2 }}>
+                    {sortBy === o.value && <Check size={10} style={{ color: C.green }} />}
+                    {o.label}
                   </button>
                 ))}
               </div>
             )}
           </div>
-
-          {/* Apenas hoje */}
-          <button onClick={() => setOnlyToday(v => !v)}
-            className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-[12px] font-bold transition-all"
-            style={{
-              background: onlyToday ? 'rgba(99,102,241,.12)' : `${C.surf}cc`,
-              border:     onlyToday ? '1px solid rgba(99,102,241,.35)' : `1px solid ${C.surfB}`,
-              color:      onlyToday ? '#94a3b8' : C.t3,
-            }}>
-            Apenas hoje
-          </button>
 
           {/* Só com DG */}
           {dgMap.size > 0 && (
@@ -787,6 +993,7 @@ export function BuscarOddsPage() {
           )}
 
           <div className="flex-1" />
+
           <button onClick={() => loadOdds()} disabled={loading}
             className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-[11px] font-semibold hover:opacity-80 disabled:opacity-40"
             style={{ background: `${C.surf}cc`, border: `1px solid ${C.surfB}`, color: C.t3 }}>
@@ -794,28 +1001,26 @@ export function BuscarOddsPage() {
           </button>
         </div>
 
-        {/* ── Filtros linha 2 — PA + Sort ──────────────────────────────────── */}
+        {/* ── Filtros linha 2 — PA ─────────────────────────────────────────── */}
         <div className="flex flex-wrap items-center gap-2">
 
-          {/* PA label com tooltip */}
           <div className="group relative flex items-center gap-1">
             <span style={{ fontSize: 11, fontWeight: 700, color: C.t3 }}>Pagamento Antecipado</span>
             <HelpCircle size={12} style={{ color: C.t3, cursor: 'help' }} />
             <div className="pointer-events-none absolute left-0 top-full z-50 mt-1.5 hidden w-64 rounded-xl p-3 group-hover:block"
               style={{ background: '#0e131a', border: `1px solid ${C.surfB}`, boxShadow: '0 8px 24px rgba(0,0,0,.6)' }}>
               <p style={{ fontSize: 11, fontWeight: 600, lineHeight: 1.6, color: C.t2 }}>
-                <strong style={{ color: C.amber }}>PA (Pagamento Antecipado)</strong> é quando a casa paga a aposta assim que o resultado parcial é atingido, sem esperar o jogo terminar. Essencial para operações DuploGreen.
+                <strong style={{ color: C.amber }}>PA</strong> = Pagamento Antecipado. A casa paga antes do jogo terminar, essencial para operações DuploGreen seguras.
               </p>
             </div>
           </div>
 
-          {/* PA chips */}
+          {/* PA chips — apenas AMBOS e 1 LADO */}
           <div className="flex items-center gap-1 rounded-xl p-1" style={{ background: 'rgba(255,255,255,.03)', border: `1px solid ${C.surfB}` }}>
             {([
-              ['ALL',      'Todos',               filtered.length,  C.t2,   '255,255,255'],
-              ['AMBOS_PA', 'PA nos dois lados',   cntAmbos,         C.green, '0,230,118'],
-              ['UM_PA',    'PA de um lado',        cntUm,            C.amber, '245,158,11'],
-              ['SEM_PA',   'Sem PA',               cntSem,           C.red,   '248,113,113'],
+              ['ALL',      'Todos',           filtered.length, C.t2,   '255,255,255'],
+              ['AMBOS_PA', 'PA nos dois lados', cntAmbos,       C.green, '0,230,118'  ],
+              ['UM_PA',    'PA de um lado',     cntUm,          C.amber, '245,158,11' ],
             ] as [PAFilter, string, number, string, string][]).map(([v, label, cnt, col, rgb]) => {
               const active = paFilter === v;
               return (
@@ -835,27 +1040,24 @@ export function BuscarOddsPage() {
             })}
           </div>
 
-          {/* Sort toggle */}
-          <button onClick={() => setSortByProfit(v => !v)}
-            className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-[12px] font-bold transition-all"
-            style={{
-              background: sortByProfit ? C.greenDim : `${C.surf}cc`,
-              border:     sortByProfit ? `1px solid ${C.greenB}` : `1px solid ${C.surfB}`,
-              color:      sortByProfit ? C.green : C.t3,
-            }}>
-            <ArrowUpDown size={11} />
-            Maior lucro primeiro
-          </button>
-
-          {/* Limpar filtros */}
           {hasActiveFilter && (
             <button onClick={clearFilters}
               className="flex items-center gap-1 rounded-xl px-2.5 py-2 text-[11px] font-semibold hover:opacity-80"
-              style={{ color: C.red, background: C.redDim, border: `1px solid rgba(248,113,113,.2)` }}>
-              <X size={10} /> Limpar
+              style={{ color: C.red, background: C.redDim, border: `1px solid rgba(248,113,113,.2)`, cursor: 'pointer' }}>
+              <X size={10} /> Limpar filtros
             </button>
           )}
         </div>
+
+        {/* ── Modal de casas ───────────────────────────────────────────────── */}
+        {bkModalOpen && (
+          <BookmakerFilterModal
+            entries={bkEntries}
+            deselected={bkDeselected}
+            onChange={setBkDeselected}
+            onClose={() => setBkModalOpen(false)}
+          />
+        )}
 
         {/* ── Erro ─────────────────────────────────────────────────────────── */}
         {fetchErr && (
@@ -871,34 +1073,36 @@ export function BuscarOddsPage() {
         {/* ── Skeleton ─────────────────────────────────────────────────────── */}
         {loading && (
           <div className="flex flex-col gap-2">
-            {Array.from({ length: 8 }).map((_, i) => (
+            {Array.from({ length: 6 }).map((_, i) => (
               <div key={i} className="h-16 rounded-xl animate-pulse"
-                style={{ background: C.surf, border: `1px solid ${C.surfB}`, opacity: 1 - i * 0.1 }} />
+                style={{ background: C.surf, border: `1px solid ${C.surfB}`, opacity: 1 - i * 0.12 }} />
             ))}
           </div>
         )}
 
-        {/* ── Vazio ─────────────────────────────────────────────────────────── */}
+        {/* ── Vazio ────────────────────────────────────────────────────────── */}
         {!loading && !fetchErr && filtered.length === 0 && (
           <div className="flex flex-col items-center py-16 gap-3" style={{ color: C.t3 }}>
             <ScanSearch size={32} style={{ opacity: .25 }} />
             <p style={{ fontSize: 14, fontWeight: 600 }}>Nenhum jogo encontrado</p>
-            <button onClick={clearFilters} style={{ fontSize: 12, color: C.purple, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
-              Limpar filtros
-            </button>
+            {hasActiveFilter && (
+              <button onClick={clearFilters} style={{ fontSize: 12, color: C.purple, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
+                Limpar filtros
+              </button>
+            )}
           </div>
         )}
 
-        {/* ── Cabeçalho desktop ────────────────────────────────────────────── */}
+        {/* ── Cabeçalho desktop ───────────────────────────────────────────── */}
         {!loading && byLeague.length > 0 && (
           <div className="hidden md:grid items-center gap-2 px-4"
-            style={{ gridTemplateColumns: '80px 1fr 70px 62px 108px 108px 108px', fontSize: 10, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em', color: C.t3 }}>
+            style={{ gridTemplateColumns: '88px 1fr 72px 64px 110px 110px 110px', fontSize: 10, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em', color: C.t3 }}>
             <span>Hora</span>
             <span>Jogo</span>
             <span className="text-center">Margem</span>
             <div className="flex items-center justify-center gap-0.5">
               <span>DG</span>
-              <span style={{ fontSize: 8, opacity: .6 }}>score</span>
+              <span style={{ fontSize: 7, opacity: .6 }}>score</span>
             </div>
             <span className="text-center">Casa (1)</span>
             <span className="text-center">Empate (X)</span>
@@ -908,22 +1112,24 @@ export function BuscarOddsPage() {
 
         {/* ── Eventos por liga ─────────────────────────────────────────────── */}
         {!loading && byLeague.map(([league, evs]) => {
-          const isFav      = leagueFav.has(league);
+          const isFav       = leagueFav.has(league);
           const isCollapsed = leagueCollapsed.has(league);
 
           return (
             <div key={league} className="overflow-hidden rounded-2xl" style={{
               background: `${C.surf}cc`,
               border: `1px solid ${isFav ? C.greenB : C.surfB}`,
-              boxShadow: isFav ? `0 4px 20px rgba(0,0,0,.4), 0 0 12px ${C.green}08` : '0 4px 20px rgba(0,0,0,.4)',
+              boxShadow: isFav ? `0 4px 20px rgba(0,0,0,.4), 0 0 12px ${C.green}06` : '0 4px 20px rgba(0,0,0,.4)',
             }}>
               {/* Topo colorido */}
-              <div style={{ height: 2, background: isFav ? `linear-gradient(90deg, ${C.green} 0%, ${C.green}33 50%, transparent 100%)` : 'linear-gradient(90deg, rgba(124,58,237,.5) 0%, rgba(124,58,237,.15) 50%, transparent 100%)' }} />
+              <div style={{ height: 2, background: isFav ? `linear-gradient(90deg, ${C.green} 0%, ${C.green}33 60%, transparent 100%)` : 'linear-gradient(90deg, rgba(124,58,237,.5) 0%, rgba(124,58,237,.12) 60%, transparent 100%)' }} />
 
               {/* Cabeçalho da liga — accordion */}
               <div className="flex items-center justify-between px-4 py-2.5"
-                style={{ background: isFav ? `${C.greenDim}` : 'rgba(124,58,237,.03)', borderBottom: isCollapsed ? 'none' : `1px solid ${C.surfB}` }}>
-                <button onClick={() => toggleCollapse(league)} className="flex flex-1 items-center gap-2.5 text-left hover:opacity-80 transition-opacity">
+                style={{ background: isFav ? C.greenDim : 'rgba(124,58,237,.03)', borderBottom: isCollapsed ? 'none' : `1px solid ${C.surfB}` }}>
+                <button onClick={() => toggleCollapse(league)}
+                  className="flex flex-1 items-center gap-2.5 text-left hover:opacity-80 transition-opacity"
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
                   <div style={{ width: 2, height: 12, borderRadius: 1, background: isFav ? C.green : C.purple }} />
                   <span style={{ fontSize: 11, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em', color: isFav ? C.green : 'rgba(148,163,255,.8)' }}>
                     {league}
@@ -936,7 +1142,7 @@ export function BuscarOddsPage() {
                 <button onClick={() => toggleFav(league)}
                   className="ml-2 flex h-7 w-7 items-center justify-center rounded-lg hover:bg-white/10 transition-colors"
                   title={isFav ? 'Remover dos favoritos' : 'Fixar liga no topo'}
-                  style={{ background: isFav ? C.greenDim : 'rgba(255,255,255,.03)', border: `1px solid ${isFav ? C.greenB : C.surfB}` }}>
+                  style={{ background: isFav ? C.greenDim : 'rgba(255,255,255,.03)', border: `1px solid ${isFav ? C.greenB : C.surfB}`, cursor: 'pointer' }}>
                   <Star size={12} style={{ color: isFav ? C.green : C.t3, fill: isFav ? C.green : 'none' }} />
                 </button>
               </div>
@@ -947,15 +1153,17 @@ export function BuscarOddsPage() {
                   {evs.map((ev, idx) => {
                     const mgn    = calcMargin(ev.bookmakers);
                     const isSure = mgn !== null && mgn < 0;
-                    const bkH    = bestBk(ev.bookmakers, 'home');
-                    const bkD    = bestBk(ev.bookmakers, 'draw');
-                    const bkA    = bestBk(ev.bookmakers, 'away');
-                    const dg     = dgMap.get(ev.match_id);
+                    const bkH   = bestBk(ev.bookmakers, 'home');
+                    const bkD   = bestBk(ev.bookmakers, 'draw');
+                    const bkA   = bestBk(ev.bookmakers, 'away');
+                    const dg    = dgMap.get(ev.match_id);
                     const dgRgb2 = dg ? dgRGB(dg.dg_classification) : null;
                     const dgCol2 = dg ? dgColor(dg.dg_classification) : null;
-                    const isToday = dateBRT(ev.start_time) === today;
+                    const isToday   = dateBRT(ev.start_time) === today;
+                    const dayLabel  = weekdayLabel(ev.start_time, today);
                     const hasDGGlow = dg && (dg.dg_score ?? 0) >= 85;
-                    const paCnt  = paBkCount(ev);
+                    const paCnt     = paBkCount(ev);
+                    const started   = new Date(ev.start_time).getTime() < Date.now();
 
                     return (
                       <div key={ev.match_id} className="group relative"
@@ -963,37 +1171,31 @@ export function BuscarOddsPage() {
                           background: idx % 2 === 1 ? 'rgba(255,255,255,.012)' : undefined,
                           borderTop: idx > 0 ? `1px solid ${C.surfB}` : undefined,
                           borderLeft: hasDGGlow ? `3px solid ${C.green}` : '3px solid transparent',
-                          boxShadow: hasDGGlow ? `inset 0 0 20px ${C.green}05` : undefined,
                         }}>
                         <button type="button" onClick={() => setSelectedEvent(ev)} className="w-full text-left">
 
                           {/* Desktop */}
                           <div className="hidden md:grid items-center gap-2 px-4 py-3"
-                            style={{ gridTemplateColumns: '80px 1fr 70px 62px 108px 108px 108px' }}>
+                            style={{ gridTemplateColumns: '88px 1fr 72px 64px 110px 110px 110px' }}>
 
-                            {/* Data/Hora */}
+                            {/* Hora */}
                             <div className="flex flex-col">
-                              <span style={{ fontSize: 13, fontWeight: 900, fontVariantNumeric: 'tabular-nums', color: isToday ? C.green : C.t2 }}>
+                              <span style={{ fontSize: 13, fontWeight: 900, fontVariantNumeric: 'tabular-nums', color: started ? C.amber : isToday ? C.green : C.t2 }}>
                                 {fmtTime(ev.start_time)}
                               </span>
-                              {!isToday && (
-                                <span style={{ fontSize: 9, color: C.t3 }}>{fmtDate(ev.start_time)}</span>
-                              )}
-                              {isToday && (
-                                <span style={{ fontSize: 9, fontWeight: 700, color: `${C.green}88` }}>Hoje</span>
-                              )}
+                              <span style={{ fontSize: 9, fontWeight: 700, color: started ? `${C.amber}77` : isToday ? `${C.green}77` : C.t3 }}>
+                                {started ? 'Em andamento' : dayLabel}
+                              </span>
                             </div>
 
                             {/* Jogo */}
                             <div className="min-w-0">
                               <div className="flex items-center gap-2 min-w-0">
-                                <p className="truncate" style={{ fontSize: 13, fontWeight: 600, color: C.t1 }}>
-                                  {ev.home_team}
-                                </p>
+                                <p className="truncate" style={{ fontSize: 13, fontWeight: 600, color: C.t1 }}>{ev.home_team}</p>
                                 {dg && dgRgb2 && dgCol2 && (
-                                  <span className="shrink-0 flex items-center gap-1 rounded-md px-1.5 py-px" style={{ fontSize: 8, fontWeight: 900, background: `rgba(${dgRgb2},.1)`, color: dgCol2, border: `1px solid rgba(${dgRgb2},.25)` }}>
-                                    <Zap size={7} /> {dg.dg_score}
-                                    <sup style={{ fontSize: 6 }}>DG</sup>
+                                  <span className="shrink-0 flex items-center gap-1 rounded-md px-1.5 py-px"
+                                    style={{ fontSize: 8, fontWeight: 900, background: `rgba(${dgRgb2},.1)`, color: dgCol2, border: `1px solid rgba(${dgRgb2},.25)` }}>
+                                    <Zap size={7} /> {dg.dg_score}<sup style={{ fontSize: 6 }}>DG</sup>
                                   </span>
                                 )}
                                 {paCnt >= 2 && (
@@ -1002,7 +1204,7 @@ export function BuscarOddsPage() {
                                   </span>
                                 )}
                                 {paCnt === 1 && (
-                                  <span style={{ fontSize: 7, fontWeight: 900, borderRadius: 4, padding: '1px 4px', background: 'rgba(245,158,11,.06)', color: `${C.amber}99`, border: `1px solid rgba(245,158,11,.18)`, flexShrink: 0 }}>
+                                  <span style={{ fontSize: 7, fontWeight: 900, borderRadius: 4, padding: '1px 4px', background: 'rgba(245,158,11,.06)', color: `${C.amber}88`, border: 'rgba(245,158,11,.18) 1px solid', flexShrink: 0 }}>
                                     PA
                                   </span>
                                 )}
@@ -1013,7 +1215,8 @@ export function BuscarOddsPage() {
                             {/* Margem */}
                             <div className="flex justify-center">
                               {mgn !== null ? (
-                                <span className="rounded-md px-2 py-1 tabular-nums" style={{ fontSize: 11, fontWeight: 900, color: marginColor(mgn), background: marginBg(mgn), border: `1px solid ${marginColor(mgn)}33` }}>
+                                <span className="rounded-md px-2 py-1 tabular-nums"
+                                  style={{ fontSize: 11, fontWeight: 900, color: marginColor(mgn), background: marginBg(mgn), border: `1px solid ${marginColor(mgn)}33` }}>
                                   {isSure ? `+${Math.abs(mgn).toFixed(2)}%` : `${mgn.toFixed(1)}%`}
                                 </span>
                               ) : <span style={{ color: 'rgba(255,255,255,.1)', fontSize: 11 }}>—</span>}
@@ -1026,9 +1229,11 @@ export function BuscarOddsPage() {
                                   <span style={{ fontSize: 17, fontWeight: 900, lineHeight: 1, color: dgCol2, textShadow: `0 0 10px rgba(${dgRgb2},.4)` }}>
                                     {dg.dg_score}
                                   </span>
-                                  <span style={{ fontSize: 7, fontWeight: 900, textTransform: 'uppercase', color: `rgba(${dgRgb2},.45)` }}>
-                                    {dg.dg_classification}
-                                  </span>
+                                  {dg.dg_profit_pct != null && (
+                                    <span style={{ fontSize: 8, fontWeight: 700, color: dg.dg_profit_pct >= 0 ? C.green : C.red }}>
+                                      {dg.dg_profit_pct >= 0 ? '+' : ''}{dg.dg_profit_pct.toFixed(1)}%
+                                    </span>
+                                  )}
                                 </div>
                               ) : (
                                 <span style={{ color: 'rgba(255,255,255,.1)', fontSize: 11 }}>—</span>
@@ -1043,22 +1248,14 @@ export function BuscarOddsPage() {
                           {/* Mobile */}
                           <div className="flex items-center gap-3 px-4 py-3 md:hidden">
                             <div className="flex flex-col items-center shrink-0" style={{ width: 42 }}>
-                              <span style={{ fontSize: 13, fontWeight: 900, color: isToday ? C.green : C.t2 }}>{fmtTime(ev.start_time)}</span>
-                              {dg && (
-                                <span style={{ fontSize: 11, fontWeight: 900, lineHeight: 1, color: dg ? dgColor(dg.dg_classification) : C.t3 }}>{dg.dg_score}</span>
-                              )}
+                              <span style={{ fontSize: 13, fontWeight: 900, color: started ? C.amber : isToday ? C.green : C.t2 }}>{fmtTime(ev.start_time)}</span>
+                              {dg && <span style={{ fontSize: 11, fontWeight: 900, lineHeight: 1, color: dg ? dgColor(dg.dg_classification) : C.t3 }}>{dg.dg_score}</span>}
                             </div>
                             <div className="flex-1 min-w-0">
-                              <p className="truncate" style={{ fontSize: 13, fontWeight: 600, color: C.t1 }}>
-                                {ev.home_team} x {ev.away_team}
-                              </p>
+                              <p className="truncate" style={{ fontSize: 13, fontWeight: 600, color: C.t1 }}>{ev.home_team} x {ev.away_team}</p>
                               <p style={{ fontSize: 11, color: C.t3 }}>
                                 {ev.bookmakers.length} casas
-                                {mgn !== null && (
-                                  <span className="ml-2 font-bold" style={{ color: marginColor(mgn) }}>
-                                    {isSure ? `+${Math.abs(mgn).toFixed(2)}%` : `${mgn.toFixed(1)}%`}
-                                  </span>
-                                )}
+                                {mgn !== null && <span className="ml-2 font-bold" style={{ color: marginColor(mgn) }}>{isSure ? `+${Math.abs(mgn).toFixed(2)}%` : `${mgn.toFixed(1)}%`}</span>}
                                 {paCnt > 0 && <span className="ml-1" style={{ color: C.amber }}>· PA</span>}
                               </p>
                             </div>
@@ -1084,4 +1281,3 @@ export function BuscarOddsPage() {
     </div>
   );
 }
-
