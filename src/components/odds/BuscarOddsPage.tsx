@@ -1,11 +1,9 @@
 'use client';
 
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
-import { createPortal } from 'react-dom';
 import {
-  Search, X, ScanSearch, ChevronLeft, ChevronRight, ExternalLink,
-  ArrowDown, RefreshCw, Zap, TrendingUp, ChevronDown, Star,
-  HelpCircle, Check, Sliders,
+  X, ScanSearch, ChevronLeft, ChevronRight, ExternalLink,
+  ArrowDown, RefreshCw, Zap, TrendingUp, ChevronDown, Star, Check,
 } from 'lucide-react';
 import { SurebetCalc } from '@/components/calcalendario/SurebetCalc';
 import { DGOpportunitiesSection } from './DGOpportunitiesSection';
@@ -209,156 +207,42 @@ interface CalcSlot { bk: BookmakerOdds; type: OddType; value: number }
 const SLOT_COLORS = ['#00e676', '#4DA6FF', '#FF9F0A'];
 const SLOT_LABELS = ['1ª', '2ª', '3ª'];
 
-// ─── Célula de melhor odd ─────────────────────────────────────────────────────
+// ─── Célula de melhor odd (estilo com badge PA/SO) ───────────────────────────
 
 function BestOddCell({ bk, type }: { bk: BookmakerOdds | null; type: OddType }) {
-  if (!bk) return <div className="flex justify-center"><span style={{ color: 'rgba(255,255,255,.1)', fontSize: 11 }}>—</span></div>;
+  if (!bk) return (
+    <div className="relative flex h-[52px] w-full items-center justify-center rounded-lg"
+      style={{ background: 'rgba(255,255,255,.025)', border: '1px solid rgba(255,255,255,.06)' }}>
+      <span style={{ color: 'rgba(255,255,255,.15)', fontSize: 11 }}>—</span>
+    </div>
+  );
   const val = bk[type] as number;
   const pa  = isBkPA(bk);
   return (
-    <div className="flex flex-col items-center gap-0.5">
-      <span className="text-[15px] font-black tabular-nums" style={{ color: C.green, textShadow: `0 0 12px ${C.green}44` }}>
+    <div className="relative flex h-[52px] w-full flex-col items-center justify-center gap-0.5 rounded-lg transition-opacity hover:opacity-80"
+      style={{
+        background: `rgba(0,230,118,.06)`,
+        border: `1px solid rgba(0,230,118,.22)`,
+      }}>
+      <span className="tabular-nums text-[15px] font-black" style={{ color: C.green, textShadow: `0 0 10px ${C.green}44` }}>
         {val.toFixed(2)}
       </span>
-      <span className="flex items-center gap-1 text-[10px]" style={{ color: C.t3 }}>
-        <span className="truncate max-w-[80px]">{bk.name}</span>
-        {pa && (
-          <span className="shrink-0 rounded px-1 text-[7px] font-bold"
-            style={{ background: C.amberDim, color: C.amber, border: `1px solid ${C.amberB}` }}>PA</span>
-        )}
+      <span className="max-w-full truncate px-2 text-[9px]" style={{ color: C.t3 }}>
+        {bk.name}
+      </span>
+      {/* badge PA / SO */}
+      <span className="absolute -right-1 -top-1 rounded border px-[3px] py-px text-[7px] font-bold"
+        style={pa
+          ? { background: C.greenDim, color: C.green,   borderColor: C.greenB }
+          : { background: 'rgba(255,255,255,.05)', color: C.t3, borderColor: 'rgba(255,255,255,.14)' }
+        }>
+        {pa ? 'PA' : 'SO'}
       </span>
     </div>
   );
 }
 
-// ─── Modal de casas (filtro) ──────────────────────────────────────────────────
-
-interface BkEntry { slug: string; name: string; isPA: boolean }
-
-function BookmakerFilterModal({
-  entries, deselected, onChange, onClose,
-}: {
-  entries: BkEntry[];
-  deselected: Set<string>;
-  onChange: (s: Set<string>) => void;
-  onClose: () => void;
-}) {
-  const [draft, setDraft] = useState(new Set(deselected));
-  const pa    = entries.filter(e => e.isPA);
-  const nonPa = entries.filter(e => !e.isPA);
-  const selectedCount = entries.length - draft.size;
-
-  function toggle(slug: string) {
-    setDraft(prev => {
-      const n = new Set(prev);
-      n.has(slug) ? n.delete(slug) : n.add(slug);
-      return n;
-    });
-  }
-  function deselectAll() { setDraft(new Set(entries.map(e => e.slug))); }
-  function selectAll()   { setDraft(new Set()); }
-
-  function BkCheck({ e }: { e: BkEntry }) {
-    const sel = !draft.has(e.slug);
-    return (
-      <button onClick={() => toggle(e.slug)}
-        className="flex items-center gap-2 py-1 text-left transition-opacity hover:opacity-80"
-        style={{ background: 'none', border: 'none', cursor: 'pointer', color: sel ? C.t1 : C.t3 }}>
-        <span style={{
-          width: 20, height: 20, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          background: sel ? C.green : 'rgba(255,255,255,.06)',
-          border: `1.5px solid ${sel ? C.green : 'rgba(255,255,255,.15)'}`,
-        }}>
-          {sel && <Check size={11} color="#060A07" strokeWidth={3} />}
-        </span>
-        <span style={{ fontSize: 13, fontWeight: sel ? 600 : 400 }}>{e.name}</span>
-      </button>
-    );
-  }
-
-  function Section({ label, bks, icon }: { label: string; bks: BkEntry[]; icon: React.ReactNode }) {
-    if (!bks.length) return null;
-    return (
-      <div className="mb-4">
-        <div className="flex items-center gap-1.5 mb-3 pb-2" style={{ borderBottom: `1px solid ${C.surfB}` }}>
-          {icon}
-          <span style={{ fontSize: 10, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em', color: C.t3 }}>{label}</span>
-        </div>
-        <div className="grid gap-y-1" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
-          {bks.map(e => <BkCheck key={e.slug} e={e} />)}
-        </div>
-      </div>
-    );
-  }
-
-  return createPortal(
-    <div onClick={onClose} style={{
-      position: 'fixed', inset: 0, zIndex: 9000,
-      background: 'rgba(0,0,0,.65)', backdropFilter: 'blur(4px)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-    }}>
-      <div onClick={e => e.stopPropagation()} style={{
-        background: '#0e131a',
-        border: `1px solid ${C.surfB}`,
-        borderRadius: 16,
-        boxShadow: '0 24px 80px rgba(0,0,0,.7)',
-        width: 680,
-        maxWidth: '95vw',
-        maxHeight: '88vh',
-        display: 'flex',
-        flexDirection: 'column',
-      }}>
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: `1px solid ${C.surfB}` }}>
-          <div className="flex items-center gap-2">
-            <Sliders size={16} style={{ color: C.amber }} />
-            <h3 style={{ fontSize: 16, fontWeight: 800, color: C.t1, margin: 0 }}>Casas de Aposta</h3>
-          </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.t3, padding: 4 }}>
-            <X size={18} />
-          </button>
-        </div>
-        <p style={{ fontSize: 12, color: C.t2, padding: '8px 24px 0', margin: 0 }}>
-          Desmarque as casas que você não utiliza para filtrar as odds.
-        </p>
-
-        {/* Conteúdo */}
-        <div className="overflow-y-auto flex-1 px-6 py-4">
-          <Section
-            label="Casas com Pagamento Antecipado"
-            bks={pa}
-            icon={<span style={{ fontSize: 10, color: C.amber }}>★</span>}
-          />
-          <Section
-            label="Casas sem Pagamento Antecipado"
-            bks={nonPa}
-            icon={<span style={{ fontSize: 10, color: C.t3 }}>○</span>}
-          />
-        </div>
-
-        {/* Footer */}
-        <div className="flex items-center justify-between px-6 py-4" style={{ borderTop: `1px solid ${C.surfB}` }}>
-          <span style={{ fontSize: 12, fontWeight: 600, color: C.t3 }}>
-            {selectedCount} de {entries.length} selecionadas
-          </span>
-          <div className="flex gap-2">
-            <button onClick={draft.size === entries.length ? selectAll : deselectAll}
-              className="rounded-xl px-4 py-2 text-[12px] font-bold hover:bg-white/10 transition-colors"
-              style={{ background: 'rgba(255,255,255,.04)', border: `1px solid ${C.surfB}`, color: C.t2 }}>
-              {draft.size === entries.length ? 'Marcar todas' : 'Desmarcar todas'}
-            </button>
-            <button onClick={() => { onChange(draft); onClose(); }}
-              className="rounded-xl px-5 py-2 text-[12px] font-bold transition-all hover:opacity-90"
-              style={{ background: C.green, color: '#060A07' }}>
-              Confirmar
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>,
-    document.body,
-  );
-}
+// (BookmakerFilterModal removed — filtro de casas não é mais exibido na lista)
 
 // ─── Painel de detalhes do evento ─────────────────────────────────────────────
 
@@ -618,12 +502,6 @@ function EventOddsPanel({
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 
-const SORT_OPTS: { value: SortBy; label: string }[] = [
-  { value: 'padrao',      label: 'Padrão (horário)'  },
-  { value: 'maior_lucro', label: 'Maior Lucro DG'    },
-  { value: 'menor_lucro', label: 'Menor Lucro DG'    },
-];
-
 export function BuscarOddsPage() {
   const today = todayBRT();
 
@@ -631,25 +509,17 @@ export function BuscarOddsPage() {
   const [allOdds,         setAllOdds]        = useState<OddsSummary[]>([]);
   const [loading,         setLoading]        = useState(true);
   const [fetchErr,        setFetchErr]       = useState('');
-  const [search,          setSearch]         = useState('');
   const [selectedEvent,   setSelectedEvent]  = useState<OddsSummary | null>(null);
-  const [dgOnly,          setDgOnly]         = useState(false);
   const [paFilter,        setPaFilter]       = useState<PAFilter>('ALL');
-  const [sortBy,          setSortBy]         = useState<SortBy>('padrao');
-  const [sortOpen,        setSortOpen]       = useState(false);
   const [leagueFav,       setLeagueFav]      = useState<Set<string>>(new Set());
   const [leagueCollapsed, setLeagueCollapsed]= useState<Set<string>>(new Set());
   const [leagueFilter,    setLeagueFilter]   = useState('');
   const [leagueOpen,      setLeagueOpen]     = useState(false);
-  const [bkDeselected,    setBkDeselected]   = useState<Set<string>>(new Set()); // slugs desativados
-  const [bkModalOpen,     setBkModalOpen]    = useState(false);
   const [lastUpdated,     setLastUpdated]    = useState(Date.now());
   const [tick,            setTick]           = useState(0);
+  const [dgMap,           setDgMap]          = useState<Map<string, DGInfo>>(new Map());
 
   const leagueRef = useRef<HTMLDivElement>(null);
-  const sortRef   = useRef<HTMLDivElement>(null);
-
-  const [dgMap, setDgMap] = useState<Map<string, DGInfo>>(new Map());
 
   // ── Tick "atualizado há Xs" ─────────────────────────────────────────────────
   useEffect(() => {
@@ -658,15 +528,14 @@ export function BuscarOddsPage() {
   }, []);
   void tick;
 
-  // ── Close dropdowns on outside click ────────────────────────────────────────
+  // ── Close dropdown on outside click ─────────────────────────────────────────
   useEffect(() => {
     function down(e: MouseEvent) {
       if (leagueOpen && leagueRef.current && !leagueRef.current.contains(e.target as Node)) setLeagueOpen(false);
-      if (sortOpen && sortRef.current && !sortRef.current.contains(e.target as Node)) setSortOpen(false);
     }
     document.addEventListener('mousedown', down);
     return () => document.removeEventListener('mousedown', down);
-  }, [leagueOpen, sortOpen]);
+  }, [leagueOpen]);
 
   // ── Carregar DG map ─────────────────────────────────────────────────────────
   const loadDGMap = useCallback(async () => {
@@ -713,63 +582,34 @@ export function BuscarOddsPage() {
     return () => clearInterval(id);
   }, [loadOdds]);
 
-  // ── Helpers ─────────────────────────────────────────────────────────────────
-  const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-
-  // ── Lista de casas p/ modal ─────────────────────────────────────────────────
-  const bkEntries = useMemo<BkEntry[]>(() => {
-    const seen = new Map<string, BkEntry>();
-    for (const ev of allOdds) {
-      for (const b of ev.bookmakers) {
-        if (!seen.has(b.slug)) seen.set(b.slug, { slug: b.slug, name: b.name, isPA: isBkPA(b) });
-      }
-    }
-    // Ordena: PA primeiro, depois alfabético dentro de cada grupo
-    return Array.from(seen.values()).sort((a, b) => {
-      if (a.isPA !== b.isPA) return a.isPA ? -1 : 1;
-      return a.name.localeCompare(b.name);
-    });
-  }, [allOdds]);
-
   // ── Ligas disponíveis ────────────────────────────────────────────────────────
-  const allLeagues = useMemo(() => [...new Set(allOdds.filter(e => !isExcluded(e.league_name)).map(e => e.league_name))].sort(), [allOdds]);
+  const allLeagues = useMemo(
+    () => [...new Set(allOdds.filter(e => !isExcluded(e.league_name)).map(e => e.league_name))].sort(),
+    [allOdds],
+  );
 
   // ── Filtros ──────────────────────────────────────────────────────────────────
-  const now = Date.now();
-  // Jogo ainda não terminou: start_time + 110 min no futuro
   const GAME_DURATION_MS = 110 * 60 * 1000;
 
   const filtered = useMemo(() => {
     return allOdds
       .filter(ev => !isExcluded(ev.league_name ?? ''))
-      // Jogo ainda não terminou
       .filter(ev => { try { return new Date(ev.start_time).getTime() + GAME_DURATION_MS > Date.now(); } catch { return true; } })
-      // DG only
-      .filter(ev => !dgOnly || dgMap.has(ev.match_id))
-      // Liga específica
       .filter(ev => !leagueFilter || ev.league_name === leagueFilter)
-      // Casas ativadas: se alguma casa estiver desativada, o evento deve ter pelo menos uma casa ativada
-      .filter(ev => {
-        if (bkDeselected.size === 0) return true;
-        // Verifica se o evento tem ao menos uma casa selecionada (não desativada)
-        return ev.bookmakers.some(b => !bkDeselected.has(b.slug));
-      })
-      // Filtro PA
       .filter(ev => {
         if (paFilter === 'ALL') return true;
         const cnt = paBkCount(ev);
         if (paFilter === 'AMBOS_PA') return cnt >= 2;
         if (paFilter === 'UM_PA')    return cnt === 1;
         return true;
-      })
-      // Busca de texto
-      .filter(ev => {
-        if (!search.trim()) return true;
-        const q = norm(search.trim());
-        return norm(ev.home_team).includes(q) || norm(ev.away_team).includes(q) || norm(ev.league_name ?? '').includes(q);
       });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allOdds, dgOnly, leagueFilter, bkDeselected, paFilter, search, dgMap, now]);
+  }, [allOdds, leagueFilter, paFilter]);
+
+  // contadores p/ chips
+  const cntAll   = useMemo(() => allOdds.filter(ev => !isExcluded(ev.league_name ?? '') && (() => { try { return new Date(ev.start_time).getTime() + GAME_DURATION_MS > Date.now(); } catch { return true; } })() && (!leagueFilter || ev.league_name === leagueFilter)).length, [allOdds, leagueFilter, GAME_DURATION_MS]);
+  const cntAmbos = useMemo(() => filtered.filter(ev => paBkCount(ev) >= 2).length, [filtered]);
+  const cntUm    = useMemo(() => filtered.filter(ev => paBkCount(ev) === 1).length, [filtered]);
 
   // ── Agrupamento por liga ─────────────────────────────────────────────────────
   const byLeague = useMemo(() => {
@@ -779,22 +619,10 @@ export function BuscarOddsPage() {
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(ev);
     }
-    let entries = Array.from(map.entries());
-
-    // Ordena eventos dentro de cada liga
-    entries = entries.map(([lg, evs]) => {
-      const sorted = [...evs];
-      if (sortBy === 'maior_lucro') {
-        sorted.sort((a, b) => (dgMap.get(b.match_id)?.dg_profit_pct ?? -999) - (dgMap.get(a.match_id)?.dg_profit_pct ?? -999));
-      } else if (sortBy === 'menor_lucro') {
-        sorted.sort((a, b) => (dgMap.get(a.match_id)?.dg_profit_pct ?? 999) - (dgMap.get(b.match_id)?.dg_profit_pct ?? 999));
-      } else {
-        sorted.sort((a, b) => a.start_time.localeCompare(b.start_time));
-      }
+    let entries = Array.from(map.entries()).map(([lg, evs]) => {
+      const sorted = [...evs].sort((a, b) => a.start_time.localeCompare(b.start_time));
       return [lg, sorted] as [string, OddsSummary[]];
     });
-
-    // Ordena ligas: favoritas primeiro, depois Brazil, depois alfabético
     return entries.sort((a, b) => {
       const aFav = leagueFav.has(a[0]);
       const bFav = leagueFav.has(b[0]);
@@ -805,14 +633,9 @@ export function BuscarOddsPage() {
       if (!aBr && bBr) return 1;
       return a[0].localeCompare(b[0]);
     });
-  }, [filtered, sortBy, leagueFav, dgMap]);
+  }, [filtered, leagueFav]);
 
-  const dgCount  = useMemo(() => allOdds.filter(ev => !isExcluded(ev.league_name ?? '') && dgMap.has(ev.match_id)).length, [allOdds, dgMap]);
-  const cntAmbos = useMemo(() => filtered.filter(ev => paBkCount(ev) >= 2).length, [filtered]);
-  const cntUm    = useMemo(() => filtered.filter(ev => paBkCount(ev) === 1).length, [filtered]);
-
-  const bkDeselCount = bkDeselected.size;
-  const hasActiveFilter = paFilter !== 'ALL' || leagueFilter || dgOnly || sortBy !== 'padrao' || bkDeselCount > 0 || search.trim();
+  const hasActiveFilter = paFilter !== 'ALL' || !!leagueFilter;
 
   function toggleFav(lg: string) {
     setLeagueFav(prev => { const n = new Set(prev); n.has(lg) ? n.delete(lg) : n.add(lg); return n; });
@@ -820,12 +643,7 @@ export function BuscarOddsPage() {
   function toggleCollapse(lg: string) {
     setLeagueCollapsed(prev => { const n = new Set(prev); n.has(lg) ? n.delete(lg) : n.add(lg); return n; });
   }
-  function clearFilters() {
-    setPaFilter('ALL'); setLeagueFilter(''); setDgOnly(false); setSortBy('padrao');
-    setBkDeselected(new Set()); setSearch('');
-  }
-
-  const curSortLabel = SORT_OPTS.find(o => o.value === sortBy)?.label ?? 'Ordenar';
+  function clearFilters() { setPaFilter('ALL'); setLeagueFilter(''); }
 
   // ── Modo evento ─────────────────────────────────────────────────────────────
   if (selectedEvent) {
@@ -842,10 +660,10 @@ export function BuscarOddsPage() {
   }
 
   return (
-    <div className="mx-auto flex flex-col gap-4" style={{ maxWidth: 960 }}>
+    <div className="mx-auto flex flex-col gap-4" style={{ maxWidth: 980 }}>
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <div className="flex items-start justify-between gap-3 flex-wrap">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <h1 style={{ fontSize: 20, fontWeight: 900, letterSpacing: '-0.02em', color: C.t1 }}>Buscar Odds</h1>
           <p style={{ fontSize: 11, color: C.t3, marginTop: 2 }}>
@@ -856,21 +674,30 @@ export function BuscarOddsPage() {
                 : 'Oportunidades DuploGreen importadas'}
           </p>
         </div>
-        {/* Tab switcher */}
-        <div className="flex items-center rounded-xl overflow-hidden" style={{ background: 'rgba(255,255,255,.03)', border: `1px solid ${C.surfB}` }}>
-          {([
-            { key: 'odds' as const, icon: <Zap size={12} />, label: 'Odds do Dia', color: '#94a3b8', bg: 'rgba(99,102,241,.1)' },
-            { key: 'dg'   as const, icon: <TrendingUp size={12} />, label: 'Oportunidades DG', color: C.green, bg: C.greenDim },
-          ]).map((t, i) => (
-            <React.Fragment key={t.key}>
-              {i > 0 && <div style={{ width: 1, height: 24, background: 'rgba(255,255,255,.07)' }} />}
-              <button onClick={() => setTab(t.key)}
-                className="flex items-center gap-1.5 px-4 py-2 text-[12px] font-bold transition-all"
-                style={{ background: tab === t.key ? t.bg : 'transparent', color: tab === t.key ? t.color : C.t3 }}>
-                {t.icon} {t.label}
-              </button>
-            </React.Fragment>
-          ))}
+
+        {/* Tab switcher + botão atualizar */}
+        <div className="flex items-center gap-2">
+          <div className="flex items-center rounded-xl overflow-hidden" style={{ background: 'rgba(255,255,255,.03)', border: `1px solid ${C.surfB}` }}>
+            {([
+              { key: 'odds' as const, icon: <Zap size={12} />, label: 'Odds do Dia', color: '#94a3b8', bg: 'rgba(99,102,241,.1)' },
+              { key: 'dg'   as const, icon: <TrendingUp size={12} />, label: 'Oportunidades DG', color: C.green, bg: C.greenDim },
+            ]).map((t, i) => (
+              <React.Fragment key={t.key}>
+                {i > 0 && <div style={{ width: 1, height: 24, background: 'rgba(255,255,255,.07)' }} />}
+                <button onClick={() => setTab(t.key)}
+                  className="flex items-center gap-1.5 px-4 py-2 text-[12px] font-bold transition-all"
+                  style={{ background: tab === t.key ? t.bg : 'transparent', color: tab === t.key ? t.color : C.t3 }}>
+                  {t.icon} {t.label}
+                </button>
+              </React.Fragment>
+            ))}
+          </div>
+          <button onClick={() => loadOdds()} disabled={loading}
+            className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-[11px] font-semibold hover:opacity-80 disabled:opacity-40 transition-opacity"
+            style={{ background: `${C.surf}cc`, border: `1px solid ${C.surfB}`, color: C.t3 }}>
+            <RefreshCw size={11} className={loading ? 'animate-spin' : ''} />
+            <span className="hidden sm:inline">Atualizar</span>
+          </button>
         </div>
       </div>
 
@@ -880,159 +707,72 @@ export function BuscarOddsPage() {
       {/* ── Tab Odds ──────────────────────────────────────────────────────── */}
       {tab === 'odds' && <>
 
-        {/* ── Filtros linha 1 ─────────────────────────────────────────────── */}
+        {/* ── Barra de filtros: Campeonatos + PA chips ──────────────────────── */}
         <div className="flex flex-wrap items-center gap-2">
-
-          {/* Busca */}
-          <div className="relative flex-1 min-w-[180px]">
-            <Search size={13} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2" style={{ color: C.t3 }} />
-            <input value={search} onChange={e => setSearch(e.target.value)}
-              placeholder="Buscar time ou liga..."
-              className="w-full rounded-xl py-2 pl-9 pr-8 text-[13px] outline-none"
-              style={{ background: `${C.surf}cc`, border: `1px solid ${C.surfB}`, color: C.t1 }} />
-            {search && (
-              <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2"
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.t3 }}>
-                <X size={12} />
-              </button>
-            )}
-          </div>
 
           {/* Campeonatos dropdown */}
           <div className="relative" ref={leagueRef}>
             <button onClick={() => setLeagueOpen(v => !v)}
               className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-[12px] font-bold transition-all"
               style={{
-                background: leagueFilter ? C.purpleDim : `${C.surf}cc`,
-                border:     leagueFilter ? `1px solid ${C.purpleB}` : `1px solid ${C.surfB}`,
-                color:      leagueFilter ? C.purple : C.t2,
+                background: leagueFilter ? 'rgba(0,230,118,.1)' : `${C.surf}cc`,
+                border:     leagueFilter ? `1px solid ${C.greenB}` : `1px solid ${C.surfB}`,
+                color:      leagueFilter ? C.green : C.t2,
+                minWidth: 150,
               }}>
               <TrendingUp size={11} />
-              {leagueFilter ? leagueFilter.slice(0, 20) : 'Campeonatos'}
-              <ChevronDown size={11} style={{ opacity: .5 }} />
+              <span className="truncate max-w-[160px]">{leagueFilter || 'Campeonatos'}</span>
+              <ChevronDown size={11} style={{ opacity: .5, flexShrink: 0 }} />
             </button>
             {leagueOpen && (
               <div className="absolute left-0 top-full z-50 mt-1 overflow-y-auto rounded-xl py-1"
-                style={{ background: '#0e131a', border: `1px solid ${C.surfB}`, minWidth: 220, maxHeight: 280, boxShadow: '0 8px 32px rgba(0,0,0,.6)' }}>
+                style={{ background: '#0e131a', border: `1px solid ${C.surfB}`, minWidth: 240, maxHeight: 300, boxShadow: '0 12px 40px rgba(0,0,0,.7)' }}>
                 <button onClick={() => { setLeagueFilter(''); setLeagueOpen(false); }}
                   className="flex w-full items-center gap-2 px-4 py-2.5 text-[12px] font-semibold hover:bg-white/5 text-left"
                   style={{ background: 'none', border: 'none', cursor: 'pointer', color: !leagueFilter ? C.green : C.t2 }}>
                   {!leagueFilter && <Check size={10} style={{ color: C.green }} />}
                   Todos os campeonatos
+                  <span className="ml-auto text-[10px]" style={{ color: C.t3 }}>{cntAll}</span>
                 </button>
-                {allLeagues.map(lg => (
-                  <button key={lg} onClick={() => { setLeagueFilter(lg); setLeagueOpen(false); }}
-                    className="flex w-full items-center gap-2 px-4 py-2.5 text-[12px] font-semibold hover:bg-white/5 text-left"
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: leagueFilter === lg ? C.purple : C.t2 }}>
-                    {leagueFilter === lg && <Check size={10} style={{ color: C.purple }} />}
-                    <span className="truncate">{lg}</span>
-                  </button>
-                ))}
+                <div style={{ height: 1, background: C.surfB, margin: '2px 12px' }} />
+                {allLeagues.map(lg => {
+                  const cnt = allOdds.filter(ev => ev.league_name === lg).length;
+                  return (
+                    <button key={lg} onClick={() => { setLeagueFilter(lg); setLeagueOpen(false); }}
+                      className="flex w-full items-center gap-2 px-4 py-2.5 text-[12px] font-semibold hover:bg-white/5 text-left"
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: leagueFilter === lg ? C.green : C.t2 }}>
+                      {leagueFilter === lg && <Check size={10} style={{ color: C.green }} />}
+                      <span className="flex-1 truncate">{lg}</span>
+                      <span className="text-[10px]" style={{ color: C.t3 }}>{cnt}</span>
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>
 
-          {/* Casas (modal) */}
-          <button onClick={() => setBkModalOpen(true)}
-            className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-[12px] font-bold transition-all"
-            style={{
-              background: bkDeselCount > 0 ? C.amberDim : `${C.surf}cc`,
-              border:     bkDeselCount > 0 ? `1px solid ${C.amberB}` : `1px solid ${C.surfB}`,
-              color:      bkDeselCount > 0 ? C.amber : C.t2,
-            }}>
-            <Sliders size={11} />
-            Casas
-            {bkDeselCount > 0 && (
-              <span style={{ fontSize: 9, fontWeight: 700, borderRadius: 99, padding: '0 4px', background: C.amberDim, color: C.amber, border: `1px solid ${C.amberB}` }}>
-                -{bkDeselCount}
-              </span>
-            )}
-          </button>
-
-          {/* Sort dropdown */}
-          <div className="relative" ref={sortRef}>
-            <button onClick={() => setSortOpen(v => !v)}
-              className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-[12px] font-bold transition-all"
-              style={{
-                background: sortBy !== 'padrao' ? C.greenDim : `${C.surf}cc`,
-                border:     sortBy !== 'padrao' ? `1px solid ${C.greenB}` : `1px solid ${C.surfB}`,
-                color:      sortBy !== 'padrao' ? C.green : C.t2,
-              }}>
-              {curSortLabel}
-              <ChevronDown size={11} style={{ opacity: .5 }} />
-            </button>
-            {sortOpen && (
-              <div className="absolute right-0 top-full z-50 mt-1 rounded-xl py-1"
-                style={{ background: '#0e131a', border: `1px solid ${C.surfB}`, minWidth: 170, boxShadow: '0 8px 32px rgba(0,0,0,.6)' }}>
-                {SORT_OPTS.map(o => (
-                  <button key={o.value} onClick={() => { setSortBy(o.value); setSortOpen(false); }}
-                    className="flex w-full items-center gap-2 px-4 py-2.5 text-[12px] font-semibold hover:bg-white/5 text-left"
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: sortBy === o.value ? C.green : C.t2 }}>
-                    {sortBy === o.value && <Check size={10} style={{ color: C.green }} />}
-                    {o.label}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Só com DG */}
-          {dgMap.size > 0 && (
-            <button onClick={() => setDgOnly(v => !v)}
-              className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-[12px] font-bold transition-all"
-              style={{
-                background: dgOnly ? C.purpleDim : `${C.surf}cc`,
-                border:     dgOnly ? `1px solid ${C.purpleB}` : `1px solid ${C.surfB}`,
-                color:      dgOnly ? C.purple : C.t3,
-              }}>
-              <Zap size={11} /> Só com DG
-              <span style={{ fontSize: 9, fontWeight: 700, borderRadius: 99, padding: '0 4px', background: dgOnly ? C.purpleDim : 'rgba(255,255,255,.06)', color: dgOnly ? C.purple : C.t3 }}>
-                {dgCount}
-              </span>
-            </button>
-          )}
-
-          <div className="flex-1" />
-
-          <button onClick={() => loadOdds()} disabled={loading}
-            className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-[11px] font-semibold hover:opacity-80 disabled:opacity-40"
-            style={{ background: `${C.surf}cc`, border: `1px solid ${C.surfB}`, color: C.t3 }}>
-            <RefreshCw size={11} className={loading ? 'animate-spin' : ''} /> Atualizar
-          </button>
-        </div>
-
-        {/* ── Filtros linha 2 — PA ─────────────────────────────────────────── */}
-        <div className="flex flex-wrap items-center gap-2">
-
-          <div className="group relative flex items-center gap-1">
-            <span style={{ fontSize: 11, fontWeight: 700, color: C.t3 }}>Pagamento Antecipado</span>
-            <HelpCircle size={12} style={{ color: C.t3, cursor: 'help' }} />
-            <div className="pointer-events-none absolute left-0 top-full z-50 mt-1.5 hidden w-64 rounded-xl p-3 group-hover:block"
-              style={{ background: '#0e131a', border: `1px solid ${C.surfB}`, boxShadow: '0 8px 24px rgba(0,0,0,.6)' }}>
-              <p style={{ fontSize: 11, fontWeight: 600, lineHeight: 1.6, color: C.t2 }}>
-                <strong style={{ color: C.amber }}>PA</strong> = Pagamento Antecipado. A casa paga antes do jogo terminar, essencial para operações DuploGreen seguras.
-              </p>
-            </div>
-          </div>
-
-          {/* PA chips — apenas AMBOS e 1 LADO */}
+          {/* PA chips */}
           <div className="flex items-center gap-1 rounded-xl p-1" style={{ background: 'rgba(255,255,255,.03)', border: `1px solid ${C.surfB}` }}>
             {([
-              ['ALL',      'Todos',           filtered.length, C.t2,   '255,255,255'],
-              ['AMBOS_PA', 'PA nos dois lados', cntAmbos,       C.green, '0,230,118'  ],
-              ['UM_PA',    'PA de um lado',     cntUm,          C.amber, '245,158,11' ],
-            ] as [PAFilter, string, number, string, string][]).map(([v, label, cnt, col, rgb]) => {
+              ['ALL',      'Todos',        cntAll,   C.t2,   '255,255,255'] as const,
+              ['AMBOS_PA', 'PA 2 LADOS',   cntAmbos, C.green,'0,230,118'  ] as const,
+              ['UM_PA',    'PA 1 LADO',    cntUm,    C.amber,'245,158,11' ] as const,
+            ]).map(([v, label, cnt, col, rgb]) => {
               const active = paFilter === v;
               return (
-                <button key={v} onClick={() => setPaFilter(v)}
-                  className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-bold transition-all"
+                <button key={v} onClick={() => setPaFilter(v as PAFilter)}
+                  className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-bold transition-all"
                   style={{
                     background: active ? `rgba(${rgb},.14)` : 'transparent',
                     color:      active ? col : C.t3,
                     border:     active ? `1px solid rgba(${rgb},.35)` : '1px solid transparent',
                   }}>
                   {label}
-                  <span style={{ fontSize: 9, fontWeight: 900, borderRadius: 99, padding: '0 4px', background: active ? `rgba(${rgb},.18)` : 'rgba(255,255,255,.06)', color: active ? col : C.t3 }}>
+                  <span style={{
+                    fontSize: 9, fontWeight: 900, borderRadius: 99, padding: '0 4px',
+                    background: active ? `rgba(${rgb},.18)` : 'rgba(255,255,255,.06)',
+                    color: active ? col : C.t3,
+                  }}>
                     {cnt}
                   </span>
                 </button>
@@ -1042,22 +782,12 @@ export function BuscarOddsPage() {
 
           {hasActiveFilter && (
             <button onClick={clearFilters}
-              className="flex items-center gap-1 rounded-xl px-2.5 py-2 text-[11px] font-semibold hover:opacity-80"
+              className="flex items-center gap-1 rounded-xl px-2.5 py-2 text-[11px] font-semibold hover:opacity-80 transition-opacity"
               style={{ color: C.red, background: C.redDim, border: `1px solid rgba(248,113,113,.2)`, cursor: 'pointer' }}>
-              <X size={10} /> Limpar filtros
+              <X size={10} /> Limpar
             </button>
           )}
         </div>
-
-        {/* ── Modal de casas ───────────────────────────────────────────────── */}
-        {bkModalOpen && (
-          <BookmakerFilterModal
-            entries={bkEntries}
-            deselected={bkDeselected}
-            onChange={setBkDeselected}
-            onClose={() => setBkModalOpen(false)}
-          />
-        )}
 
         {/* ── Erro ─────────────────────────────────────────────────────────── */}
         {fetchErr && (
@@ -1072,21 +802,38 @@ export function BuscarOddsPage() {
 
         {/* ── Skeleton ─────────────────────────────────────────────────────── */}
         {loading && (
-          <div className="flex flex-col gap-2">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="h-16 rounded-xl animate-pulse"
-                style={{ background: C.surf, border: `1px solid ${C.surfB}`, opacity: 1 - i * 0.12 }} />
+          <div className="flex flex-col gap-3">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="overflow-hidden rounded-2xl animate-pulse"
+                style={{ background: C.surf, border: `1px solid ${C.surfB}`, opacity: 1 - i * 0.15 }}>
+                <div style={{ height: 2, background: 'rgba(255,255,255,.06)' }} />
+                <div className="px-4 py-2.5 flex items-center gap-3">
+                  <div style={{ width: 60, height: 10, borderRadius: 4, background: 'rgba(255,255,255,.08)' }} />
+                  <div style={{ flex: 1, height: 10, borderRadius: 4, background: 'rgba(255,255,255,.04)' }} />
+                </div>
+                {[0,1,2].map(j => (
+                  <div key={j} className="flex items-center gap-2 px-4 py-3" style={{ borderTop: `1px solid ${C.surfB}` }}>
+                    <div style={{ width: 40, height: 32, borderRadius: 6, background: 'rgba(255,255,255,.06)' }} />
+                    <div style={{ flex: 1, height: 28, borderRadius: 6, background: 'rgba(255,255,255,.04)' }} />
+                    <div style={{ width: 56, height: 48, borderRadius: 8, background: 'rgba(0,230,118,.04)' }} />
+                    <div style={{ width: 56, height: 48, borderRadius: 8, background: 'rgba(0,230,118,.04)' }} />
+                    <div style={{ width: 56, height: 48, borderRadius: 8, background: 'rgba(0,230,118,.04)' }} />
+                  </div>
+                ))}
+              </div>
             ))}
           </div>
         )}
 
         {/* ── Vazio ────────────────────────────────────────────────────────── */}
         {!loading && !fetchErr && filtered.length === 0 && (
-          <div className="flex flex-col items-center py-16 gap-3" style={{ color: C.t3 }}>
-            <ScanSearch size={32} style={{ opacity: .25 }} />
+          <div className="flex flex-col items-center py-20 gap-3" style={{ color: C.t3 }}>
+            <ScanSearch size={36} style={{ opacity: .2 }} />
             <p style={{ fontSize: 14, fontWeight: 600 }}>Nenhum jogo encontrado</p>
             {hasActiveFilter && (
-              <button onClick={clearFilters} style={{ fontSize: 12, color: C.purple, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
+              <button onClick={clearFilters}
+                className="rounded-xl px-4 py-2 text-[12px] font-bold hover:opacity-80 transition-opacity"
+                style={{ color: C.green, background: C.greenDim, border: `1px solid ${C.greenB}`, cursor: 'pointer' }}>
                 Limpar filtros
               </button>
             )}
@@ -1095,15 +842,10 @@ export function BuscarOddsPage() {
 
         {/* ── Cabeçalho desktop ───────────────────────────────────────────── */}
         {!loading && byLeague.length > 0 && (
-          <div className="hidden md:grid items-center gap-2 px-4"
-            style={{ gridTemplateColumns: '88px 1fr 72px 64px 110px 110px 110px', fontSize: 10, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em', color: C.t3 }}>
+          <div className="hidden md:grid items-center gap-3 px-4 pb-1"
+            style={{ gridTemplateColumns: '80px 1fr 70px 70px 70px', fontSize: 10, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em', color: C.t3 }}>
             <span>Hora</span>
             <span>Jogo</span>
-            <span className="text-center">Margem</span>
-            <div className="flex items-center justify-center gap-0.5">
-              <span>DG</span>
-              <span style={{ fontSize: 7, opacity: .6 }}>score</span>
-            </div>
             <span className="text-center">Casa (1)</span>
             <span className="text-center">Empate (X)</span>
             <span className="text-center">Fora (2)</span>
@@ -1116,28 +858,48 @@ export function BuscarOddsPage() {
           const isCollapsed = leagueCollapsed.has(league);
 
           return (
-            <div key={league} className="overflow-hidden rounded-2xl" style={{
-              background: `${C.surf}cc`,
-              border: `1px solid ${isFav ? C.greenB : C.surfB}`,
-              boxShadow: isFav ? `0 4px 20px rgba(0,0,0,.4), 0 0 12px ${C.green}06` : '0 4px 20px rgba(0,0,0,.4)',
-            }}>
-              {/* Topo colorido */}
-              <div style={{ height: 2, background: isFav ? `linear-gradient(90deg, ${C.green} 0%, ${C.green}33 60%, transparent 100%)` : 'linear-gradient(90deg, rgba(124,58,237,.5) 0%, rgba(124,58,237,.12) 60%, transparent 100%)' }} />
+            <div key={league} className="overflow-hidden rounded-2xl"
+              style={{
+                background: `${C.surf}cc`,
+                border: `1px solid ${isFav ? C.greenB : C.surfB}`,
+                boxShadow: isFav
+                  ? `0 4px 24px rgba(0,0,0,.4), 0 0 16px rgba(0,230,118,.06)`
+                  : '0 4px 20px rgba(0,0,0,.4)',
+              }}>
 
-              {/* Cabeçalho da liga — accordion */}
+              {/* Barra topo colorida */}
+              <div style={{
+                height: 2,
+                background: isFav
+                  ? `linear-gradient(90deg, ${C.green} 0%, ${C.green}44 55%, transparent 100%)`
+                  : `linear-gradient(90deg, rgba(0,230,118,.35) 0%, rgba(0,230,118,.08) 55%, transparent 100%)`,
+              }} />
+
+              {/* Cabeçalho da liga */}
               <div className="flex items-center justify-between px-4 py-2.5"
-                style={{ background: isFav ? C.greenDim : 'rgba(124,58,237,.03)', borderBottom: isCollapsed ? 'none' : `1px solid ${C.surfB}` }}>
+                style={{
+                  background: isFav ? 'rgba(0,230,118,.06)' : 'rgba(255,255,255,.016)',
+                  borderBottom: isCollapsed ? 'none' : `1px solid ${C.surfB}`,
+                }}>
                 <button onClick={() => toggleCollapse(league)}
                   className="flex flex-1 items-center gap-2.5 text-left hover:opacity-80 transition-opacity"
                   style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
-                  <div style={{ width: 2, height: 12, borderRadius: 1, background: isFav ? C.green : C.purple }} />
-                  <span style={{ fontSize: 11, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em', color: isFav ? C.green : 'rgba(148,163,255,.8)' }}>
+                  {/* ícone de liga (bullet colorido) */}
+                  <div style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: isFav ? C.green : 'rgba(0,230,118,.45)', boxShadow: isFav ? `0 0 6px ${C.green}` : 'none' }} />
+                  <span style={{ fontSize: 12, fontWeight: 800, color: isFav ? C.green : C.t1 }}>
                     {league}
                   </span>
-                  <span style={{ fontSize: 9, fontWeight: 700, borderRadius: 99, padding: '1px 6px', background: 'rgba(255,255,255,.05)', color: C.t3, border: `1px solid ${C.surfB}` }}>
+                  <span style={{
+                    fontSize: 10, fontWeight: 700, borderRadius: 99, padding: '1px 7px',
+                    background: 'rgba(255,255,255,.06)', color: C.t3, border: `1px solid ${C.surfB}`,
+                  }}>
                     {evs.length}
                   </span>
-                  <ChevronDown size={13} style={{ color: C.t3, transform: isCollapsed ? 'rotate(-90deg)' : 'none', transition: 'transform .2s ease' }} />
+                  <ChevronDown size={13} style={{
+                    color: C.t3,
+                    transform: isCollapsed ? 'rotate(-90deg)' : 'none',
+                    transition: 'transform .2s ease',
+                  }} />
                 </button>
                 <button onClick={() => toggleFav(league)}
                   className="ml-2 flex h-7 w-7 items-center justify-center rounded-lg hover:bg-white/10 transition-colors"
@@ -1151,95 +913,78 @@ export function BuscarOddsPage() {
               {!isCollapsed && (
                 <div>
                   {evs.map((ev, idx) => {
-                    const mgn    = calcMargin(ev.bookmakers);
-                    const isSure = mgn !== null && mgn < 0;
-                    const bkH   = bestBk(ev.bookmakers, 'home');
-                    const bkD   = bestBk(ev.bookmakers, 'draw');
-                    const bkA   = bestBk(ev.bookmakers, 'away');
-                    const dg    = dgMap.get(ev.match_id);
-                    const dgRgb2 = dg ? dgRGB(dg.dg_classification) : null;
-                    const dgCol2 = dg ? dgColor(dg.dg_classification) : null;
-                    const isToday   = dateBRT(ev.start_time) === today;
-                    const dayLabel  = weekdayLabel(ev.start_time, today);
-                    const hasDGGlow = dg && (dg.dg_score ?? 0) >= 85;
-                    const paCnt     = paBkCount(ev);
-                    const started   = new Date(ev.start_time).getTime() < Date.now();
+                    const mgn     = calcMargin(ev.bookmakers);
+                    const isSure  = mgn !== null && mgn < 0;
+                    const bkH     = bestBk(ev.bookmakers, 'home');
+                    const bkD     = bestBk(ev.bookmakers, 'draw');
+                    const bkA     = bestBk(ev.bookmakers, 'away');
+                    const dg      = dgMap.get(ev.match_id);
+                    const dgRgb2  = dg ? dgRGB(dg.dg_classification) : null;
+                    const dgCol2  = dg ? dgColor(dg.dg_classification) : null;
+                    const isToday = dateBRT(ev.start_time) === today;
+                    const dayLabel = weekdayLabel(ev.start_time, today);
+                    const started  = new Date(ev.start_time).getTime() < Date.now();
+                    const paCnt    = paBkCount(ev);
 
                     return (
                       <div key={ev.match_id} className="group relative"
                         style={{
-                          background: idx % 2 === 1 ? 'rgba(255,255,255,.012)' : undefined,
                           borderTop: idx > 0 ? `1px solid ${C.surfB}` : undefined,
-                          borderLeft: hasDGGlow ? `3px solid ${C.green}` : '3px solid transparent',
                         }}>
+                        {/* left accent bar on hover */}
+                        <div className="pointer-events-none absolute inset-y-0 left-0 w-[3px] opacity-0 group-hover:opacity-100 transition-opacity duration-150"
+                          style={{ background: C.green }} />
+
                         <button type="button" onClick={() => setSelectedEvent(ev)} className="w-full text-left">
 
-                          {/* Desktop */}
-                          <div className="hidden md:grid items-center gap-2 px-4 py-3"
-                            style={{ gridTemplateColumns: '88px 1fr 72px 64px 110px 110px 110px' }}>
+                          {/* Desktop — grid: hora | jogo | Casa(1) | Empate | Fora */}
+                          <div className="hidden md:grid items-center gap-3 pl-5 pr-4 py-3"
+                            style={{ gridTemplateColumns: '80px 1fr 70px 70px 70px' }}>
 
-                            {/* Hora */}
-                            <div className="flex flex-col">
+                            {/* Hora + margem */}
+                            <div className="flex flex-col gap-1">
                               <span style={{ fontSize: 13, fontWeight: 900, fontVariantNumeric: 'tabular-nums', color: started ? C.amber : isToday ? C.green : C.t2 }}>
                                 {fmtTime(ev.start_time)}
                               </span>
-                              <span style={{ fontSize: 9, fontWeight: 700, color: started ? `${C.amber}77` : isToday ? `${C.green}77` : C.t3 }}>
+                              <span style={{ fontSize: 9, fontWeight: 700, color: started ? `${C.amber}88` : C.t3 }}>
                                 {started ? 'Em andamento' : dayLabel}
                               </span>
+                              {mgn !== null && (
+                                <span className="rounded px-1.5 py-px tabular-nums text-center"
+                                  style={{ fontSize: 9, fontWeight: 900, color: marginColor(mgn), background: marginBg(mgn), border: `1px solid ${marginColor(mgn)}33`, display: 'inline-block', alignSelf: 'flex-start' }}>
+                                  {isSure ? `+${Math.abs(mgn).toFixed(2)}%` : `${mgn.toFixed(1)}%`}
+                                </span>
+                              )}
                             </div>
 
                             {/* Jogo */}
-                            <div className="min-w-0">
+                            <div className="min-w-0 flex flex-col gap-0.5">
                               <div className="flex items-center gap-2 min-w-0">
-                                <p className="truncate" style={{ fontSize: 13, fontWeight: 600, color: C.t1 }}>{ev.home_team}</p>
+                                <p className="truncate text-[13px] font-semibold" style={{ color: C.t1 }}>{ev.home_team}</p>
                                 {dg && dgRgb2 && dgCol2 && (
-                                  <span className="shrink-0 flex items-center gap-1 rounded-md px-1.5 py-px"
+                                  <span className="shrink-0 flex items-center gap-1 rounded px-1.5 py-px"
                                     style={{ fontSize: 8, fontWeight: 900, background: `rgba(${dgRgb2},.1)`, color: dgCol2, border: `1px solid rgba(${dgRgb2},.25)` }}>
-                                    <Zap size={7} /> {dg.dg_score}<sup style={{ fontSize: 6 }}>DG</sup>
+                                    <Zap size={7} />{dg.dg_score}
                                   </span>
                                 )}
                                 {paCnt >= 2 && (
-                                  <span style={{ fontSize: 7, fontWeight: 900, borderRadius: 4, padding: '1px 4px', background: C.amberDim, color: C.amber, border: `1px solid ${C.amberB}`, flexShrink: 0 }}>
+                                  <span style={{ fontSize: 7, fontWeight: 900, borderRadius: 4, padding: '1px 4px', background: C.greenDim, color: C.green, border: `1px solid ${C.greenB}`, flexShrink: 0 }}>
                                     PA×2
                                   </span>
                                 )}
                                 {paCnt === 1 && (
-                                  <span style={{ fontSize: 7, fontWeight: 900, borderRadius: 4, padding: '1px 4px', background: 'rgba(245,158,11,.06)', color: `${C.amber}88`, border: 'rgba(245,158,11,.18) 1px solid', flexShrink: 0 }}>
+                                  <span style={{ fontSize: 7, fontWeight: 900, borderRadius: 4, padding: '1px 4px', background: 'rgba(0,230,118,.05)', color: `${C.green}99`, border: 'rgba(0,230,118,.18) 1px solid', flexShrink: 0 }}>
                                     PA
                                   </span>
                                 )}
                               </div>
-                              <p className="truncate" style={{ fontSize: 12, color: C.t3 }}>{ev.away_team}</p>
+                              <p className="truncate text-[11px]" style={{ color: C.t3 }}>{ev.away_team}</p>
+                              <p className="text-[10px]" style={{ color: C.t3 }}>
+                                {ev.bookmakers.length} casas
+                              </p>
                             </div>
 
-                            {/* Margem */}
-                            <div className="flex justify-center">
-                              {mgn !== null ? (
-                                <span className="rounded-md px-2 py-1 tabular-nums"
-                                  style={{ fontSize: 11, fontWeight: 900, color: marginColor(mgn), background: marginBg(mgn), border: `1px solid ${marginColor(mgn)}33` }}>
-                                  {isSure ? `+${Math.abs(mgn).toFixed(2)}%` : `${mgn.toFixed(1)}%`}
-                                </span>
-                              ) : <span style={{ color: 'rgba(255,255,255,.1)', fontSize: 11 }}>—</span>}
-                            </div>
-
-                            {/* DG Score */}
-                            <div className="flex justify-center">
-                              {dg && dgRgb2 && dgCol2 ? (
-                                <div className="flex flex-col items-center">
-                                  <span style={{ fontSize: 17, fontWeight: 900, lineHeight: 1, color: dgCol2, textShadow: `0 0 10px rgba(${dgRgb2},.4)` }}>
-                                    {dg.dg_score}
-                                  </span>
-                                  {dg.dg_profit_pct != null && (
-                                    <span style={{ fontSize: 8, fontWeight: 700, color: dg.dg_profit_pct >= 0 ? C.green : C.red }}>
-                                      {dg.dg_profit_pct >= 0 ? '+' : ''}{dg.dg_profit_pct.toFixed(1)}%
-                                    </span>
-                                  )}
-                                </div>
-                              ) : (
-                                <span style={{ color: 'rgba(255,255,255,.1)', fontSize: 11 }}>—</span>
-                              )}
-                            </div>
-
+                            {/* Odds com badge PA/SO */}
                             <BestOddCell bk={bkH} type="home" />
                             <BestOddCell bk={bkD} type="draw" />
                             <BestOddCell bk={bkA} type="away" />
@@ -1247,27 +992,40 @@ export function BuscarOddsPage() {
 
                           {/* Mobile */}
                           <div className="flex items-center gap-3 px-4 py-3 md:hidden">
-                            <div className="flex flex-col items-center shrink-0" style={{ width: 42 }}>
+                            <div className="flex flex-col items-center shrink-0" style={{ width: 44 }}>
                               <span style={{ fontSize: 13, fontWeight: 900, color: started ? C.amber : isToday ? C.green : C.t2 }}>{fmtTime(ev.start_time)}</span>
-                              {dg && <span style={{ fontSize: 11, fontWeight: 900, lineHeight: 1, color: dg ? dgColor(dg.dg_classification) : C.t3 }}>{dg.dg_score}</span>}
+                              {mgn !== null && (
+                                <span style={{ fontSize: 9, fontWeight: 700, color: marginColor(mgn) }}>
+                                  {isSure ? `+${Math.abs(mgn).toFixed(1)}%` : `${mgn.toFixed(1)}%`}
+                                </span>
+                              )}
                             </div>
                             <div className="flex-1 min-w-0">
-                              <p className="truncate" style={{ fontSize: 13, fontWeight: 600, color: C.t1 }}>{ev.home_team} x {ev.away_team}</p>
-                              <p style={{ fontSize: 11, color: C.t3 }}>
+                              <p className="truncate text-[13px] font-semibold" style={{ color: C.t1 }}>{ev.home_team} x {ev.away_team}</p>
+                              <p className="text-[11px]" style={{ color: C.t3 }}>
                                 {ev.bookmakers.length} casas
-                                {mgn !== null && <span className="ml-2 font-bold" style={{ color: marginColor(mgn) }}>{isSure ? `+${Math.abs(mgn).toFixed(2)}%` : `${mgn.toFixed(1)}%`}</span>}
-                                {paCnt > 0 && <span className="ml-1" style={{ color: C.amber }}>· PA</span>}
+                                {paCnt > 0 && <span className="ml-2 font-bold" style={{ color: C.green }}>· PA×{paCnt}</span>}
                               </p>
                             </div>
-                            <ChevronRight size={14} style={{ color: C.t3, opacity: .4, flexShrink: 0 }} />
+                            {/* Mini odds mobile */}
+                            <div className="flex gap-1 shrink-0">
+                              {([bkH, bkD, bkA] as const).map((bk, ki) => {
+                                const type = (['home','draw','away'] as const)[ki];
+                                if (!bk) return <div key={ki} style={{ width: 36, height: 36, borderRadius: 6, background: 'rgba(255,255,255,.025)' }} />;
+                                const val = bk[type] as number;
+                                const pa2 = isBkPA(bk);
+                                return (
+                                  <div key={ki} className="relative flex flex-col items-center justify-center rounded-md"
+                                    style={{ width: 36, height: 36, background: 'rgba(0,230,118,.06)', border: '1px solid rgba(0,230,118,.2)' }}>
+                                    <span style={{ fontSize: 11, fontWeight: 900, color: C.green }}>{val.toFixed(2)}</span>
+                                    {pa2 && <span className="absolute -right-1 -top-1 rounded border px-px text-[6px] font-bold" style={{ background: C.greenDim, color: C.green, borderColor: C.greenB }}>PA</span>}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                            <ChevronRight size={13} style={{ color: C.t3, opacity: .4, flexShrink: 0 }} />
                           </div>
                         </button>
-
-                        {/* Hover: Ver detalhes */}
-                        <div className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 hidden group-hover:flex items-center gap-1 rounded-lg px-2.5 py-1.5 transition-opacity duration-150"
-                          style={{ background: C.purpleDim, border: `1px solid ${C.purpleB}`, color: C.purple, fontSize: 11, fontWeight: 700 }}>
-                          <ChevronRight size={10} /> Ver detalhes
-                        </div>
                       </div>
                     );
                   })}
