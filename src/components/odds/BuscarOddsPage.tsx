@@ -676,13 +676,15 @@ export function BuscarOddsPage() {
   const loadOdds = useCallback(async (silent = false) => {
     if (!silent) { setLoading(true); setFetchErr(''); setAllOdds([]); setSelectedEvent(null); }
     try {
-      const [dbRes] = await Promise.all([fetch(`/api/dg/odds-db?date=${today}`), loadDGMap()]);
+      // ?all=1 → carrega TODOS os jogos importados (o admin já remove os antigos no import)
+      const [dbRes] = await Promise.all([fetch('/api/dg/odds-db?all=1'), loadDGMap()]);
       const dbJson  = await dbRes.json() as { ok: boolean; odds?: OddsSummary[] };
       if (dbJson.ok && (dbJson.odds?.length ?? 0) > 0) {
         setAllOdds(dbJson.odds!);
         setLastUpdated(Date.now());
         return;
       }
+      // fallback: endpoint legado (sem DB)
       const res  = await fetch('/api/dg/odds');
       const json = await res.json() as { ok: boolean; odds?: OddsSummary[]; error?: string };
       if (!json.ok) throw new Error(json.error ?? 'Erro ao carregar odds');
@@ -693,7 +695,7 @@ export function BuscarOddsPage() {
     } finally {
       if (!silent) setLoading(false);
     }
-  }, [today, loadDGMap]);
+  }, [loadDGMap]);
 
   useEffect(() => { loadOdds(); }, [loadOdds]);
   useEffect(() => {

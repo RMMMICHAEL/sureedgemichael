@@ -49,16 +49,24 @@ export async function GET(req: NextRequest) {
   }
 
   const showAll   = req.nextUrl.searchParams.get('all')  === '1';
-  const dateParam = req.nextUrl.searchParams.get('date') ?? todayBRT();
+  const dateParam = req.nextUrl.searchParams.get('date');
+  const fromParam = req.nextUrl.searchParams.get('from') ?? todayBRT(); // padrão: a partir de hoje
 
   // ── Query ────────────────────────────────────────────────────────────────────
   let query = supabase
     .from('bookmaker_odds')
     .select('match_id,home_team,away_team,match_date,start_time,league_slug,league_name,bookmaker_slug,bookmaker_name,market_type,odd_home,odd_draw,odd_away,match_url,source_url')
+    .order('match_date', { ascending: true })
     .order('start_time', { ascending: true });
 
   if (!showAll) {
-    query = query.eq('match_date', dateParam);
+    if (dateParam) {
+      // data exata
+      query = query.eq('match_date', dateParam);
+    } else {
+      // padrão: a partir de hoje (inclui hoje + futuros)
+      query = query.gte('match_date', fromParam);
+    }
   }
 
   const { data, error } = await query.returns<DbRow[]>();
