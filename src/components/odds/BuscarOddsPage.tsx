@@ -182,8 +182,12 @@ function bestVal(bks: BookmakerOdds[], key: 'home'|'draw'|'away'): number {
   return vals.length ? Math.max(...vals) : 0;
 }
 function bestBk(bks: BookmakerOdds[], key: 'home'|'draw'|'away'): BookmakerOdds | null {
-  const v = bestVal(bks, key);
-  return bks.find(b => b[key] === v && v > 1) ?? null;
+  // Prefere entradas 1x2 (odds maiores) sobre 1x2_pa do mesmo slug.
+  // Se só existir 1x2_pa, usa ela.
+  const regular = bks.filter(b => !b.is_pa);
+  const pool = regular.length ? regular : bks;
+  const v = pool.reduce((mx, b) => Math.max(mx, (b[key] as number) ?? 0), 0);
+  return pool.find(b => b[key] === v && v > 1) ?? null;
 }
 /** Melhor casa com PA para o outcome (home|away). Empate não usa PA filter. */
 function bestPaBk(bks: BookmakerOdds[], key: 'home'|'away'): BookmakerOdds | null {
@@ -314,8 +318,10 @@ function EventOddsPanel({
 
   function slotOf(slug: string, type: OddType) { return slots.findIndex(s => s?.bk.slug === slug && s?.type === type); }
 
-  const comPa = event.bookmakers.filter(b => isBkPA(b));
-  const semPa = event.bookmakers.filter(b => !isBkPA(b));
+  // Split pelo market_type: 1x2_pa = COM PA (mercado de pagamento antecipado)
+  // 1x2 = SEM PA (mercado regular — inclui casas PA usando mercado normal)
+  const comPa = event.bookmakers.filter(b => b.is_pa === true);
+  const semPa = event.bookmakers.filter(b => b.is_pa !== true);
   const activeSlots = slots.filter(Boolean) as CalcSlot[];
   const eventName   = `${event.home_team} x ${event.away_team}`;
   const dgRgb = dgInfo ? dgRGB(dgInfo.dg_classification) : null;
