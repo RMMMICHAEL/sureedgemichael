@@ -58,7 +58,7 @@ interface DGInfo {
   dg_profit_pct:     number | null;
 }
 
-type PAFilter = 'ALL' | 'AMBOS_PA' | 'UM_PA';
+type PAFilter = 'ALL' | 'APENAS_PA';
 type SortBy   = 'maior_lucro' | 'menor_lucro' | 'padrao';
 
 // ─── Set expandido de casas com Pagamento Antecipado ─────────────────────────
@@ -742,19 +742,15 @@ export function BuscarOddsPage() {
       .filter(ev => { try { return new Date(ev.start_time).getTime() + GAME_DURATION_MS > Date.now(); } catch { return true; } })
       .filter(ev => leagueFilter.size === 0 || leagueFilter.has(ev.league_name))
       .filter(ev => {
-        if (paFilter === 'ALL') return true;
-        const cnt = paSideCount(ev);
-        if (paFilter === 'AMBOS_PA') return cnt >= 2;
-        if (paFilter === 'UM_PA')    return cnt === 1;
+        if (paFilter === 'APENAS_PA') return paSideCount(ev) >= 2;
         return true;
       });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allOdds, leagueFilter, paFilter]);
 
   // contadores p/ chips
-  const cntAll   = useMemo(() => allOdds.filter(ev => !isExcluded(ev.league_name ?? '') && (() => { try { return new Date(ev.start_time).getTime() + GAME_DURATION_MS > Date.now(); } catch { return true; } })() && (leagueFilter.size === 0 || leagueFilter.has(ev.league_name))).length, [allOdds, leagueFilter, GAME_DURATION_MS]);
-  const cntAmbos = useMemo(() => filtered.filter(ev => paSideCount(ev) >= 2).length, [filtered]);
-  const cntUm    = useMemo(() => filtered.filter(ev => paSideCount(ev) === 1).length, [filtered]);
+  const cntAll      = useMemo(() => allOdds.filter(ev => !isExcluded(ev.league_name ?? '') && (leagueFilter.size === 0 || leagueFilter.has(ev.league_name))).length, [allOdds, leagueFilter]);
+  const cntApenasPA = useMemo(() => allOdds.filter(ev => !isExcluded(ev.league_name ?? '') && (leagueFilter.size === 0 || leagueFilter.has(ev.league_name)) && paSideCount(ev) >= 2).length, [allOdds, leagueFilter]);
 
   // ── Agrupamento por liga ─────────────────────────────────────────────────────
   const byLeague = useMemo(() => {
@@ -892,9 +888,8 @@ export function BuscarOddsPage() {
           {/* PA chips */}
           <div className="flex items-center gap-1 rounded-xl p-1" style={{ background: 'rgba(255,255,255,.03)', border: `1px solid ${C.surfB}` }}>
             {([
-              ['ALL',      'Todos',        cntAll,   C.t2,   '255,255,255'] as const,
-              ['AMBOS_PA', 'PA 2 LADOS',   cntAmbos, C.green,'0,230,118'  ] as const,
-              ['UM_PA',    'PA 1 LADO',    cntUm,    C.amber,'245,158,11' ] as const,
+              ['ALL',       'Todos',      cntAll,      C.t2,   '255,255,255'] as const,
+              ['APENAS_PA', 'Apenas PA',  cntApenasPA, C.green,'0,230,118' ] as const,
             ]).map(([v, label, cnt, col, rgb]) => {
               const active = paFilter === v;
               return (
