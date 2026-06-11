@@ -172,6 +172,11 @@ function AddToPanelModal({ numOutcomes, formulaOpt, rawOdds, commissions, stakes
     Array.from({ length: Math.min(numOutcomes, MAX_OUTCOMES) }, (_, i) => initialHouses?.[i] ?? '')
   );
 
+  // Resolve the correct document.body for the current React root.
+  // When SurebetCalc runs inside a Document PiP window (separate createRoot),
+  // the global `document` points to the main window — ownerDocument gives the right one.
+  const [portalRoot, setPortalRoot] = useState<HTMLElement | null>(null);
+
   function setHouse(i: number, val: string) {
     setHouses(prev => prev.map((h, idx) => idx === i ? val : h));
   }
@@ -223,8 +228,14 @@ function AddToPanelModal({ numOutcomes, formulaOpt, rawOdds, commissions, stakes
     colorScheme: 'dark',
   };
 
-  return createPortal(
-    <div style={overlay} onClick={e => e.target === e.currentTarget && onClose()}>
+  return (
+    <>
+      <span
+        style={{ display: 'none' }}
+        ref={(el) => { if (el && !portalRoot) setPortalRoot(el.ownerDocument.body); }}
+      />
+      {portalRoot && createPortal(
+      <div style={overlay} onClick={e => e.target === e.currentTarget && onClose()}>
       <div style={card}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <span style={{ fontWeight: 800, fontSize: 15, color: '#E2E8F0' }}>Adicionar ao Painel</span>
@@ -306,7 +317,9 @@ function AddToPanelModal({ numOutcomes, formulaOpt, rawOdds, commissions, stakes
         </div>
       </div>
     </div>,
-    document.body
+      portalRoot
+    )}
+    </>
   );
 }
 
