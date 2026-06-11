@@ -328,16 +328,11 @@ function EventOddsPanel({
   const dgRgb = dgInfo ? dgRGB(dgInfo.dg_classification) : null;
   const dgCol = dgInfo ? dgColor(dgInfo.dg_classification) : null;
 
-  function OddBtn({ bk, type, value }: { bk: BookmakerOdds; type: OddType; value: number }) {
+  function OddBtn({ bk, type, value, sectionBests }: { bk: BookmakerOdds; type: OddType; value: number; sectionBests: Record<OddType, number> }) {
     const si = slotOf(bk.slug, type);
     const sel = si >= 0;
     const sc  = SLOT_COLORS[si] ?? SLOT_COLORS[0];
-    const bests = {
-      home: bestVal(event.bookmakers, 'home'),
-      draw: bestVal(event.bookmakers, 'draw'),
-      away: bestVal(event.bookmakers, 'away'),
-    };
-    const isBest = value > 1 && value === bests[type];
+    const isBest = value > 1 && value === sectionBests[type];
 
     if (value <= 1) return (
       <div className="flex h-10 w-[72px] items-center justify-center rounded-xl"
@@ -377,6 +372,11 @@ function EventOddsPanel({
     if (!bks.length) return null;
     const acRgb = accent === C.amber ? '245,158,11' : '167,139,250';
     const sorted = [...bks].sort((a, b) => (b[sortCol] as number) - (a[sortCol] as number));
+    const sectionBests: Record<OddType, number> = {
+      home: Math.max(0, ...bks.map(b => b.home > 1 ? b.home : 0)),
+      draw: Math.max(0, ...bks.map(b => b.draw > 1 ? b.draw : 0)),
+      away: Math.max(0, ...bks.map(b => b.away > 1 ? b.away : 0)),
+    };
     const cols: { key: 'home'|'draw'|'away'; label: string }[] = [
       { key: 'home', label: 'Casa (1)' },
       { key: 'draw', label: 'Empate (X)' },
@@ -409,7 +409,8 @@ function EventOddsPanel({
         <div>
           {sorted.map((bk, idx) => {
             const anySelected = slots.some(s => s?.bk.slug === bk.slug);
-            const pa = isBkPA(bk);
+            // badge PA só para casas no mercado 1x2_pa (campo explícito), não inferência por slug
+            const pa = bk.is_pa === true;
             return (
               <div key={bk.slug} className="grid items-center gap-3 px-5 py-3"
                 style={{ gridTemplateColumns: '1fr 72px 72px 72px', background: anySelected ? `rgba(${acRgb},.04)` : idx % 2 === 1 ? 'rgba(255,255,255,.01)' : undefined, borderTop: idx > 0 ? `1px solid rgba(255,255,255,.04)` : undefined }}>
@@ -426,9 +427,9 @@ function EventOddsPanel({
                   )}
                   {pa && <span style={{ fontSize: 11, fontWeight: 700, borderRadius: 4, padding: '1px 4px', background: C.amberDim, color: C.amber, border: `1px solid ${C.amberB}`, flexShrink: 0 }}>PA</span>}
                 </div>
-                <OddBtn bk={bk} type="home" value={bk.home} />
-                <OddBtn bk={bk} type="draw" value={bk.draw} />
-                <OddBtn bk={bk} type="away" value={bk.away} />
+                <OddBtn bk={bk} type="home" value={bk.home} sectionBests={sectionBests} />
+                <OddBtn bk={bk} type="draw" value={bk.draw} sectionBests={sectionBests} />
+                <OddBtn bk={bk} type="away" value={bk.away} sectionBests={sectionBests} />
               </div>
             );
           })}
