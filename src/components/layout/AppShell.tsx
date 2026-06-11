@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
+import { createRoot } from 'react-dom/client';
+import type { Root } from 'react-dom/client';
 import { PanelLeftOpen, WrenchIcon, RotateCcw, Move, Minimize2, Maximize2, X } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import { Sidebar, MobileDrawer } from './Sidebar';
@@ -10,6 +12,16 @@ import { ToastStack }      from '@/components/ui/Toast';
 import { OnboardingModal } from '@/components/onboarding/OnboardingModal';
 import { ImportPreview }   from '@/components/import/ImportPreview';
 import { SurebetCalc }     from '@/components/calcalendario/SurebetCalc';
+
+// ── Document Picture-in-Picture API types ─────────────────────────────────────
+declare global {
+  interface Window {
+    documentPictureInPicture?: {
+      requestWindow(opts?: { width?: number; height?: number; disallowReturnToOpener?: boolean }): Promise<Window>;
+      window: Window | null;
+    };
+  }
+}
 import { DashboardPage }   from '@/components/dashboard/DashboardPage';
 import { OperationsPage }  from '@/components/operations/OperationsPage';
 import { BookmakersPage }  from '@/components/bookmakers/BookmakersPage';
@@ -155,23 +167,94 @@ import { getSupabaseClient } from '@/lib/supabase/client';
 
 function GlobalPipCalc() {
   const setPipCalcOpen = useStore(s => s.setPipCalcOpen);
-  const [pos, setPos] = useState<{ x: number; y: number }>(() => ({
-    x: typeof window !== 'undefined' ? Math.max(16, window.innerWidth - 440) : 60,
-    y: 72,
-  }));
-  const [minimized, setMinimized] = useState(false);
-  const dragOrigin = useRef<{ ox: number; oy: number } | null>(null);
 
+  // useOverlay = true when Document PiP is not supported or user dismissed the prompt
+  const [useOverlay, setUseOverlay] = useState(false);
+  const pipWindowRef = useRef<Window | null>(null);
+  const pipRootRef   = useRef<Root | null>(null);
+
+  // Overlay-only state (fallback for non-Chrome browsers)
+  const [pos, setPos]       = useState<{ x: number; y: number }>({ x: 60, y: 72 });
+  const [minimized, setMin] = useState(false);
+  const dragOrigin          = useRef<{ ox: number; oy: number } | null>(null);
+
+  useEffect(() => {
+    // ── Try native Document PiP (Chrome 116+) ────────────────────────────────
+    if (!window.documentPictureInPicture) {
+      setUseOverlay(true);
+      setPos({ x: Math.max(16, window.innerWidth - 440), y: 72 });
+      return;
+    }
+
+    window.documentPictureInPicture
+      .requestWindow({ width: 440, height: 620 })
+      .then(pip => {
+        pipWindowRef.current = pip;
+
+        // Copy all styles from the main document
+        document.querySelectorAll('style').forEach(el => {
+          const s = pip.document.createElement('style');
+          s.textContent = el.textContent ?? '';
+          pip.document.head.appendChild(s);
+        });
+        document.querySelectorAll('link[rel="stylesheet"]').forEach(el => {
+          pip.document.head.appendChild(el.cloneNode(false));
+        });
+
+        // Base body styles (dark bg + CSS var defaults)
+        const bodyStyle = pip.document.createElement('style');
+        bodyStyle.textContent = `
+          *, *::before, *::after { box-sizing: border-box; }
+          body { margin: 0; padding: 8px; background: #030507; color: #F0F4F8;
+                 font-family: ui-sans-serif, system-ui, sans-serif; font-size: 14px; }
+          ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-track { background: transparent; }
+          ::-webkit-scrollbar-thumb { background: rgba(63,255,33,.25); border-radius: 4px; }
+        `;
+        pip.document.head.appendChild(bodyStyle);
+
+        // Mount React into PiP window (same JS context = same Zustand store)
+        const container = pip.document.createElement('div');
+        pip.document.body.appendChild(container);
+        const root = createRoot(container);
+        pipRootRef.current = root;
+        root.render(<SurebetCalc />);
+
+        // When the native PiP window is closed by the user
+        pip.addEventListener('pagehide', () => {
+          pipRootRef.current?.unmount();
+          pipRootRef.current = null;
+          pipWindowRef.current = null;
+          setPipCalcOpen(false);
+        });
+      })
+      .catch(() => {
+        // User dismissed the PiP prompt → fall back to in-page overlay
+        setUseOverlay(true);
+        setPos({ x: Math.max(16, window.innerWidth - 440), y: 72 });
+      });
+
+    return () => {
+      pipRootRef.current?.unmount();
+      pipRootRef.current = null;
+      if (pipWindowRef.current && !pipWindowRef.current.closed) {
+        pipWindowRef.current.close();
+        pipWindowRef.current = null;
+      }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── Overlay drag (fallback only) ─────────────────────────────────────────────
   function onHeaderMouseDown(e: React.MouseEvent<HTMLDivElement>) {
     if ((e.target as HTMLElement).closest('button')) return;
     e.preventDefault();
     dragOrigin.current = { ox: e.clientX - pos.x, oy: e.clientY - pos.y };
-
     function onMove(ev: MouseEvent) {
       if (!dragOrigin.current) return;
-      const nx = Math.max(0, Math.min(ev.clientX - dragOrigin.current.ox, window.innerWidth - 300));
-      const ny = Math.max(0, Math.min(ev.clientY - dragOrigin.current.oy, window.innerHeight - 48));
-      setPos({ x: nx, y: ny });
+      setPos({
+        x: Math.max(0, Math.min(ev.clientX - dragOrigin.current.ox, window.innerWidth - 300)),
+        y: Math.max(0, Math.min(ev.clientY - dragOrigin.current.oy, window.innerHeight - 48)),
+      });
     }
     function onUp() {
       dragOrigin.current = null;
@@ -182,64 +265,41 @@ function GlobalPipCalc() {
     window.addEventListener('mouseup', onUp);
   }
 
+  // Document PiP opened (or still opening) — nothing to render in main DOM
+  if (!useOverlay) return null;
+
+  // ── Fallback overlay (Firefox / Safari / old Chrome) ────────────────────────
   return createPortal(
-    <div
-      style={{
-        position: 'fixed',
-        zIndex: 9999,
-        left: pos.x,
-        top: pos.y,
-        width: 420,
-        minWidth: 300,
-        maxWidth: '90vw',
-        minHeight: minimized ? 0 : 240,
-        maxHeight: 'calc(100vh - 100px)',
-        background: '#0D1117',
-        border: '1px solid rgba(63,255,33,.35)',
-        borderRadius: 18,
-        boxShadow: '0 16px 56px rgba(0,0,0,.85), 0 0 28px rgba(63,255,33,.07)',
-        display: 'flex',
-        flexDirection: 'column',
-        overflow: minimized ? 'visible' : 'hidden',
-        resize: minimized ? 'none' : 'both',
-      }}
-    >
-      {/* Drag handle */}
-      <div
-        onMouseDown={onHeaderMouseDown}
-        style={{
-          display: 'flex', alignItems: 'center', gap: 8,
-          padding: '10px 14px',
-          background: 'rgba(63,255,33,.07)',
-          borderRadius: minimized ? 18 : '18px 18px 0 0',
-          borderBottom: minimized ? 'none' : '1px solid rgba(255,255,255,.06)',
-          cursor: 'grab',
-          userSelect: 'none',
-          flexShrink: 0,
-        }}
-      >
+    <div style={{
+      position: 'fixed', zIndex: 9999, left: pos.x, top: pos.y,
+      width: 420, minWidth: 300, maxWidth: '90vw',
+      minHeight: minimized ? 0 : 240, maxHeight: 'calc(100vh - 100px)',
+      background: '#0D1117', border: '1px solid rgba(63,255,33,.35)',
+      borderRadius: 18, boxShadow: '0 16px 56px rgba(0,0,0,.85), 0 0 28px rgba(63,255,33,.07)',
+      display: 'flex', flexDirection: 'column',
+      overflow: minimized ? 'visible' : 'hidden',
+      resize: minimized ? 'none' : 'both',
+    }}>
+      <div onMouseDown={onHeaderMouseDown} style={{
+        display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px',
+        background: 'rgba(63,255,33,.07)',
+        borderRadius: minimized ? 18 : '18px 18px 0 0',
+        borderBottom: minimized ? 'none' : '1px solid rgba(255,255,255,.06)',
+        cursor: 'grab', userSelect: 'none', flexShrink: 0,
+      }}>
         <Move size={13} style={{ color: 'rgba(63,255,33,.45)', flexShrink: 0 }} />
         <span style={{ flex: 1, fontSize: 11, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '.1em', color: 'rgba(63,255,33,.75)' }}>
           Calculadora
         </span>
-        <button
-          type="button"
-          onClick={() => setMinimized(m => !m)}
-          title={minimized ? 'Expandir' : 'Minimizar'}
-          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,.45)', padding: '3px 6px', borderRadius: 6, display: 'flex', alignItems: 'center' }}
-        >
+        <button type="button" onClick={() => setMin(m => !m)} title={minimized ? 'Expandir' : 'Minimizar'}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,.45)', padding: '3px 6px', borderRadius: 6, display: 'flex', alignItems: 'center' }}>
           {minimized ? <Maximize2 size={13} /> : <Minimize2 size={13} />}
         </button>
-        <button
-          type="button"
-          onClick={() => setPipCalcOpen(false)}
-          title="Fechar"
-          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(248,113,113,.7)', padding: '3px 6px', borderRadius: 6, display: 'flex', alignItems: 'center' }}
-        >
+        <button type="button" onClick={() => setPipCalcOpen(false)} title="Fechar"
+          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(248,113,113,.7)', padding: '3px 6px', borderRadius: 6, display: 'flex', alignItems: 'center' }}>
           <X size={13} />
         </button>
       </div>
-
       {!minimized && (
         <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
           <SurebetCalc />
