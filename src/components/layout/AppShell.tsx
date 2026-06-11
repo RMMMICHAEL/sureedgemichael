@@ -34,8 +34,9 @@ function ComingSoonPage({ title }: { title: string }) {
         background: 'rgba(63,255,33,.07)',
         border: '1px solid rgba(63,255,33,.15)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: 26,
-      }}>🔧</div>
+      }}>
+        <WrenchIcon size={24} style={{ color: 'var(--g)' }} />
+      </div>
       <div>
         <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--t)', marginBottom: 8 }}>
           {title}
@@ -333,26 +334,7 @@ export function AppShell() {
           onClick={toggleSidebar}
           aria-label="Expandir menu"
           title="Expandir menu"
-          className="hidden md:flex fixed left-0 top-1/2 -translate-y-1/2 z-30 flex-col items-center justify-center gap-1"
-          style={{
-            width: 18,
-            height: 56,
-            background: 'var(--bg2)',
-            border: '1px solid var(--b)',
-            borderLeft: 'none',
-            borderRadius: '0 8px 8px 0',
-            color: 'var(--t3)',
-            cursor: 'pointer',
-            transition: 'color 150ms, background 150ms',
-          }}
-          onMouseEnter={e => {
-            (e.currentTarget as HTMLElement).style.color = 'var(--g)';
-            (e.currentTarget as HTMLElement).style.background = 'rgba(63,255,33,.06)';
-          }}
-          onMouseLeave={e => {
-            (e.currentTarget as HTMLElement).style.color = 'var(--t3)';
-            (e.currentTarget as HTMLElement).style.background = 'var(--bg2)';
-          }}
+          className="reopen-tab hidden md:flex fixed left-0 top-1/2 -translate-y-1/2 z-30 flex-col items-center justify-center gap-1"
         >
           <PanelLeftOpen size={11} />
         </button>

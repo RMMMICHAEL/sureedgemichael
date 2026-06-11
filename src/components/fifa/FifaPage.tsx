@@ -44,11 +44,11 @@ function LegRow({ leg, label, pColor }: { leg: SurebetLeg; label: string; pColor
       border: '1px solid rgba(255,255,255,.07)',
     }}>
       <div style={{ flex: 1 }}>
-        <div style={{ fontSize: 10, color: 'var(--t3)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em' }}>
+        <div style={{ fontSize: 11, color: 'var(--t3)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em' }}>
           {label} · {leg.bookmaker.name}
           {leg.isPa && (
             <span style={{
-              marginLeft: 5, fontSize: 9, padding: '1px 5px', borderRadius: 4,
+              marginLeft: 5, fontSize: 11, padding: '1px 5px', borderRadius: 4,
               background: 'rgba(255,159,10,.15)', color: '#FF9F0A',
               border: '1px solid rgba(255,159,10,.3)',
             }}>PA</span>
@@ -112,12 +112,12 @@ function SurebetCard({ sb }: { sb: Surebet }) {
             {sb.label}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 2 }}>
-            <span style={{ fontSize: 10, color: 'var(--t3)' }}>
+            <span style={{ fontSize: 11, color: 'var(--t3)' }}>
               {sb.leg1.bookmaker.name} × {sb.leg2.bookmaker.name}
             </span>
             {hasMixedPa && (
               <span style={{
-                fontSize: 9, padding: '1px 5px', borderRadius: 4,
+                fontSize: 11, padding: '1px 5px', borderRadius: 4,
                 background: 'rgba(255,159,10,.12)', color: '#FF9F0A',
                 border: '1px solid rgba(255,159,10,.25)',
               }}>PA + Normal</span>
@@ -128,7 +128,7 @@ function SurebetCard({ sb }: { sb: Surebet }) {
           <div style={{ fontSize: 16, fontWeight: 900, color: pColor, lineHeight: 1 }}>
             +{fmt(sb.profit)}%
           </div>
-          <div style={{ fontSize: 9, color: 'var(--t3)', marginTop: 2, textTransform: 'uppercase', letterSpacing: '.06em' }}>
+          <div style={{ fontSize: 11, color: 'var(--t3)', marginTop: 2, textTransform: 'uppercase', letterSpacing: '.06em' }}>
             lucro
           </div>
         </div>
@@ -158,7 +158,7 @@ function SurebetCard({ sb }: { sb: Surebet }) {
               background: 'rgba(255,255,255,.02)',
               border: '1px solid rgba(255,255,255,.06)',
             }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 8 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 8 }}>
                 Distribuição (banca R$ 100)
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
@@ -168,7 +168,7 @@ function SurebetCard({ sb }: { sb: Surebet }) {
                   { label: 'Lucro garantido',       val: `R$ ${fmt(sb.stakes.profit)}`, highlight: true },
                 ].map(item => (
                   <div key={item.label} style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: 9, color: 'var(--t3)', marginBottom: 3, lineHeight: 1.2 }}>{item.label}</div>
+                    <div style={{ fontSize: 11, color: 'var(--t3)', marginBottom: 3, lineHeight: 1.2 }}>{item.label}</div>
                     <div style={{ fontSize: 13, fontWeight: 900, color: item.highlight ? pColor : 'var(--t)' }}>
                       {item.val}
                     </div>
@@ -219,16 +219,16 @@ function EventCard({ ev }: { ev: SurebetEvent }) {
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ev.away}</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 4, flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 10, color: 'var(--t3)' }}>{ev.league}</span>
+            <span style={{ fontSize: 11, color: 'var(--t3)' }}>{ev.league}</span>
             <span style={{ width: 3, height: 3, borderRadius: '50%', background: 'var(--t3)', opacity: .4 }} />
             <Clock size={10} style={{ color: 'var(--t3)' }} />
-            <span style={{ fontSize: 10, color: 'var(--t3)' }}>{timeLabel(ev.startTime)}</span>
+            <span style={{ fontSize: 11, color: 'var(--t3)' }}>{timeLabel(ev.startTime)}</span>
           </div>
           {/* Bookmakers disponíveis */}
           <div style={{ display: 'flex', gap: 4, marginTop: 5, flexWrap: 'wrap' }}>
             {ev.bookmakers.map(bk => (
               <span key={bk} style={{
-                fontSize: 9, padding: '1px 6px', borderRadius: 4,
+                fontSize: 11, padding: '1px 6px', borderRadius: 4,
                 background: 'rgba(255,255,255,.05)',
                 border: '1px solid rgba(255,255,255,.09)',
                 color: 'var(--t3)',
@@ -240,7 +240,7 @@ function EventCard({ ev }: { ev: SurebetEvent }) {
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 }}>
           {ev.hasSurebet && (
             <span style={{
-              fontSize: 10, fontWeight: 900, padding: '2px 7px', borderRadius: 6,
+              fontSize: 11, fontWeight: 900, padding: '2px 7px', borderRadius: 6,
               background: 'rgba(63,255,33,.12)', color: 'var(--g)',
               border: '1px solid rgba(63,255,33,.25)',
             }}>
@@ -248,7 +248,7 @@ function EventCard({ ev }: { ev: SurebetEvent }) {
             </span>
           )}
           {ev.hasSurebet && (
-            <span style={{ fontSize: 10, fontWeight: 700, color: profitColor(ev.surebets[0]?.profit ?? 0) }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: profitColor(ev.surebets[0]?.profit ?? 0) }}>
               +{fmt(ev.surebets[0]?.profit ?? 0)}%
             </span>
           )}
@@ -373,7 +373,7 @@ export function FifaPage() {
               Surebet Scanner
             </h1>
             <span style={{
-              fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 6,
+              fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6,
               background: 'rgba(63,255,33,.12)', color: 'var(--g)',
               border: '1px solid rgba(63,255,33,.22)',
               textTransform: 'uppercase', letterSpacing: '.08em',
@@ -416,7 +416,7 @@ export function FifaPage() {
             <div style={{ fontSize: 20, fontWeight: 900, color: s.highlight ? 'var(--g)' : 'var(--t)', lineHeight: 1 }}>
               {loading ? '—' : s.val}
             </div>
-            <div style={{ fontSize: 10, color: 'var(--t3)', marginTop: 2 }}>{s.label}</div>
+            <div style={{ fontSize: 11, color: 'var(--t3)', marginTop: 2 }}>{s.label}</div>
           </div>
         ))}
       </div>
@@ -456,7 +456,7 @@ export function FifaPage() {
         </div>
 
         {lastUpdate && (
-          <span style={{ fontSize: 10, color: 'var(--t3)', marginLeft: 'auto' }}>
+          <span style={{ fontSize: 11, color: 'var(--t3)', marginLeft: 'auto' }}>
             Atualizado às {lastUpdate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
           </span>
         )}

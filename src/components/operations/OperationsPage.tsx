@@ -93,9 +93,9 @@ const DG_RESULTS: ResultType[] = ['Pendente','Green Antecipado','Green','Red','C
 
 /** Brand-specific colours for known bookmakers */
 const HOUSE_BRAND: Record<string, { color: string; bg: string; border: string }> = {
-  'Bet365':       { color: '#22C55E', bg: 'rgba(34,197,94,.14)',    border: 'rgba(34,197,94,.28)' },
-  'Bet365Arg':    { color: '#22C55E', bg: 'rgba(34,197,94,.14)',    border: 'rgba(34,197,94,.28)' },
-  'Bet365Pe':     { color: '#22C55E', bg: 'rgba(34,197,94,.14)',    border: 'rgba(34,197,94,.28)' },
+  'Bet365':       { color: '#3FFF21', bg: 'rgba(34,197,94,.14)',    border: 'rgba(34,197,94,.28)' },
+  'Bet365Arg':    { color: '#3FFF21', bg: 'rgba(34,197,94,.14)',    border: 'rgba(34,197,94,.28)' },
+  'Bet365Pe':     { color: '#3FFF21', bg: 'rgba(34,197,94,.14)',    border: 'rgba(34,197,94,.28)' },
   'Betano':       { color: '#FF8C35', bg: 'rgba(255,140,53,.14)',   border: 'rgba(255,140,53,.28)' },
   'Pinnacle':     { color: '#94A3B8', bg: 'rgba(100,116,139,.14)',  border: 'rgba(100,116,139,.28)' },
   'Pinnacle.com': { color: '#94A3B8', bg: 'rgba(100,116,139,.14)',  border: 'rgba(100,116,139,.28)' },
@@ -103,17 +103,17 @@ const HOUSE_BRAND: Record<string, { color: string; bg: string; border: string }>
   'Superbet':     { color: '#F87171', bg: 'rgba(248,113,113,.14)',  border: 'rgba(248,113,113,.28)' },
   'Betsson':      { color: '#FB923C', bg: 'rgba(251,146,60,.14)',   border: 'rgba(251,146,60,.28)' },
   'Pixbet':       { color: '#60A5FA', bg: 'rgba(96,165,250,.14)',   border: 'rgba(96,165,250,.28)' },
-  'Betsul':       { color: '#818CF8', bg: 'rgba(129,140,248,.14)',  border: 'rgba(129,140,248,.28)' },
+  'Betsul':       { color: '#A78BFA', bg: 'rgba(167,139,250,.14)',  border: 'rgba(167,139,250,.28)' },
   'Betfair Ex':   { color: '#F59E0B', bg: 'rgba(245,158,11,.14)',   border: 'rgba(245,158,11,.28)' },
   'Betfair SB':   { color: '#F59E0B', bg: 'rgba(245,158,11,.14)',   border: 'rgba(245,158,11,.28)' },
-  'Vaidebet':     { color: '#4ADE80', bg: 'rgba(74,222,128,.14)',   border: 'rgba(74,222,128,.28)' },
+  'Vaidebet':     { color: '#3FFF21', bg: 'rgba(74,222,128,.14)',   border: 'rgba(74,222,128,.28)' },
   'Betnacional':  { color: '#FCD34D', bg: 'rgba(252,211,77,.14)',   border: 'rgba(252,211,77,.28)' },
   'Estrelabet':   { color: '#A78BFA', bg: 'rgba(167,139,250,.14)',  border: 'rgba(167,139,250,.28)' },
   'NoviBet':      { color: '#F472B6', bg: 'rgba(244,114,182,.14)',  border: 'rgba(244,114,182,.28)' },
   'SportingBet':  { color: '#60A5FA', bg: 'rgba(0,82,155,.14)',     border: 'rgba(0,82,155,.28)' },
   'SportyBet':    { color: '#FB923C', bg: 'rgba(251,146,60,.14)',   border: 'rgba(251,146,60,.28)' },
   'RealsBet':     { color: '#34D399', bg: 'rgba(52,211,153,.14)',   border: 'rgba(52,211,153,.28)' },
-  'Betpix365':    { color: '#818CF8', bg: 'rgba(129,140,248,.14)',  border: 'rgba(129,140,248,.28)' },
+  'Betpix365':    { color: '#A78BFA', bg: 'rgba(167,139,250,.14)',  border: 'rgba(167,139,250,.28)' },
   'Blaze':        { color: '#F97316', bg: 'rgba(249,115,22,.14)',   border: 'rgba(249,115,22,.28)' },
   'Stake':        { color: '#10B981', bg: 'rgba(16,185,129,.14)',   border: 'rgba(16,185,129,.28)' },
   'BetWarrior':   { color: '#FB923C', bg: 'rgba(251,146,60,.14)',   border: 'rgba(251,146,60,.28)' },
@@ -121,7 +121,7 @@ const HOUSE_BRAND: Record<string, { color: string; bg: string; border: string }>
 };
 
 const STATUS_CFG: Record<string, { color: string; bg: string; border: string; icon: string }> = {
-  'Green':               { color: '#00FF88', bg: 'rgba(0,255,136,.12)',    border: 'rgba(0,255,136,.28)',   icon: '✅' },
+  'Green':               { color: '#3FFF21', bg: 'rgba(63,255,33,.12)',    border: 'rgba(63,255,33,.28)',   icon: '✅' },
   'Red':                 { color: '#FF4D4D', bg: 'rgba(255,77,77,.12)',    border: 'rgba(255,77,77,.28)',   icon: '❌' },
   'Meio Green':          { color: '#FFD600', bg: 'rgba(255,214,0,.12)',    border: 'rgba(255,214,0,.28)',   icon: '🟡' },
   'Meio Red':            { color: '#FF8F3D', bg: 'rgba(255,143,61,.12)',   border: 'rgba(255,143,61,.28)',  icon: '🟠' },
@@ -141,7 +141,7 @@ const OP_TYPE_CFG: Record<OpType, { bg: string; color: string; border: string }>
   delay:       { bg: 'rgba(77,166,255,.12)',  color: '#4DA6FF', border: 'rgba(77,166,255,.25)' },
   duplo_green: { bg: 'rgba(255,203,47,.12)',  color: '#FFCB2F', border: 'rgba(255,203,47,.25)' },
   outros:      { bg: 'rgba(122,144,176,.08)', color: '#6B7280', border: 'transparent' },
-  freebet:     { bg: 'rgba(168,85,247,.12)',  color: '#A855F7', border: 'rgba(168,85,247,.25)' },
+  freebet:     { bg: 'rgba(167,139,250,.12)',  color: '#A78BFA', border: 'rgba(167,139,250,.25)' },
 };
 
 // ── Inline style constants ────────────────────────────────────────────────────
@@ -253,7 +253,7 @@ function StatusPill({
         className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold whitespace-nowrap"
         style={{ background: s.bg, color: s.color, border: `1px solid ${s.border}`, fontFamily: "'JetBrains Mono', monospace" }}
       >
-        <span style={{ fontSize: 10 }}>{s.icon}</span>
+        <span style={{ fontSize: 11 }}>{s.icon}</span>
         {value}
       </span>
     );
@@ -458,7 +458,7 @@ function OpModal({ editOid, onClose, onOpenCalc }: OpModalProps) {
         {onOpenCalc && (
           <div className="flex items-center justify-between">
             {sbProfitPct !== null && (
-              <span style={{ fontSize: 12, fontWeight: 800, fontFamily: "'JetBrains Mono',monospace", color: sbProfitPct >= 0 ? '#3DFF8F' : '#FFBF00' }}>
+              <span style={{ fontSize: 12, fontWeight: 800, fontFamily: "'JetBrains Mono',monospace", color: sbProfitPct >= 0 ? '#3FFF21' : '#FFBF00' }}>
                 {sbProfitPct >= 0 ? '+' : ''}{sbProfitPct.toFixed(2)}%
               </span>
             )}
@@ -510,9 +510,9 @@ function OpModal({ editOid, onClose, onOpenCalc }: OpModalProps) {
                 onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(63,255,33,.12)'; }}
               >
                 <Shuffle size={13} />
-                <span className="text-[10px] font-bold uppercase lg:hidden">Copiar CASA 1 → 2</span>
+                <span className="text-[11px] font-bold uppercase lg:hidden">Copiar CASA 1 → 2</span>
               </button>
-              <span className="text-[9px] font-bold uppercase hidden lg:block" style={{ color: 'rgba(63,255,33,.5)' }}>copiar</span>
+              <span className="text-[11px] font-bold uppercase hidden lg:block" style={{ color: 'rgba(63,255,33,.5)' }}>copiar</span>
             </div>
 
             {/* CASA 2 */}
@@ -642,26 +642,26 @@ function DuploGreenModal({ onClose, onOpenCalc }: { onClose: () => void; onOpenC
 
         {/* ── Detalhes ───────────────────────────────────────────────── */}
         <div className="flex flex-col gap-2">
-          <span className="text-[10px] font-black uppercase tracking-wider" style={{ color: 'var(--t3)' }}>Detalhes</span>
+          <span className="text-[11px] font-black uppercase tracking-wider" style={{ color: 'var(--t3)' }}>Detalhes</span>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <label className="flex flex-col gap-1">
-              <span className="text-[10px] font-bold uppercase text-slate-500">Esporte</span>
+              <span className="text-[11px] font-bold uppercase text-slate-500">Esporte</span>
               <select value={sp} onChange={e => setSp(e.target.value)} style={SELECT_S}>
                 {SPORTS.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             </label>
             <label className="flex flex-col gap-1">
-              <span className="text-[10px] font-bold uppercase text-slate-500">Data da Aposta</span>
+              <span className="text-[11px] font-bold uppercase text-slate-500">Data da Aposta</span>
               <input type="datetime-local" value={bd} onChange={e => setBd(e.target.value)}
                 className="font-mono" style={INPUT_S} />
             </label>
             <label className="flex flex-col gap-1">
-              <span className="text-[10px] font-bold uppercase text-slate-500">Data do Evento</span>
+              <span className="text-[11px] font-bold uppercase text-slate-500">Data do Evento</span>
               <input type="datetime-local" value={ed} onChange={e => setEd(e.target.value)}
                 className="font-mono" style={INPUT_S} />
             </label>
             <label className="col-span-2 sm:col-span-1 flex flex-col gap-1">
-              <span className="text-[10px] font-bold uppercase text-slate-500">Evento</span>
+              <span className="text-[11px] font-bold uppercase text-slate-500">Evento</span>
               <input value={ev} onChange={e => setEv(e.target.value)}
                 placeholder="Ex: Real Madrid vs Barcelona" style={INPUT_S} />
             </label>
@@ -670,7 +670,7 @@ function DuploGreenModal({ onClose, onOpenCalc }: { onClose: () => void; onOpenC
 
         {/* ── 3 Pernas ───────────────────────────────────────────────── */}
         <div className="flex flex-col gap-2">
-          <span className="text-[10px] font-black uppercase tracking-wider" style={{ color: 'var(--t3)' }}>Pernas</span>
+          <span className="text-[11px] font-black uppercase tracking-wider" style={{ color: 'var(--t3)' }}>Pernas</span>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
             {legs.map((leg, i) => (
               <div key={i} className="rounded-xl p-3 flex flex-col gap-2"
@@ -680,26 +680,26 @@ function DuploGreenModal({ onClose, onOpenCalc }: { onClose: () => void; onOpenC
                     {LEG_LABELS[i]}
                   </span>
                   {stOf(leg) > 0 && odOf(leg) > 0 && (
-                    <span className="text-[10px] font-mono" style={{ color: `${LEG_COLORS[i]}bb` }}>
+                    <span className="text-[11px] font-mono" style={{ color: `${LEG_COLORS[i]}bb` }}>
                       ↩ R$ {fmt(stOf(leg) * odOf(leg))}
                     </span>
                   )}
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <label className="col-span-2 flex flex-col gap-1">
-                    <span className="text-[10px] font-bold uppercase text-slate-500">Casa</span>
+                    <span className="text-[11px] font-bold uppercase text-slate-500">Casa</span>
                     <select value={leg.ho} onChange={e => setLeg(i, { ...leg, ho: e.target.value })} style={SELECT_S}>
                       <option value="">Qual casa?</option>
                       {ALL_HOUSES.map(h => <option key={h} value={h}>{h}</option>)}
                     </select>
                   </label>
                   <label className="flex flex-col gap-1">
-                    <span className="text-[10px] font-bold uppercase text-slate-500">Odd</span>
+                    <span className="text-[11px] font-bold uppercase text-slate-500">Odd</span>
                     <input value={leg.od} onChange={e => setLeg(i, { ...leg, od: e.target.value })}
                       placeholder="2.10" className="font-mono" style={INPUT_S} />
                   </label>
                   <label className="flex flex-col gap-1">
-                    <span className="text-[10px] font-bold uppercase text-slate-500">Stake (R$)</span>
+                    <span className="text-[11px] font-bold uppercase text-slate-500">Stake (R$)</span>
                     <input value={leg.st} onChange={e => setLeg(i, { ...leg, st: e.target.value })}
                       placeholder="500,00" className="font-mono" style={INPUT_S} />
                   </label>
@@ -714,7 +714,7 @@ function DuploGreenModal({ onClose, onOpenCalc }: { onClose: () => void; onOpenC
         {onOpenCalc && (
           <div className="flex items-center justify-between">
             {dgProfitPct !== null && (
-              <span style={{ fontSize: 12, fontWeight: 800, fontFamily: "'JetBrains Mono',monospace", color: dgProfitPct >= 0 ? '#3DFF8F' : '#FFBF00' }}>
+              <span style={{ fontSize: 12, fontWeight: 800, fontFamily: "'JetBrains Mono',monospace", color: dgProfitPct >= 0 ? '#3FFF21' : '#FFBF00' }}>
                 {dgProfitPct >= 0 ? '+' : ''}{dgProfitPct.toFixed(2)}%
               </span>
             )}
@@ -733,9 +733,9 @@ function DuploGreenModal({ onClose, onOpenCalc }: { onClose: () => void; onOpenC
         {/* ── Calculadora de Cenários ────────────────────────────────── */}
         {totalStake > 0 && (
           <div className="flex flex-col gap-2">
-            <span className="text-[10px] font-black uppercase tracking-wider" style={{ color: 'var(--t3)' }}>Calculadora</span>
+            <span className="text-[11px] font-black uppercase tracking-wider" style={{ color: 'var(--t3)' }}>Calculadora</span>
             <div className="rounded-xl overflow-hidden" style={{ border: '1px solid rgba(255,255,255,.08)' }}>
-              <div className="grid grid-cols-4 px-3 py-2 text-[10px] font-black uppercase tracking-wide"
+              <div className="grid grid-cols-4 px-3 py-2 text-[11px] font-black uppercase tracking-wide"
                 style={{ background: 'rgba(255,255,255,.03)', color: 'var(--t3)' }}>
                 <span>Cenário</span>
                 <span className="text-right">Stake Total</span>
@@ -919,11 +919,11 @@ function CashoutModal({
         {/* Live profit preview */}
         {profit !== null && (
           <div className="flex items-center justify-between px-3 py-2 rounded-lg"
-            style={{ background: profit >= 0 ? 'rgba(61,255,143,.08)' : 'rgba(255,69,69,.08)' }}>
-            <span className="text-xs font-bold" style={{ color: profit >= 0 ? '#3DFF8F' : '#FF4545' }}>
+            style={{ background: profit >= 0 ? 'rgba(63,255,33,.08)' : 'rgba(255,69,69,.08)' }}>
+            <span className="text-xs font-bold" style={{ color: profit >= 0 ? '#3FFF21' : '#FF4545' }}>
               {profit >= 0 ? 'Lucro' : 'Prejuízo'}
             </span>
-            <span className="text-sm font-black font-mono" style={{ color: profit >= 0 ? '#3DFF8F' : '#FF4545' }}>
+            <span className="text-sm font-black font-mono" style={{ color: profit >= 0 ? '#3FFF21' : '#FF4545' }}>
               {profit >= 0 ? '+' : ''} R$ {Math.abs(profit).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
             </span>
           </div>
@@ -1004,11 +1004,11 @@ function ReentradaModal({ legMk, defaultHo, lockedProfit, existing, onSave, onCl
 
         {/* New bet inputs */}
         <div className="flex flex-col gap-3">
-          <span className="text-[10px] font-black uppercase tracking-wider" style={{ color: 'var(--t3)' }}>
+          <span className="text-[11px] font-black uppercase tracking-wider" style={{ color: 'var(--t3)' }}>
             Nova aposta
           </span>
           <label className="flex flex-col gap-1">
-            <span className="text-[10px] font-bold uppercase" style={{ color: '#4B5563' }}>Casa (opcional)</span>
+            <span className="text-[11px] font-bold uppercase" style={{ color: '#4B5563' }}>Casa (opcional)</span>
             <select value={ho} onChange={e => setHo(e.target.value)} style={SELECT_S}>
               <option value="">Mesma ({defaultHo})</option>
               {ALL_HOUSES.map(h => <option key={h} value={h}>{h}</option>)}
@@ -1016,7 +1016,7 @@ function ReentradaModal({ legMk, defaultHo, lockedProfit, existing, onSave, onCl
           </label>
           <div className="grid grid-cols-2 gap-3">
             <label className="flex flex-col gap-1">
-              <span className="text-[10px] font-bold uppercase" style={{ color: '#4B5563' }}>Odd</span>
+              <span className="text-[11px] font-bold uppercase" style={{ color: '#4B5563' }}>Odd</span>
               <input
                 value={od}
                 onChange={e => setOd(e.target.value)}
@@ -1027,7 +1027,7 @@ function ReentradaModal({ legMk, defaultHo, lockedProfit, existing, onSave, onCl
               />
             </label>
             <label className="flex flex-col gap-1">
-              <span className="text-[10px] font-bold uppercase" style={{ color: '#4B5563' }}>Stake (R$)</span>
+              <span className="text-[11px] font-bold uppercase" style={{ color: '#4B5563' }}>Stake (R$)</span>
               <div className="flex gap-1.5">
                 <input
                   value={st}
@@ -1136,8 +1136,8 @@ function OpCard({
     return new Map<string, number | null>(op.legs.map(l => [l.id, null]));
   }, [op.legs, opType]);
 
-  const profitColor = profit > 0 ? '#3DFF8F' : profit < 0 ? '#FF4545' : '#6B7280';
-  const profitBg    = profit > 0 ? 'rgba(61,255,143,.12)' : profit < 0 ? 'rgba(255,69,69,.12)' : 'rgba(107,114,128,.08)';
+  const profitColor = profit > 0 ? '#3FFF21' : profit < 0 ? '#FF4545' : '#6B7280';
+  const profitBg    = profit > 0 ? 'rgba(63,255,33,.12)' : profit < 0 ? 'rgba(255,69,69,.12)' : 'rgba(107,114,128,.08)';
 
   // Detecta pernas duplicadas (mesma casa + mercado na mesma op)
   // Reentradas (ev termina com "(Reentrada)") são SEMPRE ignoradas —
@@ -1341,7 +1341,7 @@ function OpCard({
               <span className="mr-1">{sportEmoji(op.sport)}</span>
               {op.sport || '—'}
             </span>
-            <span style={{ color: '#374151', fontSize: 10 }}>•</span>
+            <span style={{ color: '#374151', fontSize: 11 }}>•</span>
             <span className="text-xs font-mono shrink-0" style={{ color: '#4B5563' }}>
               {fmtDate(op.bet_date)}
             </span>
@@ -1358,7 +1358,7 @@ function OpCard({
           <span
             className="flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded shrink-0"
             style={{
-              fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
+              fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
               background: typeCfg.bg, color: typeCfg.color, border: `1px solid ${typeCfg.border}`,
             }}
           >
@@ -1389,7 +1389,7 @@ function OpCard({
               <button
                 onClick={handleSave}
                 className="flex items-center gap-1 text-xs font-bold px-2 py-1.5 rounded-lg shrink-0 transition-all"
-                style={{ background: 'rgba(61,255,143,.14)', color: '#3DFF8F', border: '1px solid rgba(61,255,143,.25)' }}
+                style={{ background: 'rgba(63,255,33,.14)', color: '#3FFF21', border: '1px solid rgba(63,255,33,.25)' }}
               >
                 <Check size={12} /><span className="hidden sm:inline">Salvar</span>
               </button>
@@ -1494,29 +1494,29 @@ function OpCard({
                           </span>
                           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                             <label className="flex flex-col gap-1">
-                              <span className="text-[10px] font-bold uppercase" style={{ color: '#4B5563' }}>Casa</span>
+                              <span className="text-[11px] font-bold uppercase" style={{ color: '#4B5563' }}>Casa</span>
                               <select value={draft.ho} onChange={e => setDraft(i, { ho: e.target.value })} style={SELECT_S}>
                                 <option value="">Selecionar...</option>
                                 {ALL_HOUSES.map(h => <option key={h} value={h}>{h}</option>)}
                               </select>
                             </label>
                             <label className="flex flex-col gap-1">
-                              <span className="text-[10px] font-bold uppercase" style={{ color: '#4B5563' }}>Odd</span>
+                              <span className="text-[11px] font-bold uppercase" style={{ color: '#4B5563' }}>Odd</span>
                               <input value={draft.od} onChange={e => setDraft(i, { od: e.target.value })}
                                 placeholder="2.10" className="font-mono" style={INPUT_S} />
                             </label>
                             <label className="flex flex-col gap-1">
-                              <span className="text-[10px] font-bold uppercase" style={{ color: '#4B5563' }}>Stake (R$)</span>
+                              <span className="text-[11px] font-bold uppercase" style={{ color: '#4B5563' }}>Stake (R$)</span>
                               <input value={draft.st} onChange={e => setDraft(i, { st: e.target.value })}
                                 placeholder="500,00" className="font-mono" style={INPUT_S} />
                             </label>
                             <label className="flex flex-col gap-1">
-                              <span className="text-[10px] font-bold uppercase" style={{ color: '#4B5563' }}>Data Evento</span>
+                              <span className="text-[11px] font-bold uppercase" style={{ color: '#4B5563' }}>Data Evento</span>
                               <input type="datetime-local" value={draft.ed} onChange={e => setDraft(i, { ed: e.target.value })}
                                 className="font-mono" style={INPUT_S} />
                             </label>
                             <label className="col-span-2 sm:col-span-1 flex flex-col gap-1">
-                              <span className="text-[10px] font-bold uppercase" style={{ color: '#4B5563' }}>Status</span>
+                              <span className="text-[11px] font-bold uppercase" style={{ color: '#4B5563' }}>Status</span>
                               <select
                                 value={draft.re}
                                 onChange={e => {
@@ -1566,14 +1566,14 @@ function OpCard({
                                   {hasRe ? 'Editar Reentrada' : 'Adicionar Reentrada'}
                                 </button>
                                 {hasRe && (
-                                  <span className="text-[10px] font-mono" style={{ color: 'rgba(255,203,47,.6)' }}>
+                                  <span className="text-[11px] font-mono" style={{ color: 'rgba(255,203,47,.6)' }}>
                                     od {draft.reentrada!.od} · R$ {draft.reentrada!.st}
                                   </span>
                                 )}
                                 {/* Computed locked profit display */}
                                 {locked !== 0 && (
-                                  <span className="ml-auto text-[10px] font-mono shrink-0"
-                                    style={{ color: locked >= 0 ? 'rgba(61,255,143,.6)' : 'rgba(255,69,69,.6)' }}>
+                                  <span className="ml-auto text-[11px] font-mono shrink-0"
+                                    style={{ color: locked >= 0 ? 'rgba(63,255,33,.6)' : 'rgba(255,69,69,.6)' }}>
                                     bloqueado: {locked >= 0 ? '+' : '−'}R$ {Math.abs(locked).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                   </span>
                                 )}
@@ -1654,10 +1654,10 @@ function OpCard({
                             onClick={() => setLegDrafts(prev => prev.map((d, idx) =>
                               idx === i ? { ...d, isFreebet: !d.isFreebet } : { ...d, isFreebet: false }
                             ))}
-                            className="text-[10px] font-black px-1.5 py-0.5 rounded transition-all"
+                            className="text-[11px] font-black px-1.5 py-0.5 rounded transition-all"
                             style={{
                               background: draft.isFreebet ? 'rgba(63,255,33,.15)' : 'rgba(255,255,255,.05)',
-                              color: draft.isFreebet ? '#3DFF8F' : '#4B5563',
+                              color: draft.isFreebet ? '#3FFF21' : '#4B5563',
                               border: `1px solid ${draft.isFreebet ? 'rgba(63,255,33,.3)' : 'rgba(255,255,255,.08)'}`,
                             }}
                             title="Marcar como a leg da freebet (stake gratuita)"
@@ -1722,7 +1722,7 @@ function OpCard({
                   <tr style={{ background: 'rgba(255,255,255,.025)' }}>
                     {['Data Evento','Casa','Mercado','Odd','Stake','%','Status',''].map(h => (
                       <th key={h} style={{
-                        padding: '7px 12px', fontSize: 10, fontWeight: 700,
+                        padding: '7px 12px', fontSize: 11, fontWeight: 700,
                         color: '#374151', letterSpacing: '.07em', textTransform: 'uppercase',
                         textAlign: 'left', whiteSpace: 'nowrap',
                         borderBottom: '1px solid rgba(255,255,255,.05)',
@@ -1748,7 +1748,7 @@ function OpCard({
                       <td style={{ padding: '9px 12px', fontSize: 12, color: '#9CA3AF', maxWidth: 180, borderBottom: '1px solid rgba(255,255,255,.04)' }}>
                         <div className="flex items-center gap-1.5">
                           {isRe && (
-                            <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase px-1.5 py-0.5 rounded flex-shrink-0"
+                            <span className="inline-flex items-center gap-1 text-[11px] font-black uppercase px-1.5 py-0.5 rounded flex-shrink-0"
                               style={{ background: 'rgba(255,203,47,.15)', color: '#FFCB2F', border: '1px solid rgba(255,203,47,.25)' }}>
                               <Zap size={8} />reentrada
                             </span>
@@ -2128,7 +2128,7 @@ export function OperationsPage() {
             >
               <span style={{ color: '#FFBF00', flexShrink: 0 }}>{card.icon}</span>
               <div className="flex flex-col min-w-0">
-                <span className="text-[10px] font-bold uppercase truncate" style={{ color: 'rgba(255,191,0,.6)' }}>
+                <span className="text-[11px] font-bold uppercase truncate" style={{ color: 'rgba(255,191,0,.6)' }}>
                   {card.label}
                 </span>
                 <span className="text-sm font-black font-mono" style={{ color: card.color }}>
@@ -2195,7 +2195,7 @@ export function OperationsPage() {
               >
                 {tab.label}
                 {count !== null && (
-                  <span className="px-1.5 py-0.5 rounded-full text-[10px] font-black"
+                  <span className="px-1.5 py-0.5 rounded-full text-[11px] font-black"
                     style={{
                       background: active ? `${tab.color}22` : 'rgba(255,255,255,.06)',
                       color: active ? tab.color : 'var(--t3)',

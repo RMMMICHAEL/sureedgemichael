@@ -213,7 +213,7 @@ function SectionLabel({ children, color = '#3FFF21' }: { children: React.ReactNo
       display: 'inline-flex', alignItems: 'center', gap: 8,
       borderRadius: 999, border: `1px solid rgba(${rgb},.22)`,
       background: `rgba(${rgb},.07)`, padding: '6px 14px',
-      fontFamily: 'JetBrains Mono, monospace', fontSize: 10,
+      fontFamily: 'JetBrains Mono, monospace', fontSize: 11,
       fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase',
       color, marginBottom: 20,
     }}>
@@ -241,13 +241,13 @@ function FreebetTable() {
         <span style={{ fontFamily: 'JetBrains Mono', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.14em', color: '#F0F4F8' }}>Melhores conversões agora</span>
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4 }}>
           <span className="lp-pulse-dot" style={{ width: 5, height: 5, borderRadius: '50%', background: '#A78BFA', display: 'block' }} />
-          <span style={{ fontFamily: 'JetBrains Mono', fontSize: 9, fontWeight: 700, color: '#A78BFA', letterSpacing: '0.1em' }}>LIVE</span>
+          <span style={{ fontFamily: 'JetBrains Mono', fontSize: 11, fontWeight: 700, color: '#A78BFA', letterSpacing: '0.1em' }}>LIVE</span>
         </div>
       </div>
       {/* Column headers — hidden on mobile via class */}
       <div className="lp-fb-header" style={{ display: 'grid', gridTemplateColumns: '1fr 90px 70px 70px', padding: '7px 20px', borderBottom: '1px solid rgba(255,255,255,.04)' }}>
         {['Evento','Casa','Freebet','Você recebe'].map(c => (
-          <div key={c} style={{ fontFamily: 'JetBrains Mono', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.14em', color: '#4A5E6E' }}>{c}</div>
+          <div key={c} style={{ fontFamily: 'JetBrains Mono', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.14em', color: '#4A5E6E' }}>{c}</div>
         ))}
       </div>
       {FB_ROWS.map((row, i) => (
@@ -258,10 +258,10 @@ function FreebetTable() {
           background: i === 0 ? 'rgba(167,139,250,.035)' : 'transparent',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
-            <span style={{ fontFamily: 'Figtree, sans-serif', fontSize: 13, color: '#F0F4F8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.event}</span>
-            {row.isNew && <span className="lp-new-badge" style={{ fontFamily: 'JetBrains Mono', fontSize: 8, fontWeight: 900, padding: '2px 5px', borderRadius: 4, background: 'rgba(167,139,250,.15)', color: '#A78BFA', border: '1px solid rgba(167,139,250,.25)', flexShrink: 0, lineHeight: 1.5 }}>NOVO</span>}
+            <span style={{ fontFamily: 'Manrope, sans-serif', fontSize: 13, color: '#F0F4F8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.event}</span>
+            {row.isNew && <span className="lp-new-badge" style={{ fontFamily: 'JetBrains Mono', fontSize: 11, fontWeight: 900, padding: '2px 5px', borderRadius: 4, background: 'rgba(167,139,250,.15)', color: '#A78BFA', border: '1px solid rgba(167,139,250,.25)', flexShrink: 0, lineHeight: 1.5 }}>NOVO</span>}
           </div>
-          <div style={{ fontFamily: 'Figtree, sans-serif', fontSize: 12, color: '#6A7E8E' }}>{row.house}</div>
+          <div style={{ fontFamily: 'Manrope, sans-serif', fontSize: 12, color: '#6A7E8E' }}>{row.house}</div>
           <div style={{ fontFamily: 'JetBrains Mono', fontSize: 12, fontWeight: 700, color: '#F0F4F8' }}>R$ {row.value}</div>
           <div style={{ fontFamily: 'JetBrains Mono', fontSize: 13, fontWeight: 800, color: '#3FFF21' }}>+R$ {row.lucro} 💰</div>
         </div>
@@ -293,17 +293,17 @@ function DuploGreenCard() {
       {/* Card header */}
       <div className="lp-dg-header" style={{ padding: '20px 28px', borderBottom: '1px solid rgba(255,255,255,.07)', background: '#161D27', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
-          <div style={{ fontFamily: 'JetBrains Mono', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.14em', color: '#3FFF21', background: 'rgba(63,255,33,.1)', padding: '4px 10px', borderRadius: 6, flexShrink: 0 }}>Brasileirão A</div>
+          <div style={{ fontFamily: 'JetBrains Mono', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.14em', color: '#3FFF21', background: 'rgba(63,255,33,.1)', padding: '4px 10px', borderRadius: 6, flexShrink: 0 }}>Brasileirão A</div>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontFamily: 'Manrope, sans-serif', fontWeight: 800, fontSize: 17, letterSpacing: '-0.02em', color: '#F0F4F8', whiteSpace: 'nowrap' }}>Flamengo × Botafogo</div>
-            <div style={{ fontFamily: 'Figtree, sans-serif', fontSize: 11, color: '#4A5E6E', marginTop: 2 }}>Caso real — placar final: 2 × 4</div>
+            <div style={{ fontFamily: 'Manrope, sans-serif', fontSize: 11, color: '#4A5E6E', marginTop: 2 }}>Caso real — placar final: 2 × 4</div>
           </div>
         </div>
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 8, background: 'rgba(63,255,33,.1)', border: '1px solid rgba(63,255,33,.22)', flexShrink: 0 }}>
           <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="#3FFF21" viewBox="0 0 256 256">
             <path d="M111.49,52.63a15.8,15.8,0,0,0-26,5.77L33,202.78A15.83,15.83,0,0,0,47.76,224a16,16,0,0,0,5.46-1l144.37-52.5a15.8,15.8,0,0,0,5.78-26ZM65.14,161.13l19.2-52.79,63.32,63.32-52.8,19.2ZM160,72a37.8,37.8,0,0,1,3.84-15.58C169.14,45.83,179.14,40,192,40c6.7,0,11-2.29,13.65-7.21A22,22,0,0,0,208,23.94,8,8,0,0,1,224,24c0,12.86-8.52,32-32,32-6.7,0-11,2.29-13.65,7.21A22,22,0,0,0,176,72.06,8,8,0,0,1,160,72ZM136,40V16a8,8,0,0,1,16,0V40a8,8,0,0,1-16,0Zm101.66,82.34a8,8,0,1,1-11.32,11.31l-16-16a8,8,0,0,1,11.32-11.32Zm4.87-42.75-24,8a8,8,0,0,1-5.06-15.18l24-8a8,8,0,0,1,5.06,15.18Z"/>
           </svg>
-          <span style={{ fontFamily: 'JetBrains Mono', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#3FFF21' }}>Duplo Green</span>
+          <span style={{ fontFamily: 'JetBrains Mono', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#3FFF21' }}>Duplo Green</span>
         </div>
       </div>
 
@@ -312,15 +312,15 @@ function DuploGreenCard() {
         {/* Linha de base — o que se esperava */}
         <div style={{ marginBottom: 24, padding: '14px 18px', borderRadius: 12, background: 'rgba(255,255,255,.025)', border: '1px solid rgba(255,255,255,.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
           <div>
-            <div style={{ fontFamily: 'JetBrains Mono', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.14em', color: '#4A5E6E', marginBottom: 4 }}>Sem duplo green — retorno calculado</div>
-            <div style={{ fontFamily: 'Figtree, sans-serif', fontSize: 14, color: '#6A7E8E' }}>Surebet padrão 3 vias · ROI <strong style={{ color: '#F0F4F8' }}>0,20%</strong> · lucro esperado <strong style={{ color: '#F0F4F8' }}>R$ 2,00</strong></div>
+            <div style={{ fontFamily: 'JetBrains Mono', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.14em', color: '#4A5E6E', marginBottom: 4 }}>Sem duplo green — retorno calculado</div>
+            <div style={{ fontFamily: 'Manrope, sans-serif', fontSize: 14, color: '#6A7E8E' }}>Surebet padrão 3 vias · ROI <strong style={{ color: '#F0F4F8' }}>0,20%</strong> · lucro esperado <strong style={{ color: '#F0F4F8' }}>R$ 2,00</strong></div>
           </div>
           <div style={{ fontFamily: 'Manrope, sans-serif', fontWeight: 900, fontSize: 22, color: '#4A5E6E', letterSpacing: '-0.02em', whiteSpace: 'nowrap' }}>+ R$ 2,00</div>
         </div>
 
         {/* Pre-game setup */}
         <div style={{ background: '#161D27', border: '1px solid rgba(255,255,255,.07)', borderRadius: 12, padding: '16px 18px', marginBottom: 24 }}>
-          <div style={{ fontFamily: 'JetBrains Mono', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.14em', color: '#FF8F3D', marginBottom: 12 }}>Antes do jogo · sistema detectou duplo green</div>
+          <div style={{ fontFamily: 'JetBrains Mono', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.14em', color: '#FF8F3D', marginBottom: 12 }}>Antes do jogo · sistema detectou duplo green</div>
           <div className="lp-dg-grid3">
             {[
               { house: 'Novibet',    outcome: 'Flamengo', odd: '1,86', stake: 'R$ 538' },
@@ -328,9 +328,9 @@ function DuploGreenCard() {
               { house: 'Estrela Bet',outcome: 'Botafogo', odd: '4,50', stake: 'R$ 223' },
             ].map((r, i) => (
               <div key={i} style={{ border: '1px solid rgba(255,255,255,.07)', background: '#0D1117', borderRadius: 8, padding: '10px 14px' }}>
-                <div style={{ fontFamily: 'JetBrains Mono', fontSize: 8, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#4A5E6E', marginBottom: 5 }}>{r.house}</div>
+                <div style={{ fontFamily: 'JetBrains Mono', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#4A5E6E', marginBottom: 5 }}>{r.house}</div>
                 <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 4 }}>
-                  <span style={{ fontFamily: 'Figtree, sans-serif', fontSize: 13, fontWeight: 600, color: '#F0F4F8' }}>{r.outcome}</span>
+                  <span style={{ fontFamily: 'Manrope, sans-serif', fontSize: 13, fontWeight: 600, color: '#F0F4F8' }}>{r.outcome}</span>
                   <span style={{ fontFamily: 'JetBrains Mono', fontSize: 12, fontWeight: 700, color: '#6A7E8E' }}>@{r.odd}</span>
                 </div>
                 <div style={{ fontFamily: 'JetBrains Mono', fontSize: 12, fontWeight: 700, color: '#FF8F3D', marginTop: 4 }}>{r.stake}</div>
@@ -348,17 +348,17 @@ function DuploGreenCard() {
             <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 0, padding: '10px 0', borderBottom: i < TL.length - 1 ? '1px solid rgba(255,255,255,.04)' : 'none' }}>
               {/* Time + score */}
               <div className="lp-dg-tl-time" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 76, flexShrink: 0, paddingTop: 2 }}>
-                <span style={{ fontFamily: 'JetBrains Mono', fontSize: 10, fontWeight: 700, color: '#4A5E6E', lineHeight: 1 }}>{t.min}</span>
+                <span style={{ fontFamily: 'JetBrains Mono', fontSize: 11, fontWeight: 700, color: '#4A5E6E', lineHeight: 1 }}>{t.min}</span>
                 <div style={{ width: 6, height: 6, borderRadius: '50%', background: t.event ? (t.event.type === 'g' ? '#3FFF21' : '#FF8F3D') : 'rgba(255,255,255,.15)', margin: '5px 0', position: 'relative', zIndex: 1 }} />
                 <span style={{ fontFamily: 'JetBrains Mono', fontSize: 13, fontWeight: 900, color: '#F0F4F8', lineHeight: 1 }}>{t.score}</span>
               </div>
               {/* Content */}
               <div style={{ flex: 1, paddingLeft: 12 }}>
-                <div style={{ fontFamily: 'Figtree, sans-serif', fontSize: 13, color: '#8899AA', lineHeight: 1.5, paddingTop: 2 }}>{t.text}</div>
+                <div style={{ fontFamily: 'Manrope, sans-serif', fontSize: 13, color: '#8899AA', lineHeight: 1.5, paddingTop: 2 }}>{t.text}</div>
                 {t.event && (
                   <div className="lp-dg-event" style={{
                     marginTop: 8, display: 'inline-flex', alignItems: 'flex-start', gap: 7,
-                    fontFamily: 'Figtree, sans-serif', fontSize: 12, fontWeight: 700, lineHeight: 1.45,
+                    fontFamily: 'Manrope, sans-serif', fontSize: 12, fontWeight: 700, lineHeight: 1.45,
                     padding: '8px 12px', borderRadius: 8,
                     background: t.event.type === 'g' ? 'rgba(63,255,33,.09)' : 'rgba(255,143,61,.09)',
                     color: t.event.type === 'g' ? '#3FFF21' : '#FF8F3D',
@@ -379,7 +379,7 @@ function DuploGreenCard() {
           <div style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%,-50%)', width: 300, height: 150, background: 'radial-gradient(ellipse, rgba(63,255,33,.12), transparent 70%)', pointerEvents: 'none' }} />
 
           <div style={{ position: 'relative', zIndex: 1 }}>
-            <div style={{ fontFamily: 'JetBrains Mono', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.18em', color: 'rgba(63,255,33,.6)', marginBottom: 10 }}>Resultado final</div>
+            <div style={{ fontFamily: 'JetBrains Mono', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.18em', color: 'rgba(63,255,33,.6)', marginBottom: 10 }}>Resultado final</div>
 
             {/* The number */}
             <div style={{ fontFamily: 'Manrope, sans-serif', fontWeight: 900, fontSize: 'clamp(52px,8vw,72px)' as unknown as number, letterSpacing: '-0.04em', color: '#3FFF21', lineHeight: 1, marginBottom: 8 }}>
@@ -393,12 +393,12 @@ function DuploGreenCard() {
             {/* Before / After */}
             <div className="lp-dg-result-grid" style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: 16, alignItems: 'center' }}>
               <div style={{ textAlign: 'center', padding: '14px 16px', borderRadius: 10, background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.07)' }}>
-                <div style={{ fontFamily: 'JetBrains Mono', fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#4A5E6E', marginBottom: 6 }}>Apostado</div>
+                <div style={{ fontFamily: 'JetBrains Mono', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#4A5E6E', marginBottom: 6 }}>Apostado</div>
                 <div style={{ fontFamily: 'Manrope, sans-serif', fontWeight: 800, fontSize: 20, color: '#6A7E8E', letterSpacing: '-0.02em' }}>R$ 1.000</div>
               </div>
               <div style={{ fontFamily: 'JetBrains Mono', fontSize: 18, color: '#3FFF21', fontWeight: 900 }}>→</div>
               <div style={{ textAlign: 'center', padding: '14px 16px', borderRadius: 10, background: 'rgba(63,255,33,.07)', border: '1px solid rgba(63,255,33,.2)' }}>
-                <div style={{ fontFamily: 'JetBrains Mono', fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'rgba(63,255,33,.6)', marginBottom: 6 }}>Recebido</div>
+                <div style={{ fontFamily: 'JetBrains Mono', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'rgba(63,255,33,.6)', marginBottom: 6 }}>Recebido</div>
                 <div style={{ fontFamily: 'Manrope, sans-serif', fontWeight: 800, fontSize: 20, color: '#3FFF21', letterSpacing: '-0.02em' }}>R$ 2.005</div>
               </div>
             </div>
@@ -442,9 +442,9 @@ export function LandingPage() {
   const handleLogout = async () => { await getSupabaseClient().auth.signOut(); window.location.href = '/login'; };
 
   const s = {
-    root: { background: '#030507', color: '#F0F4F8', minHeight: '100vh', overflowX: 'hidden' as const, fontFamily: 'Figtree, system-ui, sans-serif' },
+    root: { background: '#030507', color: '#F0F4F8', minHeight: '100vh', overflowX: 'hidden' as const, fontFamily: 'Manrope, system-ui, sans-serif' },
     h: (sz: string) => ({ fontFamily: 'Manrope, sans-serif', fontWeight: 900 as const, fontSize: sz as unknown as number, letterSpacing: '-0.03em', lineHeight: 1.05 }),
-    sub: { fontFamily: 'Figtree, sans-serif', fontSize: 17, lineHeight: 1.7, color: 'rgba(240,244,248,.5)' },
+    sub: { fontFamily: 'Manrope, sans-serif', fontSize: 17, lineHeight: 1.7, color: 'rgba(240,244,248,.5)' },
   };
 
   return (
@@ -468,7 +468,7 @@ export function LandingPage() {
 
         <div className="hidden lg:flex" style={{ alignItems: 'center', gap: 28 }}>
           {[['Recursos','#recursos'],['Como funciona','#como-funciona'],['Planos','#planos'],['FAQ','#faq']].map(([label, href]) => (
-            <a key={href} href={href} style={{ fontFamily: 'Figtree, sans-serif', fontSize: 14, fontWeight: 500, color: 'rgba(240,244,248,.45)', textDecoration: 'none', transition: 'color .15s' }}
+            <a key={href} href={href} style={{ fontFamily: 'Manrope, sans-serif', fontSize: 14, fontWeight: 500, color: 'rgba(240,244,248,.45)', textDecoration: 'none', transition: 'color .15s' }}
               onMouseEnter={e => (e.currentTarget.style.color = '#F0F4F8')}
               onMouseLeave={e => (e.currentTarget.style.color = 'rgba(240,244,248,.45)')}>
               {label}
@@ -478,17 +478,17 @@ export function LandingPage() {
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {email ? (
-            <button onClick={handleLogout} style={{ display: 'flex', alignItems: 'center', gap: 5, fontFamily: 'Figtree, sans-serif', fontSize: 13, fontWeight: 600, color: 'rgba(240,244,248,.45)', background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.07)', borderRadius: 8, padding: '6px 11px', cursor: 'pointer' }}>
+            <button onClick={handleLogout} style={{ display: 'flex', alignItems: 'center', gap: 5, fontFamily: 'Manrope, sans-serif', fontSize: 13, fontWeight: 600, color: 'rgba(240,244,248,.45)', background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.07)', borderRadius: 8, padding: '6px 11px', cursor: 'pointer' }}>
               <LogOut size={12} /> Sair
             </button>
           ) : (
-            <a href="/login" className="hidden sm:block" style={{ fontFamily: 'Figtree, sans-serif', fontSize: 14, fontWeight: 500, color: 'rgba(240,244,248,.45)', textDecoration: 'none', transition: 'color .15s' }}
+            <a href="/login" className="hidden sm:block" style={{ fontFamily: 'Manrope, sans-serif', fontSize: 14, fontWeight: 500, color: 'rgba(240,244,248,.45)', textDecoration: 'none', transition: 'color .15s' }}
               onMouseEnter={e => (e.currentTarget.style.color = '#F0F4F8')}
               onMouseLeave={e => (e.currentTarget.style.color = 'rgba(240,244,248,.45)')}>
               Entrar
             </a>
           )}
-          <a href="#planos" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: '#3FFF21', color: '#030507', borderRadius: 999, padding: '9px 18px', fontSize: 13, fontWeight: 700, fontFamily: 'Figtree, sans-serif', textDecoration: 'none', transition: 'transform .2s, box-shadow .2s', whiteSpace: 'nowrap' }}
+          <a href="#planos" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: '#3FFF21', color: '#030507', borderRadius: 999, padding: '9px 18px', fontSize: 13, fontWeight: 700, fontFamily: 'Manrope, sans-serif', textDecoration: 'none', transition: 'transform .2s, box-shadow .2s', whiteSpace: 'nowrap' }}
             onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.transform = 'scale(1.03)'; el.style.boxShadow = '0 0 24px rgba(63,255,33,.5)'; }}
             onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.transform = 'scale(1)'; el.style.boxShadow = 'none'; }}>
             Começar <ArrowRight size={13} />
@@ -512,19 +512,19 @@ export function LandingPage() {
             <br />em cada operação.
           </h1>
 
-          <p className="lp-fade-in lp-d3" style={{ fontFamily: 'Figtree, sans-serif', fontSize: 'clamp(15px,2vw,18px)' as unknown as number, lineHeight: 1.7, color: 'rgba(240,244,248,.5)', maxWidth: '50ch', margin: '0 auto 12px' }}>
+          <p className="lp-fade-in lp-d3" style={{ fontFamily: 'Manrope, sans-serif', fontSize: 'clamp(15px,2vw,18px)' as unknown as number, lineHeight: 1.7, color: 'rgba(240,244,248,.5)', maxWidth: '50ch', margin: '0 auto 12px' }}>
             Gestão completa de surebets e freebets em{' '}
             <span style={{ fontWeight: 600, color: 'rgba(240,244,248,.8)' }}>30+ casas em tempo real</span>.
             Pare de operar no escuro.
           </p>
 
           {/* Preço visível antes do clique — elimina abandono no checkout */}
-          <p className="lp-fade-in lp-d3" style={{ fontFamily: 'Figtree, sans-serif', fontSize: 13, color: 'rgba(240,244,248,.28)', marginBottom: 36 }}>
+          <p className="lp-fade-in lp-d3" style={{ fontFamily: 'Manrope, sans-serif', fontSize: 13, color: 'rgba(240,244,248,.28)', marginBottom: 36 }}>
             A partir de <strong style={{ color: 'rgba(240,244,248,.55)' }}>R$97/mês</strong> · Acesso imediato · Garantia de 7 dias
           </p>
 
           <div className="lp-fade-in lp-d4" style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 28, justifyContent: 'center' }}>
-            <a href="#planos" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: '#3FFF21', color: '#030507', borderRadius: 999, padding: '15px 36px', fontSize: 15, fontWeight: 700, fontFamily: 'Figtree, sans-serif', textDecoration: 'none', transition: 'transform .2s, box-shadow .2s', boxShadow: '0 8px 32px -8px rgba(63,255,33,.6)' }}
+            <a href="#planos" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: '#3FFF21', color: '#030507', borderRadius: 999, padding: '15px 36px', fontSize: 15, fontWeight: 700, fontFamily: 'Manrope, sans-serif', textDecoration: 'none', transition: 'transform .2s, box-shadow .2s', boxShadow: '0 8px 32px -8px rgba(63,255,33,.6)' }}
               onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.transform = 'scale(1.03)'; el.style.boxShadow = '0 12px 44px -8px rgba(63,255,33,.85)'; }}
               onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.transform = 'scale(1)'; el.style.boxShadow = '0 8px 32px -8px rgba(63,255,33,.6)'; }}>
               Começar agora <ArrowRight size={16} />
@@ -537,12 +537,12 @@ export function LandingPage() {
               <div style={{ display: 'flex' }}>
                 {[0,1,2,3,4].map(i => <Star key={i} size={13} color="#3FFF21" fill="#3FFF21" />)}
               </div>
-              <span style={{ fontFamily: 'Figtree, sans-serif', fontSize: 13, fontWeight: 600, color: 'rgba(240,244,248,.55)' }}>4.9/5</span>
-              <span style={{ fontFamily: 'Figtree, sans-serif', fontSize: 12, color: 'rgba(240,244,248,.28)' }}>· 127 traders ativos</span>
+              <span style={{ fontFamily: 'Manrope, sans-serif', fontSize: 13, fontWeight: 600, color: 'rgba(240,244,248,.55)' }}>4.9/5</span>
+              <span style={{ fontFamily: 'Manrope, sans-serif', fontSize: 12, color: 'rgba(240,244,248,.28)' }}>· 127 traders ativos</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 999, background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.07)' }}>
               <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#3FFF21', flexShrink: 0, animation: 'lp-pulse 1.8s ease-in-out infinite' }} />
-              <span style={{ fontFamily: 'Figtree, sans-serif', fontSize: 12, color: 'rgba(240,244,248,.4)' }}>
+              <span style={{ fontFamily: 'Manrope, sans-serif', fontSize: 12, color: 'rgba(240,244,248,.4)' }}>
                 <strong style={{ color: 'rgba(240,244,248,.7)' }}>12 traders</strong> entraram nos últimos 7 dias
               </span>
             </div>
@@ -553,7 +553,7 @@ export function LandingPage() {
       {/* ══════════ MARQUEE ══════════ */}
       <section style={{ overflow: 'hidden', borderTop: '1px solid rgba(255,255,255,.05)', borderBottom: '1px solid rgba(255,255,255,.05)', padding: '28px 0' }}>
         <div style={{ marginBottom: 12, textAlign: 'center' }}>
-          <p style={{ fontFamily: 'Figtree, sans-serif', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.22em', color: 'rgba(240,244,248,.2)' }}>Integrado com as principais casas do mercado</p>
+          <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.22em', color: 'rgba(240,244,248,.2)' }}>Integrado com as principais casas do mercado</p>
         </div>
         <div style={{ position: 'relative', overflow: 'hidden', maskImage: 'linear-gradient(to right, transparent, black 8%, black 92%, transparent)' }}>
           <div style={{ display: 'flex', animation: 'lp-marquee 36s linear infinite', width: 'max-content' }}>
@@ -581,7 +581,7 @@ export function LandingPage() {
               <div style={{ fontFamily: 'Manrope, sans-serif', fontSize: 'clamp(24px,3vw,40px)' as unknown as number, fontWeight: 900, letterSpacing: '-0.025em', color: '#3FFF21' }}>
                 <span ref={stat.ref}>{stat.v}</span>
               </div>
-              <div style={{ fontFamily: 'Figtree, sans-serif', fontSize: 10, textTransform: 'uppercase' as const, letterSpacing: '0.16em', color: 'rgba(240,244,248,.28)', marginTop: 6 }}>{stat.label}</div>
+              <div style={{ fontFamily: 'Manrope, sans-serif', fontSize: 11, textTransform: 'uppercase' as const, letterSpacing: '0.16em', color: 'rgba(240,244,248,.28)', marginTop: 6 }}>{stat.label}</div>
             </div>
           ))}
         </div>
@@ -598,7 +598,7 @@ export function LandingPage() {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
               <div style={{ display: 'flex' }}>{[0,1,2,3,4].map(i => <Star key={i} size={16} color="#3FFF21" fill="#3FFF21" />)}</div>
               <span style={{ fontFamily: 'Manrope, sans-serif', fontWeight: 800, fontSize: 18, color: '#F0F4F8' }}>4.9</span>
-              <span style={{ fontFamily: 'Figtree, sans-serif', fontSize: 13, color: 'rgba(240,244,248,.35)' }}>de 5 · 127 avaliações verificadas</span>
+              <span style={{ fontFamily: 'Manrope, sans-serif', fontSize: 13, color: 'rgba(240,244,248,.35)' }}>de 5 · 127 avaliações verificadas</span>
             </div>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px,1fr))', gap: 14 }}>
@@ -611,10 +611,10 @@ export function LandingPage() {
                 {/* Highlight badge */}
                 <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 6, background: 'rgba(63,255,33,.08)', border: '1px solid rgba(63,255,33,.18)', width: 'fit-content' }}>
                   <Check size={10} color="#3FFF21" strokeWidth={3} />
-                  <span style={{ fontFamily: 'JetBrains Mono', fontSize: 9, fontWeight: 800, color: '#3FFF21', letterSpacing: '0.08em' }}>{t.highlight}</span>
+                  <span style={{ fontFamily: 'JetBrains Mono', fontSize: 11, fontWeight: 800, color: '#3FFF21', letterSpacing: '0.08em' }}>{t.highlight}</span>
                 </div>
                 {/* Text */}
-                <p style={{ fontFamily: 'Figtree, sans-serif', fontSize: 14, lineHeight: 1.75, color: 'rgba(240,244,248,.52)', flex: 1 }}>"{t.text}"</p>
+                <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 14, lineHeight: 1.75, color: 'rgba(240,244,248,.52)', flex: 1 }}>"{t.text}"</p>
                 {/* Author */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingTop: 4, borderTop: '1px solid rgba(255,255,255,.05)' }}>
                   <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'rgba(63,255,33,.12)', border: '1px solid rgba(63,255,33,.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -622,7 +622,7 @@ export function LandingPage() {
                   </div>
                   <div>
                     <div style={{ fontFamily: 'Manrope, sans-serif', fontWeight: 700, fontSize: 13, color: '#F0F4F8' }}>{t.name}</div>
-                    <div style={{ fontFamily: 'Figtree, sans-serif', fontSize: 11, color: 'rgba(240,244,248,.28)' }}>{t.role} · {t.city}</div>
+                    <div style={{ fontFamily: 'Manrope, sans-serif', fontSize: 11, color: 'rgba(240,244,248,.28)' }}>{t.role} · {t.city}</div>
                   </div>
                 </div>
               </div>
@@ -662,7 +662,7 @@ export function LandingPage() {
                 ].map(item => (
                   <div key={item} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
                     <X size={14} color="rgba(255,77,77,.6)" style={{ flexShrink: 0, marginTop: 3 }} />
-                    <span style={{ fontFamily: 'Figtree, sans-serif', fontSize: 13, color: 'rgba(240,244,248,.4)', lineHeight: 1.5 }}>{item}</span>
+                    <span style={{ fontFamily: 'Manrope, sans-serif', fontSize: 13, color: 'rgba(240,244,248,.4)', lineHeight: 1.5 }}>{item}</span>
                   </div>
                 ))}
               </div>
@@ -688,7 +688,7 @@ export function LandingPage() {
                 ].map(item => (
                   <div key={item} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
                     <Check size={14} color="#3FFF21" style={{ flexShrink: 0, marginTop: 3 }} strokeWidth={2.5} />
-                    <span style={{ fontFamily: 'Figtree, sans-serif', fontSize: 13, color: 'rgba(240,244,248,.7)', lineHeight: 1.5 }}>{item}</span>
+                    <span style={{ fontFamily: 'Manrope, sans-serif', fontSize: 13, color: 'rgba(240,244,248,.7)', lineHeight: 1.5 }}>{item}</span>
                   </div>
                 ))}
               </div>
@@ -696,7 +696,7 @@ export function LandingPage() {
           </div>
           {/* CTA após comparação */}
           <div style={{ textAlign: 'center', marginTop: 36 }}>
-            <a href="#planos" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: '#3FFF21', color: '#030507', borderRadius: 999, padding: '14px 32px', fontSize: 14, fontWeight: 700, fontFamily: 'Figtree, sans-serif', textDecoration: 'none', boxShadow: '0 8px 28px -8px rgba(63,255,33,.55)' }}>
+            <a href="#planos" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: '#3FFF21', color: '#030507', borderRadius: 999, padding: '14px 32px', fontSize: 14, fontWeight: 700, fontFamily: 'Manrope, sans-serif', textDecoration: 'none', boxShadow: '0 8px 28px -8px rgba(63,255,33,.55)' }}>
               Quero organizar minhas operações <ArrowRight size={15} />
             </a>
           </div>
@@ -723,7 +723,7 @@ export function LandingPage() {
                     <div style={{ width: 18, height: 18, borderRadius: '50%', background: 'rgba(167,139,250,.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 3 }}>
                       <Check size={10} color="#A78BFA" strokeWidth={3} />
                     </div>
-                    <span style={{ fontFamily: 'Figtree, sans-serif', fontSize: 14, color: 'rgba(240,244,248,.65)', lineHeight: 1.6 }}>{t}</span>
+                    <span style={{ fontFamily: 'Manrope, sans-serif', fontSize: 14, color: 'rgba(240,244,248,.65)', lineHeight: 1.6 }}>{t}</span>
                   </li>
                 ))}
               </ul>
@@ -745,7 +745,7 @@ export function LandingPage() {
               <span style={{ color: '#3FFF21' }}>100,5%</span>{' '}
               no mesmo jogo.
             </h2>
-            <p style={{ fontFamily: 'Figtree, sans-serif', fontSize: 'clamp(14px,1.5vw,16px)' as unknown as number, color: 'rgba(240,244,248,.4)', maxWidth: '50ch', margin: '0 auto' }}>
+            <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 'clamp(14px,1.5vw,16px)' as unknown as number, color: 'rgba(240,244,248,.4)', maxWidth: '50ch', margin: '0 auto' }}>
               Veja exatamente como aconteceu, gol a gol. Nada inventado.
             </p>
           </div>
@@ -762,7 +762,7 @@ export function LandingPage() {
               Tudo que um trader sério precisa<br />
               <span style={{ color: '#3FFF21' }}>numa única plataforma.</span>
             </h2>
-            <p style={{ fontFamily: 'Figtree, sans-serif', fontSize: 'clamp(14px,1.5vw,17px)' as unknown as number, color: 'rgba(240,244,248,.4)', maxWidth: '48ch', margin: '0 auto' }}>
+            <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 'clamp(14px,1.5vw,17px)' as unknown as number, color: 'rgba(240,244,248,.4)', maxWidth: '48ch', margin: '0 auto' }}>
               Surebet, freebet, gestão de bancas e múltiplas contas. Pare de pular entre planilhas, sites e abas.
             </p>
           </div>
@@ -776,9 +776,9 @@ export function LandingPage() {
                   <div style={{ width: 44, height: 44, borderRadius: 12, border: `1px solid ${f.color}28`, background: `${f.color}10`, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
                     <f.icon size={20} color={f.color} />
                   </div>
-                  <div style={{ fontFamily: 'JetBrains Mono', fontSize: 9, textTransform: 'uppercase' as const, letterSpacing: '0.2em', color: `${f.color}aa`, marginBottom: 7 }}>{f.tag}</div>
+                  <div style={{ fontFamily: 'JetBrains Mono', fontSize: 11, textTransform: 'uppercase' as const, letterSpacing: '0.2em', color: `${f.color}aa`, marginBottom: 7 }}>{f.tag}</div>
                   <h3 style={{ fontFamily: 'Manrope, sans-serif', fontWeight: 700, fontSize: 17, letterSpacing: '-0.02em', marginBottom: 8, color: '#F0F4F8' }}>{f.title}</h3>
-                  <p style={{ fontFamily: 'Figtree, sans-serif', fontSize: 13, lineHeight: 1.75, color: 'rgba(240,244,248,.42)' }}>{f.desc}</p>
+                  <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 13, lineHeight: 1.75, color: 'rgba(240,244,248,.42)' }}>{f.desc}</p>
                 </div>
               </div>
             ))}
@@ -802,10 +802,10 @@ export function LandingPage() {
                 <div key={w.n} style={{ position: 'relative' }}>
                   <div style={{ position: 'relative', zIndex: 1, width: 88, height: 88, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 18, marginBottom: 18, border: '1px solid rgba(63,255,33,.18)', background: '#161D27' }}>
                     <w.icon size={24} color="#3FFF21" />
-                    <span style={{ position: 'absolute', top: -8, right: -8, width: 24, height: 24, borderRadius: '50%', background: '#3FFF21', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'JetBrains Mono, monospace', fontSize: 10, fontWeight: 900, color: '#030507' }}>{w.n}</span>
+                    <span style={{ position: 'absolute', top: -8, right: -8, width: 24, height: 24, borderRadius: '50%', background: '#3FFF21', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'JetBrains Mono, monospace', fontSize: 11, fontWeight: 900, color: '#030507' }}>{w.n}</span>
                   </div>
                   <h3 style={{ fontFamily: 'Manrope, sans-serif', fontWeight: 700, fontSize: 16, letterSpacing: '-0.02em', marginBottom: 7, color: '#F0F4F8' }}>{w.title}</h3>
-                  <p style={{ fontFamily: 'Figtree, sans-serif', fontSize: 13, color: 'rgba(240,244,248,.38)', lineHeight: 1.7 }}>{w.desc}</p>
+                  <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 13, color: 'rgba(240,244,248,.38)', lineHeight: 1.7 }}>{w.desc}</p>
                 </div>
               ))}
             </div>
@@ -821,14 +821,14 @@ export function LandingPage() {
           <div style={{ maxWidth: 700, margin: '0 auto 40px', padding: '16px 24px', borderRadius: 14, background: 'linear-gradient(135deg, rgba(255,143,61,.12), rgba(255,77,77,.08))', border: '1px solid rgba(255,143,61,.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, flexWrap: 'wrap' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
               <AlertTriangle size={15} color="#FF8F3D" />
-              <span style={{ fontFamily: 'JetBrains Mono', fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#FF8F3D' }}>Oferta especial ativa</span>
+              <span style={{ fontFamily: 'JetBrains Mono', fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#FF8F3D' }}>Oferta especial ativa</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ fontFamily: 'Figtree, sans-serif', fontSize: 14, color: 'rgba(240,244,248,.35)', textDecoration: 'line-through' }}>R$149,90/mês</span>
+              <span style={{ fontFamily: 'Manrope, sans-serif', fontSize: 14, color: 'rgba(240,244,248,.35)', textDecoration: 'line-through' }}>R$149,90/mês</span>
               <span style={{ fontFamily: 'Manrope, sans-serif', fontWeight: 900, fontSize: 20, color: '#F0F4F8', letterSpacing: '-0.02em' }}>R$97/mês</span>
-              <span style={{ fontFamily: 'JetBrains Mono', fontSize: 9, fontWeight: 800, padding: '3px 8px', borderRadius: 6, background: '#FF8F3D', color: '#030507' }}>-35%</span>
+              <span style={{ fontFamily: 'JetBrains Mono', fontSize: 11, fontWeight: 800, padding: '3px 8px', borderRadius: 6, background: '#FF8F3D', color: '#030507' }}>-35%</span>
             </div>
-            <span style={{ fontFamily: 'Figtree, sans-serif', fontSize: 12, color: 'rgba(240,244,248,.35)' }}>Não garantimos manutenção desse preço</span>
+            <span style={{ fontFamily: 'Manrope, sans-serif', fontSize: 12, color: 'rgba(240,244,248,.35)' }}>Não garantimos manutenção desse preço</span>
           </div>
 
           <div style={{ textAlign: 'center', marginBottom: 40 }}>
@@ -839,7 +839,7 @@ export function LandingPage() {
             {/* Garantia em destaque */}
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginTop: 16, padding: '10px 20px', borderRadius: 999, background: 'rgba(63,255,33,.08)', border: '1px solid rgba(63,255,33,.2)' }}>
               <Shield size={14} color="#3FFF21" />
-              <span style={{ fontFamily: 'Figtree, sans-serif', fontSize: 13, fontWeight: 700, color: '#3FFF21' }}>Garantia incondicional de 7 dias — devolução total sem perguntas</span>
+              <span style={{ fontFamily: 'Manrope, sans-serif', fontSize: 13, fontWeight: 700, color: '#3FFF21' }}>Garantia incondicional de 7 dias — devolução total sem perguntas</span>
             </div>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
@@ -851,37 +851,37 @@ export function LandingPage() {
                   onMouseEnter={e => (e.currentTarget.style.transform = 'translateY(-3px)')}
                   onMouseLeave={e => (e.currentTarget.style.transform = 'translateY(0)')}>
                   {plan.badge && (
-                    <div style={{ position: 'absolute', top: -12, left: '50%', transform: 'translateX(-50%)', background: '#3FFF21', borderRadius: 999, padding: '4px 13px', fontFamily: 'JetBrains Mono, monospace', fontSize: 9, fontWeight: 900, textTransform: 'uppercase' as const, letterSpacing: '0.1em', color: '#030507', whiteSpace: 'nowrap' }}>{plan.badge}</div>
+                    <div style={{ position: 'absolute', top: -12, left: '50%', transform: 'translateX(-50%)', background: '#3FFF21', borderRadius: 999, padding: '4px 13px', fontFamily: 'JetBrains Mono, monospace', fontSize: 11, fontWeight: 900, textTransform: 'uppercase' as const, letterSpacing: '0.1em', color: '#030507', whiteSpace: 'nowrap' }}>{plan.badge}</div>
                   )}
                   <h3 style={{ fontFamily: 'Manrope, sans-serif', fontWeight: 700, fontSize: 19, letterSpacing: '-0.02em', color: '#F0F4F8', marginBottom: 16 }}>{plan.label}</h3>
                   {/* Preço riscado — escassez */}
                   {plan.id === 'monthly' && (
-                    <div style={{ fontFamily: 'Figtree, sans-serif', fontSize: 13, color: 'rgba(240,244,248,.3)', textDecoration: 'line-through', marginBottom: 2 }}>R$149,90/mês</div>
+                    <div style={{ fontFamily: 'Manrope, sans-serif', fontSize: 13, color: 'rgba(240,244,248,.3)', textDecoration: 'line-through', marginBottom: 2 }}>R$149,90/mês</div>
                   )}
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 5 }}>
                     <span style={{ fontFamily: 'Manrope, sans-serif', fontWeight: 900, fontSize: 42, letterSpacing: '-0.03em', color: '#F0F4F8', lineHeight: 1 }}>R$ {plan.price.toLocaleString('pt-BR')}</span>
-                    <span style={{ fontFamily: 'Figtree, sans-serif', fontSize: 12, color: 'rgba(240,244,248,.3)' }}>/{plan.period.replace('por ','')}</span>
+                    <span style={{ fontFamily: 'Manrope, sans-serif', fontSize: 12, color: 'rgba(240,244,248,.3)' }}>/{plan.period.replace('por ','')}</span>
                   </div>
-                  {plan.id !== 'monthly' && <div style={{ fontFamily: 'Figtree, sans-serif', fontSize: 13, color: 'rgba(240,244,248,.38)', marginBottom: 5 }}>R$ {plan.perMonth.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}/mês</div>}
-                  {plan.savings && <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, marginBottom: 20, padding: '3px 9px', borderRadius: 6, background: 'rgba(63,255,33,.1)', border: '1px solid rgba(63,255,33,.2)', fontFamily: 'Figtree, sans-serif', fontSize: 11, fontWeight: 700, color: '#3FFF21' }}><TrendingUp size={10} /> {plan.savings}</div>}
+                  {plan.id !== 'monthly' && <div style={{ fontFamily: 'Manrope, sans-serif', fontSize: 13, color: 'rgba(240,244,248,.38)', marginBottom: 5 }}>R$ {plan.perMonth.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}/mês</div>}
+                  {plan.savings && <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, marginBottom: 20, padding: '3px 9px', borderRadius: 6, background: 'rgba(63,255,33,.1)', border: '1px solid rgba(63,255,33,.2)', fontFamily: 'Manrope, sans-serif', fontSize: 11, fontWeight: 700, color: '#3FFF21' }}><TrendingUp size={10} /> {plan.savings}</div>}
                   {!plan.savings && <div style={{ marginBottom: 20 }} />}
                   <ul style={{ display: 'flex', flexDirection: 'column', gap: 9, flex: 1, marginBottom: 20 }}>
                     {plan.features.map(f => (
                       <li key={f} style={{ display: 'flex', alignItems: 'flex-start', gap: 9 }}>
                         <Check size={14} color="#3FFF21" style={{ flexShrink: 0, marginTop: 3 }} strokeWidth={2.5} />
-                        <span style={{ fontFamily: 'Figtree, sans-serif', fontSize: 13, color: 'rgba(240,244,248,.65)' }}>{f}</span>
+                        <span style={{ fontFamily: 'Manrope, sans-serif', fontSize: 13, color: 'rgba(240,244,248,.65)' }}>{f}</span>
                       </li>
                     ))}
                   </ul>
                   <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
                     {[{ Icon: QrCode, label: 'PIX' }, { Icon: CreditCard, label: 'Cartão' }].map(({ Icon, label }) => (
-                      <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 8px', borderRadius: 6, background: 'rgba(255,255,255,.04)', fontFamily: 'JetBrains Mono, monospace', fontSize: 9, fontWeight: 700, color: 'rgba(240,244,248,.32)' }}>
+                      <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 8px', borderRadius: 6, background: 'rgba(255,255,255,.04)', fontFamily: 'JetBrains Mono, monospace', fontSize: 11, fontWeight: 700, color: 'rgba(240,244,248,.32)' }}>
                         <Icon size={9} /> {label}
                       </div>
                     ))}
                   </div>
                   <a href={url} target={url.startsWith('http') ? '_blank' : undefined} rel="noopener noreferrer"
-                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '13px 20px', borderRadius: 999, fontFamily: 'Figtree, sans-serif', fontSize: 14, fontWeight: 700, textDecoration: 'none', transition: 'transform .2s, box-shadow .2s', ...(isFeatured ? { background: '#3FFF21', color: '#030507', boxShadow: '0 8px 24px -8px rgba(63,255,33,.55)' } : { background: 'rgba(255,255,255,.05)', color: '#F0F4F8', border: '1px solid rgba(255,255,255,.09)' }) }}
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '13px 20px', borderRadius: 999, fontFamily: 'Manrope, sans-serif', fontSize: 14, fontWeight: 700, textDecoration: 'none', transition: 'transform .2s, box-shadow .2s', ...(isFeatured ? { background: '#3FFF21', color: '#030507', boxShadow: '0 8px 24px -8px rgba(63,255,33,.55)' } : { background: 'rgba(255,255,255,.05)', color: '#F0F4F8', border: '1px solid rgba(255,255,255,.09)' }) }}
                     onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.transform = 'scale(1.02)'; if (!isFeatured) { el.style.background = 'rgba(63,255,33,.08)'; el.style.borderColor = 'rgba(63,255,33,.25)'; } }}
                     onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.transform = 'scale(1)'; if (!isFeatured) { el.style.background = 'rgba(255,255,255,.05)'; el.style.borderColor = 'rgba(255,255,255,.09)'; } }}>
                     <Zap size={13} /> ASSINAR AGORA
@@ -899,7 +899,7 @@ export function LandingPage() {
                 { icon: <Check size={14} />,  text: 'Cancele quando quiser, sem multa', color: '#3FFF21' },
                 { icon: <Star size={14} fill="#FFD600" />, text: '4.9 de satisfação · 127 traders', color: '#FFD600' },
               ].map(item => (
-                <div key={item.text} style={{ display: 'flex', alignItems: 'center', gap: 7, fontFamily: 'Figtree, sans-serif', fontSize: 12, color: 'rgba(240,244,248,.45)', whiteSpace: 'nowrap' }}>
+                <div key={item.text} style={{ display: 'flex', alignItems: 'center', gap: 7, fontFamily: 'Manrope, sans-serif', fontSize: 12, color: 'rgba(240,244,248,.45)', whiteSpace: 'nowrap' }}>
                   <span style={{ color: item.color }}>{item.icon}</span>
                   {item.text}
                 </div>
@@ -923,8 +923,10 @@ export function LandingPage() {
                   <span style={{ fontFamily: 'Manrope, sans-serif', fontWeight: 700, fontSize: 'clamp(13px,1.5vw,15px)' as unknown as number, letterSpacing: '-0.01em', lineHeight: 1.4 }}>{item.q}</span>
                   <ChevronDown size={17} color="#3FFF21" style={{ flexShrink: 0, transform: openFaq === i ? 'rotate(180deg)' : 'none', transition: 'transform .3s cubic-bezier(0.22,1,0.36,1)' }} />
                 </button>
-                <div style={{ maxHeight: openFaq === i ? '360px' : 0, overflow: 'hidden', transition: 'max-height 0.35s cubic-bezier(0.22,1,0.36,1)' }}>
-                  <p style={{ padding: '0 20px 16px', fontFamily: 'Figtree, sans-serif', fontSize: 14, lineHeight: 1.8, color: 'rgba(240,244,248,.42)' }}>{item.a}</p>
+                <div style={{ display: 'grid', gridTemplateRows: openFaq === i ? '1fr' : '0fr', transition: 'grid-template-rows 0.35s cubic-bezier(0.22,1,0.36,1)' }}>
+                  <div style={{ overflow: 'hidden' }}>
+                    <p style={{ padding: '0 20px 16px', fontFamily: 'Manrope, sans-serif', fontSize: 14, lineHeight: 1.8, color: 'rgba(240,244,248,.42)' }}>{item.a}</p>
+                  </div>
                 </div>
               </div>
             ))}
@@ -940,16 +942,16 @@ export function LandingPage() {
           <h2 style={{ ...s.h('clamp(32px,5vw,62px)'), color: '#F0F4F8', marginBottom: 18 }}>
             Pare de operar no escuro.<br /><span style={{ color: '#3FFF21' }}>Comece hoje.</span>
           </h2>
-          <p style={{ fontFamily: 'Figtree, sans-serif', fontSize: 'clamp(14px,1.5vw,17px)' as unknown as number, color: 'rgba(240,244,248,.42)', lineHeight: 1.65, marginBottom: 36 }}>
+          <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 'clamp(14px,1.5vw,17px)' as unknown as number, color: 'rgba(240,244,248,.42)', lineHeight: 1.65, marginBottom: 36 }}>
             Junte-se aos traders que transformaram apostas em uma operação séria, organizada e lucrativa.
           </p>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, justifyContent: 'center', alignItems: 'center' }}>
-            <a href="#planos" style={{ display: 'inline-flex', alignItems: 'center', gap: 9, background: '#3FFF21', color: '#030507', borderRadius: 999, padding: '16px 40px', fontSize: 15, fontWeight: 700, fontFamily: 'Figtree, sans-serif', textDecoration: 'none', boxShadow: '0 8px 32px -8px rgba(63,255,33,.65)', transition: 'transform .2s, box-shadow .2s' }}
+            <a href="#planos" style={{ display: 'inline-flex', alignItems: 'center', gap: 9, background: '#3FFF21', color: '#030507', borderRadius: 999, padding: '16px 40px', fontSize: 15, fontWeight: 700, fontFamily: 'Manrope, sans-serif', textDecoration: 'none', boxShadow: '0 8px 32px -8px rgba(63,255,33,.65)', transition: 'transform .2s, box-shadow .2s' }}
               onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.transform = 'scale(1.03)'; el.style.boxShadow = '0 14px 48px -8px rgba(63,255,33,.9)'; }}
               onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.transform = 'scale(1)'; el.style.boxShadow = '0 8px 32px -8px rgba(63,255,33,.65)'; }}>
               Garantir meu acesso <ArrowRight size={16} />
             </a>
-            <span style={{ fontFamily: 'Figtree, sans-serif', fontSize: 12, color: 'rgba(240,244,248,.25)' }}>Garantia incondicional de 7 dias</span>
+            <span style={{ fontFamily: 'Manrope, sans-serif', fontSize: 12, color: 'rgba(240,244,248,.25)' }}>Garantia incondicional de 7 dias</span>
           </div>
         </div>
       </section>
@@ -963,12 +965,12 @@ export function LandingPage() {
             </div>
             <span style={{ fontFamily: 'Manrope, sans-serif', fontWeight: 900, fontSize: 14, letterSpacing: '-0.02em', color: '#F0F4F8' }}>SureEdge</span>
           </div>
-          <p style={{ fontFamily: 'Figtree, sans-serif', color: 'rgba(240,244,248,.2)', fontSize: 12 }}>
+          <p style={{ fontFamily: 'Manrope, sans-serif', color: 'rgba(240,244,248,.2)', fontSize: 12 }}>
             © {new Date().getFullYear()} SureEdge. Trading esportivo, organizado.
           </p>
           <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
             {['Termos','Privacidade','Suporte','Login'].map(l => (
-              <a key={l} href={l === 'Login' ? '/login' : '#'} style={{ fontFamily: 'Figtree, sans-serif', color: 'rgba(240,244,248,.2)', fontSize: 12, textDecoration: 'none', transition: 'color .15s' }}
+              <a key={l} href={l === 'Login' ? '/login' : '#'} style={{ fontFamily: 'Manrope, sans-serif', color: 'rgba(240,244,248,.2)', fontSize: 12, textDecoration: 'none', transition: 'color .15s' }}
                 onMouseEnter={e => (e.currentTarget.style.color = '#F0F4F8')}
                 onMouseLeave={e => (e.currentTarget.style.color = 'rgba(240,244,248,.2)')}>
                 {l}

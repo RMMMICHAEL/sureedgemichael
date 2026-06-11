@@ -7,7 +7,7 @@ interface ResultBadgeProps {
 }
 
 const RESULT_STYLES: Record<ResultType, { bg: string; color: string; border: string }> = {
-  Green:        { bg: 'rgba(0,255,136,.08)',   color: '#00FF88', border: 'rgba(0,255,136,.15)' },
+  Green:        { bg: 'rgba(63,255,33,.08)',   color: '#3FFF21', border: 'rgba(63,255,33,.15)' },
   Red:          { bg: 'rgba(255,77,77,.08)',   color: '#FF4D4D', border: 'rgba(255,77,77,.15)' },
   'Meio Green': { bg: 'rgba(255,214,0,.08)',   color: '#FFD600', border: 'rgba(255,214,0,.15)' },
   'Meio Red':   { bg: 'rgba(255,143,61,.08)',  color: '#FF8F3D', border: 'rgba(255,143,61,.15)' },
@@ -23,7 +23,7 @@ export function ResultBadge({ result, size = 'md' }: ResultBadgeProps) {
     <span
       className={clsx(
         'inline-flex items-center rounded-md font-bold',
-        size === 'sm' ? 'px-1.5 py-0.5 text-[10px]' : 'px-2 py-0.5 text-[11px]'
+        size === 'sm' ? 'px-1.5 py-0.5 text-[11px]' : 'px-2 py-0.5 text-[11px]'
       )}
       style={{
         background: s.bg,
@@ -52,7 +52,7 @@ export function FlagBadge({ level, label }: FlagBadgeProps) {
   const s = FLAG_STYLES[level];
   return (
     <span
-      className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-bold"
+      className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[11px] font-bold"
       style={{
         background: s.bg,
         color: s.color,

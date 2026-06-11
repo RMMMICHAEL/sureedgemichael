@@ -351,17 +351,17 @@ function SmartImportPanel() {
 
   return (
     <div className="rounded-2xl p-5 flex flex-col gap-4" style={{
-      background: 'rgba(0,230,118,.04)',
-      border: '1px solid rgba(0,230,118,.2)',
+      background: 'rgba(63,255,33,.04)',
+      border: '1px solid rgba(63,255,33,.2)',
     }}>
       {/* Header */}
       <div className="flex items-center gap-3">
         <div className="rounded-xl p-2.5 flex-shrink-0"
-          style={{ background: 'rgba(0,230,118,.14)', color: '#00e676' }}>
+          style={{ background: 'rgba(63,255,33,.14)', color: '#3FFF21' }}>
           <Database size={18} />
         </div>
         <div>
-          <div className="font-bold text-sm" style={{ color: '#00e676' }}>
+          <div className="font-bold text-sm" style={{ color: '#3FFF21' }}>
             Exportação Completa DG
           </div>
           <p className="text-xs mt-0.5" style={{ color: 'var(--t3)' }}>
@@ -374,8 +374,8 @@ function SmartImportPanel() {
       <label
         className="flex flex-col items-center justify-center gap-2 w-full rounded-xl cursor-pointer transition-all"
         style={{
-          border:     `2px dashed ${hasFile ? '#00e676' : 'var(--b)'}`,
-          background: hasFile ? 'rgba(0,230,118,.06)' : 'rgba(0,0,0,.2)',
+          border:     `2px dashed ${hasFile ? '#3FFF21' : 'var(--b)'}`,
+          background: hasFile ? 'rgba(63,255,33,.06)' : 'rgba(0,0,0,.2)',
           padding:    '20px 16px',
         }}
       >
@@ -384,8 +384,8 @@ function SmartImportPanel() {
 
         {hasFile ? (
           <>
-            <FileJson size={22} style={{ color: '#00e676' }} />
-            <span className="text-sm font-medium" style={{ color: '#00e676' }}>{fileName}</span>
+            <FileJson size={22} style={{ color: '#3FFF21' }} />
+            <span className="text-sm font-medium" style={{ color: '#3FFF21' }}>{fileName}</span>
             <span className="text-xs" style={{ color: 'var(--t2)' }}>
               {(rawText.length / 1024).toFixed(0)} KB carregado · clique para trocar
             </span>
@@ -404,15 +404,15 @@ function SmartImportPanel() {
       {/* Preview do arquivo detectado */}
       {meta && (
         <div className="rounded-xl px-4 py-3 flex flex-col gap-2" style={{
-          background: isFullExport ? 'rgba(0,230,118,.06)' : 'rgba(255,255,255,.04)',
-          border: `1px solid ${isFullExport ? 'rgba(0,230,118,.2)' : 'rgba(255,255,255,.08)'}`,
+          background: isFullExport ? 'rgba(63,255,33,.06)' : 'rgba(255,255,255,.04)',
+          border: `1px solid ${isFullExport ? 'rgba(63,255,33,.2)' : 'rgba(255,255,255,.08)'}`,
         }}>
           <div className="flex items-center gap-2">
             {isFullExport
-              ? <CheckCircle2 size={14} style={{ color: '#00e676' }} />
+              ? <CheckCircle2 size={14} style={{ color: '#3FFF21' }} />
               : <AlertCircle  size={14} style={{ color: '#f59e0b' }} />
             }
-            <span className="text-xs font-bold" style={{ color: isFullExport ? '#00e676' : '#f59e0b' }}>
+            <span className="text-xs font-bold" style={{ color: isFullExport ? '#3FFF21' : '#f59e0b' }}>
               {isFullExport
                 ? `Formato detectado: exportação completa DG v${meta._version ?? 1}`
                 : `Formato detectado: ${meta._type ?? 'legado'}`
@@ -430,11 +430,11 @@ function SmartImportPanel() {
               ].filter(([,v]) => v != null).map(([label, value]) => (
                 <div key={label as string} className="flex items-center gap-1.5 rounded-lg px-2 py-1"
                   style={{ background: 'rgba(255,255,255,.04)' }}>
-                  <BarChart3 size={11} style={{ color: 'rgba(0,230,118,.6)' }} />
+                  <BarChart3 size={11} style={{ color: 'rgba(63,255,33,.6)' }} />
                   <span className="text-[11px] font-bold" style={{ color: 'rgba(255,255,255,.8)' }}>
                     {(value as number).toLocaleString('pt-BR')}
                   </span>
-                  <span className="text-[10px]" style={{ color: 'var(--t3)' }}>{label}</span>
+                  <span className="text-[11px]" style={{ color: 'var(--t3)' }}>{label}</span>
                 </div>
               ))}
             </div>
@@ -447,7 +447,7 @@ function SmartImportPanel() {
           )}
 
           {meta._exported_at && (
-            <p className="text-[10px]" style={{ color: 'var(--t3)' }}>
+            <p className="text-[11px]" style={{ color: 'var(--t3)' }}>
               Exportado em: {new Date(meta._exported_at).toLocaleString('pt-BR')}
             </p>
           )}
@@ -462,7 +462,7 @@ function SmartImportPanel() {
           disabled={status === 'loading' || !hasFile}
           className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all"
           style={{
-            background: status === 'loading' ? 'rgba(0,230,118,.1)' : '#00e676',
+            background: status === 'loading' ? 'rgba(63,255,33,.1)' : '#3FFF21',
             color:      '#060A07',
             opacity:    (status === 'loading' || !hasFile) ? 0.5 : 1,
           }}
@@ -475,10 +475,10 @@ function SmartImportPanel() {
         {/* Resultado */}
         {result && status === 'success' && (
           <div className="flex flex-col gap-0.5">
-            <span className="text-xs font-bold" style={{ color: '#00e676' }}>
+            <span className="text-xs font-bold" style={{ color: '#3FFF21' }}>
               ✓ {result.inserted.toLocaleString('pt-BR')} odds importadas
             </span>
-            <span className="text-[10px]" style={{ color: 'var(--t3)' }}>
+            <span className="text-[11px]" style={{ color: 'var(--t3)' }}>
               {Object.entries(result.by_market).map(([k,v]) => `${k}: ${v}`).join(' · ')}
               {result.skipped > 0 ? ` · ${result.skipped} ignoradas` : ''}
               {result.cleaned_old > 0 ? ` · ${result.cleaned_old} antigas removidas` : ''}
@@ -492,10 +492,10 @@ function SmartImportPanel() {
               {result.error ?? 'Erro ao importar'}
             </span>
             {result.tip && (
-              <span className="text-[10px]" style={{ color: 'var(--t3)' }}>{result.tip}</span>
+              <span className="text-[11px]" style={{ color: 'var(--t3)' }}>{result.tip}</span>
             )}
             {result.detected_type !== '?' && (
-              <span className="text-[10px]" style={{ color: 'var(--t3)' }}>
+              <span className="text-[11px]" style={{ color: 'var(--t3)' }}>
                 Formato detectado: {result.detected_type}
               </span>
             )}
@@ -543,8 +543,8 @@ function MergeLegsPanel() {
   }
 
   return (
-    <div className="rounded-2xl p-5" style={{ background: 'rgba(124,58,237,.08)', border: '1px solid rgba(124,58,237,.25)' }}>
-      <div className="font-bold mb-1" style={{ color: 'rgba(124,58,237,1)' }}>Copiar Operações Jun/2026</div>
+    <div className="rounded-2xl p-5" style={{ background: 'rgba(167,139,250,.08)', border: '1px solid rgba(167,139,250,.25)' }}>
+      <div className="font-bold mb-1" style={{ color: 'rgba(167,139,250,1)' }}>Copiar Operações Jun/2026</div>
       <p className="text-xs mb-4" style={{ color: 'var(--t2)' }}>
         Copia as legs de <strong>surebet, duplo green, freebet</strong> do período <strong>01/06 ~ 10/06/2026</strong> da conta
         {' '}<span style={{ color: 'var(--t)' }}>michael.martins.trader</span> para{' '}
@@ -557,7 +557,7 @@ function MergeLegsPanel() {
         disabled={status === 'loading'}
         className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all"
         style={{
-          background: status === 'loading' ? 'rgba(124,58,237,.15)' : 'rgba(124,58,237,1)',
+          background: status === 'loading' ? 'rgba(167,139,250,.15)' : 'rgba(167,139,250,1)',
           color: '#fff',
           opacity: status === 'loading' ? 0.7 : 1,
         }}
@@ -569,8 +569,8 @@ function MergeLegsPanel() {
       {result && (
         <div className="mt-3 p-3 rounded-xl text-xs font-mono"
           style={{
-            background: status === 'ok' ? 'rgba(0,230,118,.08)' : 'rgba(255,69,69,.08)',
-            border: `1px solid ${status === 'ok' ? 'rgba(0,230,118,.2)' : 'rgba(255,69,69,.2)'}`,
+            background: status === 'ok' ? 'rgba(63,255,33,.08)' : 'rgba(255,69,69,.08)',
+            border: `1px solid ${status === 'ok' ? 'rgba(63,255,33,.2)' : 'rgba(255,69,69,.2)'}`,
             color: status === 'ok' ? 'var(--g)' : 'var(--r)',
           }}>
           {status === 'ok' ? (
@@ -676,7 +676,7 @@ export function AdminPage() {
             {/* Divisor */}
             <div className="flex items-center gap-2 mt-1">
               <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,.06)' }} />
-              <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'rgba(255,255,255,.2)' }}>
+              <span className="text-[11px] font-bold uppercase tracking-widest" style={{ color: 'rgba(255,255,255,.45)' }}>
                 Formatos legados
               </span>
               <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,.06)' }} />
@@ -698,7 +698,7 @@ export function AdminPage() {
               description="Formato opportunities/legs com dgScore e dgProfitPct. Atualiza dg_opportunities."
               hint="freebet.txt / opportunities.json — formato com legs[]"
               endpoint="/api/admin/dg-opportunities-import"
-              accentRgb="168,85,247"
+              accentRgb="167,139,250"
               icon={<Gift size={18} />}
             />
           </div>

@@ -110,7 +110,7 @@ export const HOUSE_COLORS: Record<string, string> = {
   KTO:          '#1D4ED8',
   Pinnacle:     '#374151',
   NoviBet:      '#14532D',
-  Bateubet:     '#7C3AED',
+  Bateubet:     '#A78BFA',
   Betao:        '#C2410C',
   Betnacional:  '#1E40AF',
   Pixbet:       '#B45309',

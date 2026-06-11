@@ -233,19 +233,19 @@ function NoteCard({
       {(prio || status || note.dueDate) && (
         <div className="flex flex-wrap items-center gap-1.5 mb-2">
           {prio && (
-            <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wide"
+            <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[11px] font-black uppercase tracking-wide"
               style={{ background: prio.bg, color: prio.color }}>
               <prio.Icon size={9} />{prio.label}
             </span>
           )}
           {status && (
-            <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wide"
+            <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[11px] font-black uppercase tracking-wide"
               style={{ background: status.bg, color: status.color }}>
               <status.Icon size={9} />{status.label}
             </span>
           )}
           {note.dueDate && (
-            <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-black${overdue ? ' alert-pulse' : ''}`}
+            <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[11px] font-black${overdue ? ' alert-pulse' : ''}`}
               style={{
                 background: overdue ? 'rgba(255,55,95,.18)' : soon ? 'rgba(255,159,10,.15)' : 'rgba(148,163,184,.10)',
                 color: overdue ? '#FF375F' : soon ? '#FF9F0A' : 'var(--t3)',
@@ -260,14 +260,14 @@ function NoteCard({
 
       {/* Preview */}
       {preview && (
-        <p className="text-xs leading-relaxed line-clamp-3" style={{ color: 'var(--t3)', fontFamily: "'Inter',sans-serif" }}>
+        <p className="text-xs leading-relaxed line-clamp-3" style={{ color: 'var(--t3)', fontFamily: "'Manrope',sans-serif" }}>
           {preview}
         </p>
       )}
 
       {/* Footer */}
       <div className="flex items-center justify-between mt-3">
-        <span className="text-[10px] font-medium" style={{ color: `${col.accent}99`, fontFamily: "'JetBrains Mono',monospace" }}>
+        <span className="text-[11px] font-medium" style={{ color: `${col.accent}99`, fontFamily: "'JetBrains Mono',monospace" }}>
           {fmtDate(note.updated_at)}
         </span>
         {note.pinned && <Pin size={10} fill={col.accent} color={col.accent} style={{ opacity: .7 }} />}
@@ -303,7 +303,7 @@ function NoteEditor({
     { id: 'blue',    hex: '#3b82f6' },
     { id: 'yellow',  hex: '#f59e0b' },
     { id: 'pink',    hex: '#ef4444' },
-    { id: 'purple',  hex: '#8b5cf6' },
+    { id: 'purple',  hex: '#A78BFA' },
     { id: 'default', hex: '#ec4899' },
   ] as const;
 
@@ -431,7 +431,7 @@ function NoteEditor({
 
         {/* Due date */}
         <div>
-          <p className="text-[10px] font-black uppercase tracking-widest mb-2 flex items-center gap-1" style={{ color: 'var(--t3)' }}>
+          <p className="text-[11px] font-black uppercase tracking-widest mb-2 flex items-center gap-1" style={{ color: 'var(--t3)' }}>
             <Calendar size={11} /> Prazo:
           </p>
           <div className="flex items-center gap-2">
@@ -454,7 +454,7 @@ function NoteEditor({
 
         {/* Priority */}
         <div>
-          <p className="text-[10px] font-black uppercase tracking-widest mb-2 flex items-center gap-1" style={{ color: 'var(--t3)' }}>
+          <p className="text-[11px] font-black uppercase tracking-widest mb-2 flex items-center gap-1" style={{ color: 'var(--t3)' }}>
             <Zap size={11} /> Prioridade:
           </p>
           <div className="flex gap-2 flex-wrap">
@@ -479,7 +479,7 @@ function NoteEditor({
 
         {/* Status */}
         <div>
-          <p className="text-[10px] font-black uppercase tracking-widest mb-2 flex items-center gap-1" style={{ color: 'var(--t3)' }}>
+          <p className="text-[11px] font-black uppercase tracking-widest mb-2 flex items-center gap-1" style={{ color: 'var(--t3)' }}>
             <ClipboardList size={11} /> Status:
           </p>
           <div className="flex gap-2 flex-wrap">
@@ -541,7 +541,7 @@ function FilterBar({
         return (
           <button key={p} type="button"
             onClick={() => onPrio(active ? 'all' : p)}
-            className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wide"
+            className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-black uppercase tracking-wide"
             style={{ background: active ? cfg.bg : 'rgba(255,255,255,.04)', color: active ? cfg.color : 'var(--t3)', border: `1px solid ${active ? cfg.color + '40' : 'rgba(255,255,255,.07)'}` }}>
             <cfg.Icon size={9} />{cfg.label}
           </button>
@@ -556,7 +556,7 @@ function FilterBar({
         return (
           <button key={s} type="button"
             onClick={() => onStatus(active ? 'all' : s)}
-            className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wide"
+            className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-black uppercase tracking-wide"
             style={{ background: active ? cfg.bg : 'rgba(255,255,255,.04)', color: active ? cfg.color : 'var(--t3)', border: `1px solid ${active ? cfg.color + '40' : 'rgba(255,255,255,.07)'}` }}>
             <cfg.Icon size={9} />{cfg.label}
           </button>

@@ -24,7 +24,7 @@ export function StatusBadge({ status, rawStatus, progress }: Props) {
     const label = STATUS_LABELS[s] ?? s;
     const prog  = progress ?? s;
     return (
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black tracking-wide"
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-black tracking-wide"
         style={{ background: 'rgba(255,77,109,.15)', color: 'var(--r)', border: '1px solid rgba(255,77,109,.3)' }}>
         <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
         {label || 'AO VIVO'}{prog && prog !== s ? ` ${prog}'` : ''}
@@ -35,7 +35,7 @@ export function StatusBadge({ status, rawStatus, progress }: Props) {
   if (status === 'finished') {
     const label = STATUS_LABELS[s] ?? 'Enc.';
     return (
-      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wide"
+      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold tracking-wide"
         style={{ background: 'rgba(255,255,255,.06)', color: 'var(--t3)', border: '1px solid rgba(255,255,255,.08)' }}>
         {label}
       </span>
@@ -44,7 +44,7 @@ export function StatusBadge({ status, rawStatus, progress }: Props) {
 
   if (status === 'postponed') {
     return (
-      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wide"
+      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold tracking-wide"
         style={{ background: 'rgba(255,214,0,.10)', color: 'var(--y)', border: '1px solid rgba(255,214,0,.25)' }}>
         Adiado
       </span>

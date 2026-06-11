@@ -209,12 +209,12 @@ const CATALOG: { name: string; color: string; domain: string }[] = [
   { name: 'Betwarrior',   color: '#FB923C', domain: 'betwarrior.bet.br' },
   /* ── Grupo Estrelabet ── */
   { name: 'Estrelabet',   color: '#9A3412', domain: 'estrelabet.bet.br' },
-  { name: 'Nossabet',     color: '#7C3AED', domain: 'nossa.bet.br' },
+  { name: 'Nossabet',     color: '#A78BFA', domain: 'nossa.bet.br' },
   { name: 'JogoDeOuro',   color: '#854D0E', domain: 'jogodeouro.bet.br' },
   { name: 'MCGames',      color: '#4338CA', domain: 'mcgames.bet.br' },
   { name: 'Multbet',      color: '#0F766E', domain: 'multi.bet.br' },
   { name: 'Aposta1',      color: '#B45309', domain: 'aposta1.bet.br' },
-  { name: 'Bateubet',     color: '#7C3AED', domain: 'bateu.bet.br' },
+  { name: 'Bateubet',     color: '#A78BFA', domain: 'bateu.bet.br' },
   { name: 'Esportivabet', color: '#166534', domain: 'esportiva.bet.br' },
   { name: 'Goldebet',     color: '#B45309', domain: 'goldebet.bet.br' },
   { name: 'Lotogreen',    color: '#166534', domain: 'lotogreen.bet.br' },
@@ -241,7 +241,7 @@ const CATALOG: { name: string; color: string; domain: string }[] = [
   { name: 'Betbufalos',   color: '#0F172A', domain: 'betbuffalos.bet.br' },
   { name: 'Betfalcons',   color: '#1D4ED8', domain: 'betfalcons.bet.br' },
   { name: 'ApostaTudo',   color: '#854D0E', domain: 'apostatudo.bet.br' },
-  { name: 'B1Bet',        color: '#7C3AED', domain: 'b1bet.bet.br' },
+  { name: 'B1Bet',        color: '#A78BFA', domain: 'b1bet.bet.br' },
   { name: 'Betpontobet',  color: '#1E40AF', domain: 'betpontobet.bet.br' },
   { name: 'Donaldbet',    color: '#DC2626', domain: 'donald.bet.br' },
   { name: 'Bullsbet',     color: '#0F766E', domain: 'bullsbet.bet.br' },
@@ -256,7 +256,7 @@ const CATALOG: { name: string; color: string; domain: string }[] = [
   { name: 'Geralbet',     color: '#166534', domain: 'geralbet.bet.br' },
   /* ── Grupo Blaze ── */
   { name: 'Blaze',        color: '#DC2626', domain: 'blaze.bet.br' },
-  { name: 'BetVip',       color: '#7C3AED', domain: 'betvip.bet.br' },
+  { name: 'BetVip',       color: '#A78BFA', domain: 'betvip.bet.br' },
   { name: 'Jonbet',       color: '#0369A1', domain: 'jonbet.bet.br' },
   { name: 'Uxbet',        color: '#1E40AF', domain: 'ux.bet.br' },
   { name: 'Afunbet',      color: '#047857', domain: 'afun.bet.br' },
@@ -268,7 +268,7 @@ const CATALOG: { name: string; color: string; domain: string }[] = [
   { name: '1praum',       color: '#B45309', domain: '1pra1.bet.br' },
   { name: 'Starbet',      color: '#0F766E', domain: 'start.bet.br' },
   { name: 'Realsbet',     color: '#047857', domain: 'reals.bet.br' },
-  { name: 'Bigbet',       color: '#7C3AED', domain: 'big.bet.br' },
+  { name: 'Bigbet',       color: '#A78BFA', domain: 'big.bet.br' },
   { name: 'Apostar',      color: '#854D0E', domain: 'apostar.bet.br' },
   { name: 'Luvabet',      color: '#DC2626', domain: 'luva.bet.br' },
   /* ── Grupo Vbet ── */
@@ -278,7 +278,7 @@ const CATALOG: { name: string; color: string; domain: string }[] = [
   { name: 'Supremabet',   color: '#1D4ED8', domain: 'suprema.bet.br' },
   { name: 'Segurobet',    color: '#166534', domain: 'seguro.bet.br' },
   { name: 'Betpark',      color: '#854D0E', domain: 'betpark.bet.br' },
-  { name: '7Games',       color: '#7C3AED', domain: '7games.bet.br' },
+  { name: '7Games',       color: '#A78BFA', domain: '7games.bet.br' },
   { name: 'Betao',        color: '#0F766E', domain: 'betao.bet.br' },
   { name: 'R7bet',        color: '#DC2626', domain: 'r7.bet.br' },
   { name: 'Maximabet',    color: '#1E40AF', domain: 'maxima.bet.br' },
@@ -297,7 +297,7 @@ const CATALOG: { name: string; color: string; domain: string }[] = [
   { name: 'KTO',          color: '#1D4ED8', domain: 'kto.bet.br' },
   /* ── Grupo Sportingbet ── */
   { name: 'Sportingbet',  color: '#0A5C1F', domain: 'sportingbet.bet.br' },
-  { name: 'Betboo',       color: '#7C3AED', domain: 'betboo.bet.br' },
+  { name: 'Betboo',       color: '#A78BFA', domain: 'betboo.bet.br' },
   /* ── Grupo Betfair ── */
   { name: 'Betfair',      color: '#0E7490', domain: 'betfair.bet.br' },
   { name: 'BetfairSB',    color: '#0E7490', domain: 'betfair.com' },
@@ -306,7 +306,7 @@ const CATALOG: { name: string; color: string; domain: string }[] = [
   { name: 'Fullbet',      color: '#166534', domain: 'fulltbet.bet.br' },
   { name: 'Betbra',       color: '#DC2626', domain: 'betbra.bet.br' },
   /* ── SuperMonitor / Outros ── */
-  { name: 'Alfabet',      color: '#7C3AED', domain: 'alfabet.bet.br' },
+  { name: 'Alfabet',      color: '#A78BFA', domain: 'alfabet.bet.br' },
   { name: 'Apostabet',    color: '#B91C1C', domain: 'apostabet.bet.br' },
   { name: 'Apostaganha',  color: '#166534', domain: 'apostaganha.bet.br' },
   { name: 'Betesporte',   color: '#1D4ED8', domain: 'betesporte.com' },
@@ -634,7 +634,7 @@ function CloneGroupCard({ group, open, onToggle }: { group: CloneGroup; open: bo
       >
         <div
           className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-          style={{ background: 'rgba(61,255,143,.08)', border: '1px solid rgba(61,255,143,.15)' }}
+          style={{ background: 'rgba(63,255,33,.08)', border: '1px solid rgba(63,255,33,.15)' }}
         >
           <FavIcon logo={group.principal.logo} name={group.principal.name} size={20} />
         </div>
@@ -643,7 +643,7 @@ function CloneGroupCard({ group, open, onToggle }: { group: CloneGroup; open: bo
         </div>
         <span
           className="text-xs font-bold px-2 py-0.5 rounded-full flex-shrink-0"
-          style={{ background: 'rgba(61,255,143,.06)', color: 'var(--g)', border: '1px solid rgba(61,255,143,.12)' }}
+          style={{ background: 'rgba(63,255,33,.06)', color: 'var(--g)', border: '1px solid rgba(63,255,33,.12)' }}
         >
           {group.clones.length}
         </span>
@@ -933,7 +933,7 @@ export function BookmakersPage() {
             onClick={() => setTab(id)}
             className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all"
             style={tab === id
-              ? { background: 'var(--g)', color: 'var(--bg)', boxShadow: '0 0 12px rgba(0,255,136,.25)' }
+              ? { background: 'var(--g)', color: 'var(--bg)', boxShadow: '0 0 12px rgba(63,255,33,.25)' }
               : { color: 'var(--t3)' }
             }
           >
@@ -953,7 +953,7 @@ export function BookmakersPage() {
               <div key={k.label} className="rounded-2xl p-5" style={{ background: 'var(--bg2)', border: '1px solid var(--b)' }}>
                 <div className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: 'var(--t3)' }}>{k.label}</div>
                 <div className="text-xl font-extrabold font-mono" style={{ color: k.color }}>{k.value}</div>
-                <div className="text-[10px] mt-1.5" style={{ color: 'var(--t3)' }}>{k.sub}</div>
+                <div className="text-[11px] mt-1.5" style={{ color: 'var(--t3)' }}>{k.sub}</div>
               </div>
             ))}
           </div>
@@ -1024,7 +1024,7 @@ export function BookmakersPage() {
                     {/* Balance display */}
                     <div className="flex flex-col gap-1.5">
                       <div className="rounded-xl p-3" style={{ background: 'var(--bg3, var(--bg))' }}>
-                        <div className="text-[10px] font-bold uppercase tracking-wide mb-0.5" style={{ color: 'var(--t3)' }}>
+                        <div className="text-[11px] font-bold uppercase tracking-wide mb-0.5" style={{ color: 'var(--t3)' }}>
                           Saldo Disponível
                         </div>
                         <div className="text-base font-extrabold font-mono" style={{ color: effectiveBalance >= 0 ? 'var(--g)' : 'var(--r)' }}>

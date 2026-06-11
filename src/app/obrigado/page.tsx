@@ -156,7 +156,7 @@ export default function ObrigadoPage() {
         </div>
 
         {/* Aviso caixa de spam */}
-        <p style={{ fontSize: 12, color: 'rgba(255,255,255,.25)', lineHeight: 1.6 }}>
+        <p style={{ fontSize: 12, color: 'rgba(255,255,255,.45)', lineHeight: 1.6 }}>
           Não encontrou o e-mail? Verifique a caixa de spam ou entre em contato pelo{' '}
           <a
             href="https://wa.me/77999489307"

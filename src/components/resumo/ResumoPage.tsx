@@ -34,7 +34,7 @@ interface MonthStat {
 function StatChip({ label, value, accent }: { label: string; value: string; accent?: string }) {
   return (
     <div className="flex flex-col gap-0.5 min-w-0 overflow-hidden">
-      <span className="text-[9px] font-black uppercase tracking-[.12em] truncate" style={{ color: 'var(--t3)' }}>
+      <span className="text-[11px] font-black uppercase tracking-[.12em] truncate" style={{ color: 'var(--t3)' }}>
         {label}
       </span>
       <span className="text-sm font-black leading-none font-mono truncate" style={{ color: accent ?? 'var(--t)' }}>
@@ -197,12 +197,12 @@ export function ResumoPage() {
               <h3 className="text-sm font-black" style={{ color: 'var(--t)' }}>{MONTHS[m.month]}</h3>
               <div className="flex items-center gap-2">
                 {m.isCurrentMonth && (
-                  <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full"
+                  <span className="text-[11px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full"
                     style={{ background: 'rgba(63,255,33,.15)', color: 'var(--g)', border: '1px solid rgba(63,255,33,.25)' }}>
                     Mês Atual
                   </span>
                 )}
-                <span className="text-[10px]" style={{ color: 'var(--t3)' }}>{m.ops} op{m.ops !== 1 ? 's' : ''}</span>
+                <span className="text-[11px]" style={{ color: 'var(--t3)' }}>{m.ops} op{m.ops !== 1 ? 's' : ''}</span>
               </div>
             </div>
 
@@ -230,7 +230,7 @@ export function ResumoPage() {
                   <span style={{ color: 'var(--t3)' }}>Performance</span>
                   <div className="flex items-center gap-1 mt-0.5">
                     <TrendingUp size={11} style={{ color: m.profit >= 0 ? 'var(--g)' : 'var(--r)' }} />
-                    <span className="font-bold text-[10px]" style={{ color: m.profit >= 0 ? 'var(--g)' : 'var(--r)' }}>
+                    <span className="font-bold text-[11px]" style={{ color: m.profit >= 0 ? 'var(--g)' : 'var(--r)' }}>
                       {m.profit >= 0 ? 'Positivo' : 'Negativo'}
                     </span>
                   </div>
@@ -239,7 +239,7 @@ export function ResumoPage() {
             )}
 
             {m.ops === 0 && (
-              <p className="text-[10px] text-center py-2" style={{ color: 'var(--t3)' }}>Sem operações</p>
+              <p className="text-[11px] text-center py-2" style={{ color: 'var(--t3)' }}>Sem operações</p>
             )}
           </div>
         ))}

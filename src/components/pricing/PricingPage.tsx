@@ -204,7 +204,7 @@ export function PricingPage() {
               {plan.badge && (
                 <div className="absolute top-4 right-4">
                   <span
-                    className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full"
+                    className="text-[11px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full"
                     style={{
                       background: 'var(--g)',
                       color: '#060A07',
@@ -236,7 +236,7 @@ export function PricingPage() {
                   </div>
                   {plan.savings && (
                     <div
-                      className="inline-flex items-center gap-1 mt-2 px-2 py-0.5 rounded-md text-[10px] font-bold"
+                      className="inline-flex items-center gap-1 mt-2 px-2 py-0.5 rounded-md text-[11px] font-bold"
                       style={{ background: 'rgba(63,255,33,.1)', color: 'var(--g)', border: '1px solid rgba(63,255,33,.2)' }}
                     >
                       <TrendingUp size={9} />
@@ -258,13 +258,13 @@ export function PricingPage() {
                 {/* Payment methods */}
                 <div className="flex items-center gap-2">
                   <div
-                    className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px] font-bold"
+                    className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-[11px] font-bold"
                     style={{ background: 'rgba(255,255,255,.05)', color: 'var(--t3)' }}
                   >
                     <QrCode size={10} /> PIX
                   </div>
                   <div
-                    className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px] font-bold"
+                    className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-[11px] font-bold"
                     style={{ background: 'rgba(255,255,255,.05)', color: 'var(--t3)' }}
                   >
                     <CreditCard size={10} /> Cartão

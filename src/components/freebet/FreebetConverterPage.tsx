@@ -150,8 +150,8 @@ export function FreebetConverterPage() {
 
   // Cor de conversão
   function convColor(pct: number): string {
-    if (pct >= 60) return 'hsl(150 90% 58%)';
-    if (pct >= 45) return 'hsl(150 70% 52%)';
+    if (pct >= 60) return '#3FFF21';
+    if (pct >= 45) return '#3FFF21';
     if (pct >= 30) return 'hsl(38 95% 65%)';
     return 'rgba(255,255,255,.5)';
   }
@@ -182,7 +182,7 @@ export function FreebetConverterPage() {
 
           {/* Seleção da casa */}
           <div className="flex flex-col gap-1.5 flex-1" style={{ minWidth: 180 }}>
-            <label className="text-[10px] font-black uppercase tracking-widest" style={{ color: 'rgba(255,255,255,.4)' }}>
+            <label className="text-[11px] font-black uppercase tracking-widest" style={{ color: 'rgba(255,255,255,.4)' }}>
               Casa com a freebet
             </label>
             <select
@@ -203,7 +203,7 @@ export function FreebetConverterPage() {
 
           {/* Valor da freebet */}
           <div className="flex flex-col gap-1.5" style={{ minWidth: 140 }}>
-            <label className="text-[10px] font-black uppercase tracking-widest" style={{ color: 'rgba(255,255,255,.4)' }}>
+            <label className="text-[11px] font-black uppercase tracking-widest" style={{ color: 'rgba(255,255,255,.4)' }}>
               Valor da freebet (R$)
             </label>
             <div className="relative">
@@ -245,7 +245,7 @@ export function FreebetConverterPage() {
 
         {/* Quick amounts */}
         <div className="flex items-center gap-2 border-t px-5 py-3" style={{ borderColor: 'rgba(255,255,255,.05)' }}>
-          <span className="text-[10px] font-semibold" style={{ color: 'rgba(255,255,255,.25)' }}>Rápido:</span>
+          <span className="text-[11px] font-semibold" style={{ color: 'rgba(255,255,255,.45)' }}>Rápido:</span>
           {[25, 50, 100, 200, 500].map(v => (
             <button key={v}
               onClick={() => setAmount(v)}
@@ -253,7 +253,7 @@ export function FreebetConverterPage() {
               style={{
                 background: amount === v ? 'rgba(99,102,241,.2)' : 'rgba(255,255,255,.04)',
                 border: `1px solid ${amount === v ? 'rgba(99,102,241,.4)' : 'rgba(255,255,255,.07)'}`,
-                color: amount === v ? '#818cf8' : 'rgba(255,255,255,.4)',
+                color: amount === v ? '#A78BFA' : 'rgba(255,255,255,.4)',
               }}>
               R${v}
             </button>
@@ -344,7 +344,7 @@ export function FreebetConverterPage() {
                     <div className="flex items-center gap-4 flex-wrap">
 
                       {/* Ranking */}
-                      <span className="shrink-0 text-[11px] font-black tabular-nums" style={{ color: 'rgba(255,255,255,.2)', width: 20 }}>
+                      <span className="shrink-0 text-[11px] font-black tabular-nums" style={{ color: 'rgba(255,255,255,.45)', width: 20 }}>
                         #{idx + 1}
                       </span>
 
@@ -363,7 +363,7 @@ export function FreebetConverterPage() {
                         background: 'rgba(99,102,241,.1)',
                         border: '1px solid rgba(99,102,241,.28)',
                       }}>
-                        <Gift size={11} style={{ color: '#818cf8' }} />
+                        <Gift size={11} style={{ color: '#A78BFA' }} />
                         <span className="text-[11px] font-bold" style={{ color: 'rgb(148,163,255)' }}>
                           {OUTCOME_LABEL[r.freebet_outcome]} ({OUTCOME_ABBR[r.freebet_outcome]})
                         </span>
@@ -375,16 +375,16 @@ export function FreebetConverterPage() {
                       {/* Badge DG */}
                       {r.source === 'dg' && (
                         <div className="flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 shrink-0" style={{
-                          background: 'rgba(168,85,247,.1)',
-                          border: '1px solid rgba(168,85,247,.28)',
+                          background: 'rgba(167,139,250,.1)',
+                          border: '1px solid rgba(167,139,250,.28)',
                         }}>
                           <Zap size={10} style={{ color: 'rgba(196,157,255,.9)' }} />
-                          <span className="text-[10px] font-black" style={{ color: 'rgba(196,157,255,.9)' }}>
+                          <span className="text-[11px] font-black" style={{ color: 'rgba(196,157,255,.9)' }}>
                             DG{r.dg_score != null ? ` ${r.dg_score}` : ''}
                           </span>
                           {r.dg_classification && (
-                            <span className="text-[9px] font-black" style={{
-                              color: r.dg_classification === 'ALTA' ? 'hsl(150 90% 58%)' : r.dg_classification === 'MEDIA' ? 'hsl(38 95% 65%)' : 'rgba(255,255,255,.35)',
+                            <span className="text-[11px] font-black" style={{
+                              color: r.dg_classification === 'ALTA' ? '#3FFF21' : r.dg_classification === 'MEDIA' ? 'hsl(38 95% 65%)' : 'rgba(255,255,255,.35)',
                             }}>
                               {r.dg_classification}
                             </span>
@@ -400,7 +400,7 @@ export function FreebetConverterPage() {
                         }}>
                           {r.conversion_pct.toFixed(1)}%
                         </span>
-                        <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: 'rgba(255,255,255,.25)' }}>
+                        <span className="text-[11px] font-bold uppercase tracking-wide" style={{ color: 'rgba(255,255,255,.45)' }}>
                           conversão
                         </span>
                       </div>
@@ -408,18 +408,18 @@ export function FreebetConverterPage() {
                       {/* Lucro */}
                       <div className="flex flex-col items-end shrink-0">
                         <span className="text-[18px] font-black tabular-nums leading-none" style={{
-                          color: 'hsl(150 85% 62%)',
-                          textShadow: '0 0 14px hsl(150 85% 55%/0.4)',
+                          color: '#3FFF21',
+                          textShadow: '0 0 14px rgba(63,255,33,0.4)',
                         }}>
                           R${fmtBRL(lucro)}
                         </span>
-                        <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: 'rgba(255,255,255,.25)' }}>
+                        <span className="text-[11px] font-bold uppercase tracking-wide" style={{ color: 'rgba(255,255,255,.45)' }}>
                           lucro garantido
                         </span>
                       </div>
 
                       <ChevronRight size={14} className="shrink-0 transition-transform" style={{
-                        color: 'rgba(255,255,255,.25)',
+                        color: 'rgba(255,255,255,.45)',
                         transform: isOpen ? 'rotate(90deg)' : 'none',
                       }} />
                     </div>
@@ -446,24 +446,24 @@ export function FreebetConverterPage() {
                                 border: '1px solid rgba(99,102,241,.2)',
                               }}>
                                 <div className="mb-3 flex items-center gap-2">
-                                  <Gift size={12} style={{ color: '#818cf8' }} />
-                                  <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: '#818cf8' }}>
+                                  <Gift size={12} style={{ color: '#A78BFA' }} />
+                                  <span className="text-[11px] font-black uppercase tracking-widest" style={{ color: '#A78BFA' }}>
                                     Freebet — aposta
                                   </span>
                                 </div>
                                 <p className="text-[13px] font-bold" style={{ color: 'var(--t)' }}>
                                   {OUTCOME_LABEL[r.freebet_outcome]} ({OUTCOME_ABBR[r.freebet_outcome]})
                                 </p>
-                                <p className="text-[22px] font-black tabular-nums" style={{ color: '#818cf8' }}>
+                                <p className="text-[22px] font-black tabular-nums" style={{ color: '#A78BFA' }}>
                                   {r.freebet_odd.toFixed(2)}
                                 </p>
                                 <p className="mt-1 text-[11px]" style={{ color: 'rgba(255,255,255,.4)' }}>
-                                  Stake: R${fmtBRL(amount)} <span style={{ color: 'rgba(255,255,255,.25)' }}>(freebet — não sai do bolso)</span>
+                                  Stake: R${fmtBRL(amount)} <span style={{ color: 'rgba(255,255,255,.45)' }}>(freebet — não sai do bolso)</span>
                                 </p>
                                 {r.freebet_url && (
                                   <a href={r.freebet_url} target="_blank" rel="noopener noreferrer"
                                     className="mt-2 flex items-center gap-1 text-[11px] font-semibold transition-colors hover:text-cyan-400"
-                                    style={{ color: 'rgba(129,140,248,.7)' }}>
+                                    style={{ color: 'rgba(167,139,250,.7)' }}>
                                     <ExternalLink size={10} /> Abrir evento
                                   </a>
                                 )}
@@ -474,13 +474,13 @@ export function FreebetConverterPage() {
                                 border: `1px solid ${entry.cover!.is_pa ? 'rgba(255,159,10,.2)' : 'rgba(255,255,255,.09)'}`,
                               }}>
                                 <div className="mb-3 flex items-center gap-2">
-                                  <span className="text-[10px] font-black uppercase tracking-widest" style={{
+                                  <span className="text-[11px] font-black uppercase tracking-widest" style={{
                                     color: entry.cover!.is_pa ? 'rgba(255,159,10,.8)' : 'rgba(255,255,255,.35)',
                                   }}>
                                     Cobertura — {OUTCOME_LABEL[entry.cover!.outcome]}
                                   </span>
                                   {entry.cover!.is_pa && (
-                                    <span className="rounded px-1 text-[8px] font-bold" style={{
+                                    <span className="rounded px-1 text-[11px] font-bold" style={{
                                       background: 'rgba(255,159,10,.12)',
                                       color: 'rgba(255,159,10,.8)',
                                       border: '1px solid rgba(255,159,10,.25)',
@@ -490,7 +490,7 @@ export function FreebetConverterPage() {
                                 <p className="text-[13px] font-bold" style={{ color: 'var(--t)' }}>
                                   {entry.cover!.bookmaker_name}
                                 </p>
-                                <p className="text-[22px] font-black tabular-nums" style={{ color: 'hsl(150 85% 60%)' }}>
+                                <p className="text-[22px] font-black tabular-nums" style={{ color: '#3FFF21' }}>
                                   {entry.cover!.odd.toFixed(2)}
                                 </p>
                                 <p className="mt-1 text-[11px]" style={{ color: 'rgba(255,255,255,.4)' }}>
@@ -499,7 +499,7 @@ export function FreebetConverterPage() {
                                 {entry.cover!.url && (
                                   <a href={entry.cover!.url} target="_blank" rel="noopener noreferrer"
                                     className="mt-2 flex items-center gap-1 text-[11px] font-semibold transition-colors hover:text-cyan-400"
-                                    style={{ color: 'rgba(129,140,248,.7)' }}>
+                                    style={{ color: 'rgba(167,139,250,.7)' }}>
                                     <ExternalLink size={10} /> Abrir evento
                                   </a>
                                 )}
@@ -511,38 +511,38 @@ export function FreebetConverterPage() {
 
                       {/* Resumo financeiro */}
                       <div className="mt-4 rounded-xl px-4 py-3 flex flex-wrap gap-5" style={{
-                        background: 'rgba(61,255,143,.04)',
-                        border: '1px solid rgba(61,255,143,.15)',
+                        background: 'rgba(63,255,33,.04)',
+                        border: '1px solid rgba(63,255,33,.15)',
                       }}>
                         <div>
-                          <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'rgba(255,255,255,.3)' }}>Freebet</p>
-                          <p className="text-[15px] font-black" style={{ color: '#818cf8' }}>R${fmtBRL(amount)}</p>
-                          <p className="text-[10px]" style={{ color: 'rgba(255,255,255,.25)' }}>stake freebet</p>
+                          <p className="text-[11px] font-bold uppercase tracking-widest" style={{ color: 'rgba(255,255,255,.45)' }}>Freebet</p>
+                          <p className="text-[15px] font-black" style={{ color: '#A78BFA' }}>R${fmtBRL(amount)}</p>
+                          <p className="text-[11px]" style={{ color: 'rgba(255,255,255,.45)' }}>stake freebet</p>
                         </div>
                         <div>
-                          <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'rgba(255,255,255,.3)' }}>Cobertura</p>
+                          <p className="text-[11px] font-bold uppercase tracking-widest" style={{ color: 'rgba(255,255,255,.45)' }}>Cobertura</p>
                           <p className="text-[15px] font-black" style={{ color: 'var(--t)' }}>R${fmtBRL(custo)}</p>
-                          <p className="text-[10px]" style={{ color: 'rgba(255,255,255,.25)' }}>dinheiro real gasto</p>
+                          <p className="text-[11px]" style={{ color: 'rgba(255,255,255,.45)' }}>dinheiro real gasto</p>
                         </div>
                         <div>
-                          <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'rgba(255,255,255,.3)' }}>Lucro garantido</p>
-                          <p className="text-[15px] font-black" style={{ color: 'hsl(150 85% 60%)', textShadow: '0 0 10px hsl(150 85% 55%/0.3)' }}>
+                          <p className="text-[11px] font-bold uppercase tracking-widest" style={{ color: 'rgba(255,255,255,.45)' }}>Lucro garantido</p>
+                          <p className="text-[15px] font-black" style={{ color: '#3FFF21', textShadow: '0 0 10px rgba(63,255,33,0.3)' }}>
                             R${fmtBRL(lucro)}
                           </p>
-                          <p className="text-[10px]" style={{ color: 'rgba(255,255,255,.25)' }}>qualquer resultado</p>
+                          <p className="text-[11px]" style={{ color: 'rgba(255,255,255,.45)' }}>qualquer resultado</p>
                         </div>
                         <div>
-                          <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'rgba(255,255,255,.3)' }}>Conversão</p>
+                          <p className="text-[11px] font-bold uppercase tracking-widest" style={{ color: 'rgba(255,255,255,.45)' }}>Conversão</p>
                           <p className="text-[15px] font-black" style={{ color: convColor(r.conversion_pct) }}>
                             {r.conversion_pct.toFixed(2)}%
                           </p>
-                          <p className="text-[10px]" style={{ color: 'rgba(255,255,255,.25)' }}>da freebet em dinheiro</p>
+                          <p className="text-[11px]" style={{ color: 'rgba(255,255,255,.45)' }}>da freebet em dinheiro</p>
                         </div>
                       </div>
 
                       {/* ── Calculadora — mesma UI dos slots do EventOddsPanel ── */}
                       {(() => {
-                        const SLOT_COLORS = ['#3DFF8F', '#4DA6FF', '#FF9F0A'];
+                        const SLOT_COLORS = ['#3FFF21', '#4DA6FF', '#FF9F0A'];
                         const SLOT_LABELS = ['1ª', '2ª', '3ª'];
                         const OUTCOME_ABBR2: Record<string, string> = { home: '1', draw: 'X', away: '2' };
 
@@ -566,27 +566,27 @@ export function FreebetConverterPage() {
                         return (
                           <div data-calc-id={r.match_id + r.freebet_outcome} className="calc-reveal mt-4 overflow-hidden rounded-2xl" style={{
                             background: 'rgba(13,17,23,0.7)',
-                            border: 'rgba(61,255,143,.28) 1px solid',
-                            boxShadow: '0 4px 24px rgba(0,0,0,.35), 0 0 20px rgba(61,255,143,.06)',
+                            border: 'rgba(63,255,33,.28) 1px solid',
+                            boxShadow: '0 4px 24px rgba(0,0,0,.35), 0 0 20px rgba(63,255,33,.06)',
                             backdropFilter: 'blur(12px)',
                             transition: 'border-color 0.4s ease',
                           }}>
-                            <div style={{ height: 2, background: 'linear-gradient(90deg, rgba(61,255,143,.8) 0%, rgba(61,255,143,.2) 60%, transparent 100%)' }} />
+                            <div style={{ height: 2, background: 'linear-gradient(90deg, rgba(63,255,33,.8) 0%, rgba(63,255,33,.2) 60%, transparent 100%)' }} />
 
                             {/* Slots — igual ao EventOddsPanel */}
                             <div className="flex flex-wrap items-center gap-2 border-b px-4 py-3" style={{ borderColor: 'rgba(255,255,255,.05)' }}>
-                              <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: 'var(--t3)' }}>Calculadora</span>
+                              <span className="text-[11px] font-black uppercase tracking-widest" style={{ color: 'var(--t3)' }}>Calculadora</span>
                               <div className="flex flex-1 flex-wrap gap-2">
                                 {slots.map((slot, i) => (
-                                  <div key={i} className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-[10px] font-semibold"
+                                  <div key={i} className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-[11px] font-semibold"
                                     style={{
                                       background: `${SLOT_COLORS[i]}12`,
                                       border: `1px solid ${SLOT_COLORS[i]}40`,
                                     }}>
-                                    <span style={{ color: SLOT_COLORS[i], fontSize: 9 }}>{SLOT_LABELS[i]}</span>
+                                    <span style={{ color: SLOT_COLORS[i], fontSize: 11 }}>{SLOT_LABELS[i]}</span>
                                     <span style={{ color: 'var(--t2)' }}>{slot.displayName}</span>
                                     <span style={{ color: SLOT_COLORS[i], fontWeight: 900 }}>{slot.odd.toFixed(2)}</span>
-                                    <span style={{ color: 'rgba(255,255,255,.3)', fontSize: 9 }}>
+                                    <span style={{ color: 'rgba(255,255,255,.45)', fontSize: 11 }}>
                                       ({OUTCOME_ABBR2[slot.outcome] ?? slot.outcome})
                                     </span>
                                   </div>
@@ -601,7 +601,7 @@ export function FreebetConverterPage() {
                                 defaultNumOutcomes={3}
                                 hideNumOutcomes
                                 hideFormula
-                                accent="#A855F7"
+                                accent="#A78BFA"
                                 initialFreebet={[freebetIdx >= 0 ? freebetIdx : 0]}
                                 initialOpType="freebet"
                               />

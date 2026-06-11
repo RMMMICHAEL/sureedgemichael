@@ -206,7 +206,7 @@ export function PerfilPage() {
                   disabled={uploadingAvatar}
                   className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full flex items-center justify-center"
                   style={{ background: uploadingAvatar ? 'rgba(148,163,184,.6)' : 'var(--g)', border: '2.5px solid var(--bg2)', color: '#060A07' }}>
-                  {uploadingAvatar ? <span style={{ fontSize: 8, fontWeight: 900 }}>...</span> : <Camera size={12} />}
+                  {uploadingAvatar ? <span style={{ fontSize: 11, fontWeight: 900 }}>...</span> : <Camera size={12} />}
                 </button>
               </div>
               <input ref={fileInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleAvatarChange} />
@@ -261,14 +261,14 @@ export function PerfilPage() {
           <SCard title="Informações da Conta">
             <div className="flex flex-col gap-3">
               <div>
-                <p className="text-[10px] font-black uppercase tracking-widest mb-0.5" style={{ color: 'var(--t3)' }}>E-mail</p>
+                <p className="text-[11px] font-black uppercase tracking-widest mb-0.5" style={{ color: 'var(--t3)' }}>E-mail</p>
                 <p className="text-sm font-medium" style={{ color: 'var(--t)' }}>{authEmail ?? '—'}</p>
               </div>
               <div>
-                <p className="text-[10px] font-black uppercase tracking-widest mb-0.5" style={{ color: 'var(--t3)' }}>Plano</p>
+                <p className="text-[11px] font-black uppercase tracking-widest mb-0.5" style={{ color: 'var(--t3)' }}>Plano</p>
                 <div className="flex items-center gap-2">
                   <p className="text-sm font-medium" style={{ color: 'var(--t)' }}>{planLabel}</p>
-                  <span className="text-[9px] px-2 py-0.5 rounded-md font-black uppercase tracking-wider"
+                  <span className="text-[11px] px-2 py-0.5 rounded-md font-black uppercase tracking-wider"
                     style={isExpired
                       ? { background: 'rgba(255,69,69,.12)', color: 'var(--r)', border: '1px solid rgba(255,69,69,.2)' }
                       : { background: 'rgba(63,255,33,.12)', color: 'var(--g)', border: '1px solid rgba(63,255,33,.2)' }}>
@@ -277,7 +277,7 @@ export function PerfilPage() {
                 </div>
               </div>
               <div>
-                <p className="text-[10px] font-black uppercase tracking-widest mb-0.5" style={{ color: 'var(--t3)' }}>Vencimento</p>
+                <p className="text-[11px] font-black uppercase tracking-widest mb-0.5" style={{ color: 'var(--t3)' }}>Vencimento</p>
                 <p className="text-sm font-medium" style={{ color: isExpired ? 'var(--r)' : isExpiring ? '#ffb400' : 'var(--t)' }}>{expiryText}</p>
               </div>
             </div>

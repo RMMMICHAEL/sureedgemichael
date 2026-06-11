@@ -112,18 +112,11 @@ function KPICardItem({ s, i }: { s: KPIStat; i: number }) {
         (e.currentTarget as HTMLElement).style.boxShadow = '';
       }}
     >
-      {/* Color-coded top accent */}
-      <div style={{
-        height: 2,
-        background: `linear-gradient(90deg, ${colorHex}E0 0%, ${colorHex}55 45%, transparent 80%)`,
-        flexShrink: 0,
-      }} />
-
-      <div className="flex flex-col gap-3 p-4 pt-3.5 flex-1">
+      <div className="flex flex-col gap-3 p-4 flex-1">
         {/* Label row */}
         <div className="flex items-center justify-between gap-1.5 min-w-0">
           <span
-            className="text-[9px] font-black uppercase leading-none truncate"
+            className="text-[11px] font-black uppercase leading-none truncate"
             style={{ color: 'var(--t3)', fontFamily: "'Manrope', sans-serif", letterSpacing: '.16em' }}
           >
             {s.label}
@@ -143,13 +136,13 @@ function KPICardItem({ s, i }: { s: KPIStat; i: number }) {
                     onClick={() => setMode(m)}
                     className="px-[6px] py-[2px] rounded-[4px] leading-none transition-all"
                     style={{
-                      fontSize: 8,
+                      fontSize: 11,
                       fontWeight: 800,
                       fontFamily: "'Manrope', sans-serif",
                       letterSpacing: '.05em',
                       ...(mode === m
                         ? { background: `${colorHex}28`, color: colorHex }
-                        : { background: 'transparent', color: 'rgba(255,255,255,.28)' }),
+                        : { background: 'transparent', color: 'rgba(255,255,255,.45)' }),
                     }}
                   >
                     {m === 'liquido' ? 'Líquido' : 'Bruto'}
@@ -185,7 +178,7 @@ function KPICardItem({ s, i }: { s: KPIStat; i: number }) {
 
         {/* Sub text */}
         {displaySub && (
-          <div className="text-[10px] font-medium leading-tight" style={{ color: 'var(--t3)' }}>
+          <div className="text-[11px] font-medium leading-tight" style={{ color: 'var(--t3)' }}>
             {displaySub}
           </div>
         )}
@@ -282,7 +275,7 @@ function ProfitByType({ legs }: { legs: Leg[] }) {
         borderRadius: 10, padding: '10px 14px', minWidth: 160,
         boxShadow: '0 8px 32px rgba(0,0,0,.8)',
       }}>
-        <div style={{ fontSize: 10, fontWeight: 800, color: 'rgba(255,255,255,.35)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '.08em' }}>
+        <div style={{ fontSize: 11, fontWeight: 800, color: 'rgba(255,255,255,.35)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '.08em' }}>
           {label}
         </div>
         <div style={{ fontSize: 14, fontWeight: 900, color, fontFamily: "'JetBrains Mono',monospace" }}>
@@ -345,8 +338,9 @@ function ProfitByType({ legs }: { legs: Leg[] }) {
 
       {!hasData ? (
         <div className="flex flex-col items-center justify-center py-12 gap-2">
-          <span style={{ fontSize: 32 }}>📊</span>
+          <BarChart3 size={28} style={{ color: 'var(--t3)' }} />
           <p className="text-sm font-medium" style={{ color: 'var(--t3)' }}>Nenhuma operação liquidada ainda</p>
+          <p className="text-xs" style={{ color: 'var(--t3)' }}>Registre uma operação em Operações ou conecte sua planilha para ver o gráfico</p>
         </div>
       ) : (
         <>
@@ -476,7 +470,7 @@ function DailyChart({ legs, expenses, from, to, period, onPeriodChange, onFromCh
         boxShadow: '0 8px 32px rgba(0,0,0,.8)',
         minWidth: 140,
       }}>
-        <div style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,.35)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,.35)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
           {day}
         </div>
         <div style={{ fontSize: 13, fontWeight: 900, color: cPos ? '#3FFF21' : '#FF4545', fontFamily: "'JetBrains Mono',monospace" }}>
@@ -510,7 +504,7 @@ function DailyChart({ legs, expenses, from, to, period, onPeriodChange, onFromCh
               </span>
             )}
           </div>
-          <p className="text-[10px] mt-0.5" style={{ color: 'rgba(148,163,184,.45)', fontFamily: "'Manrope',sans-serif" }}>
+          <p className="text-[11px] mt-0.5" style={{ color: 'rgba(148,163,184,.45)', fontFamily: "'Manrope',sans-serif" }}>
             apostas liquidadas · gastos deduzidos
           </p>
         </div>
@@ -557,7 +551,7 @@ function DailyChart({ legs, expenses, from, to, period, onPeriodChange, onFromCh
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,.03)" vertical={false} />
             <XAxis
               dataKey="label"
-              tick={{ fontSize: 10, fill: 'rgba(255,255,255,.28)', fontFamily: "'JetBrains Mono',monospace" }}
+              tick={{ fontSize: 11, fill: 'rgba(255,255,255,.28)', fontFamily: "'JetBrains Mono',monospace" }}
               axisLine={false}
               tickLine={false}
               interval={Math.max(0, Math.floor(data.length / 7))}
@@ -632,7 +626,7 @@ function MonthlyComparisonChart({ legs }: { legs: Leg[] }) {
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,.04)" vertical={false} />
             <XAxis
               dataKey="label"
-              tick={{ fontSize: 10, fill: 'var(--t3)', fontFamily: "'JetBrains Mono', monospace" }}
+              tick={{ fontSize: 11, fill: 'var(--t3)', fontFamily: "'JetBrains Mono', monospace" }}
               axisLine={false}
               tickLine={false}
             />
@@ -679,7 +673,7 @@ function TopHousesCard({ legs }: { legs: Leg[] }) {
           {sorted.map((h, i) => (
             <div key={h.house} className="flex items-center gap-2.5">
               <span
-                className="text-[10px] font-bold w-4 h-4 rounded flex items-center justify-center flex-shrink-0"
+                className="text-[11px] font-bold w-4 h-4 rounded flex items-center justify-center flex-shrink-0"
                 style={{ background: `${BAR_COLORS[i % BAR_COLORS.length]}15`, color: BAR_COLORS[i % BAR_COLORS.length] }}
               >
                 {i + 1}
@@ -715,7 +709,7 @@ const OP_CFG_ALL: Record<OpType, { label: string; color: string; bg: string; bor
   delay:       { label: 'Delay',                color: '#4DA6FF', bg: 'rgba(77,166,255,.07)',  border: 'rgba(77,166,255,.15)' },
   duplo_green: { label: 'Duplo Green',          color: '#3FFF21', bg: 'rgba(63,255,33,.07)',   border: 'rgba(63,255,33,.15)'  },
   outros:      { label: 'Outros',               color: '#FF8F3D', bg: 'rgba(255,143,61,.07)',  border: 'rgba(255,143,61,.15)' },
-  freebet:     { label: 'Conversão de Freebet', color: '#A855F7', bg: 'rgba(168,85,247,.07)',  border: 'rgba(168,85,247,.15)' },
+  freebet:     { label: 'Conversão de Freebet', color: '#A78BFA', bg: 'rgba(167,139,250,.07)',  border: 'rgba(167,139,250,.15)' },
 };
 
 function RecentOpsCard({ legs }: { legs: Leg[] }) {
@@ -754,7 +748,7 @@ function RecentOpsCard({ legs }: { legs: Leg[] }) {
                   {fmtDate(op.bet_date)}
                 </span>
                 <span
-                  className="text-[10px] px-2 py-0.5 rounded-md font-bold flex-shrink-0"
+                  className="text-[11px] px-2 py-0.5 rounded-md font-bold flex-shrink-0"
                   style={{ background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}` }}
                 >
                   {cfg.label}
@@ -865,7 +859,7 @@ function ExpensesChart({ expenses, from, to }: { expenses: Expense[]; from: stri
           {byDay.length > 1 && (
             <ResponsiveContainer width="100%" height={100}>
               <BarChart data={byDay} margin={{ top: 4, right: 4, bottom: 0, left: 0 }} barSize={10}>
-                <XAxis dataKey="label" tick={{ fontSize: 9, fill: 'var(--t3)' }} axisLine={false} tickLine={false} />
+                <XAxis dataKey="label" tick={{ fontSize: 11, fill: 'var(--t3)' }} axisLine={false} tickLine={false} />
                 <YAxis hide />
                 <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255,255,255,.04)' }} />
                 <Bar dataKey="total" fill="#FF8F3D" fillOpacity={0.75} radius={[3, 3, 0, 0]} />
@@ -1148,7 +1142,7 @@ export function DashboardPage() {
               <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--t)', letterSpacing: '-.01em' }}>
                 Tendência &amp; Distribuição
               </div>
-              <div style={{ fontSize: 10, color: 'var(--t3)', marginTop: 2, fontFamily: "'JetBrains Mono',monospace" }}>
+              <div style={{ fontSize: 11, color: 'var(--t3)', marginTop: 2, fontFamily: "'JetBrains Mono',monospace" }}>
                 {chartFrom} → {chartTo} · {chartLegs.length} apostas
               </div>
             </div>
@@ -1166,7 +1160,7 @@ export function DashboardPage() {
                     padding: '5px 14px', borderRadius: 7, fontSize: 11, fontWeight: 700,
                     cursor: 'pointer', border: 'none', transition: 'all .15s',
                     ...(chartPeriod === p.key
-                      ? { background: 'rgba(129,140,248,.2)', color: '#818cf8', boxShadow: '0 0 0 1px rgba(129,140,248,.3)' }
+                      ? { background: 'rgba(167,139,250,.2)', color: '#A78BFA', boxShadow: '0 0 0 1px rgba(167,139,250,.3)' }
                       : { background: 'transparent', color: 'rgba(255,255,255,.35)' }),
                   }}
                 >
@@ -1180,7 +1174,7 @@ export function DashboardPage() {
                   padding: '5px 14px', borderRadius: 7, fontSize: 11, fontWeight: 700,
                   cursor: 'pointer', border: 'none', transition: 'all .15s',
                   ...(chartPeriod === 'custom'
-                    ? { background: 'rgba(129,140,248,.2)', color: '#818cf8', boxShadow: '0 0 0 1px rgba(129,140,248,.3)' }
+                    ? { background: 'rgba(167,139,250,.2)', color: '#A78BFA', boxShadow: '0 0 0 1px rgba(167,139,250,.3)' }
                     : { background: 'transparent', color: 'rgba(255,255,255,.35)' }),
                 }}
               >
@@ -1191,7 +1185,7 @@ export function DashboardPage() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <input type="date" value={chartCustomFrom} onChange={e => setChartCustomFrom(e.target.value)}
                   style={{ padding: '5px 8px', borderRadius: 8, fontSize: 11, fontFamily: "'JetBrains Mono',monospace", background: 'rgba(255,255,255,.06)', border: '1px solid rgba(255,255,255,.1)', color: '#f1f5f9', outline: 'none' }} />
-                <span style={{ color: 'rgba(255,255,255,.3)', fontSize: 11 }}>→</span>
+                <span style={{ color: 'rgba(255,255,255,.45)', fontSize: 11 }}>→</span>
                 <input type="date" value={chartCustomTo} onChange={e => setChartCustomTo(e.target.value)}
                   style={{ padding: '5px 8px', borderRadius: 8, fontSize: 11, fontFamily: "'JetBrains Mono',monospace", background: 'rgba(255,255,255,.06)', border: '1px solid rgba(255,255,255,.1)', color: '#f1f5f9', outline: 'none' }} />
               </div>

@@ -23,7 +23,7 @@ function fmtPct(v: number): string {
 
 function FieldLabel({ children }: { children: React.ReactNode }) {
   return (
-    <label className="block text-[10px] font-black uppercase tracking-[.12em] mb-1.5" style={{ color: 'var(--t3)' }}>
+    <label className="block text-[11px] font-black uppercase tracking-[.12em] mb-1.5" style={{ color: 'var(--t3)' }}>
       {children}
     </label>
   );
@@ -68,9 +68,9 @@ function ResultCard({
       className="flex flex-col gap-0.5 rounded-xl p-3"
       style={{ background: 'rgba(255,255,255,.03)', border: '1px solid var(--b)' }}
     >
-      <span className="text-[9px] uppercase tracking-[.14em] font-black" style={{ color: 'var(--t3)' }}>{label}</span>
+      <span className="text-[11px] uppercase tracking-[.14em] font-black" style={{ color: 'var(--t3)' }}>{label}</span>
       <span className="text-lg font-black leading-none" style={{ color: accent }}>{value}</span>
-      {sub && <span className="text-[10px] font-medium" style={{ color: 'var(--t3)' }}>{sub}</span>}
+      {sub && <span className="text-[11px] font-medium" style={{ color: 'var(--t3)' }}>{sub}</span>}
     </div>
   );
 }
@@ -224,7 +224,7 @@ function FreeBetTab() {
             <NumInput value={oddB} onChange={setOddB} placeholder="ex: 2.00" />
           </div>
         </div>
-        <p className="text-[10px] leading-relaxed" style={{ color: 'var(--t3)' }}>
+        <p className="text-[11px] leading-relaxed" style={{ color: 'var(--t3)' }}>
           Fórmula SNR — stake não devolvida. O valor da freebet não retorna; só o lucro volta.
         </p>
       </SectionCard>
@@ -315,7 +315,7 @@ function CashbackTab() {
             <NumInput value={cbPct} onChange={setCbPct} placeholder="ex: 10" prefix="%" />
           </div>
         </div>
-        <p className="text-[10px] leading-relaxed" style={{ color: 'var(--t3)' }}>
+        <p className="text-[11px] leading-relaxed" style={{ color: 'var(--t3)' }}>
           Casa A devolve {cbPct ? cbPct : 'X'}% do stake se a aposta perder. O cashback é incluído no cálculo da proteção.
         </p>
       </SectionCard>
@@ -459,25 +459,25 @@ function EventSearchCard({
 
       {/* Header row */}
       <div className="flex items-center justify-between mb-3">
-        <span className="text-[10px] font-black uppercase tracking-[.12em]" style={{ color: 'var(--t3)' }}>
+        <span className="text-[11px] font-black uppercase tracking-[.12em]" style={{ color: 'var(--t3)' }}>
           Buscar Evento
         </span>
         <div className="flex items-center gap-2">
           {loading && (
-            <span className="text-[10px]" style={{ color: 'var(--t3)' }}>Carregando...</span>
+            <span className="text-[11px]" style={{ color: 'var(--t3)' }}>Carregando...</span>
           )}
           {!loading && fetchErr && (
-            <span className="text-[10px] font-bold" style={{ color: 'var(--r)' }}>⚠ {fetchErr}</span>
+            <span className="text-[11px] font-bold" style={{ color: 'var(--r)' }}>⚠ {fetchErr}</span>
           )}
           {!loading && !fetchErr && events.length > 0 && (
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-md"
+            <span className="text-[11px] font-bold px-2 py-0.5 rounded-md"
               style={{ background: isOlderData ? 'rgba(255,159,10,.12)' : 'rgba(63,255,33,.1)', color: isOlderData ? '#FF9F0A' : 'var(--g)', border: `1px solid ${isOlderData ? 'rgba(255,159,10,.25)' : 'rgba(63,255,33,.2)'}` }}>
               {events.length} eventos{isOlderData ? ` · ${fetchedDate}` : ' · hoje'}
             </span>
           )}
           {!loading && (fetchErr || (!fetchErr && events.length === 0)) && (
             <button type="button" onClick={() => loadEvents()}
-              className="text-[10px] font-bold px-2 py-0.5 rounded-md"
+              className="text-[11px] font-bold px-2 py-0.5 rounded-md"
               style={{ background: 'rgba(255,255,255,.06)', color: 'var(--t3)', border: '1px solid var(--b)' }}>
               Tentar novamente
             </button>
@@ -533,14 +533,14 @@ function EventSearchCard({
                       onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = ''; }}>
                       <div className="flex-1 min-w-0">
                         <div className="text-xs font-bold truncate" style={{ color: 'var(--t)' }}>{ev.name}</div>
-                        <div className="text-[10px]" style={{ color: 'var(--t3)' }}>
+                        <div className="text-[11px]" style={{ color: 'var(--t3)' }}>
                           {ev.league} · {fmtStartTime(ev.start_utc)}
                         </div>
                       </div>
                       {ev.house_count > 0 && (
                         <div className="flex items-center gap-1 flex-shrink-0 mt-0.5">
-                          <Building2 size={10} style={{ color: '#818cf8' }} />
-                          <span className="text-[10px] font-bold" style={{ color: '#818cf8' }}>{ev.house_count}</span>
+                          <Building2 size={10} style={{ color: '#A78BFA' }} />
+                          <span className="text-[11px] font-bold" style={{ color: '#A78BFA' }}>{ev.house_count}</span>
                         </div>
                       )}
                     </button>
@@ -553,11 +553,11 @@ function EventSearchCard({
           {/* Selected event info */}
           {selectedEvent && (
             <div className="mt-2 flex items-center gap-2">
-              <span className="text-[10px] px-2 py-0.5 rounded-md font-bold"
+              <span className="text-[11px] px-2 py-0.5 rounded-md font-bold"
                 style={{ background: 'rgba(63,255,33,.1)', color: 'var(--g)', border: '1px solid rgba(63,255,33,.2)' }}>
                 {selectedEvent.league}
               </span>
-              <span className="text-[10px]" style={{ color: 'var(--t3)' }}>
+              <span className="text-[11px]" style={{ color: 'var(--t3)' }}>
                 {fmtStartTime(selectedEvent.start_utc)}{selectedEvent.house_count > 0 ? ` · ${selectedEvent.house_count} casas` : ''}
               </span>
             </div>
@@ -754,7 +754,7 @@ function OddsSection({
     <>
       <tr>
         <td colSpan={7} style={{
-          padding: '5px 10px', fontSize: 9, fontWeight: 900,
+          padding: '5px 10px', fontSize: 11, fontWeight: 900,
           textTransform: 'uppercase', letterSpacing: '.12em',
           color: accent, background: bg, borderTop: '1px solid var(--b)',
         }}>
@@ -770,7 +770,7 @@ function OddsSection({
             {row.url ? (
               <a href={row.url} target="_blank" rel="noopener noreferrer"
                 style={{ color: 'inherit', textDecoration: 'none', transition: 'color .15s' }}
-                onMouseEnter={e => { (e.target as HTMLElement).style.color = '#818cf8'; }}
+                onMouseEnter={e => { (e.target as HTMLElement).style.color = '#A78BFA'; }}
                 onMouseLeave={e => { (e.target as HTMLElement).style.color = ''; }}>
                 {row.house}
               </a>
@@ -833,7 +833,7 @@ function Calc3Way({
       <div className="flex items-center justify-between">
         <span className="text-xs font-black" style={{ color: 'var(--t)' }}>{title}</span>
         {result && (
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded-md"
+          <span className="text-[11px] font-bold px-2 py-0.5 rounded-md"
             style={{
               background: isOk ? 'rgba(63,255,33,.1)' : 'rgba(255,77,109,.08)',
               color: isOk ? 'var(--g)' : 'var(--r)',
@@ -848,7 +848,7 @@ function Calc3Way({
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         {labels.map((lbl, i) => (
           <div key={i}>
-            <label className="block text-[9px] font-black uppercase tracking-[.1em] mb-1" style={{ color: 'var(--t3)' }}>
+            <label className="block text-[11px] font-black uppercase tracking-[.1em] mb-1" style={{ color: 'var(--t3)' }}>
               {lbl}
             </label>
             <input
@@ -860,12 +860,12 @@ function Calc3Way({
           </div>
         ))}
         <div>
-          <label className="block text-[9px] font-black uppercase tracking-[.1em] mb-1" style={{ color: 'var(--t3)' }}>
+          <label className="block text-[11px] font-black uppercase tracking-[.1em] mb-1" style={{ color: 'var(--t3)' }}>
             Stake Total
           </label>
           <div className="flex items-center rounded-lg overflow-hidden"
             style={{ background: 'rgba(255,255,255,.04)', border: '1px solid var(--b)' }}>
-            <span className="px-2 text-[10px] font-bold flex-shrink-0" style={{ color: 'var(--t3)', borderRight: '1px solid var(--b)' }}>R$</span>
+            <span className="px-2 text-[11px] font-bold flex-shrink-0" style={{ color: 'var(--t3)', borderRight: '1px solid var(--b)' }}>R$</span>
             <input
               type="number" step="any" value={stake}
               onChange={e => setStake(e.target.value)}
@@ -884,7 +884,7 @@ function Calc3Way({
             return (
               <div key={i} className="rounded-xl p-2.5 text-center"
                 style={{ background: 'rgba(255,255,255,.03)', border: '1px solid var(--b)' }}>
-                <div className="text-[9px] font-black uppercase tracking-[.1em] mb-1" style={{ color: 'var(--t3)' }}>
+                <div className="text-[11px] font-black uppercase tracking-[.1em] mb-1" style={{ color: 'var(--t3)' }}>
                   Stake {lbl}
                 </div>
                 <div className="text-sm font-black" style={{ color: 'var(--t)' }}>
@@ -1034,8 +1034,8 @@ function BuscarOddsTab({ selectedEvent }: { selectedEvent: CachedEvent | null })
           </div>
         </div>
         <button type="button" onClick={() => fetchOdds(selectedEvent)}
-          className="text-[10px] font-bold px-2.5 py-1.5 rounded-lg flex-shrink-0"
-          style={{ background: 'rgba(99,102,241,.15)', color: '#818cf8', border: '1px solid rgba(99,102,241,.3)' }}>
+          className="text-[11px] font-bold px-2.5 py-1.5 rounded-lg flex-shrink-0"
+          style={{ background: 'rgba(99,102,241,.15)', color: '#A78BFA', border: '1px solid rgba(99,102,241,.3)' }}>
           Atualizar
         </button>
       </div>
@@ -1045,12 +1045,12 @@ function BuscarOddsTab({ selectedEvent }: { selectedEvent: CachedEvent | null })
         {/* Header row */}
         <div className="flex items-center justify-between px-4 py-3"
           style={{ background: 'var(--bg2)', borderBottom: '1px solid var(--b)' }}>
-          <span className="text-[10px] font-black uppercase tracking-[.12em]" style={{ color: 'var(--t3)' }}>
+          <span className="text-[11px] font-black uppercase tracking-[.12em]" style={{ color: 'var(--t3)' }}>
             Odds por Casa
           </span>
-          <div className="flex items-center gap-2 text-[10px] font-bold">
+          <div className="flex items-center gap-2 text-[11px] font-bold">
             <span style={{ color: 'rgba(63,255,33,.8)' }}>{semPa} sem PA</span>
-            <span style={{ color: 'rgba(255,255,255,.2)' }}>·</span>
+            <span style={{ color: 'rgba(255,255,255,.45)' }}>·</span>
             <span style={{ color: 'rgba(255,159,10,.8)' }}>{comPa} com PA</span>
           </div>
         </div>
@@ -1058,19 +1058,19 @@ function BuscarOddsTab({ selectedEvent }: { selectedEvent: CachedEvent | null })
           <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 400 }}>
             <thead>
               <tr style={{ background: 'rgba(255,255,255,.025)' }}>
-                <th style={{ padding: '6px 10px', textAlign: 'left', fontSize: 10, fontWeight: 800,
+                <th style={{ padding: '6px 10px', textAlign: 'left', fontSize: 11, fontWeight: 800,
                   textTransform: 'uppercase', letterSpacing: '.1em', color: 'var(--t3)', whiteSpace: 'nowrap', minWidth: 110 }}>
                   Casa
                 </th>
                 {(['mlHome','mlDraw','mlAway'] as ColKey[]).map(col => (
-                  <th key={col} style={{ padding: '6px 8px', textAlign: 'center', fontSize: 10, fontWeight: 800,
+                  <th key={col} style={{ padding: '6px 8px', textAlign: 'center', fontSize: 11, fontWeight: 800,
                     textTransform: 'uppercase', letterSpacing: '.1em', color: 'var(--t3)', minWidth: 48 }}>
                     {COL_LABELS[col]}
                   </th>
                 ))}
                 <th style={{ padding: '6px 4px', textAlign: 'center', width: 1, borderLeft: '1px solid rgba(255,255,255,.06)' }} />
                 {(['dc1X','dcX2','dc12'] as ColKey[]).map(col => (
-                  <th key={col} style={{ padding: '6px 8px', textAlign: 'center', fontSize: 10, fontWeight: 800,
+                  <th key={col} style={{ padding: '6px 8px', textAlign: 'center', fontSize: 11, fontWeight: 800,
                     textTransform: 'uppercase', letterSpacing: '.1em', color: 'rgba(255,255,255,.35)', minWidth: 48 }}>
                     {COL_LABELS[col]}
                   </th>
@@ -1086,11 +1086,11 @@ function BuscarOddsTab({ selectedEvent }: { selectedEvent: CachedEvent | null })
         {/* Best odds summary row */}
         <div className="flex items-center gap-4 px-4 py-2.5 flex-wrap"
           style={{ background: 'rgba(63,255,33,.04)', borderTop: '1px solid rgba(63,255,33,.15)' }}>
-          <span className="text-[9px] font-black uppercase tracking-[.12em]" style={{ color: 'rgba(63,255,33,.7)' }}>
+          <span className="text-[11px] font-black uppercase tracking-[.12em]" style={{ color: 'rgba(63,255,33,.7)' }}>
             Melhores odds
           </span>
           {ALL_COLS.map(col => bests[col] ? (
-            <span key={col} className="text-[10px] font-bold" style={{ color: 'var(--t2)' }}>
+            <span key={col} className="text-[11px] font-bold" style={{ color: 'var(--t2)' }}>
               <span style={{ color: 'var(--t3)' }}>{COL_LABELS[col]}</span>
               {' '}<span style={{ color: 'var(--g)', fontWeight: 800 }}>{bests[col]!.toFixed(2)}</span>
             </span>

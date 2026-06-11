@@ -14,12 +14,12 @@ import { isAdminEmail } from '@/lib/supabase/subscription';
 // ── CSS keyframes ──────────────────────────────────────────────────────────────
 const STYLES = `
 @keyframes scannerPulse {
-  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(61,255,143,.4); }
-  50%       { opacity: .7; box-shadow: 0 0 0 6px rgba(61,255,143,0); }
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(63,255,33,.4); }
+  50%       { opacity: .7; box-shadow: 0 0 0 6px rgba(63,255,33,0); }
 }
 @keyframes scannerNewBorder {
-  0%, 100% { border-color: rgba(61,255,143,.6); }
-  50%       { border-color: rgba(61,255,143,.15); }
+  0%, 100% { border-color: rgba(63,255,33,.6); }
+  50%       { border-color: rgba(63,255,33,.15); }
 }
 @keyframes scannerFadeIn {
   from { opacity: 0; transform: translateY(6px); }
@@ -55,14 +55,14 @@ interface Signal {
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 function profitColor(p: number) {
-  if (p >= 0)  return '#3DFF8F';
+  if (p >= 0)  return '#3FFF21';
   if (p >= -1) return '#FFD60A';
   if (p >= -2) return '#FF9F0A';
   return '#FF6B6B';
 }
 
 function profitBg(p: number) {
-  if (p >= 0)  return 'rgba(61,255,143,.10)';
+  if (p >= 0)  return 'rgba(63,255,33,.10)';
   if (p >= -1) return 'rgba(255,214,10,.09)';
   if (p >= -2) return 'rgba(255,159,10,.09)';
   return 'rgba(255,107,107,.09)';
@@ -280,11 +280,11 @@ function TipoBadge({ tipo }: { tipo: string | null }) {
   const isDuo = tipo === 'DUO';
   return (
     <span style={{
-      padding: '2px 8px', borderRadius: 3, fontSize: 10, fontWeight: 700,
+      padding: '2px 8px', borderRadius: 3, fontSize: 11, fontWeight: 700,
       letterSpacing: '.04em', textTransform: 'uppercase',
-      background: isDuo ? 'rgba(139,92,246,.18)' : 'rgba(56,189,248,.16)',
+      background: isDuo ? 'rgba(167,139,250,.18)' : 'rgba(56,189,248,.16)',
       color:      isDuo ? '#A78BFA' : '#38BDF8',
-      border: `1px solid ${isDuo ? 'rgba(139,92,246,.3)' : 'rgba(56,189,248,.25)'}`,
+      border: `1px solid ${isDuo ? 'rgba(167,139,250,.3)' : 'rgba(56,189,248,.25)'}`,
     }}>
       {tipo ?? '—'}
     </span>
@@ -316,7 +316,7 @@ function CasaChipSmall({ name }: { name: string }) {
   );
 }
 
-function Toggle({ value, onChange, color = '#3DFF8F', label }: {
+function Toggle({ value, onChange, color = '#3FFF21', label }: {
   value: boolean; onChange: (v: boolean) => void; color?: string; label: string;
 }) {
   return (
@@ -402,7 +402,7 @@ function SignalModal({ signal, onClose, onOpenInOdds }: {
         <div style={{
           padding: '16px 20px 14px',
           borderBottom: '1px solid rgba(255,255,255,.07)',
-          background: 'linear-gradient(180deg, rgba(61,255,143,.05) 0%, transparent 100%)',
+          background: 'linear-gradient(180deg, rgba(63,255,33,.05) 0%, transparent 100%)',
           display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12,
         }}>
           <div style={{ flex: 1, minWidth: 0 }}>
@@ -410,9 +410,9 @@ function SignalModal({ signal, onClose, onOpenInOdds }: {
               <TipoBadge tipo={signal.tipo} />
               {signal.is_new && (
                 <span style={{
-                  padding: '2px 7px', borderRadius: 3, fontSize: 10, fontWeight: 700,
-                  background: 'rgba(61,255,143,.15)', color: '#3DFF8F',
-                  border: '1px solid rgba(61,255,143,.3)', letterSpacing: '.04em',
+                  padding: '2px 7px', borderRadius: 3, fontSize: 11, fontWeight: 700,
+                  background: 'rgba(63,255,33,.15)', color: '#3FFF21',
+                  border: '1px solid rgba(63,255,33,.3)', letterSpacing: '.04em',
                   animation: 'scannerPulse 1.6s ease-in-out infinite',
                 }}>NOVO</span>
               )}
@@ -436,7 +436,7 @@ function SignalModal({ signal, onClose, onOpenInOdds }: {
                 title="Buscar odds deste jogo"
                 style={{
                   background: 'none', border: 'none', padding: 0, cursor: 'pointer',
-                  fontSize: 16, fontWeight: 700, color: '#818cf8', lineHeight: 1.3,
+                  fontSize: 16, fontWeight: 700, color: '#A78BFA', lineHeight: 1.3,
                   display: 'inline-flex', alignItems: 'center', gap: 5,
                 }}
               >
@@ -544,8 +544,8 @@ function SignalCard({ signal, onClick, onOpenInOdds }: {
       tabIndex={0}
       onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') onClick(); }}
       style={{
-        background: isGreenNew ? 'rgba(61,255,143,.07)' : 'rgba(255,255,255,.04)',
-        border: `1px solid ${signal.is_new ? (isGreenNew ? 'rgba(61,255,143,.5)' : 'rgba(61,255,143,.35)') : 'rgba(255,255,255,.07)'}`,
+        background: isGreenNew ? 'rgba(63,255,33,.07)' : 'rgba(255,255,255,.04)',
+        border: `1px solid ${signal.is_new ? (isGreenNew ? 'rgba(63,255,33,.5)' : 'rgba(63,255,33,.35)') : 'rgba(255,255,255,.07)'}`,
         borderRadius: 10, padding: '14px 16px',
         display: 'flex', flexDirection: 'column', gap: 10,
         animation: signal.is_new
@@ -556,15 +556,15 @@ function SignalCard({ signal, onClick, onOpenInOdds }: {
       }}
       onMouseEnter={e => {
         (e.currentTarget as HTMLElement).style.borderColor =
-          isGreenNew ? 'rgba(61,255,143,.7)' : 'rgba(255,255,255,.16)';
+          isGreenNew ? 'rgba(63,255,33,.7)' : 'rgba(255,255,255,.16)';
         (e.currentTarget as HTMLElement).style.background =
-          isGreenNew ? 'rgba(61,255,143,.10)' : 'rgba(255,255,255,.06)';
+          isGreenNew ? 'rgba(63,255,33,.10)' : 'rgba(255,255,255,.06)';
       }}
       onMouseLeave={e => {
         (e.currentTarget as HTMLElement).style.borderColor =
-          signal.is_new ? (isGreenNew ? 'rgba(61,255,143,.5)' : 'rgba(61,255,143,.35)') : 'rgba(255,255,255,.07)';
+          signal.is_new ? (isGreenNew ? 'rgba(63,255,33,.5)' : 'rgba(63,255,33,.35)') : 'rgba(255,255,255,.07)';
         (e.currentTarget as HTMLElement).style.background =
-          isGreenNew ? 'rgba(61,255,143,.07)' : 'rgba(255,255,255,.04)';
+          isGreenNew ? 'rgba(63,255,33,.07)' : 'rgba(255,255,255,.04)';
       }}
     >
       {/* Acento de profit */}
@@ -583,7 +583,7 @@ function SignalCard({ signal, onClick, onOpenInOdds }: {
               title="Ver odds deste jogo"
               style={{
                 background: 'none', border: 'none', padding: 0, cursor: 'pointer',
-                fontSize: 14, fontWeight: 600, color: '#818cf8', lineHeight: 1.3,
+                fontSize: 14, fontWeight: 600, color: '#A78BFA', lineHeight: 1.3,
                 whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                 display: 'flex', alignItems: 'center', gap: 4, maxWidth: '100%',
               }}
@@ -604,9 +604,9 @@ function SignalCard({ signal, onClick, onOpenInOdds }: {
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
           {signal.is_new && (
             <span style={{
-              padding: '2px 7px', borderRadius: 3, fontSize: 10, fontWeight: 700,
-              background: 'rgba(61,255,143,.15)', color: '#3DFF8F',
-              border: '1px solid rgba(61,255,143,.3)', letterSpacing: '.04em',
+              padding: '2px 7px', borderRadius: 3, fontSize: 11, fontWeight: 700,
+              background: 'rgba(63,255,33,.15)', color: '#3FFF21',
+              border: '1px solid rgba(63,255,33,.3)', letterSpacing: '.04em',
               animation: 'scannerPulse 1.6s ease-in-out infinite',
             }}>NOVO</span>
           )}
@@ -635,7 +635,7 @@ function SignalCard({ signal, onClick, onOpenInOdds }: {
         <span style={{ fontSize: 11, color: '#475569' }}>
           {signal.data_evento ? `⚽ ${formatDate(signal.data_evento)}` : ''}
         </span>
-        <span style={{ fontSize: 10, color: '#334155' }}>{formatAgo(signal.updated_at)}</span>
+        <span style={{ fontSize: 11, color: '#334155' }}>{formatAgo(signal.updated_at)}</span>
       </div>
     </div>
   );
@@ -762,7 +762,7 @@ function CasaFilterPanel({ allCasas, deselected, onChange }: {
         <span style={{ fontSize: 12, fontWeight: 600, color: '#64748B' }}>Filtro de Casas</span>
         {hiddenCount > 0 && (
           <span style={{
-            padding: '2px 7px', borderRadius: 4, fontSize: 10, fontWeight: 700,
+            padding: '2px 7px', borderRadius: 4, fontSize: 11, fontWeight: 700,
             background: 'rgba(255,159,10,.14)', color: '#FF9F0A',
             border: '1px solid rgba(255,159,10,.25)',
           }}>{hiddenCount} oculta{hiddenCount > 1 ? 's' : ''}</span>
@@ -778,7 +778,7 @@ function CasaFilterPanel({ allCasas, deselected, onChange }: {
           <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
             <button type="button" onClick={() => onChange(new Set())} style={{
               padding: '4px 10px', borderRadius: 5, fontSize: 11, fontWeight: 600, cursor: 'pointer',
-              background: 'rgba(61,255,143,.1)', border: '1px solid rgba(61,255,143,.22)', color: '#3DFF8F',
+              background: 'rgba(63,255,33,.1)', border: '1px solid rgba(63,255,33,.22)', color: '#3FFF21',
             }}>Todas</button>
             <button type="button" onClick={() => onChange(new Set(allCasas))} style={{
               padding: '4px 10px', borderRadius: 5, fontSize: 11, fontWeight: 600, cursor: 'pointer',
@@ -1033,7 +1033,7 @@ export function ScannerPage() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <div style={{
                 width: 8, height: 8, borderRadius: '50%',
-                background: paused ? '#FF9F0A' : '#3DFF8F',
+                background: paused ? '#FF9F0A' : '#3FFF21',
                 animation: paused ? 'none' : 'liveDot 1.4s ease-in-out infinite', flexShrink: 0,
               }} />
               <h1 style={{ fontSize: 20, fontWeight: 700, color: '#F1F5F9', margin: 0 }}>
@@ -1052,7 +1052,7 @@ export function ScannerPage() {
                 ? `Atualizado ${formatAgo(lastFetch.toISOString())} · ${visibleSignals.length} sinais`
                 : 'Carregando sinais...'}
               {newCount > 0 && (
-                <span style={{ marginLeft: 8, color: '#3DFF8F', fontWeight: 600 }}>
+                <span style={{ marginLeft: 8, color: '#3FFF21', fontWeight: 600 }}>
                   · {newCount} novo{newCount > 1 ? 's' : ''}
                 </span>
               )}
@@ -1073,9 +1073,9 @@ export function ScannerPage() {
             <button type="button" onClick={() => setBeep(v => !v)} style={{
               display: 'flex', alignItems: 'center', gap: 6,
               padding: '7px 12px', borderRadius: 7, fontSize: 12, fontWeight: 500,
-              background: beep ? 'rgba(61,255,143,.08)' : 'rgba(255,255,255,.05)',
-              border: `1px solid ${beep ? 'rgba(61,255,143,.2)' : 'rgba(255,255,255,.08)'}`,
-              color: beep ? '#3DFF8F' : '#475569', cursor: 'pointer',
+              background: beep ? 'rgba(63,255,33,.08)' : 'rgba(255,255,255,.05)',
+              border: `1px solid ${beep ? 'rgba(63,255,33,.2)' : 'rgba(255,255,255,.08)'}`,
+              color: beep ? '#3FFF21' : '#475569', cursor: 'pointer',
             }}>
               {beep ? <Bell size={13} /> : <BellOff size={13} />}
               {beep ? 'Som ativo' : 'Mudo'}
@@ -1085,9 +1085,9 @@ export function ScannerPage() {
               <button type="button" onClick={togglePause} disabled={pausing} style={{
                 display: 'flex', alignItems: 'center', gap: 6,
                 padding: '7px 12px', borderRadius: 7, fontSize: 12, fontWeight: 500,
-                background: paused ? 'rgba(61,255,143,.08)' : 'rgba(255,159,10,.08)',
-                border: `1px solid ${paused ? 'rgba(61,255,143,.2)' : 'rgba(255,159,10,.22)'}`,
-                color: paused ? '#3DFF8F' : '#FF9F0A',
+                background: paused ? 'rgba(63,255,33,.08)' : 'rgba(255,159,10,.08)',
+                border: `1px solid ${paused ? 'rgba(63,255,33,.2)' : 'rgba(255,159,10,.22)'}`,
+                color: paused ? '#3FFF21' : '#FF9F0A',
                 cursor: pausing ? 'not-allowed' : 'pointer', opacity: pausing ? .6 : 1,
               }}>
                 {paused ? <PlayCircle size={13} /> : <PauseCircle size={13} />}
@@ -1177,8 +1177,8 @@ export function ScannerPage() {
           <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
             {[
               { label: 'Total',    value: visibleSignals.length,   color: '#94A3B8' },
-              { label: 'Novos',    value: newCount,                color: '#3DFF8F' },
-              { label: 'Lucro ≥0', value: positiveCount,          color: '#3DFF8F' },
+              { label: 'Novos',    value: newCount,                color: '#3FFF21' },
+              { label: 'Lucro ≥0', value: positiveCount,          color: '#3FFF21' },
               { label: 'ML',       value: visibleSignals.filter(s => s.tipo === 'ML').length,  color: '#38BDF8' },
             ].map(stat => (
               <div key={stat.label} style={{
@@ -1233,7 +1233,7 @@ export function ScannerPage() {
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             gap: 10, padding: '60px 0', color: '#475569', fontSize: 14,
           }}>
-            <Radio size={18} style={{ animation: 'spin 1.5s linear infinite', color: '#3DFF8F' }} />
+            <Radio size={18} style={{ animation: 'spin 1.5s linear infinite', color: '#3FFF21' }} />
             Conectando ao scanner...
           </div>
         )}

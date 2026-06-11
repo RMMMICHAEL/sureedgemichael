@@ -62,7 +62,7 @@ function StepSheet({ onNext }: { onNext: () => void }) {
       {/* Info box */}
       <div
         className="rounded-xl p-4 flex gap-3"
-        style={{ background: 'rgba(61,255,143,.06)', border: '1px solid rgba(61,255,143,.2)' }}
+        style={{ background: 'rgba(63,255,33,.06)', border: '1px solid rgba(63,255,33,.2)' }}
       >
         <FileSpreadsheet size={18} style={{ color: 'var(--g)', flexShrink: 0, marginTop: 2 }} />
         <div>
@@ -228,7 +228,7 @@ function StepBookmakers({ onFinish }: { onFinish: () => void }) {
       {/* Info box */}
       <div
         className="rounded-xl p-4 flex gap-3"
-        style={{ background: 'rgba(61,255,143,.06)', border: '1px solid rgba(61,255,143,.15)' }}
+        style={{ background: 'rgba(63,255,33,.06)', border: '1px solid rgba(63,255,33,.15)' }}
       >
         <Building2 size={18} style={{ color: 'var(--g)', flexShrink: 0, marginTop: 2 }} />
         <div>

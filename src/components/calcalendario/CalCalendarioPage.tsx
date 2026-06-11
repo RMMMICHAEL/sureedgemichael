@@ -161,7 +161,7 @@ export function CalCalendarioPage() {
               CalCalendário
             </h1>
             {totalLive > 0 && (
-              <span className="flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full"
+              <span className="flex items-center gap-1 text-[11px] font-black px-2 py-0.5 rounded-full"
                 style={{ background: 'rgba(255,77,109,.15)', color: 'var(--r)', border: '1px solid rgba(255,77,109,.25)' }}>
                 <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
                 {totalLive} ao vivo

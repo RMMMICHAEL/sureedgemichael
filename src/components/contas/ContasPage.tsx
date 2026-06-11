@@ -312,7 +312,7 @@ function ClientCard({ client, targetHouses }: { client: Client; targetHouses: st
       {/* Header */}
       <div className="flex items-center gap-3 px-5 py-4 cursor-pointer" onClick={() => setOpen(v => !v)}>
         <div className="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm flex-shrink-0"
-          style={{ background: 'var(--g)', color: 'var(--bg)', boxShadow: '0 0 10px rgba(0,255,138,.3)' }}>
+          style={{ background: 'var(--g)', color: 'var(--bg)', boxShadow: '0 0 10px rgba(63,255,33,.3)' }}>
           {client.name.slice(0, 2).toUpperCase()}
         </div>
         <div className="flex-1 min-w-0">
@@ -481,7 +481,7 @@ export function ContasPage() {
       else inativa++;
     }));
     return [
-      { name: 'Ativas',   value: ativa,    color: '#00FF88' },
+      { name: 'Ativas',   value: ativa,    color: '#3FFF21' },
       { name: 'Suspensas',value: suspensa,  color: '#FF4545' },
       { name: 'Inativas', value: inativa,  color: '#3A6B4A' },
     ].filter(d => d.value > 0);
@@ -541,7 +541,7 @@ export function ContasPage() {
           <button key={id} onClick={() => setTab(id)}
             className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all"
             style={tab === id
-              ? { background: 'var(--g)', color: 'var(--bg)', boxShadow: '0 0 12px rgba(0,255,138,.3)' }
+              ? { background: 'var(--g)', color: 'var(--bg)', boxShadow: '0 0 12px rgba(63,255,33,.3)' }
               : { color: 'var(--t3)' }}>
             <Icon size={14} />{label}
           </button>
@@ -581,7 +581,7 @@ export function ContasPage() {
             ) : (
               <ResponsiveContainer width="100%" height={200}>
                 <BarChart data={costByMonth} margin={{ top: 5, right: 5, bottom: 0, left: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,255,138,0.05)" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(63,255,33,0.05)" />
                   <XAxis dataKey="m" tick={{ fontSize: 11, fill: 'var(--t3)' }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fontSize: 11, fill: 'var(--t3)' }} axisLine={false} tickLine={false} />
                   <Tooltip content={<CustomTooltip />} />
@@ -641,7 +641,7 @@ export function ContasPage() {
                         }
                         <span className="text-xs w-28 truncate font-medium" style={{ color: 'var(--t2)' }}>{h.house}</span>
                         <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: 'var(--sur)' }}>
-                          <div style={{ width: `${Math.min(pct, 100)}%`, background: color, height: '100%', transition: 'width 0.5s' }} />
+                          <div style={{ width: '100%', transform: `scaleX(${Math.min(pct, 100) / 100})`, transformOrigin: 'left', background: color, height: '100%', transition: 'transform 0.5s' }} />
                         </div>
                         <span className="text-xs font-mono" style={{ color, minWidth: 40, textAlign: 'right' }}>
                           {h.count}/{h.total}

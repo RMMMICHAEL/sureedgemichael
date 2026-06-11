@@ -400,7 +400,7 @@ export function SugestoesPage() {
               <label className="text-[11px] font-bold uppercase tracking-wider" style={{ color: 'var(--t3)' }}>
                 Título <span style={{ color: 'var(--r)' }}>*</span>
               </label>
-              <span className="text-[10px] font-mono transition-colors"
+              <span className="text-[11px] font-mono transition-colors"
                 style={{ color: charColor(newTitle.length, MAX_TITLE) }}>
                 {newTitle.length}/{MAX_TITLE}
               </span>
@@ -428,7 +428,7 @@ export function SugestoesPage() {
               <label className="text-[11px] font-bold uppercase tracking-wider" style={{ color: 'var(--t3)' }}>
                 Descrição <span style={{ color: 'var(--r)' }}>*</span>
               </label>
-              <span className="text-[10px] font-mono transition-colors"
+              <span className="text-[11px] font-mono transition-colors"
                 style={{ color: charColor(newContent.length, MAX_DESC) }}>
                 {newContent.length}/{MAX_DESC}
               </span>
@@ -556,7 +556,7 @@ export function SugestoesPage() {
                           {firstName(s.author_name)}
                         </span>
                         {isOwn && (
-                          <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-md"
+                          <span className="text-[11px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-md"
                             style={{ background: 'rgba(63,255,33,.1)', color: 'var(--g)', border: '1px solid rgba(63,255,33,.15)' }}>
                             você
                           </span>
@@ -567,13 +567,13 @@ export function SugestoesPage() {
                           </span>
                         )}
                       </div>
-                      <span className="text-[10px]" style={{ color: 'var(--t3)' }}>{relativeTime(s.created_at)}</span>
+                      <span className="text-[11px]" style={{ color: 'var(--t3)' }}>{relativeTime(s.created_at)}</span>
                     </div>
                   </div>
 
                   {/* Right: status badge + admin actions */}
                   <div className="flex items-center gap-1.5 flex-shrink-0">
-                    <span className="status-badge text-[10px] font-bold px-2.5 py-1 rounded-full whitespace-nowrap"
+                    <span className="status-badge text-[11px] font-bold px-2.5 py-1 rounded-full whitespace-nowrap"
                       style={{ background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}` }}>
                       {cfg.label}
                     </span>
@@ -620,8 +620,8 @@ export function SugestoesPage() {
                     {/* Edit title */}
                     <div className="flex flex-col gap-1">
                       <div className="flex justify-between">
-                        <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--t3)' }}>Título</span>
-                        <span className="text-[10px] font-mono" style={{ color: charColor(editTitle.length, MAX_TITLE) }}>{editTitle.length}/{MAX_TITLE}</span>
+                        <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: 'var(--t3)' }}>Título</span>
+                        <span className="text-[11px] font-mono" style={{ color: charColor(editTitle.length, MAX_TITLE) }}>{editTitle.length}/{MAX_TITLE}</span>
                       </div>
                       <input value={editTitle}
                         onChange={e => { if (e.target.value.length <= MAX_TITLE) setEditTitle(e.target.value); }}
@@ -632,8 +632,8 @@ export function SugestoesPage() {
                     {/* Edit description */}
                     <div className="flex flex-col gap-1">
                       <div className="flex justify-between">
-                        <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--t3)' }}>Descrição</span>
-                        <span className="text-[10px] font-mono" style={{ color: charColor(editContent.length, MAX_DESC) }}>{editContent.length}/{MAX_DESC}</span>
+                        <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: 'var(--t3)' }}>Descrição</span>
+                        <span className="text-[11px] font-mono" style={{ color: charColor(editContent.length, MAX_DESC) }}>{editContent.length}/{MAX_DESC}</span>
                       </div>
                       <textarea value={editContent}
                         onChange={e => { if (e.target.value.length <= MAX_DESC) setEditContent(e.target.value); }}
@@ -644,13 +644,13 @@ export function SugestoesPage() {
 
                     {/* Edit status */}
                     <div className="flex items-center gap-3 flex-wrap">
-                      <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--t3)' }}>Status</span>
+                      <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: 'var(--t3)' }}>Status</span>
                       <div className="flex gap-1.5 flex-wrap">
                         {(Object.keys(STATUS_CFG) as Status[]).map(st => {
                           const c = STATUS_CFG[st];
                           return (
                             <button key={st} type="button" onClick={() => setEditStatus(st)}
-                              className="px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all"
+                              className="px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all"
                               style={{
                                 background: editStatus === st ? c.bg : 'rgba(255,255,255,.03)',
                                 color:      editStatus === st ? c.color : 'var(--t3)',

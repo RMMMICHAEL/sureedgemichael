@@ -39,7 +39,7 @@ export const RESULT_LABELS: Record<ResultType, string> = {
 };
 
 export const RESULT_COLORS: Record<ResultType, string> = {
-  Green:                  '#3DFF8F',
+  Green:                  '#3FFF21',
   Red:                    '#FF4545',
   'Meio Green':           '#FFCB2F',
   'Meio Red':             '#FF8F3D',

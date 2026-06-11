@@ -486,7 +486,7 @@ export function GastosPage() {
                             toast(`Pagamento de "${e.description}" registrado`, 'ok');
                           }}
                           className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg font-bold"
-                          style={{ background: 'rgba(0,255,136,.1)', color: 'var(--g)', border: '1px solid rgba(0,255,136,.2)' }}>
+                          style={{ background: 'rgba(63,255,33,.1)', color: 'var(--g)', border: '1px solid rgba(63,255,33,.2)' }}>
                           ✓ Pago
                         </button>
                         <button onClick={() => { setEditing(e); setShowForm(true); }}
@@ -538,7 +538,7 @@ export function GastosPage() {
             ].map(({ label, value, color, sign }) => (
               <div key={label} className="rounded-xl p-4 flex flex-col gap-1.5"
                 style={{ background: 'var(--bg2)', border: `1px solid ${color}22` }}>
-                <span className="text-[10px] font-black uppercase tracking-wider" style={{ color: 'var(--t3)' }}>{label}</span>
+                <span className="text-[11px] font-black uppercase tracking-wider" style={{ color: 'var(--t3)' }}>{label}</span>
                 <span className="text-xl font-black" style={{ color, fontFamily: "'JetBrains Mono', monospace" }}>
                   {sign} {fmtBRL(Math.abs(value))}
                 </span>

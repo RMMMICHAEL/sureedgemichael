@@ -40,7 +40,7 @@ function ProgressBar({ pct, color }: { pct: number; color: string }) {
         style={{
           width: `${clamped}%`,
           background: over
-            ? 'linear-gradient(90deg, var(--g), #00FF88)'
+            ? 'linear-gradient(90deg, var(--g), #00CC6E)'
             : `linear-gradient(90deg, ${color}99, ${color})`,
           boxShadow: over ? '0 0 12px rgba(63,255,33,.6)' : 'none',
         }}
@@ -151,7 +151,7 @@ function ConfigModal({ current, onSave, onClose }: {
             <input type="number" step="0.01" placeholder="Deixe vazio para calcular automaticamente" value={monthly} onChange={e => setMonthly(e.target.value)}
               className="w-full rounded-xl px-3 py-2.5 text-sm font-semibold outline-none"
               style={{ background: 'rgba(255,255,255,.05)', border: '1px solid var(--b)', color: 'var(--t)' }} />
-            <p className="text-[10px] mt-1.5" style={{ color: 'var(--t3)' }}>Se preenchido, sobrescreve o cálculo automático.</p>
+            <p className="text-[11px] mt-1.5" style={{ color: 'var(--t3)' }}>Se preenchido, sobrescreve o cálculo automático.</p>
           </div>
           <button type="button" onClick={handleSave} disabled={!daily || parseFloat(daily) <= 0}
             className="w-full rounded-xl py-2.5 text-sm font-black disabled:opacity-40"
@@ -263,7 +263,7 @@ export function MetasPage() {
           <div className="rounded-2xl p-5" style={{ background: 'var(--bg2)', border: '1px solid var(--b)' }}>
             <div className="flex items-center justify-between mb-4">
               <div>
-                <p className="text-[10px] uppercase tracking-widest font-black mb-1" style={{ color: 'var(--t3)' }}>Meta Mensal</p>
+                <p className="text-[11px] uppercase tracking-widest font-black mb-1" style={{ color: 'var(--t3)' }}>Meta Mensal</p>
                 <p className="text-2xl font-black" style={{ color: monthOver ? 'var(--g)' : 'var(--t)' }}>
                   {fmtBRL(monthStats.monthlyProfit)}
                   <span className="text-sm font-medium ml-2" style={{ color: 'var(--t3)' }}>
@@ -274,7 +274,7 @@ export function MetasPage() {
               <div className="text-right">
                 <p className="text-xs font-bold" style={{ color: 'var(--t3)' }}>{monthStats.ops} operações</p>
                 {monthOver ? (
-                  <span className="text-[10px] font-black px-2 py-0.5 rounded-full mt-1 inline-block"
+                  <span className="text-[11px] font-black px-2 py-0.5 rounded-full mt-1 inline-block"
                     style={{ background: 'rgba(63,255,33,.15)', color: 'var(--g)', border: '1px solid rgba(63,255,33,.25)' }}>
                     META ATINGIDA
                   </span>
@@ -287,11 +287,11 @@ export function MetasPage() {
             </div>
             <ProgressBar pct={monthPct} color="#3FFF21" />
             <div className="flex justify-between mt-2">
-              <span className="text-[10px]" style={{ color: 'var(--t3)' }}>0%</span>
-              <span className="text-[10px] font-bold" style={{ color: monthOver ? 'var(--g)' : 'var(--t3)' }}>
+              <span className="text-[11px]" style={{ color: 'var(--t3)' }}>0%</span>
+              <span className="text-[11px] font-bold" style={{ color: monthOver ? 'var(--g)' : 'var(--t3)' }}>
                 {monthPct.toFixed(1)}%
               </span>
-              <span className="text-[10px]" style={{ color: 'var(--t3)' }}>100%</span>
+              <span className="text-[11px]" style={{ color: 'var(--t3)' }}>100%</span>
             </div>
           </div>
 
@@ -299,7 +299,7 @@ export function MetasPage() {
           <div className="rounded-2xl p-5" style={{ background: 'var(--bg2)', border: '1px solid var(--b)' }}>
             <div className="flex items-center justify-between mb-4">
               <div>
-                <p className="text-[10px] uppercase tracking-widest font-black mb-1" style={{ color: 'var(--t3)' }}>Meta Hoje</p>
+                <p className="text-[11px] uppercase tracking-widest font-black mb-1" style={{ color: 'var(--t3)' }}>Meta Hoje</p>
                 <p className="text-2xl font-black" style={{ color: dailyOver ? 'var(--g)' : 'var(--t)' }}>
                   {fmtBRL(monthStats.dailyProfit)}
                   <span className="text-sm font-medium ml-2" style={{ color: 'var(--t3)' }}>
@@ -308,7 +308,7 @@ export function MetasPage() {
                 </p>
               </div>
               {dailyOver && (
-                <span className="text-[10px] font-black px-2 py-0.5 rounded-full"
+                <span className="text-[11px] font-black px-2 py-0.5 rounded-full"
                   style={{ background: 'rgba(63,255,33,.15)', color: 'var(--g)', border: '1px solid rgba(63,255,33,.25)' }}>
                   META ATINGIDA
                 </span>
@@ -316,11 +316,11 @@ export function MetasPage() {
             </div>
             <ProgressBar pct={dailyPct} color="#0A84FF" />
             <div className="flex justify-between mt-2">
-              <span className="text-[10px]" style={{ color: 'var(--t3)' }}>0%</span>
-              <span className="text-[10px] font-bold" style={{ color: dailyOver ? 'var(--g)' : '#0A84FF' }}>
+              <span className="text-[11px]" style={{ color: 'var(--t3)' }}>0%</span>
+              <span className="text-[11px] font-bold" style={{ color: dailyOver ? 'var(--g)' : '#0A84FF' }}>
                 {dailyPct.toFixed(1)}%
               </span>
-              <span className="text-[10px]" style={{ color: 'var(--t3)' }}>100%</span>
+              <span className="text-[11px]" style={{ color: 'var(--t3)' }}>100%</span>
             </div>
           </div>
 

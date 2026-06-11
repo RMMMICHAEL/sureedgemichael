@@ -111,7 +111,7 @@ export default function CriarSenhaPage() {
                     Nova senha
                   </label>
                   <div style={{ position: 'relative' }}>
-                    <Lock size={14} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'rgba(255,255,255,.3)', pointerEvents: 'none' }} />
+                    <Lock size={14} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'rgba(255,255,255,.45)', pointerEvents: 'none' }} />
                     <input
                       type={showPw ? 'text' : 'password'}
                       value={password}
@@ -128,7 +128,7 @@ export default function CriarSenhaPage() {
                     />
                     <button type="button" onClick={() => setShowPw(v => !v)} style={{
                       position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)',
-                      background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,.3)', padding: 0,
+                      background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,.45)', padding: 0,
                     }}>
                       {showPw ? <EyeOff size={14} /> : <Eye size={14} />}
                     </button>
@@ -141,7 +141,7 @@ export default function CriarSenhaPage() {
                     Confirmar senha
                   </label>
                   <div style={{ position: 'relative' }}>
-                    <Lock size={14} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'rgba(255,255,255,.3)', pointerEvents: 'none' }} />
+                    <Lock size={14} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'rgba(255,255,255,.45)', pointerEvents: 'none' }} />
                     <input
                       type={showCf ? 'text' : 'password'}
                       value={confirm}
@@ -159,7 +159,7 @@ export default function CriarSenhaPage() {
                     />
                     <button type="button" onClick={() => setShowCf(v => !v)} style={{
                       position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)',
-                      background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,.3)', padding: 0,
+                      background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,.45)', padding: 0,
                     }}>
                       {showCf ? <EyeOff size={14} /> : <Eye size={14} />}
                     </button>
@@ -200,7 +200,7 @@ export default function CriarSenhaPage() {
                 <button
                   type="button"
                   onClick={() => router.push('/')}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,.25)', fontSize: 12, marginTop: 4 }}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,.45)', fontSize: 12, marginTop: 4 }}
                 >
                   Pular por agora →
                 </button>

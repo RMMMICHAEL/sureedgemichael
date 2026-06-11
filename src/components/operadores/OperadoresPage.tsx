@@ -166,7 +166,7 @@ function OperatorCard({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <span className="text-sm font-bold truncate" style={{ color: 'var(--t)' }}>{op.name}</span>
-            <span className="text-[9px] font-black px-1.5 py-0.5 rounded-md"
+            <span className="text-[11px] font-black px-1.5 py-0.5 rounded-md"
               style={{ background: statusColor[op.status], color: statusText[op.status] }}>
               {op.status === 'ativo' ? 'Ativo' : op.status === 'inativo' ? 'Inativo' : 'Pausado'}
             </span>
@@ -175,7 +175,7 @@ function OperatorCard({
             )}
           </div>
           {op.commission != null && (
-            <p className="text-[10px]" style={{ color: 'var(--t3)' }}>Comissão: {op.commission}%</p>
+            <p className="text-[11px]" style={{ color: 'var(--t3)' }}>Comissão: {op.commission}%</p>
           )}
         </div>
         <div className="flex items-center gap-1 flex-shrink-0">

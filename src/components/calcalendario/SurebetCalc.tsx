@@ -298,7 +298,7 @@ function AddToPanelModal({ numOutcomes, formulaOpt, rawOdds, commissions, stakes
           </button>
           <button onClick={save} style={{
             flex: 2, height: 40, borderRadius: 9, border: 'none',
-            background: 'linear-gradient(135deg,#3DFF8F,#00BBFF)',
+            background: 'linear-gradient(135deg,#3FFF21,#00BBFF)',
             color: '#0D1117', fontWeight: 800, fontSize: 13, cursor: 'pointer',
           }}>
             Adicionar ao Painel
@@ -331,8 +331,8 @@ interface SurebetCalcProps {
   hideFormula?: boolean;
   /**
    * Accent color that themes the calculator for the current strategy.
-   * - Freebet:      '#A855F7' (purple)
-   * - Duplo Green:  '#3DFF8F' (green)
+   * - Freebet:      '#A78BFA' (purple)
+   * - Duplo Green:  '#3FFF21' (green)
    * - Surebet/default: '#4DA6FF' (blue)
    */
   accent?: string;
@@ -624,9 +624,9 @@ export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 
   // ── Derived display ────────────────────────────────────────────────────────
   const profitPct    = theoreticalPct;
   const isSurebet    = result.isSurebet || theoreticalPct > 0;
-  const profitColor  = isSurebet ? '#3DFF8F' : profitPct < -5 ? '#FF4545' : '#FFBF00';
-  const profitBg     = isSurebet ? 'rgba(61,255,143,.1)' : profitPct < -5 ? 'rgba(255,69,69,.1)' : 'rgba(255,191,0,.1)';
-  const profitBorder = isSurebet ? 'rgba(61,255,143,.25)' : profitPct < -5 ? 'rgba(255,69,69,.25)' : 'rgba(255,191,0,.25)';
+  const profitColor  = isSurebet ? '#3FFF21' : profitPct < -5 ? '#FF4545' : '#FFBF00';
+  const profitBg     = isSurebet ? 'rgba(63,255,33,.1)' : profitPct < -5 ? 'rgba(255,69,69,.1)' : 'rgba(255,191,0,.1)';
+  const profitBorder = isSurebet ? 'rgba(63,255,33,.25)' : profitPct < -5 ? 'rgba(255,69,69,.25)' : 'rgba(255,191,0,.25)';
 
   // Accent color for strategy theming — default blue
   const ac = accent ?? '#4DA6FF';
@@ -753,7 +753,7 @@ export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 
           background: profitBg, border: `1px solid ${profitBorder}`,
           textAlign: 'center', minWidth: 110,
         }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: profitColor, opacity: .7, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: profitColor, opacity: .7, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
             {anyFB ? 'Conversão' : isSurebet ? 'Surebet' : 'Lucro'}
           </div>
           <div style={{
@@ -781,7 +781,7 @@ export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 
           gap: isMobile ? 4 : 8, padding: isMobile ? '8px 10px' : '10px 14px',
           background: 'rgba(255,255,255,.03)',
           borderBottom: '1px solid rgba(255,255,255,.07)',
-          fontSize: 10, fontWeight: 800, textTransform: 'uppercase',
+          fontSize: 11, fontWeight: 800, textTransform: 'uppercase',
           letterSpacing: '0.07em', color: 'rgba(148,163,184,.6)',
         }}>
           <span>Casa</span>
@@ -789,7 +789,7 @@ export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 
           <span>Odd</span>
           <span>Stake</span>
           <span style={{ textAlign: 'center' }}>D</span>
-          <span style={{ textAlign: 'center', color: anyFB ? '#A855F7' : undefined }}>Freebet</span>
+          <span style={{ textAlign: 'center', color: anyFB ? '#A78BFA' : undefined }}>Freebet</span>
           <span style={{ textAlign: 'center' }}>C</span>
           <span style={{ textAlign: 'right' }}>Lucro</span>
         </div>
@@ -801,7 +801,7 @@ export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 
           const isFixed   = fixedMode === i;
           const stake     = result.stakes[i] ?? 0;
           const profit    = result.profits[i] ?? 0;
-          const profC     = profit >= 0 ? '#3DFF8F' : '#FF4545';
+          const profC     = profit >= 0 ? '#3FFF21' : '#FF4545';
           const commVal   = parseFloat(commission[i] || '0') || 0;
           const houseName = injectedHouses[i] ?? '';
           const houseUrl  = injectedHouseUrls[i] ?? '';
@@ -825,7 +825,7 @@ export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 
                 gap: isMobile ? 4 : 8, padding: isMobile ? '8px 10px' : '10px 14px',
                 borderBottom: '1px solid rgba(255,255,255,.04)',
                 alignItems: 'center',
-                background: isFB ? 'rgba(168,85,247,.025)' : !active ? 'rgba(255,191,0,.02)' : commVal > 0 ? 'rgba(61,255,143,.015)' : 'transparent',
+                background: isFB ? 'rgba(167,139,250,.025)' : !active ? 'rgba(255,191,0,.02)' : commVal > 0 ? 'rgba(63,255,33,.015)' : 'transparent',
               }}>
                 {/* Label / Casa link */}
                 {hasLink ? (
@@ -900,10 +900,10 @@ export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 
                       title="BetBra — aplica 2.8% de comissão sobre ganhos"
                       style={{
                         height: 18, borderRadius: 4, cursor: 'pointer',
-                        background: commission[i] === '2.8' ? 'rgba(61,255,143,.18)' : 'rgba(255,255,255,.04)',
-                        border: `1px solid ${commission[i] === '2.8' ? 'rgba(61,255,143,.35)' : 'rgba(255,255,255,.08)'}`,
-                        color: commission[i] === '2.8' ? '#3DFF8F' : '#4B5563',
-                        fontSize: 8, fontWeight: 900, letterSpacing: '0.04em',
+                        background: commission[i] === '2.8' ? 'rgba(63,255,33,.18)' : 'rgba(255,255,255,.04)',
+                        border: `1px solid ${commission[i] === '2.8' ? 'rgba(63,255,33,.35)' : 'rgba(255,255,255,.08)'}`,
+                        color: commission[i] === '2.8' ? '#3FFF21' : '#4B5563',
+                        fontSize: 11, fontWeight: 900, letterSpacing: '0.04em',
                       }}>
                       BetBra
                     </button>
@@ -928,11 +928,11 @@ export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 
                       style={{
                         ...INPUT,
                         border: isFB
-                          ? '1px solid rgba(168,85,247,.4)'
+                          ? '1px solid rgba(167,139,250,.4)'
                           : isFixed
                             ? '1px solid rgba(255,191,0,.4)'
                             : '1px solid rgba(255,255,255,.1)',
-                        color: isFB ? '#A855F7' : isFixed ? '#FFBF00' : '#E2E8F0',
+                        color: isFB ? '#A78BFA' : isFixed ? '#FFBF00' : '#E2E8F0',
                         cursor: isCoverInFBMode ? 'default' : 'text',
                         opacity: isCoverInFBMode ? 0.65 : 1,
                       }}
@@ -953,9 +953,9 @@ export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 
                   style={{
                     width: isMobile ? 24 : 28, height: isMobile ? 24 : 28, borderRadius: 6, cursor: 'pointer',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    background: active ? 'rgba(61,255,143,.15)' : 'rgba(255,191,0,.12)',
-                    border: `1px solid ${active ? 'rgba(61,255,143,.3)' : 'rgba(255,191,0,.4)'}`,
-                    color: active ? '#3DFF8F' : '#FFBF00',
+                    background: active ? 'rgba(63,255,33,.15)' : 'rgba(255,191,0,.12)',
+                    border: `1px solid ${active ? 'rgba(63,255,33,.3)' : 'rgba(255,191,0,.4)'}`,
+                    color: active ? '#3FFF21' : '#FFBF00',
                     fontSize: isMobile ? 10 : 12, fontWeight: 800,
                   }}>
                   {active ? '✓' : '0'}
@@ -968,9 +968,9 @@ export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 
                   style={{
                     width: '100%', height: isMobile ? 24 : 28, borderRadius: 6, cursor: 'pointer',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    background: isFB ? 'rgba(168,85,247,.18)' : 'rgba(255,255,255,.04)',
-                    border: `1px solid ${isFB ? 'rgba(168,85,247,.5)' : 'rgba(255,255,255,.08)'}`,
-                    color: isFB ? '#A855F7' : '#4B5563',
+                    background: isFB ? 'rgba(167,139,250,.18)' : 'rgba(255,255,255,.04)',
+                    border: `1px solid ${isFB ? 'rgba(167,139,250,.5)' : 'rgba(255,255,255,.08)'}`,
+                    color: isFB ? '#A78BFA' : '#4B5563',
                     fontSize: isMobile ? 8 : 9, fontWeight: 900, letterSpacing: '0.03em',
                     whiteSpace: 'nowrap',
                   }}>
@@ -1088,13 +1088,13 @@ export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 
             onClick={() => setRoundEnabled(v => !v)}
             style={{
               width: 38, height: 22, borderRadius: 11, cursor: 'pointer', position: 'relative',
-              background: roundEnabled ? 'rgba(61,255,143,.3)' : 'rgba(255,255,255,.08)',
-              border: `1px solid ${roundEnabled ? 'rgba(61,255,143,.4)' : 'rgba(255,255,255,.12)'}`,
+              background: roundEnabled ? 'rgba(63,255,33,.3)' : 'rgba(255,255,255,.08)',
+              border: `1px solid ${roundEnabled ? 'rgba(63,255,33,.4)' : 'rgba(255,255,255,.12)'}`,
               transition: 'all .2s',
             }}>
             <div style={{
               position: 'absolute', top: 2, width: 16, height: 16, borderRadius: '50%',
-              background: roundEnabled ? '#3DFF8F' : '#4B5563',
+              background: roundEnabled ? '#3FFF21' : '#4B5563',
               left: roundEnabled ? 18 : 2,
               transition: 'all .2s',
             }} />
@@ -1126,7 +1126,7 @@ export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 
             padding: isMobile ? '8px 14px' : '10px 22px',
             borderRadius: 9, border: 'none', cursor: 'pointer',
             background: isSurebet
-              ? 'linear-gradient(135deg,#3DFF8F,#00BBFF)'
+              ? 'linear-gradient(135deg,#3FFF21,#00BBFF)'
               : 'rgba(255,255,255,.08)',
             color: isSurebet ? '#0D1117' : '#6B7280',
             fontWeight: 800, fontSize: isMobile ? 12 : 13,
@@ -1145,8 +1145,8 @@ export function SurebetCalc({ selectedEvent, externalFill, defaultNumOutcomes = 
       }}>
         {[
           { label: 'COM%',    color: '#FFBF00', desc: 'Comissão sobre apostas vencedoras. Digite o percentual ou clique em "BetBra" para aplicar os 2,8% automaticamente.' },
-          { label: 'D',       color: '#3DFF8F', desc: 'Distribui o lucro neste desfecho. Desativar deixa em 0/0 — você cobre o risco sem lucrar se bater.' },
-          { label: 'Freebet', color: '#A855F7', desc: 'Freebet SNR: a stake não é devolvida se ganhar e não há perda se perder. Digite o valor da freebet.' },
+          { label: 'D',       color: '#3FFF21', desc: 'Distribui o lucro neste desfecho. Desativar deixa em 0/0 — você cobre o risco sem lucrar se bater.' },
+          { label: 'Freebet', color: '#A78BFA', desc: 'Freebet SNR: a stake não é devolvida se ganhar e não há perda se perder. Digite o valor da freebet.' },
           { label: 'C',       color: '#4DA6FF', desc: 'Congelar: clique para editar este valor manualmente; clique novamente para liberar o cálculo automático.' },
         ].map(({ label, color, desc }) => (
           <div key={label} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>

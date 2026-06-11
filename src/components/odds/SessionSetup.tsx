@@ -66,7 +66,7 @@ export function SessionSetup({ onSuccess }: SessionSetupProps) {
 
         <div className="flex items-center gap-3">
           <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0"
-            style={{ background: 'rgba(129,140,248,.2)', color: '#818cf8' }}>3</div>
+            style={{ background: 'rgba(167,139,250,.2)', color: '#A78BFA' }}>3</div>
           <div>
             <p className="text-sm font-black" style={{ color: 'var(--t)' }}>Copie e cole o valor do cookie</p>
             <p className="text-xs mt-0.5" style={{ color: 'var(--t3)' }}>
@@ -83,11 +83,11 @@ export function SessionSetup({ onSuccess }: SessionSetupProps) {
           → aba <strong style={{ color: 'var(--t2)' }}>Application</strong>{' '}
           → <strong style={{ color: 'var(--t2)' }}>Cookies</strong>{' '}
           → <strong style={{ color: 'var(--t2)' }}>https://painel.supermonitor.pro</strong>{' '}
-          → copie o valor de <strong style={{ color: '#818cf8' }}>PHPSESSID</strong>
+          → copie o valor de <strong style={{ color: '#A78BFA' }}>PHPSESSID</strong>
         </div>
 
         <div className="flex flex-col gap-2">
-          <label className="text-[10px] font-black uppercase tracking-[.12em]" style={{ color: 'var(--t3)' }}>
+          <label className="text-[11px] font-black uppercase tracking-[.12em]" style={{ color: 'var(--t3)' }}>
             Valor do PHPSESSID
           </label>
           <input
@@ -97,7 +97,7 @@ export function SessionSetup({ onSuccess }: SessionSetupProps) {
             placeholder="Ex: d5584e950dacffb59f3476e967025405"
             className="w-full rounded-xl px-4 py-3 text-sm font-mono outline-none"
             style={{ background: 'rgba(255,255,255,.04)', border: `1px solid ${error ? 'rgba(255,77,109,.5)' : 'var(--b)'}`, color: 'var(--t)' }}
-            onFocus={e => { (e.target as HTMLInputElement).style.borderColor = 'rgba(129,140,248,.5)'; }}
+            onFocus={e => { (e.target as HTMLInputElement).style.borderColor = 'rgba(167,139,250,.5)'; }}
             onBlur={e => { (e.target as HTMLInputElement).style.borderColor = error ? 'rgba(255,77,109,.5)' : 'var(--b)'; }}
           />
           {error && (
@@ -116,8 +116,8 @@ export function SessionSetup({ onSuccess }: SessionSetupProps) {
           <button type="button" onClick={handleSave} disabled={loading}
             className="flex-1 px-4 py-2.5 rounded-xl text-sm font-black flex items-center justify-center gap-2"
             style={{
-              background: loading ? 'rgba(129,140,248,.1)' : 'rgba(129,140,248,.2)',
-              color: '#818cf8', border: '1px solid rgba(129,140,248,.4)',
+              background: loading ? 'rgba(167,139,250,.1)' : 'rgba(167,139,250,.2)',
+              color: '#A78BFA', border: '1px solid rgba(167,139,250,.4)',
               opacity: loading ? 0.7 : 1,
             }}>
             {loading ? <RefreshCw size={14} className="animate-spin" /> : <Key size={14} />}
@@ -136,7 +136,7 @@ export function SessionSetup({ onSuccess }: SessionSetupProps) {
 
         <div className="flex items-center gap-3">
           <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0"
-            style={{ background: 'rgba(129,140,248,.2)', color: '#818cf8' }}>2</div>
+            style={{ background: 'rgba(167,139,250,.2)', color: '#A78BFA' }}>2</div>
           <div>
             <p className="text-sm font-black" style={{ color: 'var(--t)' }}>Faça login no site de odds</p>
             <p className="text-xs mt-0.5" style={{ color: 'var(--t3)' }}>
@@ -150,7 +150,7 @@ export function SessionSetup({ onSuccess }: SessionSetupProps) {
           target="_blank"
           rel="noopener noreferrer"
           className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-black"
-          style={{ background: 'rgba(129,140,248,.15)', color: '#818cf8', border: '1px solid rgba(129,140,248,.3)', textDecoration: 'none' }}>
+          style={{ background: 'rgba(167,139,250,.15)', color: '#A78BFA', border: '1px solid rgba(167,139,250,.3)', textDecoration: 'none' }}>
           <ExternalLink size={14} />
           Abrir página de login (nova aba)
         </a>
@@ -169,7 +169,7 @@ export function SessionSetup({ onSuccess }: SessionSetupProps) {
           </button>
           <button type="button" onClick={() => setStep('paste')}
             className="flex-1 px-4 py-2.5 rounded-xl text-sm font-black"
-            style={{ background: 'rgba(129,140,248,.2)', color: '#818cf8', border: '1px solid rgba(129,140,248,.4)' }}>
+            style={{ background: 'rgba(167,139,250,.2)', color: '#A78BFA', border: '1px solid rgba(167,139,250,.4)' }}>
             Já fiz login → Próximo passo
           </button>
         </div>
@@ -179,11 +179,11 @@ export function SessionSetup({ onSuccess }: SessionSetupProps) {
 
   // ── Passo 1: intro ────────────────────────────────────────────────────────────
   return (
-    <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid rgba(129,140,248,.25)' }}>
+    <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid rgba(167,139,250,.25)' }}>
       {/* Header */}
       <div className="px-6 py-5 flex items-center gap-4"
-        style={{ background: 'rgba(129,140,248,.08)', borderBottom: '1px solid rgba(129,140,248,.15)' }}>
-        <Key size={20} style={{ color: '#818cf8', flexShrink: 0 }} />
+        style={{ background: 'rgba(167,139,250,.08)', borderBottom: '1px solid rgba(167,139,250,.15)' }}>
+        <Key size={20} style={{ color: '#A78BFA', flexShrink: 0 }} />
         <div>
           <p className="text-sm font-black" style={{ color: 'var(--t)' }}>Autorização necessária</p>
           <p className="text-xs mt-0.5" style={{ color: 'var(--t3)' }}>
@@ -201,19 +201,19 @@ export function SessionSetup({ onSuccess }: SessionSetupProps) {
         ].map(({ n, text }) => (
           <div key={n} className="flex items-center gap-3">
             <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0"
-              style={{ background: 'rgba(129,140,248,.15)', color: '#818cf8' }}>{n}</div>
+              style={{ background: 'rgba(167,139,250,.15)', color: '#A78BFA' }}>{n}</div>
             <p className="text-sm" style={{ color: 'var(--t2)' }}>{text}</p>
           </div>
         ))}
 
         <button type="button" onClick={() => setStep('login')}
           className="mt-2 w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-black"
-          style={{ background: 'rgba(129,140,248,.2)', color: '#818cf8', border: '1px solid rgba(129,140,248,.4)' }}>
+          style={{ background: 'rgba(167,139,250,.2)', color: '#A78BFA', border: '1px solid rgba(167,139,250,.4)' }}>
           <Copy size={14} />
           Iniciar configuração (30 segundos)
         </button>
 
-        <p className="text-center text-[10px]" style={{ color: 'var(--t3)' }}>
+        <p className="text-center text-[11px]" style={{ color: 'var(--t3)' }}>
           Só precisa fazer isso uma vez. A sessão dura semanas e renova automaticamente.
         </p>
       </div>

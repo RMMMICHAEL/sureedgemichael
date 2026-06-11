@@ -90,18 +90,18 @@ function fmtTime(utc: string | null): string {
 }
 
 function classColor(c: string | null): string {
-  if (c === 'ALTA')  return 'hsl(150 90% 58%)';
+  if (c === 'ALTA')  return '#3FFF21';
   if (c === 'MEDIA') return 'hsl(38 95% 65%)';
   return 'rgba(255,255,255,.4)';
 }
 function classRgb(c: string | null): string {
-  if (c === 'ALTA')  return '61,255,143';
+  if (c === 'ALTA')  return '63,255,33';
   if (c === 'MEDIA') return '255,159,10';
-  return '129,140,248';
+  return '167,139,250';
 }
 function profitColor(pct: number | null): string {
   if (pct == null) return 'rgba(255,255,255,.3)';
-  return pct >= 0 ? 'hsl(150 85% 60%)' : 'hsl(0 80% 65%)';
+  return pct >= 0 ? '#3FFF21' : 'hsl(0 80% 65%)';
 }
 function fmtProfit(pct: number | null): string {
   if (pct == null) return '—';
@@ -121,15 +121,15 @@ function LegCell({ leg, highlight }: { leg: Leg | undefined; highlight?: boolean
     <div className="relative flex h-[52px] w-full flex-col items-center justify-center gap-0.5 rounded-lg"
       style={{
         background: pa
-          ? 'rgba(61,255,143,.05)'
+          ? 'rgba(63,255,33,.05)'
           : 'rgba(255,255,255,.025)',
         border: pa
-          ? '1px solid rgba(61,255,143,.2)'
+          ? '1px solid rgba(63,255,33,.2)'
           : '1px solid rgba(255,255,255,.07)',
       }}>
       <span className="tabular-nums text-[15px] font-black" style={{
-        color: pa ? 'hsl(150 85% 62%)' : 'rgba(255,255,255,.75)',
-        textShadow: pa ? '0 0 10px hsl(150 85% 55% / 0.35)' : 'none',
+        color: pa ? '#3FFF21' : 'rgba(255,255,255,.75)',
+        textShadow: pa ? '0 0 10px rgba(63,255,33,0.35)' : 'none',
       }}>
         {leg.odd.toFixed(2)}
       </span>
@@ -139,22 +139,22 @@ function LegCell({ leg, highlight }: { leg: Leg | undefined; highlight?: boolean
         <a href={leg.matchUrl} target="_blank" rel="noopener noreferrer"
           onClick={e => e.stopPropagation()}
           className="flex items-center gap-0.5 transition-colors hover:opacity-80 max-w-full px-1"
-          style={{ color: 'rgba(255,255,255,.35)', fontSize: 9 }}>
+          style={{ color: 'rgba(255,255,255,.35)', fontSize: 11 }}>
           <ExternalLink size={8} className="shrink-0 opacity-60" />
           <span className="truncate">{leg.bookmaker}</span>
         </a>
       ) : (
-        <span className="max-w-full truncate px-1 text-[9px]"
+        <span className="max-w-full truncate px-1 text-[11px]"
           style={{ color: pa ? 'rgba(255,255,255,.45)' : 'rgba(255,255,255,.3)' }}>
           {leg.bookmaker}
         </span>
       )}
 
       {/* badge PA / SO */}
-      <span className="absolute -right-1 -top-1 rounded border px-[3px] py-px text-[7px] font-bold"
+      <span className="absolute -right-1 -top-1 rounded border px-[3px] py-px text-[11px] font-bold"
         style={pa
-          ? { background: 'rgba(61,255,143,.1)',  color: 'rgba(61,255,143,.85)',  borderColor: 'rgba(61,255,143,.25)' }
-          : { background: 'rgba(255,255,255,.05)', color: 'rgba(255,255,255,.3)',  borderColor: 'rgba(255,255,255,.12)' }
+          ? { background: 'rgba(63,255,33,.1)',  color: 'rgba(63,255,33,.85)',  borderColor: 'rgba(63,255,33,.25)' }
+          : { background: 'rgba(255,255,255,.05)', color: 'rgba(255,255,255,.45)',  borderColor: 'rgba(255,255,255,.12)' }
         }>
         {pa ? 'PA' : 'SO'}
       </span>
@@ -203,15 +203,15 @@ function BookmakerModal({
         <span style={{
           width: 20, height: 20, borderRadius: '50%', flexShrink: 0,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          background: sel ? 'hsl(150 85% 55%)' : 'rgba(255,255,255,.06)',
-          border: `1.5px solid ${sel ? 'hsl(150 85% 55%)' : 'rgba(255,255,255,.15)'}`,
+          background: sel ? '#3FFF21' : 'rgba(255,255,255,.06)',
+          border: `1.5px solid ${sel ? '#3FFF21' : 'rgba(255,255,255,.15)'}`,
         }}>
           {sel && <Check size={11} color="#060A07" strokeWidth={3} />}
         </span>
         <span style={{ fontSize: 13, fontWeight: sel ? 600 : 400 }}>{bk.name}</span>
         {!bk.isPA && (
-          <span className="rounded border px-[3px] py-px text-[7px] font-bold"
-            style={{ background: 'rgba(255,255,255,.05)', color: 'rgba(255,255,255,.3)', borderColor: 'rgba(255,255,255,.12)' }}>
+          <span className="rounded border px-[3px] py-px text-[11px] font-bold"
+            style={{ background: 'rgba(255,255,255,.05)', color: 'rgba(255,255,255,.45)', borderColor: 'rgba(255,255,255,.12)' }}>
             SO
           </span>
         )}
@@ -225,8 +225,8 @@ function BookmakerModal({
       <div className="mb-4">
         <div className="mb-2.5 flex items-center gap-2 pb-2" style={{ borderBottom: '1px solid rgba(255,255,255,.06)' }}>
           <div style={{ width: 3, height: 12, borderRadius: 2, background: accent }} />
-          <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: accent }}>{title}</span>
-          <span className="rounded-full px-1.5 py-px text-[9px] font-bold" style={{ background: `${accent}22`, color: accent }}>
+          <span className="text-[11px] font-black uppercase tracking-widest" style={{ color: accent }}>{title}</span>
+          <span className="rounded-full px-1.5 py-px text-[11px] font-bold" style={{ background: `${accent}22`, color: accent }}>
             {list.length}
           </span>
         </div>
@@ -264,10 +264,10 @@ function BookmakerModal({
 
         {/* Lista */}
         <div className="overflow-y-auto flex-1 px-6 py-4">
-          <Section title="Com Pagamento Antecipado (PA)" list={paList} accent="rgba(61,255,143,.85)" />
-          <Section title="Sem Pagamento Antecipado" list={nonPaList} accent="rgba(129,140,248,.75)" />
+          <Section title="Com Pagamento Antecipado (PA)" list={paList} accent="rgba(63,255,33,.85)" />
+          <Section title="Sem Pagamento Antecipado" list={nonPaList} accent="rgba(167,139,250,.75)" />
           {!paList.length && !nonPaList.length && (
-            <p className="py-8 text-center text-sm" style={{ color: 'rgba(255,255,255,.3)' }}>
+            <p className="py-8 text-center text-sm" style={{ color: 'rgba(255,255,255,.45)' }}>
               Nenhuma casa encontrada nos dados importados
             </p>
           )}
@@ -286,7 +286,7 @@ function BookmakerModal({
             </button>
             <button onClick={() => { onChange(draft); onClose(); }}
               className="rounded-xl px-5 py-2 text-[12px] font-black transition-opacity hover:opacity-90"
-              style={{ background: 'linear-gradient(135deg, #3DFF8F 0%, #22c55e 100%)', color: '#060A07' }}>
+              style={{ background: 'linear-gradient(135deg, #3FFF21 0%, #00CC6E 100%)', color: '#060A07' }}>
               Confirmar
             </button>
           </div>
@@ -365,7 +365,6 @@ function DGDetailPanel({
       <div className="flex items-center gap-3 rounded-2xl px-4 py-3.5" style={{
         background: 'rgba(13,17,23,0.85)',
         border: `1px solid rgba(${rgb},.25)`,
-        borderLeft: `3px solid rgb(${rgb})`,
         boxShadow: `0 4px 32px rgba(0,0,0,.5), 0 0 0 1px rgba(${rgb},.06) inset`,
         backdropFilter: 'blur(20px)',
       }}>
@@ -381,7 +380,7 @@ function DGDetailPanel({
           <div className="mt-0.5 flex items-center gap-2 text-[11px]" style={{ color: 'var(--t3)' }}>
             <span>{o.league ?? '—'} · {fmtTime(o.kickoff)}</span>
             {hasPA && paLabel && (
-              <span className="rounded-full px-2 py-0.5 text-[9px] font-bold" style={{
+              <span className="rounded-full px-2 py-0.5 text-[11px] font-bold" style={{
                 background: 'rgba(255,159,10,.1)', color: 'rgba(255,159,10,.8)', border: '1px solid rgba(255,159,10,.2)',
               }}>{paLabel}</span>
             )}
@@ -393,11 +392,11 @@ function DGDetailPanel({
           <span className="text-[22px] font-black leading-none tabular-nums" style={{ color: col }}>
             {o.dg_score ?? '—'}
           </span>
-          <span className="text-[8px] font-black uppercase tracking-widest" style={{ color: `rgba(${rgb},.55)` }}>
+          <span className="text-[11px] font-black uppercase tracking-widest" style={{ color: `rgba(${rgb},.55)` }}>
             DG score
           </span>
           {o.dg_profit_pct != null && (
-            <span className="text-[9px] font-bold tabular-nums mt-0.5" style={{ color: profitColor(o.dg_profit_pct) }}>
+            <span className="text-[11px] font-bold tabular-nums mt-0.5" style={{ color: profitColor(o.dg_profit_pct) }}>
               {fmtProfit(o.dg_profit_pct)}
             </span>
           )}
@@ -421,13 +420,13 @@ function DGDetailPanel({
             <span className="text-[11px] font-black tracking-widest uppercase" style={{ color: col }}>
               Combinações DuploGreen
             </span>
-            <span className="rounded-full px-2 py-0.5 text-[9px] font-bold" style={{
+            <span className="rounded-full px-2 py-0.5 text-[11px] font-bold" style={{
               background: `rgba(${rgb},.12)`, color: col, border: `1px solid rgba(${rgb},.25)`,
             }}>
               {matchOpportunities.length}
             </span>
           </div>
-          <p className="text-[10px]" style={{ color: 'rgba(255,255,255,.25)' }}>clique para calcular</p>
+          <p className="text-[11px]" style={{ color: 'rgba(255,255,255,.45)' }}>clique para calcular</p>
         </div>
 
         {/* Col headers */}
@@ -436,7 +435,7 @@ function DGDetailPanel({
           background: 'rgba(255,255,255,.015)',
           borderBottom: '1px solid rgba(255,255,255,.05)',
         }}>
-          <span style={{ color: 'rgba(255,255,255,.2)', fontSize: 10, fontWeight: 700 }}>#</span>
+          <span style={{ color: 'rgba(255,255,255,.45)', fontSize: 11, fontWeight: 700 }}>#</span>
           {cols.map(c => (
             <button key={c.key} type="button" onClick={() => setSortCol(c.key)}
               className="flex items-center justify-center gap-0.5 transition-colors"
@@ -468,16 +467,16 @@ function DGDetailPanel({
                   display: 'grid',
                   gridTemplateColumns: '20px 72px 68px 1fr 1fr 1fr',
                   alignItems: 'center', gap: '0.5rem', padding: '12px 20px',
-                  background: isSelected ? `rgba(${rgb},.10)` : isBest ? `rgba(${rgb},.05)` : idx % 2 === 1 ? 'rgba(255,255,255,.012)' : undefined,
+                  background: isSelected ? `rgba(${rgb},.10)` : hasFixed ? 'rgba(167,139,250,.05)' : isBest ? `rgba(${rgb},.05)` : idx % 2 === 1 ? 'rgba(255,255,255,.012)' : undefined,
                   borderTop: idx > 0 ? '1px solid rgba(255,255,255,.04)' : undefined,
-                  borderLeft: isSelected ? `3px solid rgba(${rgb},.7)` : hasFixed ? '3px solid rgba(168,85,247,.5)' : '3px solid transparent',
+                  boxShadow: isSelected ? `inset 0 0 0 1px rgba(${rgb},.35)` : hasFixed ? 'inset 0 0 0 1px rgba(167,139,250,.25)' : undefined,
                 } as React.CSSProperties}>
-                <span style={{ fontSize: 11, fontWeight: 900, color: 'rgba(255,255,255,.2)' }}>{idx + 1}</span>
+                <span style={{ fontSize: 11, fontWeight: 900, color: 'rgba(255,255,255,.45)' }}>{idx + 1}</span>
                 <div className="flex flex-col items-center gap-0.5">
                   <span style={{ fontSize: 18, fontWeight: 900, lineHeight: 1, color: (isBest || isSelected) ? col : 'rgba(255,255,255,.7)', textShadow: (isBest || isSelected) ? `0 0 12px rgba(${rgb},.4)` : 'none' }}>
                     {opp.dg_score ?? '—'}
                   </span>
-                  <span style={{ fontSize: 8, fontWeight: 900, textTransform: 'uppercase', color: `rgba(${rgb},.4)` }}>
+                  <span style={{ fontSize: 11, fontWeight: 900, textTransform: 'uppercase', color: `rgba(${rgb},.4)` }}>
                     {opp.dg_classification ?? ''}
                     {isSelected ? ' ✓' : ''}
                   </span>
@@ -487,7 +486,7 @@ function DGDetailPanel({
                     {fmtProfit(opp.dg_profit_pct)}
                   </span>
                   {opp.max_loss_pct != null && (
-                    <span style={{ fontSize: 9, fontWeight: 700, color: 'rgba(248,113,113,.6)' }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: 'rgba(248,113,113,.6)' }}>
                       -{Math.abs(opp.max_loss_pct).toFixed(1)}% perda
                     </span>
                   )}
@@ -520,7 +519,7 @@ function DGDetailPanel({
                 Calculadora
               </span>
             </div>
-            <span style={{ fontSize: 10, color: 'rgba(255,255,255,.3)' }}>odds pré-carregadas · ajuste livremente</span>
+            <span style={{ fontSize: 11, color: 'rgba(255,255,255,.45)' }}>odds pré-carregadas · ajuste livremente</span>
           </div>
           <div className="p-4">
             <SurebetCalc
@@ -529,14 +528,14 @@ function DGDetailPanel({
               defaultNumOutcomes={3}
               hideNumOutcomes
               hideFormula
-              accent="#3DFF8F"
+              accent="#3FFF21"
               initialOpType="duplo_green"
             />
           </div>
         </div>
       )}
 
-      <p style={{ fontSize: 11, color: 'rgba(255,255,255,.25)', paddingLeft: 4 }}>
+      <p style={{ fontSize: 11, color: 'rgba(255,255,255,.45)', paddingLeft: 4 }}>
         👆 Clique numa linha para calcular stakes · clique no nome da casa para abrir na plataforma
       </p>
     </div>
@@ -545,7 +544,7 @@ function DGDetailPanel({
 
 // ── Cores locais (espelha palette do BuscarOddsPage) ─────────────────────────
 const DG_C = {
-  green:  '#00e676', greenDim: 'rgba(0,230,118,.12)', greenB: 'rgba(0,230,118,.3)',
+  green:  '#3FFF21', greenDim: 'rgba(63,255,33,.12)', greenB: 'rgba(63,255,33,.3)',
   surf: '#10141a', surfB: '#1a2030',
   t1: '#e2e8f0', t2: '#94a3b8', t3: '#64748b',
 };
@@ -613,7 +612,7 @@ function LeagueFilterModal({
                 <button key={lg} type="button" onClick={() => toggle(lg)}
                   className="flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-left transition-all hover:opacity-90"
                   style={{
-                    background: sel ? 'rgba(0,230,118,.1)' : 'rgba(255,255,255,.03)',
+                    background: sel ? 'rgba(63,255,33,.1)' : 'rgba(255,255,255,.03)',
                     border: `1px solid ${sel ? DG_C.greenB : DG_C.surfB}`,
                     cursor: 'pointer',
                   }}>
@@ -646,7 +645,7 @@ function LeagueFilterModal({
           </span>
           <button onClick={confirm}
             className="rounded-xl px-5 py-2 text-[13px] font-black transition-opacity hover:opacity-90"
-            style={{ background: 'linear-gradient(135deg, #3DFF8F 0%, #22c55e 100%)', color: '#0a1a0f' }}>
+            style={{ background: 'linear-gradient(135deg, #3FFF21 0%, #00CC6E 100%)', color: '#0a1a0f' }}>
             Confirmar
           </button>
         </div>
@@ -791,7 +790,7 @@ export function DGOpportunitiesSection() {
     <div className="flex flex-col gap-3">
       {Array.from({ length: 6 }).map((_, i) => (
         <div key={i} className="h-[72px] rounded-2xl animate-pulse"
-          style={{ background: 'rgba(61,255,143,.04)', border: '1px solid rgba(61,255,143,.08)', opacity: 1 - i * 0.12 }} />
+          style={{ background: 'rgba(63,255,33,.04)', border: '1px solid rgba(63,255,33,.08)', opacity: 1 - i * 0.12 }} />
       ))}
     </div>
   );
@@ -801,7 +800,7 @@ export function DGOpportunitiesSection() {
       style={{ background: 'rgba(248,113,113,.07)', border: '1px solid rgba(248,113,113,.2)', color: '#f87171' }}>
       ⚠ {error}
       <button onClick={() => load()} className="ml-auto text-xs"
-        style={{ color: '#818cf8', background: 'none', border: 'none', cursor: 'pointer' }}>
+        style={{ color: '#A78BFA', background: 'none', border: 'none', cursor: 'pointer' }}>
         Tentar novamente
       </button>
     </div>
@@ -836,14 +835,14 @@ export function DGOpportunitiesSection() {
               <button onClick={() => setLeagueModalOpen(true)}
                 className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-[12px] font-bold transition-all"
                 style={{
-                  background: active ? 'rgba(0,230,118,.1)' : 'rgba(255,255,255,.04)',
-                  border:     active ? '1px solid rgba(0,230,118,.3)' : '1px solid rgba(255,255,255,.08)',
-                  color:      active ? '#00e676' : 'rgba(255,255,255,.5)',
+                  background: active ? 'rgba(63,255,33,.1)' : 'rgba(255,255,255,.04)',
+                  border:     active ? '1px solid rgba(63,255,33,.3)' : '1px solid rgba(255,255,255,.08)',
+                  color:      active ? '#3FFF21' : 'rgba(255,255,255,.5)',
                 }}>
                 <Trophy size={11} />
                 <span>{active ? `${leagueFilter.size} campeonatos` : 'Campeonatos'}</span>
                 {active && (
-                  <span style={{ fontSize: 9, fontWeight: 900, borderRadius: 99, padding: '0 5px', background: 'rgba(0,230,118,.18)', color: '#00e676' }}>
+                  <span style={{ fontSize: 11, fontWeight: 900, borderRadius: 99, padding: '0 5px', background: 'rgba(63,255,33,.18)', color: '#3FFF21' }}>
                     {leagueFilter.size}/{allLeagues.length}
                   </span>
                 )}
@@ -877,7 +876,7 @@ export function DGOpportunitiesSection() {
                   border:     active ? '1px solid rgba(255,159,10,.3)' : '1px solid transparent',
                 }}>
                 {label}
-                <span className="rounded-full px-1.5 py-px text-[9px] font-black"
+                <span className="rounded-full px-1.5 py-px text-[11px] font-black"
                   style={{ background: active ? 'rgba(255,159,10,.18)' : 'rgba(255,255,255,.07)', color: active ? 'rgba(255,159,10,.9)' : 'rgba(255,255,255,.3)' }}>
                   {cnt}
                 </span>
@@ -898,7 +897,7 @@ export function DGOpportunitiesSection() {
           <X size={12} style={{ opacity: hasAnyDesel ? 1 : 0.5 }} />
           Casas
           {hasAnyDesel && (
-            <span className="rounded-full px-1.5 py-px text-[9px] font-black"
+            <span className="rounded-full px-1.5 py-px text-[11px] font-black"
               style={{ background: 'rgba(245,158,11,.2)', color: '#f59e0b' }}>
               -{bkDeselected.size}
             </span>
@@ -921,8 +920,8 @@ export function DGOpportunitiesSection() {
                 <button key={opt.value}
                   onClick={() => { setSortBy(opt.value); setSortOpen(false); }}
                   className="flex w-full items-center gap-2 px-4 py-2.5 text-[12px] font-semibold transition-colors hover:bg-white/5"
-                  style={{ color: sortBy === opt.value ? '#3DFF8F' : 'var(--t2)', background: sortBy === opt.value ? 'rgba(61,255,143,.06)' : 'transparent' }}>
-                  {sortBy === opt.value && <span style={{ color: '#3DFF8F', fontSize: 9 }}>✓</span>}
+                  style={{ color: sortBy === opt.value ? '#3FFF21' : 'var(--t2)', background: sortBy === opt.value ? 'rgba(63,255,33,.06)' : 'transparent' }}>
+                  {sortBy === opt.value && <span style={{ color: '#3FFF21', fontSize: 11 }}>✓</span>}
                   {opt.label}
                 </button>
               ))}
@@ -961,15 +960,15 @@ export function DGOpportunitiesSection() {
 
       {/* Cabeçalho colunas desktop */}
       {dedupList.length > 0 && (
-        <div className="hidden md:grid items-center gap-2 px-4 text-[10px] font-black uppercase tracking-widest"
-          style={{ gridTemplateColumns: '72px 68px 1fr 88px 100px 100px 100px', color: 'rgba(255,255,255,.25)' }}>
+        <div className="hidden md:grid items-center gap-2 px-4 text-[11px] font-black uppercase tracking-widest"
+          style={{ gridTemplateColumns: '72px 68px 1fr 88px 100px 100px 100px', color: 'rgba(255,255,255,.45)' }}>
           <div className="group relative flex cursor-help items-center gap-1">
             <span>Score</span>
-            <span style={{ fontSize: 9, color: 'rgba(255,255,255,.3)' }}>ⓘ</span>
+            <span style={{ fontSize: 11, color: 'rgba(255,255,255,.45)' }}>ⓘ</span>
             <div className="pointer-events-none absolute left-0 top-full z-50 mt-1 hidden w-64 rounded-xl p-3 group-hover:block"
               style={{ background: '#111827', border: '1px solid rgba(255,255,255,.1)', boxShadow: '0 8px 24px rgba(0,0,0,.5)' }}>
               <p style={{ fontSize: 11, fontWeight: 600, lineHeight: 1.6, color: 'rgba(255,255,255,.7)', textTransform: 'none', letterSpacing: 'normal' }}>
-                <strong style={{ color: '#A855F7' }}>DG Score</strong> é a probabilidade do Duplo Green acontecer. Quanto maior, maior a chance do duplo ocorrer. <strong>Não representa lucro.</strong>
+                <strong style={{ color: '#A78BFA' }}>DG Score</strong> é a probabilidade do Duplo Green acontecer. Quanto maior, maior a chance do duplo ocorrer. <strong>Não representa lucro.</strong>
               </p>
             </div>
           </div>
@@ -988,7 +987,7 @@ export function DGOpportunitiesSection() {
           <p className="text-sm font-bold">Nenhum resultado para os filtros</p>
           <button onClick={() => { setPaFilter('ALL'); setBkDeselected(new Set()); setLeagueFilter(new Set()); }}
             className="text-xs underline"
-            style={{ color: '#818cf8', background: 'none', border: 'none', cursor: 'pointer' }}>
+            style={{ color: '#A78BFA', background: 'none', border: 'none', cursor: 'pointer' }}>
             Limpar filtros
           </button>
         </div>
@@ -1010,18 +1009,18 @@ export function DGOpportunitiesSection() {
             boxShadow: '0 4px 20px rgba(0,0,0,.4), 0 1px 0 rgba(255,255,255,.04) inset',
             backdropFilter: 'blur(10px)',
           }}>
-            <div style={{ height: 2, background: 'linear-gradient(90deg, rgba(61,255,143,.5) 0%, rgba(61,255,143,.15) 50%, transparent 100%)' }} />
+            <div style={{ height: 2, background: 'linear-gradient(90deg, rgba(63,255,33,.5) 0%, rgba(63,255,33,.15) 50%, transparent 100%)' }} />
             <div className="flex items-center justify-between px-4 py-2.5" style={{
-              background: 'linear-gradient(90deg, rgba(61,255,143,.04) 0%, transparent 60%)',
+              background: 'linear-gradient(90deg, rgba(63,255,33,.04) 0%, transparent 60%)',
               borderBottom: '1px solid rgba(255,255,255,.05)',
             }}>
               <div className="flex items-center gap-2">
-                <div style={{ width: 2, height: 12, borderRadius: 1, background: 'rgba(61,255,143,.5)' }} />
-                <span style={{ fontSize: 10, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'rgba(255,255,255,.5)' }}>
+                <div style={{ width: 2, height: 12, borderRadius: 1, background: 'rgba(63,255,33,.5)' }} />
+                <span style={{ fontSize: 11, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'rgba(255,255,255,.5)' }}>
                   {league}
                 </span>
               </div>
-              <span className="rounded-full px-2 py-0.5" style={{ fontSize: 9, fontWeight: 700, background: 'rgba(255,255,255,.05)', color: 'rgba(255,255,255,.3)', border: '1px solid rgba(255,255,255,.07)' }}>
+              <span className="rounded-full px-2 py-0.5" style={{ fontSize: 11, fontWeight: 700, background: 'rgba(255,255,255,.05)', color: 'rgba(255,255,255,.45)', border: '1px solid rgba(255,255,255,.07)' }}>
                 {evs.length}
               </span>
             </div>
@@ -1043,9 +1042,9 @@ export function DGOpportunitiesSection() {
                   <button key={o.id} type="button" onClick={() => setSelectedMatchId(o.match_id)}
                     className="event-row w-full text-left"
                     style={{
-                      background: idx % 2 === 1 ? 'rgba(255,255,255,.012)' : undefined,
+                      background: hasFixed ? 'rgba(167,139,250,.05)' : idx % 2 === 1 ? 'rgba(255,255,255,.012)' : undefined,
                       borderTop: idx > 0 ? '1px solid rgba(255,255,255,.04)' : undefined,
-                      borderLeft: hasFixed ? '3px solid rgba(168,85,247,.5)' : '3px solid transparent',
+                      boxShadow: hasFixed ? 'inset 0 0 0 1px rgba(167,139,250,.25)' : undefined,
                       display: 'block',
                     }}>
 
@@ -1058,11 +1057,11 @@ export function DGOpportunitiesSection() {
                         <span style={{ fontSize: 18, fontWeight: 900, lineHeight: 1, color: col }}>
                           {o.dg_score ?? '—'}
                         </span>
-                        <span style={{ fontSize: 8, fontWeight: 900, textTransform: 'uppercase', color: `rgba(${rgb},.5)` }}>
+                        <span style={{ fontSize: 11, fontWeight: 900, textTransform: 'uppercase', color: `rgba(${rgb},.5)` }}>
                           {o.dg_classification ?? ''}
                         </span>
                         {paLabel && (
-                          <span className="rounded px-1 mt-0.5" style={{ fontSize: 7, fontWeight: 700, background: 'rgba(255,159,10,.1)', color: 'rgba(255,159,10,.8)', border: '1px solid rgba(255,159,10,.2)' }}>
+                          <span className="rounded px-1 mt-0.5" style={{ fontSize: 11, fontWeight: 700, background: 'rgba(255,159,10,.1)', color: 'rgba(255,159,10,.8)', border: '1px solid rgba(255,159,10,.2)' }}>
                             {paLabel}
                           </span>
                         )}
@@ -1074,7 +1073,7 @@ export function DGOpportunitiesSection() {
                           {fmtProfit(o.dg_profit_pct)}
                         </span>
                         {o.max_loss_pct != null && (
-                          <span style={{ fontSize: 9, fontWeight: 700, color: 'rgba(248,113,113,.65)' }}>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: 'rgba(248,113,113,.65)' }}>
                             -{Math.abs(o.max_loss_pct).toFixed(1)}% perda
                           </span>
                         )}
@@ -1087,7 +1086,7 @@ export function DGOpportunitiesSection() {
                             {o.home_team}
                           </p>
                           {oppCount > 1 && (
-                            <span className="shrink-0 rounded px-1" style={{ fontSize: 8, fontWeight: 700, background: `rgba(${rgb},.1)`, color: col, border: `1px solid rgba(${rgb},.2)` }}>
+                            <span className="shrink-0 rounded px-1" style={{ fontSize: 11, fontWeight: 700, background: `rgba(${rgb},.1)`, color: col, border: `1px solid rgba(${rgb},.2)` }}>
                               +{oppCount - 1}
                             </span>
                           )}
@@ -1110,7 +1109,7 @@ export function DGOpportunitiesSection() {
                         <span style={{ fontSize: 17, fontWeight: 900, lineHeight: 1, color: col }}>
                           {o.dg_score ?? '—'}
                         </span>
-                        <span style={{ fontSize: 7, fontWeight: 900, textTransform: 'uppercase', color: `rgba(${rgb},.5)` }}>
+                        <span style={{ fontSize: 11, fontWeight: 900, textTransform: 'uppercase', color: `rgba(${rgb},.5)` }}>
                           {o.dg_classification}
                         </span>
                       </div>

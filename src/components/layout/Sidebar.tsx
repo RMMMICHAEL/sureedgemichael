@@ -90,14 +90,6 @@ function NavButton({ item, onClose }: { item: NavItem; onClose?: () => void }) {
       onClick={() => { setView(item.id); onClose?.(); }}
       className={`nav-item ${isOn ? 'active' : ''}`}
     >
-      {/* Active bar */}
-      {isOn && (
-        <span
-          className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-[18px] rounded-r-full"
-          style={{ background: 'var(--g)', boxShadow: '0 0 10px rgba(63,255,33,.7)' }}
-        />
-      )}
-
       {/* Icon container */}
       <span className="icon-wrap">
         {item.icon}
@@ -108,7 +100,7 @@ function NavButton({ item, onClose }: { item: NavItem; onClose?: () => void }) {
       {/* Badge */}
       {badge && (
         <span
-          className="pill text-[10px]"
+          className="pill text-[11px]"
           style={
             isOn
               ? { background: 'rgba(63,255,33,.15)', color: 'var(--g)', border: '1px solid rgba(63,255,33,.2)' }
@@ -141,10 +133,8 @@ function NavGroupSection({
       <button
         type="button"
         onClick={onToggle}
-        className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-[10px] font-black uppercase tracking-widest transition-colors"
+        className="group-toggle flex w-full items-center gap-2 rounded-md px-3 py-2 text-[11px] font-black uppercase tracking-widest"
         style={{ color: 'var(--t3)' }}
-        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,.03)'; }}
-        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = ''; }}
       >
         <span style={{ width: 4, height: 4, borderRadius: '50%', background: 'var(--g)', opacity: .4, flexShrink: 0 }} />
         <span className="flex-1 text-left">{group.label}</span>
@@ -267,18 +257,18 @@ function ProfileFooter({ onClose }: { onClose?: () => void }) {
           </div>
           <div className="flex items-center gap-1.5 mt-0.5">
             <span className="live-dot" style={{ width: 5, height: 5 }} />
-            <span className="text-[10px]" style={{ color: 'var(--t3)' }}>{role}</span>
+            <span className="text-[11px]" style={{ color: 'var(--t3)' }}>{role}</span>
           </div>
           {isExpiringSoon && (
-            <div style={{ fontSize: 9, color: 'var(--r)', marginTop: 2, fontWeight: 700 }}>
-              ⚠ Expira em {daysLeft}d
+            <div style={{ fontSize: 11, color: 'var(--r)', marginTop: 2, fontWeight: 700 }}>
+              Expira em {daysLeft}d
             </div>
           )}
         </div>
 
         {/* Plan badge */}
         <span
-          className="text-[9px] px-2 py-0.5 rounded-md font-black flex-shrink-0 uppercase tracking-wider"
+          className="text-[11px] px-2 py-0.5 rounded-md font-black flex-shrink-0 uppercase tracking-wider"
           style={badgeStyle}
         >
           {planLabel}
@@ -289,16 +279,7 @@ function ProfileFooter({ onClose }: { onClose?: () => void }) {
       <button
         type="button"
         onClick={handleSignOut}
-        className="flex items-center gap-2 w-full px-3 py-1.5 mt-1.5 rounded-xl text-xs font-semibold transition-all"
-        style={{ color: 'var(--t3)' }}
-        onMouseEnter={e => {
-          (e.currentTarget as HTMLElement).style.background = 'rgba(255,77,109,.07)';
-          (e.currentTarget as HTMLElement).style.color = 'var(--r)';
-        }}
-        onMouseLeave={e => {
-          (e.currentTarget as HTMLElement).style.background = '';
-          (e.currentTarget as HTMLElement).style.color = 'var(--t3)';
-        }}
+        className="btn-signout mt-1.5"
       >
         <LogOut size={13} />
         Sair da conta
@@ -339,7 +320,7 @@ function SidebarContent({ onClose, onCollapse }: { onClose?: () => void; onColla
             borderRadius: 10,
             background: 'linear-gradient(135deg, var(--g) 0%, #00CC6E 100%)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 0 24px rgba(63,255,33,.55), 0 0 60px rgba(63,255,33,.18), inset 0 1px 0 rgba(255,255,255,.25)',
+            boxShadow: '0 0 14px rgba(63,255,33,.3), inset 0 1px 0 rgba(255,255,255,.25)',
             flexShrink: 0,
           }}
         >
@@ -354,7 +335,7 @@ function SidebarContent({ onClose, onCollapse }: { onClose?: () => void; onColla
             <span className="text-glow" style={{ color: 'var(--g)' }}>Sure</span>
             <span style={{ color: 'var(--t)' }}>Edge</span>
           </span>
-          <span className="text-[9px] font-semibold tracking-[.08em] uppercase" style={{ color: 'var(--t3)' }}>
+          <span className="text-[11px] font-semibold tracking-[.08em] uppercase" style={{ color: 'var(--t3)' }}>
             Trading Hub
           </span>
         </div>
@@ -379,16 +360,7 @@ function SidebarContent({ onClose, onCollapse }: { onClose?: () => void; onColla
             onClick={onCollapse}
             aria-label="Recolher sidebar"
             title="Recolher menu"
-            className="ml-auto w-8 h-8 rounded-lg flex items-center justify-center transition-all"
-            style={{ color: 'var(--t3)', background: 'rgba(255,255,255,.03)' }}
-            onMouseEnter={e => {
-              (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,.08)';
-              (e.currentTarget as HTMLElement).style.color = 'var(--t)';
-            }}
-            onMouseLeave={e => {
-              (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,.03)';
-              (e.currentTarget as HTMLElement).style.color = 'var(--t3)';
-            }}
+            className="icon-btn ml-auto w-8 h-8"
           >
             <PanelLeftClose size={14} />
           </button>

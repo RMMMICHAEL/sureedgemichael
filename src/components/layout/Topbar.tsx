@@ -144,14 +144,7 @@ export function Topbar({ onMenuClick }: TopbarProps) {
         type="button"
         onClick={onMenuClick}
         aria-label="Abrir menu"
-        className="md:hidden w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 transition-all"
-        style={{
-          border: '1px solid var(--b)',
-          color: 'var(--t2)',
-          background: 'rgba(255,255,255,.04)',
-        }}
-        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'rgba(63,255,33,.2)'; }}
-        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--b)'; }}
+        className="btn-ghost hov-accent md:hidden w-9 h-9 flex-shrink-0"
       >
         <Menu size={17} />
       </button>
@@ -167,7 +160,7 @@ export function Topbar({ onMenuClick }: TopbarProps) {
           </h1>
           {meta.desc && (
             <span
-              className="text-[10px] font-medium hidden md:block mt-0.5"
+              className="text-[11px] font-medium hidden md:block mt-0.5"
               style={{ color: 'var(--t3)' }}
             >
               {meta.desc}
@@ -191,7 +184,7 @@ export function Topbar({ onMenuClick }: TopbarProps) {
             {/* Last sync label */}
             {fmtLastSync && !showInput && (
               <span
-                className="hidden md:flex items-center gap-1.5 text-[10px] font-mono px-2.5 py-1.5 rounded-lg"
+                className="hidden md:flex items-center gap-1.5 text-[11px] font-mono px-2.5 py-1.5 rounded-lg"
                 style={{
                   color: 'var(--t3)',
                   background: 'rgba(63,255,33,.04)',
@@ -240,8 +233,7 @@ export function Topbar({ onMenuClick }: TopbarProps) {
                   type="button"
                   onClick={() => setShowInput(false)}
                   aria-label="Cancelar"
-                  className="w-9 h-9 rounded-lg flex items-center justify-center transition-colors"
-                  style={{ color: 'var(--t3)', background: 'rgba(255,255,255,.05)' }}
+                  className="icon-btn w-9 h-9"
                 >
                   <X size={13} />
                 </button>

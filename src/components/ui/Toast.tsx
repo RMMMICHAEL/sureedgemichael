@@ -19,7 +19,7 @@ import type { ToastMsg } from '@/store/useStore';
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 const SCHEME: Record<ToastMsg['type'], { bg: string; border: string; accent: string; icon: React.ReactNode }> = {
-  ok:   { bg: 'rgba(0,220,120,.09)',  border: 'rgba(0,220,120,.22)',  accent: '#3DFF8F', icon: <CheckCircle2  size={13} /> },
+  ok:   { bg: 'rgba(0,220,120,.09)',  border: 'rgba(0,220,120,.22)',  accent: '#3FFF21', icon: <CheckCircle2  size={13} /> },
   err:  { bg: 'rgba(255,77,77,.09)',  border: 'rgba(255,77,77,.22)',  accent: '#FF5A5A', icon: <XCircle       size={13} /> },
   wrn:  { bg: 'rgba(255,200,0,.09)', border: 'rgba(255,200,0,.22)', accent: '#FFD60A', icon: <AlertTriangle  size={13} /> },
   info: { bg: 'rgba(77,160,255,.09)', border: 'rgba(77,160,255,.22)', accent: '#60A5FA', icon: <Info          size={13} /> },

@@ -23,7 +23,7 @@ export function TeamLogo({ src, name, size = 28 }: Props) {
   if (!src || failed) {
     return (
       <span
-        className="inline-flex items-center justify-center rounded-full text-[10px] font-black flex-shrink-0"
+        className="inline-flex items-center justify-center rounded-full text-[11px] font-black flex-shrink-0"
         style={{
           width: size, height: size,
           background: 'rgba(63,255,33,.10)',

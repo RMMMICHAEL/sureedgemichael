@@ -123,8 +123,8 @@ interface Props {
 // ── Result badge colour ────────────────────────────────────────────────────────
 
 const RE_STYLE: Record<string, { color: string; bg: string; border: string }> = {
-  Green:             { color: '#3DFF8F', bg: 'rgba(61,255,143,.1)',  border: 'rgba(61,255,143,.25)'  },
-  'Green Antecipado':{ color: '#3DFF8F', bg: 'rgba(61,255,143,.1)',  border: 'rgba(61,255,143,.25)'  },
+  Green:             { color: '#3FFF21', bg: 'rgba(63,255,33,.1)',  border: 'rgba(63,255,33,.25)'  },
+  'Green Antecipado':{ color: '#3FFF21', bg: 'rgba(63,255,33,.1)',  border: 'rgba(63,255,33,.25)'  },
   'Meio Green':      { color: '#A7F3D0', bg: 'rgba(167,243,208,.08)', border: 'rgba(167,243,208,.2)'  },
   Red:               { color: '#FF4545', bg: 'rgba(255,69,69,.1)',    border: 'rgba(255,69,69,.25)'   },
   'Meio Red':        { color: '#FCA5A5', bg: 'rgba(252,165,165,.08)', border: 'rgba(252,165,165,.2)'  },
@@ -138,7 +138,7 @@ const RE_STYLE: Record<string, { color: string; bg: string; border: string }> = 
 function StatChip({ label, value, color }: { label: string; value: string; color: string }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'rgba(148,163,184,.55)' }}>
+      <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'rgba(148,163,184,.55)' }}>
         {label}
       </span>
       <span style={{ fontSize: 15, fontWeight: 900, fontFamily: "'JetBrains Mono',monospace", color }}>
@@ -276,12 +276,12 @@ export function NovaOperacaoForm({ opType }: Props) {
 
   // ── Leg labels / accent colour ───────────────────────────────────────────────
 
-  const legColor   = isSB ? '#4DA6FF' : '#3DFF8F';
-  const legBg      = isSB ? 'rgba(77,166,255,.1)'  : 'rgba(61,255,143,.1)';
-  const legBorder  = isSB ? 'rgba(77,166,255,.22)' : 'rgba(61,255,143,.22)';
+  const legColor   = isSB ? '#4DA6FF' : '#3FFF21';
+  const legBg      = isSB ? 'rgba(77,166,255,.1)'  : 'rgba(63,255,33,.1)';
+  const legBorder  = isSB ? 'rgba(77,166,255,.22)' : 'rgba(63,255,33,.22)';
   const btnGradient = isSB
-    ? 'linear-gradient(135deg,#3DFF8F,#00BBFF)'
-    : 'linear-gradient(135deg,#3DFF8F,#FFBF00)';
+    ? 'linear-gradient(135deg,#3FFF21,#00BBFF)'
+    : 'linear-gradient(135deg,#3FFF21,#FFBF00)';
 
   const legLabels = isSB
     ? (activeLegs === 2 ? ['Casa A', 'Casa B'] : ['Casa A', 'Casa B', 'Casa C'])
@@ -299,7 +299,7 @@ export function NovaOperacaoForm({ opType }: Props) {
         background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.08)',
         borderRadius: 14, padding: '16px 18px',
       }}>
-        <p style={{ ...LABEL, marginBottom: 12, fontSize: 10, color: 'rgba(148,163,184,.5)' }}>
+        <p style={{ ...LABEL, marginBottom: 12, fontSize: 11, color: 'rgba(148,163,184,.5)' }}>
           Informações do Evento
         </p>
 
@@ -328,7 +328,7 @@ export function NovaOperacaoForm({ opType }: Props) {
         {/* Surebet: 2/3 leg selector */}
         {isSB && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 12 }}>
-            <span style={{ ...LABEL, marginBottom: 0, color: 'rgba(148,163,184,.5)', fontSize: 10 }}>Nº de casas:</span>
+            <span style={{ ...LABEL, marginBottom: 0, color: 'rgba(148,163,184,.5)', fontSize: 11 }}>Nº de casas:</span>
             {([2, 3] as const).map(n => (
               <button key={n} onClick={() => setNumLegs(n)}
                 style={{
@@ -349,7 +349,7 @@ export function NovaOperacaoForm({ opType }: Props) {
         {legs.slice(0, activeLegs).map((leg, i) => {
           const reStyle = RE_STYLE[leg.re] ?? RE_STYLE['Pendente'];
           const profit  = summary?.profits[i];
-          const profC   = profit == null ? '#4B5563' : profit >= 0 ? '#3DFF8F' : '#FF4545';
+          const profC   = profit == null ? '#4B5563' : profit >= 0 ? '#3FFF21' : '#FF4545';
 
           return (
             <div key={i} style={{
@@ -461,12 +461,12 @@ export function NovaOperacaoForm({ opType }: Props) {
                 <StatChip
                   label="Lucro mín garantido"
                   value={`${summary.minProfit >= 0 ? '+' : '−'} R$ ${Math.abs(summary.minProfit).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-                  color={summary.minProfit >= 0 ? '#3DFF8F' : '#FF4545'}
+                  color={summary.minProfit >= 0 ? '#3FFF21' : '#FF4545'}
                 />
                 <StatChip
                   label="% lucro"
                   value={`${summary.pct >= 0 ? '+' : ''}${summary.pct.toFixed(2)}%`}
-                  color={summary.pct >= 0 ? '#3DFF8F' : '#FFBF00'}
+                  color={summary.pct >= 0 ? '#3FFF21' : '#FFBF00'}
                 />
               </>
             )}
@@ -476,7 +476,7 @@ export function NovaOperacaoForm({ opType }: Props) {
                 <StatChip
                   label="Ambos Green"
                   value={`${dgScenarios.ambosNet >= 0 ? '+' : '−'} R$ ${Math.abs(dgScenarios.ambosNet).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
-                  color={dgScenarios.ambosNet >= 0 ? '#3DFF8F' : '#FF4545'}
+                  color={dgScenarios.ambosNet >= 0 ? '#3FFF21' : '#FF4545'}
                 />
                 <div>
                   <span style={{ ...LABEL, marginBottom: 4 }}>Se apenas 1 green</span>

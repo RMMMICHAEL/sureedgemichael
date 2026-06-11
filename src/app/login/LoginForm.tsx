@@ -78,11 +78,11 @@ function LiveTicker() {
               <div style={{ fontSize: 11, color: item.type === 'found' ? '#3FFF21' : 'var(--t2)', fontWeight: 600, marginBottom: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {item.evento}
               </div>
-              <div style={{ fontSize: 10, color: 'var(--t3)' }}>{item.casa}</div>
+              <div style={{ fontSize: 11, color: 'var(--t3)' }}>{item.casa}</div>
             </div>
             <div style={{ textAlign: 'right', flexShrink: 0 }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: '#3FFF21', fontFamily: 'JetBrains Mono' }}>{item.val}</div>
-              <div style={{ fontSize: 10, color: 'var(--t3)' }}>ROI {item.roi}</div>
+              <div style={{ fontSize: 11, color: 'var(--t3)' }}>ROI {item.roi}</div>
             </div>
           </div>
         ))}

@@ -11,23 +11,24 @@ import { DGOpportunitiesSection } from './DGOpportunitiesSection';
 
 // ─── Palette DG ───────────────────────────────────────────────────────────────
 const C = {
-  green:    '#00e676',
-  greenDim: 'rgba(0,230,118,.12)',
-  greenB:   'rgba(0,230,118,.3)',
-  purple:   '#7c3aed',
-  purpleDim:'rgba(124,58,237,.12)',
-  purpleB:  'rgba(124,58,237,.3)',
+  green:    '#3FFF21',
+  greenDim: 'rgba(63,255,33,.12)',
+  greenB:   'rgba(63,255,33,.3)',
+  purple:   '#A78BFA',
+  purpleDim:'rgba(167,139,250,.12)',
+  purpleB:  'rgba(167,139,250,.3)',
   amber:    '#f59e0b',
   amberDim: 'rgba(245,158,11,.12)',
   amberB:   'rgba(245,158,11,.3)',
   red:      '#f87171',
   redDim:   'rgba(248,113,113,.1)',
-  surf:     '#10141a',
-  surfB:    '#1a2030',
-  bg:       '#080b0f',
-  t1:       '#e2e8f0',
-  t2:       '#94a3b8',
-  t3:       '#64748b',
+  // Superfícies e textos = tokens oficiais (globals.css); literais por causa da concatenação de alpha
+  surf:     '#0D1117',
+  surfB:    '#1A2230',
+  bg:       '#030507',
+  t1:       '#F0F4F8',
+  t2:       '#8899AA',
+  t3:       '#7E92A3',
 };
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
@@ -170,7 +171,7 @@ function dgColor(c: string | null): string {
   return C.t3;
 }
 function dgRGB(c: string | null): string {
-  if (c === 'ALTA')  return '0,230,118';
+  if (c === 'ALTA')  return '63,255,33';
   if (c === 'MEDIA') return '245,158,11';
   return '100,116,139';
 }
@@ -222,7 +223,7 @@ function marginBg(mgn: number): string {
 
 type OddType = 'home' | 'draw' | 'away';
 interface CalcSlot { bk: BookmakerOdds; type: OddType; value: number }
-const SLOT_COLORS = ['#00e676', '#4DA6FF', '#FF9F0A'];
+const SLOT_COLORS = ['#3FFF21', '#4DA6FF', '#FF9F0A'];
 const SLOT_LABELS = ['1ª', '2ª', '3ª'];
 
 // ─── Célula de melhor odd (estilo com badge PA/SO) ───────────────────────────
@@ -245,8 +246,8 @@ function BestOddCell({ bk, type, showPaBadge }: { bk: BookmakerOdds | null; type
   return (
     <div className="relative flex h-[52px] w-full flex-col items-center justify-center gap-0.5 rounded-lg transition-opacity hover:opacity-80"
       style={pa ? {
-        background: 'rgba(0,230,118,.08)',
-        border: '1px solid rgba(0,230,118,.28)',
+        background: 'rgba(63,255,33,.08)',
+        border: '1px solid rgba(63,255,33,.28)',
       } : {
         background: 'rgba(255,255,255,.03)',
         border: '1px solid rgba(255,255,255,.08)',
@@ -255,11 +256,11 @@ function BestOddCell({ bk, type, showPaBadge }: { bk: BookmakerOdds | null; type
         style={{ color: pa ? C.green : C.t2, textShadow: pa ? `0 0 10px ${C.green}33` : 'none' }}>
         {val.toFixed(2)}
       </span>
-      <span className="max-w-full truncate px-2 text-[9px]" style={{ color: C.t3 }}>
+      <span className="max-w-full truncate px-2 text-[11px]" style={{ color: C.t3 }}>
         {bk.name}
       </span>
       {/* badge PA / SO */}
-      <span className="absolute -right-1 -top-1 rounded border px-[3px] py-px text-[7px] font-bold"
+      <span className="absolute -right-1 -top-1 rounded border px-[3px] py-px text-[11px] font-bold"
         style={pa
           ? { background: C.greenDim, color: C.green, borderColor: C.greenB }
           : { background: 'rgba(255,255,255,.04)', color: C.t3, borderColor: 'rgba(255,255,255,.1)' }
@@ -364,7 +365,7 @@ function EventOddsPanel({
           <span style={{
             position: 'absolute', top: -5, right: -5, width: 15, height: 15,
             borderRadius: '50%', background: sc, color: '#060A07',
-            fontSize: 8, fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 11, fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>{si + 1}</span>
         )}
       </button>
@@ -374,7 +375,7 @@ function EventOddsPanel({
   function OddsSection({ label, bks, accent }: { label: string; bks: BookmakerOdds[]; accent: string }) {
     const [sortCol, setSortCol] = useState<'home'|'draw'|'away'>('home');
     if (!bks.length) return null;
-    const acRgb = accent === C.amber ? '245,158,11' : '124,58,237';
+    const acRgb = accent === C.amber ? '245,158,11' : '167,139,250';
     const sorted = [...bks].sort((a, b) => (b[sortCol] as number) - (a[sortCol] as number));
     const cols: { key: 'home'|'draw'|'away'; label: string }[] = [
       { key: 'home', label: 'Casa (1)' },
@@ -391,12 +392,12 @@ function EventOddsPanel({
         <div className="flex items-center gap-2.5 px-5 py-3" style={{ background: `rgba(${acRgb},.07)`, borderBottom: `1px solid rgba(${acRgb},.1)` }}>
           <div style={{ width: 3, height: 14, borderRadius: 2, background: accent }} />
           <span style={{ fontSize: 11, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em', color: accent }}>{label}</span>
-          <span style={{ fontSize: 9, fontWeight: 700, borderRadius: 99, padding: '1px 6px', background: `rgba(${acRgb},.12)`, color: accent, border: `1px solid rgba(${acRgb},.25)` }}>
+          <span style={{ fontSize: 11, fontWeight: 700, borderRadius: 99, padding: '1px 6px', background: `rgba(${acRgb},.12)`, color: accent, border: `1px solid rgba(${acRgb},.25)` }}>
             {bks.length} casas
           </span>
         </div>
         <div className="grid items-center gap-3 px-5 py-2.5" style={{ gridTemplateColumns: '1fr 72px 72px 72px', background: 'rgba(255,255,255,.01)', borderBottom: '1px solid rgba(255,255,255,.04)' }}>
-          <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: C.t3 }}>Casa</span>
+          <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: C.t3 }}>Casa</span>
           {cols.map(c => (
             <button key={c.key} type="button" onClick={() => setSortCol(c.key)}
               className="flex items-center justify-center gap-0.5 transition-colors"
@@ -423,7 +424,7 @@ function EventOddsPanel({
                   ) : (
                     <span className="truncate" style={{ fontSize: 13, fontWeight: 600, color: C.t2 }}>{bk.name}</span>
                   )}
-                  {pa && <span style={{ fontSize: 8, fontWeight: 700, borderRadius: 4, padding: '1px 4px', background: C.amberDim, color: C.amber, border: `1px solid ${C.amberB}`, flexShrink: 0 }}>PA</span>}
+                  {pa && <span style={{ fontSize: 11, fontWeight: 700, borderRadius: 4, padding: '1px 4px', background: C.amberDim, color: C.amber, border: `1px solid ${C.amberB}`, flexShrink: 0 }}>PA</span>}
                 </div>
                 <OddBtn bk={bk} type="home" value={bk.home} />
                 <OddBtn bk={bk} type="draw" value={bk.draw} />
@@ -460,9 +461,9 @@ function EventOddsPanel({
               <Zap size={9} style={{ color: dgCol }} />
               <span style={{ fontSize: 18, fontWeight: 900, lineHeight: 1, color: dgCol }}>{dgInfo.dg_score ?? '—'}</span>
             </div>
-            <span style={{ fontSize: 8, fontWeight: 900, textTransform: 'uppercase', color: `rgba(${dgRgb},.5)` }}>DG score</span>
+            <span style={{ fontSize: 11, fontWeight: 900, textTransform: 'uppercase', color: `rgba(${dgRgb},.5)` }}>DG score</span>
             {dgInfo.dg_profit_pct != null && (
-              <span style={{ fontSize: 9, fontWeight: 700, marginTop: 2, color: dgInfo.dg_profit_pct >= 0 ? C.green : C.red }}>
+              <span style={{ fontSize: 11, fontWeight: 700, marginTop: 2, color: dgInfo.dg_profit_pct >= 0 ? C.green : C.red }}>
                 {dgInfo.dg_profit_pct >= 0 ? '+' : ''}{dgInfo.dg_profit_pct.toFixed(1)}%
               </span>
             )}
@@ -482,28 +483,28 @@ function EventOddsPanel({
       }}>
         <div style={{ height: 2, background: activeSlots.length > 0 ? `linear-gradient(90deg, ${C.green} 0%, ${C.green}33 60%, transparent 100%)` : `linear-gradient(90deg, rgba(255,255,255,.06) 0%, transparent 100%)` }} />
         <div className="flex flex-wrap items-center gap-2 px-4 py-3" style={{ borderBottom: `1px solid ${C.surfB}` }}>
-          <span style={{ fontSize: 10, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em', color: C.t3 }}>Duplo Green</span>
+          <span style={{ fontSize: 11, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em', color: C.t3 }}>Duplo Green</span>
           <div className="flex flex-1 flex-wrap gap-2">
             {slots.map((slot, i) => (
-              <div key={i} className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-[10px] font-semibold"
+              <div key={i} className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-[11px] font-semibold"
                 style={{ background: slot ? `${SLOT_COLORS[i]}12` : 'rgba(255,255,255,.03)', border: `1px solid ${slot ? SLOT_COLORS[i] + '40' : 'rgba(255,255,255,.06)'}` }}>
-                <span style={{ color: SLOT_COLORS[i], opacity: slot ? 1 : .3, fontSize: 9 }}>{SLOT_LABELS[i]}</span>
+                <span style={{ color: SLOT_COLORS[i], opacity: slot ? 1 : .3, fontSize: 11 }}>{SLOT_LABELS[i]}</span>
                 {slot ? (
                   <>
                     <span style={{ color: C.t2 }}>{slot.bk.name}</span>
                     <span style={{ color: SLOT_COLORS[i], fontWeight: 900 }}>{slot.value.toFixed(2)}</span>
-                    <span style={{ color: 'rgba(255,255,255,.3)', fontSize: 9 }}>({slot.type === 'home' ? '1' : slot.type === 'draw' ? 'X' : '2'})</span>
+                    <span style={{ color: 'rgba(255,255,255,.45)', fontSize: 11 }}>({slot.type === 'home' ? '1' : slot.type === 'draw' ? 'X' : '2'})</span>
                     <button onClick={() => setSlots(prev => { const n = [...prev]; n[i] = null; return n; })}
-                      style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,.3)', cursor: 'pointer', padding: 0, marginLeft: 2, fontSize: 12, lineHeight: 1 }}>×</button>
+                      style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,.45)', cursor: 'pointer', padding: 0, marginLeft: 2, fontSize: 12, lineHeight: 1 }}>×</button>
                   </>
                 ) : (
-                  <span style={{ color: 'rgba(255,255,255,.2)', fontSize: 9 }}>vazio</span>
+                  <span style={{ color: 'rgba(255,255,255,.45)', fontSize: 11 }}>vazio</span>
                 )}
               </div>
             ))}
           </div>
           {activeSlots.length > 0 && (
-            <button onClick={() => setSlots([null, null, null])} className="rounded-md px-2 py-1 text-[9px] font-bold hover:bg-white/10"
+            <button onClick={() => setSlots([null, null, null])} className="rounded-md px-2 py-1 text-[11px] font-bold hover:bg-white/10"
               style={{ color: C.t3, border: '1px solid rgba(255,255,255,.1)', background: 'none', cursor: 'pointer' }}>Limpar</button>
           )}
         </div>
@@ -614,7 +615,7 @@ function LeagueFilterModal({
                 <button key={lg} type="button" onClick={() => toggle(lg)}
                   className="flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-left transition-all hover:opacity-90"
                   style={{
-                    background: sel ? 'rgba(0,230,118,.1)' : 'rgba(255,255,255,.03)',
+                    background: sel ? 'rgba(63,255,33,.1)' : 'rgba(255,255,255,.03)',
                     border: `1px solid ${sel ? C.greenB : C.surfB}`,
                     cursor: 'pointer',
                   }}>
@@ -864,14 +865,14 @@ export function BuscarOddsPage() {
               <button onClick={() => setLeagueModalOpen(true)}
                 className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-[12px] font-bold transition-all"
                 style={{
-                  background: active ? 'rgba(0,230,118,.1)' : `${C.surf}cc`,
+                  background: active ? 'rgba(63,255,33,.1)' : `${C.surf}cc`,
                   border:     active ? `1px solid ${C.greenB}` : `1px solid ${C.surfB}`,
                   color:      active ? C.green : C.t2,
                 }}>
                 <Trophy size={11} />
                 <span>{label}</span>
                 {active && (
-                  <span style={{ fontSize: 9, fontWeight: 900, borderRadius: 99, padding: '0 5px', background: 'rgba(0,230,118,.18)', color: C.green }}>
+                  <span style={{ fontSize: 11, fontWeight: 900, borderRadius: 99, padding: '0 5px', background: 'rgba(63,255,33,.18)', color: C.green }}>
                     {leagueFilter.size}/{allLeagues.length}
                   </span>
                 )}
@@ -894,7 +895,7 @@ export function BuscarOddsPage() {
           <div className="flex items-center gap-1 rounded-xl p-1" style={{ background: 'rgba(255,255,255,.03)', border: `1px solid ${C.surfB}` }}>
             {([
               ['ALL',       'Todos',      cntAll,      C.t2,   '255,255,255'] as const,
-              ['APENAS_PA', 'Apenas PA',  cntApenasPA, C.green,'0,230,118' ] as const,
+              ['APENAS_PA', 'Apenas PA',  cntApenasPA, C.green,'63,255,33' ] as const,
             ]).map(([v, label, cnt, col, rgb]) => {
               const active = paFilter === v;
               return (
@@ -907,7 +908,7 @@ export function BuscarOddsPage() {
                   }}>
                   {label}
                   <span style={{
-                    fontSize: 9, fontWeight: 900, borderRadius: 99, padding: '0 4px',
+                    fontSize: 11, fontWeight: 900, borderRadius: 99, padding: '0 4px',
                     background: active ? `rgba(${rgb},.18)` : 'rgba(255,255,255,.06)',
                     color: active ? col : C.t3,
                   }}>
@@ -932,7 +933,7 @@ export function BuscarOddsPage() {
           <div className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm"
             style={{ background: C.redDim, border: `1px solid rgba(248,113,113,.25)`, color: C.red }}>
             {fetchErr}
-            <button onClick={() => loadOdds()} className="ml-auto text-xs" style={{ color: '#818cf8', background: 'none', border: 'none', cursor: 'pointer' }}>
+            <button onClick={() => loadOdds()} className="ml-auto text-xs" style={{ color: '#A78BFA', background: 'none', border: 'none', cursor: 'pointer' }}>
               Tentar novamente
             </button>
           </div>
@@ -953,9 +954,9 @@ export function BuscarOddsPage() {
                   <div key={j} className="flex items-center gap-2 px-4 py-3" style={{ borderTop: `1px solid ${C.surfB}` }}>
                     <div style={{ width: 40, height: 32, borderRadius: 6, background: 'rgba(255,255,255,.06)' }} />
                     <div style={{ flex: 1, height: 28, borderRadius: 6, background: 'rgba(255,255,255,.04)' }} />
-                    <div style={{ width: 56, height: 48, borderRadius: 8, background: 'rgba(0,230,118,.04)' }} />
-                    <div style={{ width: 56, height: 48, borderRadius: 8, background: 'rgba(0,230,118,.04)' }} />
-                    <div style={{ width: 56, height: 48, borderRadius: 8, background: 'rgba(0,230,118,.04)' }} />
+                    <div style={{ width: 56, height: 48, borderRadius: 8, background: 'rgba(63,255,33,.04)' }} />
+                    <div style={{ width: 56, height: 48, borderRadius: 8, background: 'rgba(63,255,33,.04)' }} />
+                    <div style={{ width: 56, height: 48, borderRadius: 8, background: 'rgba(63,255,33,.04)' }} />
                   </div>
                 ))}
               </div>
@@ -981,7 +982,7 @@ export function BuscarOddsPage() {
         {/* ── Cabeçalho desktop ───────────────────────────────────────────── */}
         {!loading && byLeague.length > 0 && (
           <div className="hidden md:grid items-center gap-3 px-4 pb-1"
-            style={{ gridTemplateColumns: '80px 1fr 70px 70px 70px', fontSize: 10, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em', color: C.t3 }}>
+            style={{ gridTemplateColumns: '80px 1fr 70px 70px 70px', fontSize: 11, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em', color: C.t3 }}>
             <span>Hora</span>
             <span>Jogo</span>
             <span className="text-center">Casa (1)</span>
@@ -1001,7 +1002,7 @@ export function BuscarOddsPage() {
                 background: `${C.surf}cc`,
                 border: `1px solid ${isFav ? C.greenB : C.surfB}`,
                 boxShadow: isFav
-                  ? `0 4px 24px rgba(0,0,0,.4), 0 0 16px rgba(0,230,118,.06)`
+                  ? `0 4px 24px rgba(0,0,0,.4), 0 0 16px rgba(63,255,33,.06)`
                   : '0 4px 20px rgba(0,0,0,.4)',
               }}>
 
@@ -1010,25 +1011,25 @@ export function BuscarOddsPage() {
                 height: 2,
                 background: isFav
                   ? `linear-gradient(90deg, ${C.green} 0%, ${C.green}44 55%, transparent 100%)`
-                  : `linear-gradient(90deg, rgba(0,230,118,.35) 0%, rgba(0,230,118,.08) 55%, transparent 100%)`,
+                  : `linear-gradient(90deg, rgba(63,255,33,.35) 0%, rgba(63,255,33,.08) 55%, transparent 100%)`,
               }} />
 
               {/* Cabeçalho da liga */}
               <div className="flex items-center justify-between px-4 py-2.5"
                 style={{
-                  background: isFav ? 'rgba(0,230,118,.06)' : 'rgba(255,255,255,.016)',
+                  background: isFav ? 'rgba(63,255,33,.06)' : 'rgba(255,255,255,.016)',
                   borderBottom: isCollapsed ? 'none' : `1px solid ${C.surfB}`,
                 }}>
                 <button onClick={() => toggleCollapse(league)}
                   className="flex flex-1 items-center gap-2.5 text-left hover:opacity-80 transition-opacity"
                   style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
                   {/* ícone de liga (bullet colorido) */}
-                  <div style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: isFav ? C.green : 'rgba(0,230,118,.45)', boxShadow: isFav ? `0 0 6px ${C.green}` : 'none' }} />
+                  <div style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: isFav ? C.green : 'rgba(63,255,33,.45)', boxShadow: isFav ? `0 0 6px ${C.green}` : 'none' }} />
                   <span style={{ fontSize: 12, fontWeight: 800, color: isFav ? C.green : C.t1 }}>
                     {league}
                   </span>
                   <span style={{
-                    fontSize: 10, fontWeight: 700, borderRadius: 99, padding: '1px 7px',
+                    fontSize: 11, fontWeight: 700, borderRadius: 99, padding: '1px 7px',
                     background: 'rgba(255,255,255,.06)', color: C.t3, border: `1px solid ${C.surfB}`,
                   }}>
                     {evs.length}
@@ -1075,11 +1076,11 @@ export function BuscarOddsPage() {
                             style={{
                               borderTop: `1px solid ${C.surfB}`,
                               background: group.isToday
-                                ? 'rgba(0,230,118,.04)'
+                                ? 'rgba(63,255,33,.04)'
                                 : 'rgba(255,255,255,.01)',
                             }}>
                             <span style={{
-                              fontSize: 10, fontWeight: 800,
+                              fontSize: 11, fontWeight: 800,
                               color: group.isToday ? C.green : C.t3,
                               letterSpacing: '0.06em', textTransform: 'uppercase',
                             }}>
@@ -1087,12 +1088,12 @@ export function BuscarOddsPage() {
                             </span>
                             {group.isToday && (
                               <span style={{
-                                fontSize: 8, fontWeight: 900, borderRadius: 99, padding: '1px 5px',
+                                fontSize: 11, fontWeight: 900, borderRadius: 99, padding: '1px 5px',
                                 background: C.greenDim, color: C.green, border: `1px solid ${C.greenB}`,
                               }}>AO VIVO HOJE</span>
                             )}
-                            <div style={{ flex: 1, height: 1, background: group.isToday ? 'rgba(0,230,118,.12)' : 'rgba(255,255,255,.04)' }} />
-                            <span style={{ fontSize: 10, fontWeight: 700, color: C.t3 }}>{group.events.length}</span>
+                            <div style={{ flex: 1, height: 1, background: group.isToday ? 'rgba(63,255,33,.12)' : 'rgba(255,255,255,.04)' }} />
+                            <span style={{ fontSize: 11, fontWeight: 700, color: C.t3 }}>{group.events.length}</span>
                           </div>
                         )}
 
@@ -1140,12 +1141,12 @@ export function BuscarOddsPage() {
                                     <span style={{ fontSize: 13, fontWeight: 900, fontVariantNumeric: 'tabular-nums', color: started ? C.amber : isToday2 ? C.green : C.t2 }}>
                                       {fmtTime(ev.start_time)}
                                     </span>
-                                    <span style={{ fontSize: 9, fontWeight: 700, color: started ? `${C.amber}88` : isToday2 ? C.t3 : C.amber + '99' }}>
+                                    <span style={{ fontSize: 11, fontWeight: 700, color: started ? `${C.amber}88` : isToday2 ? C.t3 : C.amber + '99' }}>
                                       {started ? 'Em andamento' : isToday2 ? 'Hoje' : fmtDateShort(ev.start_time)}
                                     </span>
                                     {mgn !== null && (
                                       <span className="rounded px-1.5 py-px tabular-nums text-center"
-                                        style={{ fontSize: 9, fontWeight: 900, color: marginColor(mgn), background: marginBg(mgn), border: `1px solid ${marginColor(mgn)}33`, display: 'inline-block', alignSelf: 'flex-start' }}>
+                                        style={{ fontSize: 11, fontWeight: 900, color: marginColor(mgn), background: marginBg(mgn), border: `1px solid ${marginColor(mgn)}33`, display: 'inline-block', alignSelf: 'flex-start' }}>
                                         {isSure ? `+${Math.abs(mgn).toFixed(2)}%` : `${mgn.toFixed(1)}%`}
                                       </span>
                                     )}
@@ -1157,23 +1158,23 @@ export function BuscarOddsPage() {
                                       <p className="truncate text-[13px] font-bold" style={{ color: C.t1 }}>{ev.home_team}</p>
                                       {dg && dgRgb2 && dgCol2 && (
                                         <span className="shrink-0 flex items-center gap-1 rounded px-1.5 py-px"
-                                          style={{ fontSize: 8, fontWeight: 900, background: `rgba(${dgRgb2},.1)`, color: dgCol2, border: `1px solid rgba(${dgRgb2},.25)` }}>
+                                          style={{ fontSize: 11, fontWeight: 900, background: `rgba(${dgRgb2},.1)`, color: dgCol2, border: `1px solid rgba(${dgRgb2},.25)` }}>
                                           <Zap size={7} />{dg.dg_score}
                                         </span>
                                       )}
                                       {paCnt >= 2 && (
-                                        <span style={{ fontSize: 7, fontWeight: 900, borderRadius: 4, padding: '1px 4px', background: C.greenDim, color: C.green, border: `1px solid ${C.greenB}`, flexShrink: 0 }}>
+                                        <span style={{ fontSize: 11, fontWeight: 900, borderRadius: 4, padding: '1px 4px', background: C.greenDim, color: C.green, border: `1px solid ${C.greenB}`, flexShrink: 0 }}>
                                           PA×2
                                         </span>
                                       )}
                                       {paCnt === 1 && (
-                                        <span style={{ fontSize: 7, fontWeight: 900, borderRadius: 4, padding: '1px 4px', background: 'rgba(0,230,118,.05)', color: `${C.green}99`, border: 'rgba(0,230,118,.18) 1px solid', flexShrink: 0 }}>
+                                        <span style={{ fontSize: 11, fontWeight: 900, borderRadius: 4, padding: '1px 4px', background: 'rgba(63,255,33,.05)', color: `${C.green}99`, border: 'rgba(63,255,33,.18) 1px solid', flexShrink: 0 }}>
                                           PA
                                         </span>
                                       )}
                                     </div>
                                     <p className="truncate text-[13px] font-semibold" style={{ color: C.t2 }}>{ev.away_team}</p>
-                                    <p className="text-[10px]" style={{ color: C.t3 }}>
+                                    <p className="text-[11px]" style={{ color: C.t3 }}>
                                       {ev.bookmakers.length} casas
                                     </p>
                                   </div>
@@ -1189,12 +1190,12 @@ export function BuscarOddsPage() {
                                   <div className="flex flex-col items-center shrink-0" style={{ width: 44 }}>
                                     <span style={{ fontSize: 13, fontWeight: 900, color: started ? C.amber : isToday2 ? C.green : C.t2 }}>{fmtTime(ev.start_time)}</span>
                                     {mgn !== null && (
-                                      <span style={{ fontSize: 9, fontWeight: 700, color: marginColor(mgn) }}>
+                                      <span style={{ fontSize: 11, fontWeight: 700, color: marginColor(mgn) }}>
                                         {isSure ? `+${Math.abs(mgn).toFixed(1)}%` : `${mgn.toFixed(1)}%`}
                                       </span>
                                     )}
                                     {!isToday2 && !started && (
-                                      <span style={{ fontSize: 8, color: C.amber + '99', fontWeight: 700 }}>{fmtDateShort(ev.start_time)}</span>
+                                      <span style={{ fontSize: 11, color: C.amber + '99', fontWeight: 700 }}>{fmtDateShort(ev.start_time)}</span>
                                     )}
                                   </div>
                                   <div className="flex-1 min-w-0">
@@ -1216,10 +1217,10 @@ export function BuscarOddsPage() {
                                       return (
                                         <div key={ki} className="relative flex flex-col items-center justify-center rounded-md"
                                           style={pa2
-                                            ? { width: 36, height: 36, background: 'rgba(0,230,118,.08)', border: '1px solid rgba(0,230,118,.25)' }
+                                            ? { width: 36, height: 36, background: 'rgba(63,255,33,.08)', border: '1px solid rgba(63,255,33,.25)' }
                                             : { width: 36, height: 36, background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.08)' }}>
                                           <span style={{ fontSize: 11, fontWeight: 900, color: pa2 ? C.green : C.t2 }}>{val.toFixed(2)}</span>
-                                          {pa2 && <span className="absolute -right-1 -top-1 rounded border px-px text-[6px] font-bold" style={{ background: C.greenDim, color: C.green, borderColor: C.greenB }}>PA</span>}
+                                          {pa2 && <span className="absolute -right-1 -top-1 rounded border px-px text-[11px] font-bold" style={{ background: C.greenDim, color: C.green, borderColor: C.greenB }}>PA</span>}
                                         </div>
                                       );
                                     })}

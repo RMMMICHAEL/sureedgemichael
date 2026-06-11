@@ -133,8 +133,8 @@ function CashEvolutionChart({ legs }: { legs: Leg[] }) {
       ) : (
         <ResponsiveContainer width="100%" height={200}>
           <LineChart data={data}>
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,255,136,.03)" />
-            <XAxis dataKey="date" tick={{ fontSize: 10, fill: 'var(--t3)' }} axisLine={false} tickLine={false} />
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(63,255,33,.03)" />
+            <XAxis dataKey="date" tick={{ fontSize: 11, fill: 'var(--t3)' }} axisLine={false} tickLine={false} />
             <YAxis hide />
             <Tooltip content={<CustomTooltip />} />
             <Line

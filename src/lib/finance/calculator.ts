@@ -342,7 +342,7 @@ export interface ResultDist {
 
 export function calcResultDistribution(legs: Leg[]): ResultDist[] {
   const RESULTS: { key: ResultType | 'Pendente'; color: string }[] = [
-    { key: 'Green',       color: '#22c55e' },
+    { key: 'Green',       color: '#3FFF21' },
     { key: 'Meio Green',  color: '#86efac' },
     { key: 'Red',         color: '#ef4444' },
     { key: 'Meio Red',    color: '#fca5a5' },

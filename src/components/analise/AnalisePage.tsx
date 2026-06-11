@@ -47,7 +47,7 @@ const cardStyle: React.CSSProperties = {
 };
 
 const HOUSE_COLORS = [
-  '#4DA6FF', '#3DFF8F', '#FFCB2F', '#FF8F3D', '#C084FC',
+  '#4DA6FF', '#3FFF21', '#FFCB2F', '#FF8F3D', '#C084FC',
   '#34D399', '#F472B6', '#60A5FA', '#A78BFA', '#FB923C',
   '#38BDF8', '#FCD34D', '#86EFAC', '#FDA4AF', '#67E8F9',
 ];
@@ -169,7 +169,7 @@ function CrossingsBySport({ legs }: { legs: Leg[] }) {
               onClick={() => setActiveSport(s)}
               className="text-xs font-semibold px-3 py-1.5 rounded-lg transition-all"
               style={s === sport
-                ? { background: 'rgba(0,255,136,.1)', color: 'var(--g)', border: '1px solid rgba(0,255,136,.2)' }
+                ? { background: 'rgba(63,255,33,.1)', color: 'var(--g)', border: '1px solid rgba(63,255,33,.2)' }
                 : { background: 'rgba(255,255,255,.04)', color: 'var(--t3)', border: '1px solid rgba(255,255,255,.06)' }
               }
             >
@@ -187,14 +187,14 @@ function CrossingsBySport({ legs }: { legs: Leg[] }) {
         <div className="flex flex-col gap-2">
           {pairs.map((p, i) => {
             const pct = (p.count / max) * 100;
-            const profitColor = p.profit >= 0 ? '#3DFF8F' : '#FF4545';
+            const profitColor = p.profit >= 0 ? '#3FFF21' : '#FF4545';
             const rankColor = i === 0 ? '#FFD700' : i === 1 ? '#C0C0C0' : i === 2 ? '#CD7F32' : 'var(--t3)';
             return (
               <div key={i}
                 className="flex items-center gap-3 px-3 py-2.5 rounded-xl"
                 style={{
-                  background: i < 3 ? 'rgba(0,255,136,.03)' : 'rgba(255,255,255,.02)',
-                  border: i < 3 ? '1px solid rgba(0,255,136,.08)' : '1px solid rgba(255,255,255,.04)',
+                  background: i < 3 ? 'rgba(63,255,33,.03)' : 'rgba(255,255,255,.02)',
+                  border: i < 3 ? '1px solid rgba(63,255,33,.08)' : '1px solid rgba(255,255,255,.04)',
                 }}
               >
                 <span className="text-xs font-bold w-5 text-center flex-shrink-0"
@@ -211,13 +211,13 @@ function CrossingsBySport({ legs }: { legs: Leg[] }) {
                 <div className="w-14 h-1.5 rounded-full overflow-hidden flex-shrink-0"
                   style={{ background: 'rgba(255,255,255,.06)' }}>
                   <div className="h-full rounded-full"
-                    style={{ width: `${pct}%`, background: 'var(--g)', opacity: 0.4, transition: 'width .4s' }} />
+                    style={{ width: '100%', transform: `scaleX(${pct / 100})`, transformOrigin: 'left', background: 'var(--g)', opacity: 0.4, transition: 'transform .4s' }} />
                 </div>
                 <div className="flex flex-col items-end gap-0.5 flex-shrink-0" style={{ minWidth: 52 }}>
                   <span className="text-xs font-bold" style={{ color: 'var(--t2)', fontFamily: "'JetBrains Mono', monospace" }}>
                     {p.count}×
                   </span>
-                  <span className="text-[10px]" style={{ color: profitColor, fontFamily: "'JetBrains Mono', monospace" }}>
+                  <span className="text-[11px]" style={{ color: profitColor, fontFamily: "'JetBrains Mono', monospace" }}>
                     {p.profit >= 0 ? '+' : ''}R${Math.abs(p.profit).toFixed(0)}
                   </span>
                 </div>
@@ -261,7 +261,7 @@ function TopHousesByUsageChart({ legs }: { legs: Leg[] }) {
           <BarChart layout="vertical" data={data} barCategoryGap="22%">
             <CartesianGrid horizontal={false} stroke="rgba(255,255,255,.05)" />
             <XAxis type="number" axisLine={false} tickLine={false} allowDecimals={false}
-              tick={{ fill: 'var(--t3)', fontSize: 10, fontFamily: "'JetBrains Mono', monospace" }} />
+              tick={{ fill: 'var(--t3)', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }} />
             <YAxis type="category" dataKey="house" axisLine={false} tickLine={false} width={110}
               tick={{ fill: 'var(--t2)', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }} />
             <Tooltip formatter={(val: number) => [val, 'Apostas']} contentStyle={tooltipStyle}
@@ -329,7 +329,7 @@ function HouseEfficiency({ legs }: { legs: Leg[] }) {
       <div className="flex flex-col gap-2">
         {data.map((d, i) => {
           const crossPct = (d.crossings / maxCross) * 100;
-          const roiColor = d.roi >= 0 ? '#3DFF8F' : '#FF4545';
+          const roiColor = d.roi >= 0 ? '#3FFF21' : '#FF4545';
           return (
             <div key={d.house} className="flex items-center gap-3 px-2 py-2.5 rounded-xl"
               style={{ background: 'rgba(255,255,255,.02)' }}>
@@ -344,9 +344,9 @@ function HouseEfficiency({ legs }: { legs: Leg[] }) {
                 <div className="flex items-center gap-2">
                   <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,203,47,.1)' }}>
                     <div className="h-full rounded-full"
-                      style={{ width: `${crossPct}%`, background: '#FFCB2F', transition: 'width .4s' }} />
+                      style={{ width: '100%', transform: `scaleX(${crossPct / 100})`, transformOrigin: 'left', background: '#FFCB2F', transition: 'transform .4s' }} />
                   </div>
-                  <span className="text-[10px] font-mono font-bold flex-shrink-0" style={{ color: '#FFCB2F', minWidth: 28 }}>
+                  <span className="text-[11px] font-mono font-bold flex-shrink-0" style={{ color: '#FFCB2F', minWidth: 28 }}>
                     {d.crossings}×
                   </span>
                 </div>
@@ -355,7 +355,7 @@ function HouseEfficiency({ legs }: { legs: Leg[] }) {
                 <span className="text-xs font-mono font-bold" style={{ color: roiColor }}>
                   ROI {d.roi >= 0 ? '+' : ''}{d.roi}%
                 </span>
-                <span className="text-[10px] font-mono" style={{ color: 'var(--t3)' }}>
+                <span className="text-[11px] font-mono" style={{ color: 'var(--t3)' }}>
                   {d.ops} apostas
                 </span>
               </div>
@@ -390,12 +390,12 @@ function KpiChip({ label, value, sub, valueColor, icon }: {
         <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: 'rgba(255,255,255,.35)' }}>
           {label}
         </span>
-        {icon && <span style={{ color: 'rgba(255,255,255,.2)' }}>{icon}</span>}
+        {icon && <span style={{ color: 'rgba(255,255,255,.45)' }}>{icon}</span>}
       </div>
       <span style={{ fontSize: 20, fontWeight: 800, color: valueColor ?? 'var(--t)', fontFamily: "'JetBrains Mono',monospace", display: 'block' }}>
         {value}
       </span>
-      {sub && <span style={{ fontSize: 11, color: 'rgba(255,255,255,.3)', marginTop: 4, display: 'block' }}>{sub}</span>}
+      {sub && <span style={{ fontSize: 11, color: 'rgba(255,255,255,.45)', marginTop: 4, display: 'block' }}>{sub}</span>}
     </div>
   );
 }
@@ -403,8 +403,8 @@ function KpiChip({ label, value, sub, valueColor, icon }: {
 function SectionLabel({ children, icon }: { children: React.ReactNode; icon?: React.ReactNode }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0' }}>
-      {icon && <span style={{ color: 'rgba(255,255,255,.3)' }}>{icon}</span>}
-      <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.1em', color: 'rgba(255,255,255,.3)' }}>
+      {icon && <span style={{ color: 'rgba(255,255,255,.45)' }}>{icon}</span>}
+      <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.1em', color: 'rgba(255,255,255,.45)' }}>
         {children}
       </span>
       <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,.05)', marginLeft: 8 }} />
@@ -468,7 +468,7 @@ export function AnalisePage() {
           <input type="date" value={from} onChange={e => setFrom(e.target.value)}
             className="px-3 py-1.5 rounded-lg text-sm font-mono"
             style={{ background: 'var(--sur)', border: '1px solid var(--b2)', color: 'var(--t)' }} />
-          <span style={{ color: 'rgba(255,255,255,.3)' }}>→</span>
+          <span style={{ color: 'rgba(255,255,255,.45)' }}>→</span>
           <input type="date" value={to} onChange={e => setTo(e.target.value)}
             className="px-3 py-1.5 rounded-lg text-sm font-mono"
             style={{ background: 'var(--sur)', border: '1px solid var(--b2)', color: 'var(--t)' }} />
@@ -482,10 +482,10 @@ export function AnalisePage() {
         <KpiChip label="Casas" value={String(housesCount)} sub="distintas"
           icon={<Target size={15} />} />
         <KpiChip label="Lucro do Mês" value={fmtBRL(monthProfit)} sub={month}
-          valueColor={monthProfit >= 0 ? '#4ade80' : '#f87171'}
+          valueColor={monthProfit >= 0 ? '#3FFF21' : '#f87171'}
           icon={<Activity size={15} />} />
         <KpiChip label="Lucro do Ano" value={fmtBRL(yearProfit)} sub={year}
-          valueColor={yearProfit >= 0 ? '#4ade80' : '#f87171'}
+          valueColor={yearProfit >= 0 ? '#3FFF21' : '#f87171'}
           icon={<TrendingUp size={15} />} />
       </div>
 

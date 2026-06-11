@@ -106,7 +106,7 @@ export function SportsTabs({ active, onChange, liveCounts = {} }: Props) {
             <span>{tab.label}</span>
             {live > 0 && (
               <span
-                className="ml-0.5 text-[9px] font-black px-1 py-0.5 rounded-full"
+                className="ml-0.5 text-[11px] font-black px-1 py-0.5 rounded-full"
                 style={{ background: 'rgba(255,77,109,.2)', color: 'var(--r)' }}
               >
                 {live}

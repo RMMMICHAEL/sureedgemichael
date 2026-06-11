@@ -54,8 +54,8 @@ export function RecentOps({ legs }: { legs: Leg[] }) {
                         <span className="text-xs shrink-0">{sportEmoji(op.sport)}</span>
                         {op.legs[0]?.opType === 'freebet' && (
                           <span
-                            className="text-[10px] font-black px-1.5 py-0.5 rounded shrink-0"
-                            style={{ background: 'rgba(168,85,247,.15)', color: '#A855F7', border: '1px solid rgba(168,85,247,.25)' }}
+                            className="text-[11px] font-black px-1.5 py-0.5 rounded shrink-0"
+                            style={{ background: 'rgba(167,139,250,.15)', color: '#A78BFA', border: '1px solid rgba(167,139,250,.25)' }}
                           >
                             FB
                           </span>
