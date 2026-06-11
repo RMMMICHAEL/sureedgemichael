@@ -128,6 +128,9 @@ interface StoreState extends AppDB {
   // Cross-page navigation: scanner → buscar odds
   oddsInitQuery:     string | null;
   setOddsInitQuery:  (q: string | null) => void;
+  // Calculadora flutuante global (PiP)
+  pipCalcOpen:       boolean;
+  setPipCalcOpen:    (v: boolean) => void;
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -198,6 +201,7 @@ export const useStore = create<StoreState>()((set, get) => ({
   importBuffer:     null,
   isSyncing:        false,
   authEmail:        null,
+  pipCalcOpen:      false,
   oddsInitQuery:    null,
 
   // ── init ──────────────────────────────────────────────────────────────────
@@ -1090,6 +1094,7 @@ export const useStore = create<StoreState>()((set, get) => ({
   setDateRange(from, to) { set({ dateFrom: from, dateTo: to }); },
   setImportBuffer(r) { set({ importBuffer: r }); },
   setOddsInitQuery(q) { set({ oddsInitQuery: q }); },
+  setPipCalcOpen(v)  { set({ pipCalcOpen: v }); },
 
   toast(msg, type = 'info') {
     // Dedup: don't stack identical messages already visible

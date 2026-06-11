@@ -1,13 +1,15 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { PanelLeftOpen, WrenchIcon, RotateCcw } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { PanelLeftOpen, WrenchIcon, RotateCcw, Move, Minimize2, Maximize2, X } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import { Sidebar, MobileDrawer } from './Sidebar';
 import { Topbar }          from './Topbar';
 import { ToastStack }      from '@/components/ui/Toast';
 import { OnboardingModal } from '@/components/onboarding/OnboardingModal';
 import { ImportPreview }   from '@/components/import/ImportPreview';
+import { SurebetCalc }     from '@/components/calcalendario/SurebetCalc';
 import { DashboardPage }   from '@/components/dashboard/DashboardPage';
 import { OperationsPage }  from '@/components/operations/OperationsPage';
 import { BookmakersPage }  from '@/components/bookmakers/BookmakersPage';
@@ -149,11 +151,111 @@ import { getMySubscription, isSubscriptionActive } from '@/lib/supabase/subscrip
 import { getSupabaseClient } from '@/lib/supabase/client';
 
 
+// ── Calculadora flutuante global ──────────────────────────────────────────────
+
+function GlobalPipCalc() {
+  const setPipCalcOpen = useStore(s => s.setPipCalcOpen);
+  const [pos, setPos] = useState<{ x: number; y: number }>(() => ({
+    x: typeof window !== 'undefined' ? Math.max(16, window.innerWidth - 440) : 60,
+    y: 72,
+  }));
+  const [minimized, setMinimized] = useState(false);
+  const dragOrigin = useRef<{ ox: number; oy: number } | null>(null);
+
+  function onHeaderMouseDown(e: React.MouseEvent<HTMLDivElement>) {
+    if ((e.target as HTMLElement).closest('button')) return;
+    e.preventDefault();
+    dragOrigin.current = { ox: e.clientX - pos.x, oy: e.clientY - pos.y };
+
+    function onMove(ev: MouseEvent) {
+      if (!dragOrigin.current) return;
+      const nx = Math.max(0, Math.min(ev.clientX - dragOrigin.current.ox, window.innerWidth - 300));
+      const ny = Math.max(0, Math.min(ev.clientY - dragOrigin.current.oy, window.innerHeight - 48));
+      setPos({ x: nx, y: ny });
+    }
+    function onUp() {
+      dragOrigin.current = null;
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    }
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }
+
+  return createPortal(
+    <div
+      style={{
+        position: 'fixed',
+        zIndex: 9999,
+        left: pos.x,
+        top: pos.y,
+        width: 420,
+        minWidth: 300,
+        maxWidth: '90vw',
+        minHeight: minimized ? 0 : 240,
+        maxHeight: 'calc(100vh - 100px)',
+        background: '#0D1117',
+        border: '1px solid rgba(63,255,33,.35)',
+        borderRadius: 18,
+        boxShadow: '0 16px 56px rgba(0,0,0,.85), 0 0 28px rgba(63,255,33,.07)',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: minimized ? 'visible' : 'hidden',
+        resize: minimized ? 'none' : 'both',
+      }}
+    >
+      {/* Drag handle */}
+      <div
+        onMouseDown={onHeaderMouseDown}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 8,
+          padding: '10px 14px',
+          background: 'rgba(63,255,33,.07)',
+          borderRadius: minimized ? 18 : '18px 18px 0 0',
+          borderBottom: minimized ? 'none' : '1px solid rgba(255,255,255,.06)',
+          cursor: 'grab',
+          userSelect: 'none',
+          flexShrink: 0,
+        }}
+      >
+        <Move size={13} style={{ color: 'rgba(63,255,33,.45)', flexShrink: 0 }} />
+        <span style={{ flex: 1, fontSize: 11, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '.1em', color: 'rgba(63,255,33,.75)' }}>
+          Calculadora
+        </span>
+        <button
+          type="button"
+          onClick={() => setMinimized(m => !m)}
+          title={minimized ? 'Expandir' : 'Minimizar'}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,.45)', padding: '3px 6px', borderRadius: 6, display: 'flex', alignItems: 'center' }}
+        >
+          {minimized ? <Maximize2 size={13} /> : <Minimize2 size={13} />}
+        </button>
+        <button
+          type="button"
+          onClick={() => setPipCalcOpen(false)}
+          title="Fechar"
+          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(248,113,113,.7)', padding: '3px 6px', borderRadius: 6, display: 'flex', alignItems: 'center' }}
+        >
+          <X size={13} />
+        </button>
+      </div>
+
+      {!minimized && (
+        <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
+          <SurebetCalc />
+        </div>
+      )}
+    </div>,
+    document.body,
+  );
+}
+
 export function AppShell() {
   const view           = useStore(s => s.view);
   const initialized    = useStore(s => s.initialized);
   const onboardingDone = useStore(s => s.onboarding_done);
   const importBuffer   = useStore(s => s.importBuffer);
+  const pipCalcOpen    = useStore(s => s.pipCalcOpen);
   const sheetSync      = useStore(s => s.sheetSync);
   const legs                = useStore(s => s.legs);
   const excludedImportKeys  = useStore(s => s.excludedImportKeys);
@@ -373,6 +475,7 @@ export function AppShell() {
       {/* Overlays — only after store is hydrated from localStorage */}
       {initialized && !onboardingDone && <OnboardingModal />}
       {importBuffer    && <ImportPreview />}
+      {pipCalcOpen     && <GlobalPipCalc />}
       <ToastStack />
     </div>
   );

@@ -8,7 +8,7 @@ import {
   BarChart3, ShieldCheck, Receipt, Users, X,
   UserCircle, LogOut, NotebookPen,
   CalendarDays, Target, UserCog, ChevronDown, ScanSearch, Gift, Radio,
-  PanelLeftClose,
+  PanelLeftClose, Calculator,
 } from 'lucide-react';
 import { getMySubscription } from '@/lib/supabase/subscription';
 import type { Subscription } from '@/lib/supabase/subscription';
@@ -288,6 +288,38 @@ function ProfileFooter({ onClose }: { onClose?: () => void }) {
   );
 }
 
+function CalcPipButton({ onClose }: { onClose?: () => void }) {
+  const pipCalcOpen    = useStore(s => s.pipCalcOpen);
+  const setPipCalcOpen = useStore(s => s.setPipCalcOpen);
+
+  return (
+    <div style={{ padding: '4px 8px 4px', flexShrink: 0, borderTop: '1px solid var(--b)' }}>
+      <button
+        type="button"
+        onClick={() => { setPipCalcOpen(!pipCalcOpen); onClose?.(); }}
+        className="nav-item"
+        style={pipCalcOpen ? {
+          background: 'rgba(63,255,33,.1)',
+          color: 'var(--g)',
+        } : undefined}
+      >
+        <span className="icon-wrap">
+          <Calculator size={15} strokeWidth={2} />
+        </span>
+        <span className="flex-1 truncate">Calculadora</span>
+        {pipCalcOpen && (
+          <span
+            className="pill text-[11px]"
+            style={{ background: 'rgba(63,255,33,.15)', color: 'var(--g)', border: '1px solid rgba(63,255,33,.2)' }}
+          >
+            ativo
+          </span>
+        )}
+      </button>
+    </div>
+  );
+}
+
 function SidebarContent({ onClose, onCollapse }: { onClose?: () => void; onCollapse?: () => void }) {
   const [openGroups, setOpenGroups] = useState<Set<string>>(
     new Set(['principal', 'operacional', 'financas', 'gestao'])
@@ -379,6 +411,9 @@ function SidebarContent({ onClose, onCollapse }: { onClose?: () => void; onColla
           />
         ))}
       </nav>
+
+      {/* Calculadora flutuante */}
+      <CalcPipButton onClose={onClose} />
 
       {/* Profile footer */}
       <ProfileFooter onClose={onClose} />

@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { createPortal } from 'react-dom';
 import { SurebetCalc } from '@/components/calcalendario/SurebetCalc';
-import { Search, X, Building2, ScanSearch, Layers, Move, Minimize2, Maximize2 } from 'lucide-react';
+import { Search, X, Building2, ScanSearch, Layers } from 'lucide-react';
+import { useStore } from '@/store/useStore';
 
 // ── Formatters ─────────────────────────────────────────────────────────────────
 
@@ -1119,95 +1119,12 @@ function BuscarOddsTab({ selectedEvent }: { selectedEvent: CachedEvent | null })
   );
 }
 
-// ── Calculadora flutuante (Picture-in-Picture) ─────────────────────────────────
-
-function PipCalc({ selectedEvent, onClose }: { selectedEvent: CachedEvent | null; onClose: () => void }) {
-  const [pos, setPos] = useState<{ x: number; y: number }>(() => ({
-    x: typeof window !== 'undefined' ? Math.max(16, window.innerWidth - 440) : 100,
-    y: 72,
-  }));
-  const [minimized, setMinimized] = useState(false);
-  const dragOrigin = useRef<{ ox: number; oy: number } | null>(null);
-
-  function onHeaderMouseDown(e: React.MouseEvent<HTMLDivElement>) {
-    if ((e.target as HTMLElement).closest('button')) return;
-    e.preventDefault();
-    dragOrigin.current = { ox: e.clientX - pos.x, oy: e.clientY - pos.y };
-
-    function onMove(ev: MouseEvent) {
-      if (!dragOrigin.current) return;
-      const nx = Math.max(0, Math.min(ev.clientX - dragOrigin.current.ox, window.innerWidth - 400));
-      const ny = Math.max(0, Math.min(ev.clientY - dragOrigin.current.oy, window.innerHeight - 60));
-      setPos({ x: nx, y: ny });
-    }
-    function onUp() {
-      dragOrigin.current = null;
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
-    }
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
-  }
-
-  return createPortal(
-    <div style={{
-      position: 'fixed', zIndex: 9999, left: pos.x, top: pos.y,
-      width: 420, maxWidth: 'calc(100vw - 20px)',
-      background: '#0D1117',
-      border: '1px solid rgba(63,255,33,.35)',
-      borderRadius: 18,
-      boxShadow: '0 16px 56px rgba(0,0,0,.85), 0 0 28px rgba(63,255,33,.07)',
-    }}>
-      {/* Drag handle / header */}
-      <div
-        onMouseDown={onHeaderMouseDown}
-        style={{
-          display: 'flex', alignItems: 'center', gap: 8,
-          padding: '9px 12px',
-          background: 'rgba(63,255,33,.07)',
-          borderRadius: minimized ? 18 : '18px 18px 0 0',
-          borderBottom: minimized ? 'none' : '1px solid rgba(255,255,255,.06)',
-          cursor: 'grab',
-          userSelect: 'none',
-        }}
-      >
-        <Move size={13} style={{ color: 'rgba(63,255,33,.45)', flexShrink: 0 }} />
-        <span style={{ flex: 1, fontSize: 11, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '.1em', color: 'rgba(63,255,33,.75)' }}>
-          Calculadora
-        </span>
-        <button
-          type="button"
-          onClick={() => setMinimized(m => !m)}
-          title={minimized ? 'Expandir' : 'Minimizar'}
-          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,.45)', padding: '3px 6px', borderRadius: 6, display: 'flex', alignItems: 'center' }}
-        >
-          {minimized ? <Maximize2 size={13} /> : <Minimize2 size={13} />}
-        </button>
-        <button
-          type="button"
-          onClick={onClose}
-          title="Fechar"
-          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(248,113,113,.7)', padding: '3px 6px', borderRadius: 6, display: 'flex', alignItems: 'center' }}
-        >
-          <X size={13} />
-        </button>
-      </div>
-
-      {!minimized && (
-        <div style={{ padding: 16, maxHeight: 'calc(100vh - 160px)', overflowY: 'auto' }}>
-          <SurebetCalc selectedEvent={selectedEvent} />
-        </div>
-      )}
-    </div>,
-    document.body,
-  );
-}
-
 // ── Page ───────────────────────────────────────────────────────────────────────
 
 export function CalculadoraPage() {
   const [selectedEvent, setSelectedEvent] = useState<CachedEvent | null>(null);
-  const [pipMode, setPipMode] = useState(false);
+  const pipCalcOpen    = useStore(s => s.pipCalcOpen);
+  const setPipCalcOpen = useStore(s => s.setPipCalcOpen);
 
   return (
     <div className="flex flex-col gap-4">
@@ -1223,13 +1140,13 @@ export function CalculadoraPage() {
         </div>
         <button
           type="button"
-          onClick={() => setPipMode(p => !p)}
+          onClick={() => setPipCalcOpen(!pipCalcOpen)}
           title="Calculadora flutuante — mantém visível enquanto navega"
           className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-[11px] font-bold transition-all"
           style={{
-            background: pipMode ? 'rgba(63,255,33,.12)' : 'rgba(255,255,255,.04)',
-            border: pipMode ? '1px solid rgba(63,255,33,.35)' : '1px solid rgba(255,255,255,.1)',
-            color: pipMode ? 'var(--g)' : 'var(--t3)',
+            background: pipCalcOpen ? 'rgba(63,255,33,.12)' : 'rgba(255,255,255,.04)',
+            border: pipCalcOpen ? '1px solid rgba(63,255,33,.35)' : '1px solid rgba(255,255,255,.1)',
+            color: pipCalcOpen ? 'var(--g)' : 'var(--t3)',
             flexShrink: 0,
           }}
         >
@@ -1243,9 +1160,6 @@ export function CalculadoraPage() {
 
       {/* Calculator */}
       <SurebetCalc selectedEvent={selectedEvent} />
-
-      {/* Floating PiP calculator */}
-      {pipMode && <PipCalc selectedEvent={selectedEvent} onClose={() => setPipMode(false)} />}
     </div>
   );
 }
