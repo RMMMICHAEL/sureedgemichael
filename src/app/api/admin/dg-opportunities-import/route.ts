@@ -86,14 +86,27 @@ export async function POST(req: NextRequest) {
     const b = body as Record<string, unknown>;
 
     if (b._type === 'dg_full_export') {
-      // ── Formato v3 (novo script baixarTudo) ──────────────────────────────
-      const oppBoth   = (b.opp_both   as Record<string,unknown>)?.opportunities;
-      const oppOne    = (b.opp_one    as Record<string,unknown>)?.opportunities;
-      const oppLegacy = (b.opp_legacy as Record<string,unknown>)?.opportunities;
+      if (Number(b._version) >= 3) {
+        // ── Formato v3 — opp_both / opp_one / opp_legacy são chaves top-level ──
+        const oppBoth   = (b.opp_both   as Record<string,unknown>)?.opportunities;
+        const oppOne    = (b.opp_one    as Record<string,unknown>)?.opportunities;
+        const oppLegacy = (b.opp_legacy as Record<string,unknown>)?.opportunities;
 
-      if (Array.isArray(oppBoth))   { extractOpps(oppBoth,   2); records.push(...oppBoth   as OpportunityRecord[]); }
-      if (Array.isArray(oppOne))    { extractOpps(oppOne,    1); records.push(...oppOne    as OpportunityRecord[]); }
-      if (Array.isArray(oppLegacy)) {                            records.push(...oppLegacy as OpportunityRecord[]); }
+        if (Array.isArray(oppBoth))   { extractOpps(oppBoth,   2); records.push(...oppBoth   as OpportunityRecord[]); }
+        if (Array.isArray(oppOne))    { extractOpps(oppOne,    1); records.push(...oppOne    as OpportunityRecord[]); }
+        if (Array.isArray(oppLegacy)) {                            records.push(...oppLegacy as OpportunityRecord[]); }
+      } else if (b.opportunities && typeof b.opportunities === 'object' && !Array.isArray(b.opportunities)) {
+        // ── Formato v2 — opportunities é objeto { endpoint: { opportunities:[] } } ──
+        const oppsObj = b.opportunities as Record<string, { opportunities?: OpportunityRecord[] }>;
+        for (const [endpoint, val] of Object.entries(oppsObj)) {
+          if (!Array.isArray(val?.opportunities)) continue;
+          const paSides = endpoint.includes('pa_mode=both') ? 2
+                        : endpoint.includes('pa_mode=one')  ? 1
+                        : 0;
+          extractOpps(val.opportunities, paSides);
+          records.push(...val.opportunities);
+        }
+      }
 
       // Dedup por id (preferindo versões com maior pa_sides)
       const seen = new Map<string, OpportunityRecord>();

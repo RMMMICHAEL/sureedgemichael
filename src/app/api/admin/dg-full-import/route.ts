@@ -193,13 +193,19 @@ export async function POST(req: NextRequest) {
       detectedType = `dg_full_export v${b._version ?? 1}`;
 
       if (Number(b._version) >= 3) {
-        // ── Formato v3 (baixarTudo) — odds_1x2 e odds_1x2_pa são objetos {odds:[]} ──
+        // ── Formato v3 — odds_1x2 e odds_1x2_pa são objetos {odds:[]} ──
         const odds1x2   = (b.odds_1x2   as Record<string,unknown>)?.odds;
         const odds1x2pa = (b.odds_1x2_pa as Record<string,unknown>)?.odds;
         if (Array.isArray(odds1x2))   rawOdds.push(...odds1x2   as RawOdd[]);
         if (Array.isArray(odds1x2pa)) rawOdds.push(...odds1x2pa as RawOdd[]);
+      } else if (b.individual_odds && typeof b.individual_odds === 'object' && !Array.isArray(b.individual_odds)) {
+        // ── Formato v2 (script com captura de headers) — individual_odds é objeto {endpoint: {odds:[]}} ──
+        const indOddsObj = b.individual_odds as Record<string, { odds?: RawOdd[] }>;
+        for (const val of Object.values(indOddsObj)) {
+          if (Array.isArray(val?.odds)) rawOdds.push(...val.odds);
+        }
       } else {
-        // ── Formato v1/v2 legado ──────────────────────────────────────────────────
+        // ── Formato v1 legado ──────────────────────────────────────────────────
         const indOdds = Array.isArray(b.individual_odds) ? b.individual_odds as RawOdd[] : [];
         const dashOdds = Array.isArray((b.dashboard as Record<string,unknown>)?.odds)
           ? ((b.dashboard as Record<string,unknown>).odds as RawOdd[])
