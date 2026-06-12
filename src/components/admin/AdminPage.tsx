@@ -7,7 +7,7 @@ import { wipeDB, EMPTY_DB } from '@/lib/storage/db';
 import { saveToSupabase } from '@/lib/supabase/sync';
 import { loadSeedData, clearSeedData } from '@/lib/dev/seedData';
 import {
-  AlertTriangle, Trash2, X, Loader2, Upload, FileJson, Zap, Gift,
+  AlertTriangle, Trash2, X, Loader2, Upload, FileJson,
   Database, CheckCircle2, AlertCircle, BarChart3,
 } from 'lucide-react';
 
@@ -99,219 +99,84 @@ function ResetModal({ onConfirm, onCancel }: { onConfirm: () => void; onCancel: 
   );
 }
 
-// ── Import panel genérico ─────────────────────────────────────────────────────
-
-type ImportStatus = 'idle' | 'loading' | 'success' | 'error';
-
-function ImportPanel({
-  title,
-  description,
-  hint,
-  endpoint,
-  accentRgb,
-  icon,
-}: {
-  title:      string;
-  description: string;
-  hint:        string;
-  endpoint:   string;
-  accentRgb:  string;
-  icon:       React.ReactNode;
-}) {
-  const [fileName, setFileName] = useState('');
-  const [rawText,  setRawText]  = useState('');
-  const [status,   setStatus]   = useState<ImportStatus>('idle');
-  const [result,   setResult]   = useState('');
-
-  function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setFileName(file.name);
-    setStatus('idle');
-    setResult('');
-    const reader = new FileReader();
-    reader.onload = ev => setRawText((ev.target?.result as string) ?? '');
-    reader.readAsText(file, 'utf-8');
-    e.target.value = '';
-  }
-
-  async function handleImport() {
-    const text = rawText.trim();
-    if (!text) return;
-    setStatus('loading');
-    setResult('');
-
-    let parsed: unknown;
-    try { parsed = JSON.parse(text); }
-    catch {
-      setStatus('error');
-      setResult('JSON inválido — arquivo corrompido ou incompleto.');
-      return;
-    }
-
-    try {
-      const res  = await fetch(endpoint, {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify(parsed),
-      });
-      const data = await res.json() as {
-        ok: boolean; total: number; inserted: number;
-        cleaned?: number; errors?: string[];
-      };
-
-      if (data.ok) {
-        setStatus('success');
-        const cleanMsg = (data.cleaned ?? 0) > 0 ? ` · ${data.cleaned} antigos removidos` : '';
-        setResult(`✓ ${data.inserted} de ${data.total} registros importados de "${fileName}"${cleanMsg}.`);
-        setFileName('');
-        setRawText('');
-      } else {
-        setStatus('error');
-        setResult(`Erro: ${data.errors?.join('; ') ?? 'falha desconhecida'}`);
-      }
-    } catch (e) {
-      setStatus('error');
-      setResult(`Erro de rede: ${String(e)}`);
-    }
-  }
-
-  const accent  = `rgb(${accentRgb})`;
-  const hasFile = !!rawText;
-
-  const statusColor =
-    status === 'success' ? 'var(--g)' :
-    status === 'error'   ? 'var(--r)' : 'var(--t2)';
-
-  return (
-    <div className="rounded-2xl p-5 flex flex-col gap-4" style={{
-      background: `rgba(${accentRgb},.04)`,
-      border:     `1px solid rgba(${accentRgb},.2)`,
-    }}>
-      <div className="flex items-center gap-3">
-        <div className="rounded-xl p-2.5 flex-shrink-0" style={{ background: `rgba(${accentRgb},.14)`, color: accent }}>
-          {icon}
-        </div>
-        <div>
-          <div className="font-bold text-sm" style={{ color: accent }}>{title}</div>
-          <p className="text-xs mt-0.5" style={{ color: 'var(--t3)' }}>{description}</p>
-        </div>
-      </div>
-
-      {/* Área de seleção */}
-      <label
-        className="flex flex-col items-center justify-center gap-2 w-full rounded-xl cursor-pointer transition-all"
-        style={{
-          border:     `2px dashed ${hasFile ? accent : 'var(--b)'}`,
-          background: hasFile ? `rgba(${accentRgb},.06)` : 'rgba(0,0,0,.2)',
-          padding:    '20px 16px',
-        }}
-      >
-        <input
-          type="file"
-          accept=".txt,.json,application/json,text/plain"
-          className="hidden"
-          onChange={handleFile}
-          disabled={status === 'loading'}
-        />
-        {hasFile ? (
-          <>
-            <FileJson size={22} style={{ color: accent }} />
-            <span className="text-sm font-medium" style={{ color: accent }}>{fileName}</span>
-            <span className="text-xs" style={{ color: 'var(--t2)' }}>
-              {(rawText.length / 1024).toFixed(0)} KB carregado — clique para trocar
-            </span>
-          </>
-        ) : (
-          <>
-            <Upload size={22} style={{ color: 'var(--t3)' }} />
-            <span className="text-sm" style={{ color: 'var(--t2)' }}>Clique para selecionar o arquivo</span>
-            <span className="text-xs" style={{ color: 'var(--t3)' }}>{hint}</span>
-          </>
-        )}
-      </label>
-
-      <div className="flex items-center gap-3 flex-wrap">
-        <button
-          type="button"
-          onClick={handleImport}
-          disabled={status === 'loading' || !hasFile}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all"
-          style={{
-            background: status === 'loading' ? `rgba(${accentRgb},.1)` : accent,
-            color:      '#060A07',
-            opacity:    (status === 'loading' || !hasFile) ? 0.5 : 1,
-          }}
-        >
-          {status === 'loading'
-            ? <><Loader2 size={14} className="animate-spin" /> Importando...</>
-            : <><Upload size={14} /> Importar</>}
-        </button>
-
-        {result && (
-          <span className="text-xs font-medium" style={{ color: statusColor }}>{result}</span>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ── Smart Import Panel (exportação completa DG) ───────────────────────────────
+// ── Import Panel unificado DG ─────────────────────────────────────────────────
 
 interface DGExportMeta {
-  _type?:    string;
-  _version?: number;
+  _type?:        string;
+  _version?:     number;
   _exported_at?: string;
-  _summary?: {
-    individual_odds_1x2?:    number;
-    individual_odds_1x2_pa?: number;
-    total_individual_odds?:  number;
-    dashboard_odds?:         number;
-    leagues_count?:          number;
-  };
-  individual_odds?: unknown[];
-  odds?:            unknown[];
-  data?:            unknown[];
+  opportunities?: Record<string, { opportunities?: unknown[] }> | unknown[];
+  individual_odds?: Record<string, { odds?: unknown[] }> | unknown[];
+  opp_both?:  { opportunities?: unknown[] };
+  opp_one?:   { opportunities?: unknown[] };
+  odds_1x2?:  { odds?: unknown[] };
+  odds_1x2_pa?: { odds?: unknown[] };
 }
 
-interface ImportResult {
-  ok:            boolean;
+interface OddsResult {
+  ok:           boolean;
   detected_type: string;
-  total_raw:     number;
-  total_valid:   number;
-  skipped:       number;
-  inserted:      number;
-  cleaned_old:   number;
-  by_market:     Record<string, number>;
-  error?:        string;
-  errors?:       string[];
-  sample_raw?:   unknown;
-  tip?:          string;
+  inserted:     number;
+  total_valid:  number;
+  skipped:      number;
+  cleaned_old:  number;
+  by_market:    Record<string, number>;
+  error?:       string;
+  tip?:         string;
 }
 
-function SmartImportPanel() {
-  const [fileName,  setFileName]  = useState('');
-  const [rawText,   setRawText]   = useState('');
-  const [meta,      setMeta]      = useState<DGExportMeta | null>(null);
-  const [status,    setStatus]    = useState<'idle'|'loading'|'success'|'error'>('idle');
-  const [result,    setResult]    = useState<ImportResult | null>(null);
+interface OppResult {
+  ok:       boolean;
+  total:    number;
+  inserted: number;
+  error?:   string;
+}
+
+function countOdds(meta: DGExportMeta): number {
+  if (meta._version === 2 && meta.individual_odds && !Array.isArray(meta.individual_odds)) {
+    return Object.values(meta.individual_odds as Record<string, { odds?: unknown[] }>)
+      .reduce((s, v) => s + (v?.odds?.length ?? 0), 0);
+  }
+  if (meta.odds_1x2 || meta.odds_1x2_pa) {
+    return (meta.odds_1x2?.odds?.length ?? 0) + (meta.odds_1x2_pa?.odds?.length ?? 0);
+  }
+  if (Array.isArray(meta.individual_odds)) return meta.individual_odds.length;
+  return 0;
+}
+
+function countOpps(meta: DGExportMeta): number {
+  if (meta._version === 2 && meta.opportunities && !Array.isArray(meta.opportunities)) {
+    return Object.values(meta.opportunities as Record<string, { opportunities?: unknown[] }>)
+      .reduce((s, v) => s + (v?.opportunities?.length ?? 0), 0);
+  }
+  if (meta.opp_both || meta.opp_one) {
+    return (meta.opp_both?.opportunities?.length ?? 0) + (meta.opp_one?.opportunities?.length ?? 0);
+  }
+  if (Array.isArray(meta.opportunities)) return (meta.opportunities as unknown[]).length;
+  return 0;
+}
+
+function DGImportPanel() {
+  const [fileName, setFileName] = useState('');
+  const [rawText,  setRawText]  = useState('');
+  const [meta,     setMeta]     = useState<DGExportMeta | null>(null);
+  const [status,   setStatus]   = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [oddsRes,  setOddsRes]  = useState<OddsResult | null>(null);
+  const [oppRes,   setOppRes]   = useState<OppResult | null>(null);
 
   function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
     setFileName(file.name);
     setStatus('idle');
-    setResult(null);
+    setOddsRes(null);
+    setOppRes(null);
     setMeta(null);
     const reader = new FileReader();
     reader.onload = ev => {
       const text = (ev.target?.result as string) ?? '';
       setRawText(text);
-      // Tenta ler os metadados do arquivo para preview
-      try {
-        const parsed = JSON.parse(text) as DGExportMeta;
-        setMeta(parsed);
-      } catch { /* JSON inválido */ }
+      try { setMeta(JSON.parse(text) as DGExportMeta); } catch { /* invalid JSON */ }
     };
     reader.readAsText(file, 'utf-8');
     e.target.value = '';
@@ -320,34 +185,39 @@ function SmartImportPanel() {
   async function handleImport() {
     if (!rawText.trim()) return;
     setStatus('loading');
-    setResult(null);
+    setOddsRes(null);
+    setOppRes(null);
 
     let parsed: unknown;
     try { parsed = JSON.parse(rawText); }
-    catch { setStatus('error'); setResult({ ok: false, detected_type: '?', total_raw: 0, total_valid: 0, skipped: 0, inserted: 0, cleaned_old: 0, by_market: {}, error: 'JSON inválido — arquivo corrompido ou incompleto.' }); return; }
-
-    try {
-      const res  = await fetch('/api/admin/dg-full-import', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify(parsed),
-      });
-      const data = await res.json() as ImportResult;
-      setResult(data);
-      setStatus(data.ok ? 'success' : 'error');
-      if (data.ok) { setFileName(''); setRawText(''); setMeta(null); }
-    } catch (e) {
+    catch {
       setStatus('error');
-      setResult({ ok: false, detected_type: '?', total_raw: 0, total_valid: 0, skipped: 0, inserted: 0, cleaned_old: 0, by_market: {}, error: `Erro de rede: ${String(e)}` });
+      setOddsRes({ ok: false, detected_type: '?', inserted: 0, total_valid: 0, skipped: 0, cleaned_old: 0, by_market: {}, error: 'JSON inválido — arquivo corrompido ou incompleto.' });
+      return;
     }
+
+    const body = JSON.stringify(parsed);
+    const headers = { 'Content-Type': 'application/json' };
+
+    const [oddsRes, oppRes] = await Promise.all([
+      fetch('/api/admin/dg-full-import', { method: 'POST', headers, body })
+        .then(r => r.json() as Promise<OddsResult>)
+        .catch(e => ({ ok: false, detected_type: '?', inserted: 0, total_valid: 0, skipped: 0, cleaned_old: 0, by_market: {}, error: String(e) } as OddsResult)),
+      fetch('/api/admin/dg-opportunities-import', { method: 'POST', headers, body })
+        .then(r => r.json() as Promise<OppResult>)
+        .catch(e => ({ ok: false, total: 0, inserted: 0, error: String(e) } as OppResult)),
+    ]);
+
+    setOddsRes(oddsRes);
+    setOppRes(oppRes);
+    setStatus(oddsRes.ok && oppRes.ok ? 'success' : 'error');
+    if (oddsRes.ok && oppRes.ok) { setFileName(''); setRawText(''); setMeta(null); }
   }
 
-  const hasFile = !!rawText;
+  const hasFile      = !!rawText;
   const isFullExport = meta?._type === 'dg_full_export';
-  const totalOdds = meta?._summary?.total_individual_odds
-    ?? meta?.individual_odds?.length
-    ?? meta?.odds?.length
-    ?? null;
+  const nOdds        = meta ? countOdds(meta) : 0;
+  const nOpps        = meta ? countOpps(meta) : 0;
 
   return (
     <div className="rounded-2xl p-5 flex flex-col gap-4" style={{
@@ -362,10 +232,11 @@ function SmartImportPanel() {
         </div>
         <div>
           <div className="font-bold text-sm" style={{ color: '#3FFF21' }}>
-            Exportação Completa DG
+            Importar DuploGreen
           </div>
           <p className="text-xs mt-0.5" style={{ color: 'var(--t3)' }}>
-            Arquivo <code style={{ color: 'rgba(255,255,255,.5)' }}>dg-export-YYYY-MM-DD.json</code> gerado pelo script do console. Importa odds individuais (1x2 + PA) de uma vez.
+            Arquivo <code style={{ color: 'rgba(255,255,255,.5)' }}>dg-export-*.json</code> gerado pelo script do console.
+            Importa odds (1x2 + PA) e oportunidades de uma vez.
           </p>
         </div>
       </div>
@@ -387,7 +258,7 @@ function SmartImportPanel() {
             <FileJson size={22} style={{ color: '#3FFF21' }} />
             <span className="text-sm font-medium" style={{ color: '#3FFF21' }}>{fileName}</span>
             <span className="text-xs" style={{ color: 'var(--t2)' }}>
-              {(rawText.length / 1024).toFixed(0)} KB carregado · clique para trocar
+              {(rawText.length / 1024).toFixed(0)} KB · clique para trocar
             </span>
           </>
         ) : (
@@ -401,7 +272,7 @@ function SmartImportPanel() {
         )}
       </label>
 
-      {/* Preview do arquivo detectado */}
+      {/* Preview */}
       {meta && (
         <div className="rounded-xl px-4 py-3 flex flex-col gap-2" style={{
           background: isFullExport ? 'rgba(63,255,33,.06)' : 'rgba(255,255,255,.04)',
@@ -414,20 +285,18 @@ function SmartImportPanel() {
             }
             <span className="text-xs font-bold" style={{ color: isFullExport ? '#3FFF21' : '#f59e0b' }}>
               {isFullExport
-                ? `Formato detectado: exportação completa DG v${meta._version ?? 1}`
-                : `Formato detectado: ${meta._type ?? 'legado'}`
+                ? `Exportação DG v${meta._version ?? 1} detectada`
+                : `Formato: ${meta._type ?? 'desconhecido'}`
               }
             </span>
           </div>
 
-          {isFullExport && meta._summary && (
-            <div className="grid gap-1" style={{ gridTemplateColumns: 'repeat(auto-fill,minmax(140px,1fr))' }}>
+          {isFullExport && (nOdds > 0 || nOpps > 0) && (
+            <div className="flex flex-wrap gap-1.5">
               {[
-                ['Odds 1x2',     meta._summary.individual_odds_1x2],
-                ['Odds PA',      meta._summary.individual_odds_1x2_pa],
-                ['Total odds',   meta._summary.total_individual_odds],
-                ['Campeonatos',  meta._summary.leagues_count],
-              ].filter(([,v]) => v != null).map(([label, value]) => (
+                ['Odds', nOdds],
+                ['Oportunidades', nOpps],
+              ].filter(([, v]) => (v as number) > 0).map(([label, value]) => (
                 <div key={label as string} className="flex items-center gap-1.5 rounded-lg px-2 py-1"
                   style={{ background: 'rgba(255,255,255,.04)' }}>
                   <BarChart3 size={11} style={{ color: 'rgba(63,255,33,.6)' }} />
@@ -440,12 +309,6 @@ function SmartImportPanel() {
             </div>
           )}
 
-          {!isFullExport && totalOdds !== null && (
-            <p className="text-xs" style={{ color: 'var(--t2)' }}>
-              {totalOdds.toLocaleString('pt-BR')} odds detectadas — formato compatível, mas use o script de exportação completa para melhor resultado.
-            </p>
-          )}
-
           {meta._exported_at && (
             <p className="text-[11px]" style={{ color: 'var(--t3)' }}>
               Exportado em: {new Date(meta._exported_at).toLocaleString('pt-BR')}
@@ -454,7 +317,7 @@ function SmartImportPanel() {
         </div>
       )}
 
-      {/* Botão importar */}
+      {/* Botão */}
       <div className="flex items-center gap-3 flex-wrap">
         <button
           type="button"
@@ -472,118 +335,39 @@ function SmartImportPanel() {
             : <><Upload size={14} /> Importar</>}
         </button>
 
-        {/* Resultado */}
-        {result && status === 'success' && (
+        {/* Resultado de sucesso */}
+        {status === 'success' && oddsRes && oppRes && (
           <div className="flex flex-col gap-0.5">
             <span className="text-xs font-bold" style={{ color: '#3FFF21' }}>
-              ✓ {result.inserted.toLocaleString('pt-BR')} odds importadas
+              ✓ {oddsRes.inserted.toLocaleString('pt-BR')} odds · {oppRes.inserted.toLocaleString('pt-BR')} oportunidades importadas
             </span>
             <span className="text-[11px]" style={{ color: 'var(--t3)' }}>
-              {Object.entries(result.by_market).map(([k,v]) => `${k}: ${v}`).join(' · ')}
-              {result.skipped > 0 ? ` · ${result.skipped} ignoradas` : ''}
-              {result.cleaned_old > 0 ? ` · ${result.cleaned_old} antigas removidas` : ''}
+              {Object.entries(oddsRes.by_market).map(([k, v]) => `${k}: ${v}`).join(' · ')}
+              {oddsRes.skipped > 0 ? ` · ${oddsRes.skipped} ignoradas` : ''}
+              {oddsRes.cleaned_old > 0 ? ` · ${oddsRes.cleaned_old} antigas removidas` : ''}
             </span>
           </div>
         )}
 
-        {result && status === 'error' && (
+        {/* Resultado de erro */}
+        {status === 'error' && (
           <div className="flex flex-col gap-0.5">
-            <span className="text-xs font-bold" style={{ color: 'var(--r)' }}>
-              {result.error ?? 'Erro ao importar'}
-            </span>
-            {result.tip && (
-              <span className="text-[11px]" style={{ color: 'var(--t3)' }}>{result.tip}</span>
-            )}
-            {result.detected_type !== '?' && (
-              <span className="text-[11px]" style={{ color: 'var(--t3)' }}>
-                Formato detectado: {result.detected_type}
+            {oddsRes && !oddsRes.ok && (
+              <span className="text-xs font-bold" style={{ color: 'var(--r)' }}>
+                Odds: {oddsRes.error ?? 'erro desconhecido'}
               </span>
+            )}
+            {oppRes && !oppRes.ok && (
+              <span className="text-xs font-bold" style={{ color: 'var(--r)' }}>
+                Oportunidades: {oppRes.error ?? 'erro desconhecido'}
+              </span>
+            )}
+            {oddsRes?.tip && (
+              <span className="text-[11px]" style={{ color: 'var(--t3)' }}>{oddsRes.tip}</span>
             )}
           </div>
         )}
       </div>
-    </div>
-  );
-}
-
-// ── Merge Legs Panel ──────────────────────────────────────────────────────────
-
-function MergeLegsPanel() {
-  const [status, setStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle');
-  const [result, setResult] = useState<Record<string, unknown> | null>(null);
-
-  async function handleMerge() {
-    if (!confirm(
-      'Copiar operações (surebet, duplo green, freebet) de 01/06 a 10/06/2026\n' +
-      'de michael.martins.trader@gmail.com → rmmichael20@gmail.com?\n\n' +
-      'Os dados da origem NÃO serão removidos.'
-    )) return;
-
-    setStatus('loading');
-    setResult(null);
-    try {
-      const res  = await fetch('/api/admin/merge-legs', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          from_email: 'michael.martins.trader@gmail.com',
-          to_email:   'rmmichael20@gmail.com',
-          date_from:  '2026-06-01',
-          date_to:    '2026-06-10',
-          op_types:   ['surebet', 'duplo_green', 'freebet', 'delay', 'outros'],
-        }),
-      });
-      const json = await res.json();
-      setResult(json);
-      setStatus(json.ok ? 'ok' : 'error');
-    } catch (e) {
-      setStatus('error');
-      setResult({ error: (e as Error).message });
-    }
-  }
-
-  return (
-    <div className="rounded-2xl p-5" style={{ background: 'rgba(167,139,250,.08)', border: '1px solid rgba(167,139,250,.25)' }}>
-      <div className="font-bold mb-1" style={{ color: 'rgba(167,139,250,1)' }}>Copiar Operações Jun/2026</div>
-      <p className="text-xs mb-4" style={{ color: 'var(--t2)' }}>
-        Copia as legs de <strong>surebet, duplo green, freebet</strong> do período <strong>01/06 ~ 10/06/2026</strong> da conta
-        {' '}<span style={{ color: 'var(--t)' }}>michael.martins.trader</span> para{' '}
-        <span style={{ color: 'var(--t)' }}>rmmichael20</span>. A origem não é alterada.
-      </p>
-
-      <button
-        type="button"
-        onClick={handleMerge}
-        disabled={status === 'loading'}
-        className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all"
-        style={{
-          background: status === 'loading' ? 'rgba(167,139,250,.15)' : 'rgba(167,139,250,1)',
-          color: '#fff',
-          opacity: status === 'loading' ? 0.7 : 1,
-        }}
-      >
-        {status === 'loading' && <Loader2 size={14} className="animate-spin" />}
-        {status === 'loading' ? 'Copiando...' : 'Copiar operações'}
-      </button>
-
-      {result && (
-        <div className="mt-3 p-3 rounded-xl text-xs font-mono"
-          style={{
-            background: status === 'ok' ? 'rgba(63,255,33,.08)' : 'rgba(255,69,69,.08)',
-            border: `1px solid ${status === 'ok' ? 'rgba(63,255,33,.2)' : 'rgba(255,69,69,.2)'}`,
-            color: status === 'ok' ? 'var(--g)' : 'var(--r)',
-          }}>
-          {status === 'ok' ? (
-            <>
-              <div>Copiadas: <strong>{String(result.copied)}</strong> legs</div>
-              {Number(result.already_existed) > 0 && <div style={{ color: 'var(--t3)' }}>Já existiam: {String(result.already_existed)}</div>}
-              <div style={{ color: 'var(--t3)' }}>Periodo: {String(result.date_range)}</div>
-            </>
-          ) : (
-            <div>{String(result.error ?? 'Erro desconhecido')}</div>
-          )}
-        </div>
-      )}
     </div>
   );
 }
@@ -655,57 +439,26 @@ export function AdminPage() {
                 Remover dados demo
               </button>
             </div>
+            {demoLoaded && (
+              <p className="text-[11px] mt-2" style={{ color: 'var(--t3)' }}>Dados demo carregados com sucesso.</p>
+            )}
           </div>
         )}
 
-        {/* Importar Odds (JSON) */}
+        {/* Importar DG */}
         {isAdmin && (
           <div className="flex flex-col gap-3">
             <div>
               <h3 className="text-sm font-black uppercase tracking-widest" style={{ color: 'rgba(255,255,255,.35)' }}>
-                Importar Odds (JSON)
+                Importar DuploGreen
               </h3>
               <p className="text-[11px] mt-0.5" style={{ color: 'var(--t3)' }}>
-                Use o script do console no DuploGreen para gerar o arquivo, depois importe aqui.
+                Use o script do console no site do DuploGreen para gerar o arquivo JSON, depois importe aqui.
               </p>
             </div>
-
-            {/* Exportação completa (novo) */}
-            <SmartImportPanel />
-
-            {/* Divisor */}
-            <div className="flex items-center gap-2 mt-1">
-              <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,.06)' }} />
-              <span className="text-[11px] font-bold uppercase tracking-widest" style={{ color: 'rgba(255,255,255,.45)' }}>
-                Formatos legados
-              </span>
-              <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,.06)' }} />
-            </div>
-
-            {/* Importar Odds do Dia (legado) */}
-            <ImportPanel
-              title="Odds do Dia"
-              description="Formato individual (odds por bookmaker por evento). Atualiza bookmaker_odds."
-              hint="odds.txt / odds-pa.txt / get-individual-odds.json"
-              endpoint="/api/admin/odds-import"
-              accentRgb="63,200,255"
-              icon={<Zap size={18} />}
-            />
-
-            {/* Importar Oportunidades DG (legado) */}
-            <ImportPanel
-              title="Oportunidades DuploGreen"
-              description="Formato opportunities/legs com dgScore e dgProfitPct. Atualiza dg_opportunities."
-              hint="freebet.txt / opportunities.json — formato com legs[]"
-              endpoint="/api/admin/dg-opportunities-import"
-              accentRgb="167,139,250"
-              icon={<Gift size={18} />}
-            />
+            <DGImportPanel />
           </div>
         )}
-
-        {/* Copiar operações Jun/2026 */}
-        {isAdmin && <MergeLegsPanel />}
 
         {/* Zona de perigo */}
         <div className="rounded-2xl p-5" style={{ background: 'var(--rd)', border: '1px solid rgba(255,69,69,.25)' }}>
