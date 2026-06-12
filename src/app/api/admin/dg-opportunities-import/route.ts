@@ -43,6 +43,7 @@ interface OpportunityRecord {
   dgClassification?: string;
   legs:             Leg[];
   updatedAt?:       string;
+  _pa_sides?:       number; // embutido pelo cliente ao extrair do export
 }
 
 async function getSupabaseAdmin() {
@@ -54,6 +55,9 @@ async function getSupabaseAdmin() {
 }
 
 export async function POST(req: NextRequest) {
+  // append=1 → pula o delete (usado em lotes após o primeiro)
+  const append = req.nextUrl.searchParams.get('append') === '1';
+
   // ── 1. Auth ───────────────────────────────────────────────────────────────
   const cookieStore = await cookies();
   const supabase    = createSupabaseServerClient(cookieStore);
@@ -142,7 +146,7 @@ export async function POST(req: NextRequest) {
     dg_score:          r.dgScore           ?? null,
     dg_classification: r.dgClassification  ?? null,
     legs:              r.legs              ?? [],
-    pa_sides:          paSidesMap.get(r.id) ?? 0,
+    pa_sides:          paSidesMap.get(r.id) ?? r._pa_sides ?? 0,
     updated_at:        r.updatedAt         ?? now,
     imported_at:       now,
   }));
@@ -152,10 +156,12 @@ export async function POST(req: NextRequest) {
   let   inserted = 0;
   const errors: string[] = [];
 
-  // Limpa tudo primeiro (oportunidades são efêmeras — substituir sempre é correto)
-  const { error: delErr } = await admin.from('dg_opportunities').delete().gte('imported_at', '2000-01-01');
-  if (delErr) {
-    console.warn('[dg-opp-import] aviso ao limpar tabela:', delErr.message);
+  // Limpa tudo antes do primeiro lote (pula se append=1)
+  if (!append) {
+    const { error: delErr } = await admin.from('dg_opportunities').delete().gte('imported_at', '2000-01-01');
+    if (delErr) {
+      console.warn('[dg-opp-import] aviso ao limpar tabela:', delErr.message);
+    }
   }
 
   // Insere em lotes

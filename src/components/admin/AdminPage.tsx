@@ -103,7 +103,7 @@ function ResetModal({ onConfirm, onCancel }: { onConfirm: () => void; onCancel: 
 
 interface DGExportMeta {
   _type?:        string;
-  _version?:     number;
+  _version?:     number | string;
   _exported_at?: string;
   opportunities?: Record<string, { opportunities?: unknown[] }> | unknown[];
   individual_odds?: Record<string, { odds?: unknown[] }> | unknown[];
@@ -111,6 +111,66 @@ interface DGExportMeta {
   opp_one?:   { opportunities?: unknown[] };
   odds_1x2?:  { odds?: unknown[] };
   odds_1x2_pa?: { odds?: unknown[] };
+}
+
+interface OppRecord {
+  id: string;
+  matchId: string;
+  homeTeam: string;
+  awayTeam: string;
+  _pa_sides?: number;
+  [key: string]: unknown;
+}
+
+/** Extrai odds do arquivo, retorna payload mínimo para dg-full-import */
+function extractOddsPayload(data: DGExportMeta): unknown {
+  const ver = Number(data._version ?? 1);
+  if (ver >= 3) {
+    return { _type: 'dg_full_export', _version: 3, _exported_at: data._exported_at, odds_1x2: data.odds_1x2, odds_1x2_pa: data.odds_1x2_pa };
+  }
+  // v2: individual_odds é objeto { endpoint: { odds: [] } }
+  if (data.individual_odds && !Array.isArray(data.individual_odds)) {
+    const map = data.individual_odds as Record<string, { odds?: unknown[] }>;
+    const all1x2: unknown[] = [];
+    const allPa:  unknown[] = [];
+    for (const [ep, val] of Object.entries(map)) {
+      if (!Array.isArray(val?.odds)) continue;
+      if (ep.includes('1x2_pa')) allPa.push(...val.odds);
+      else                        all1x2.push(...val.odds);
+    }
+    return { _type: 'dg_full_export', _version: 3, _exported_at: data._exported_at, odds_1x2: { odds: all1x2 }, odds_1x2_pa: { odds: allPa } };
+  }
+  return data;
+}
+
+/** Extrai todas as oportunidades do arquivo com pa_sides embutido, deduplicadas */
+function extractOpps(data: DGExportMeta): OppRecord[] {
+  const seen = new Map<string, OppRecord>();
+
+  function add(arr: unknown[], paSides: number) {
+    for (const r of arr as OppRecord[]) {
+      if (!r?.id) continue;
+      const cur = seen.get(r.id);
+      const curSides = cur?._pa_sides ?? 0;
+      if (!cur || paSides > curSides) seen.set(r.id, { ...r, _pa_sides: paSides });
+    }
+  }
+
+  const ver = Number(data._version ?? 1);
+  if (ver >= 3) {
+    if (Array.isArray(data.opp_both?.opportunities))   add(data.opp_both!.opportunities!, 2);
+    if (Array.isArray(data.opp_one?.opportunities))    add(data.opp_one!.opportunities!,  1);
+  } else if (data.opportunities && !Array.isArray(data.opportunities)) {
+    // v2: chave = endpoint path
+    for (const [ep, val] of Object.entries(data.opportunities as Record<string, { opportunities?: unknown[] }>)) {
+      const sides = ep.includes('pa_mode=both') ? 2 : ep.includes('pa_mode=one') ? 1 : 0;
+      if (Array.isArray(val?.opportunities)) add(val.opportunities, sides);
+    }
+  } else if (Array.isArray(data.opportunities)) {
+    add(data.opportunities as unknown[], 0);
+  }
+
+  return Array.from(seen.values());
 }
 
 interface OddsResult {
@@ -188,30 +248,57 @@ function DGImportPanel() {
     setOddsRes(null);
     setOppRes(null);
 
-    let parsed: unknown;
-    try { parsed = JSON.parse(rawText); }
+    let parsed: DGExportMeta;
+    try { parsed = JSON.parse(rawText) as DGExportMeta; }
     catch {
       setStatus('error');
       setOddsRes({ ok: false, detected_type: '?', inserted: 0, total_valid: 0, skipped: 0, cleaned_old: 0, by_market: {}, error: 'JSON inválido — arquivo corrompido ou incompleto.' });
       return;
     }
 
-    const body = JSON.stringify(parsed);
-    const headers = { 'Content-Type': 'application/json' };
+    const jsonHeaders = { 'Content-Type': 'application/json' };
 
-    const [oddsRes, oppRes] = await Promise.all([
-      fetch('/api/admin/dg-full-import', { method: 'POST', headers, body })
-        .then(r => r.json() as Promise<OddsResult>)
-        .catch(e => ({ ok: false, detected_type: '?', inserted: 0, total_valid: 0, skipped: 0, cleaned_old: 0, by_market: {}, error: String(e) } as OddsResult)),
-      fetch('/api/admin/dg-opportunities-import', { method: 'POST', headers, body })
-        .then(r => r.json() as Promise<OppResult>)
-        .catch(e => ({ ok: false, total: 0, inserted: 0, error: String(e) } as OppResult)),
-    ]);
+    // ── Odds: extrai subset mínimo e envia de uma vez ──────────────────────
+    const oddsPayload = extractOddsPayload(parsed);
+    const oddsResult  = await fetch('/api/admin/dg-full-import', {
+      method: 'POST', headers: jsonHeaders, body: JSON.stringify(oddsPayload),
+    }).then(r => r.json() as Promise<OddsResult>)
+      .catch(e => ({ ok: false, detected_type: '?', inserted: 0, total_valid: 0, skipped: 0, cleaned_old: 0, by_market: {}, error: String(e) } as OddsResult));
 
-    setOddsRes(oddsRes);
+    // ── Oportunidades: extrai + dedup no cliente, envia em lotes de 500 ───
+    const allOpps  = extractOpps(parsed);
+    const BATCH    = 500;
+    let oppInserted = 0;
+    let oppError: string | undefined;
+
+    for (let i = 0; i < allOpps.length; i += BATCH) {
+      const batch   = allOpps.slice(i, i + BATCH);
+      const append  = i > 0 ? '?append=1' : '';
+      // Empacota como { opportunities: [...] } com pa_sides embutido nos registros
+      // O backend lê r._pa_sides via paSidesMap se presente como campo extra,
+      // porém precisamos que o backend use o campo correto.
+      // Enviamos como array puro — o backend já lida com arrays.
+      const res = await fetch(`/api/admin/dg-opportunities-import${append}`, {
+        method: 'POST', headers: jsonHeaders, body: JSON.stringify(batch),
+      }).then(r => r.json() as Promise<OppResult>)
+        .catch(e => ({ ok: false, total: 0, inserted: 0, error: String(e) } as OppResult));
+
+      if (res.ok) {
+        oppInserted += res.inserted;
+      } else {
+        oppError = res.error;
+        break;
+      }
+    }
+
+    const oppRes: OppResult = oppError
+      ? { ok: false, total: allOpps.length, inserted: oppInserted, error: oppError }
+      : { ok: true,  total: allOpps.length, inserted: oppInserted };
+
+    setOddsRes(oddsResult);
     setOppRes(oppRes);
-    setStatus(oddsRes.ok && oppRes.ok ? 'success' : 'error');
-    if (oddsRes.ok && oppRes.ok) { setFileName(''); setRawText(''); setMeta(null); }
+    setStatus(oddsResult.ok && oppRes.ok ? 'success' : 'error');
+    if (oddsResult.ok && oppRes.ok) { setFileName(''); setRawText(''); setMeta(null); }
   }
 
   const hasFile      = !!rawText;
