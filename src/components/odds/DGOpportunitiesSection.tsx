@@ -29,9 +29,10 @@ interface DGOpportunity {
   dg_score:          number | null;
   dg_classification: string | null;
   legs:              Leg[];
+  pa_sides?:         number | null; // 2=ambos PA, 1=um lado PA, 0=nenhum
 }
 
-type PAFilter = 'ALL' | 'APENAS_PA';
+type PAFilter = 'ALL' | 'UM_PA' | 'AMBOS_PA';
 type SortBy   = 'maior_lucro' | 'menor_lucro' | 'recentes';
 
 const SORT_OPTS: { value: SortBy; label: string }[] = [
@@ -736,11 +737,21 @@ export function DGOpportunitiesSection() {
       // Liga filter
       if (leagueFilter.size > 0 && !leagueFilter.has(o.league ?? 'Outros')) return false;
 
-      // PA filter — conta LADOS (home/away), não total de legs PA
-      if (paFilter === 'APENAS_PA') {
-        const homeIsPA = o.legs.some(l => l.outcome === 'home' && isLegPA(l));
-        const awayIsPA = o.legs.some(l => l.outcome === 'away' && isLegPA(l));
-        if (!homeIsPA || !awayIsPA) return false;
+      // PA filter — usa pa_sides do banco (importado via opp_both/opp_one)
+      // fallback para verificação de legs se pa_sides não disponível
+      if (paFilter === 'AMBOS_PA') {
+        const sides = o.pa_sides ?? (
+          (o.legs.some(l => l.outcome === 'home' && isLegPA(l)) ? 1 : 0) +
+          (o.legs.some(l => l.outcome === 'away' && isLegPA(l)) ? 1 : 0)
+        );
+        if (sides < 2) return false;
+      }
+      if (paFilter === 'UM_PA') {
+        const sides = o.pa_sides ?? (
+          (o.legs.some(l => l.outcome === 'home' && isLegPA(l)) ? 1 : 0) +
+          (o.legs.some(l => l.outcome === 'away' && isLegPA(l)) ? 1 : 0)
+        );
+        if (sides !== 1) return false;
       }
 
       // Bookmaker deselect: ocultar oportunidades onde TODAS as legs estão desativadas
@@ -815,11 +826,13 @@ export function DGOpportunitiesSection() {
     </div>
   );
 
-  const cntApenasPA = opportunities.filter(o => {
-    const h = o.legs.some(l => l.outcome === 'home' && isLegPA(l));
-    const a = o.legs.some(l => l.outcome === 'away' && isLegPA(l));
-    return h && a;
-  }).length;
+  function paSides(o: DGOpportunity): number {
+    if (o.pa_sides != null) return o.pa_sides;
+    return (o.legs.some(l => l.outcome === 'home' && isLegPA(l)) ? 1 : 0) +
+           (o.legs.some(l => l.outcome === 'away' && isLegPA(l)) ? 1 : 0);
+  }
+  const cntAmbosPA = opportunities.filter(o => paSides(o) >= 2).length;
+  const cntUmPA    = opportunities.filter(o => paSides(o) === 1).length;
 
   return (
     <div className="flex flex-col gap-4">
@@ -863,8 +876,9 @@ export function DGOpportunitiesSection() {
         <div className="flex items-center gap-1 rounded-xl p-1"
           style={{ background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.07)' }}>
           {([
-            ['ALL',       'Todos',     opportunities.length],
-            ['APENAS_PA', 'Apenas PA', cntApenasPA],
+            ['ALL',      'Todos',       opportunities.length],
+            ['AMBOS_PA', 'Ambos PA',    cntAmbosPA],
+            ['UM_PA',    '1 Lado PA',   cntUmPA],
           ] as [PAFilter, string, number][]).map(([v, label, cnt]) => {
             const active = paFilter === v;
             return (

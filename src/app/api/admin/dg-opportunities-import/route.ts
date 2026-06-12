@@ -68,13 +68,46 @@ export async function POST(req: NextRequest) {
   try { body = await req.json(); }
   catch { return NextResponse.json({ ok: false, error: 'Body inválido (JSON esperado)' }, { status: 400 }); }
 
+  // pa_sides por registro (match_id → 0|1|2)
+  const paSidesMap = new Map<string, number>();
+
+  function extractOpps(arr: unknown[], paSides: number) {
+    for (const r of arr as OpportunityRecord[]) {
+      if (!r?.id) continue;
+      const cur = paSidesMap.get(r.id) ?? 0;
+      if (paSides > cur) paSidesMap.set(r.id, paSides);
+    }
+  }
+
   let records: OpportunityRecord[] = [];
   if (Array.isArray(body)) {
     records = body as OpportunityRecord[];
   } else {
     const b = body as Record<string, unknown>;
-    if (Array.isArray(b.opportunities)) records = b.opportunities as OpportunityRecord[];
-    else if (Array.isArray(b.data))     records = b.data          as OpportunityRecord[];
+
+    if (b._type === 'dg_full_export') {
+      // ── Formato v3 (novo script baixarTudo) ──────────────────────────────
+      const oppBoth   = (b.opp_both   as Record<string,unknown>)?.opportunities;
+      const oppOne    = (b.opp_one    as Record<string,unknown>)?.opportunities;
+      const oppLegacy = (b.opp_legacy as Record<string,unknown>)?.opportunities;
+
+      if (Array.isArray(oppBoth))   { extractOpps(oppBoth,   2); records.push(...oppBoth   as OpportunityRecord[]); }
+      if (Array.isArray(oppOne))    { extractOpps(oppOne,    1); records.push(...oppOne    as OpportunityRecord[]); }
+      if (Array.isArray(oppLegacy)) {                            records.push(...oppLegacy as OpportunityRecord[]); }
+
+      // Dedup por id (preferindo versões com maior pa_sides)
+      const seen = new Map<string, OpportunityRecord>();
+      for (const r of records) {
+        if (!r?.id) continue;
+        const cur = seen.get(r.id);
+        if (!cur || (paSidesMap.get(r.id) ?? 0) > (paSidesMap.get(cur.id) ?? 0)) seen.set(r.id, r);
+      }
+      records = Array.from(seen.values());
+    } else if (Array.isArray(b.opportunities)) {
+      records = b.opportunities as OpportunityRecord[];
+    } else if (Array.isArray(b.data)) {
+      records = b.data as OpportunityRecord[];
+    }
   }
 
   if (!records.length) {
@@ -96,6 +129,7 @@ export async function POST(req: NextRequest) {
     dg_score:          r.dgScore           ?? null,
     dg_classification: r.dgClassification  ?? null,
     legs:              r.legs              ?? [],
+    pa_sides:          paSidesMap.get(r.id) ?? 0,
     updated_at:        r.updatedAt         ?? now,
     imported_at:       now,
   }));
