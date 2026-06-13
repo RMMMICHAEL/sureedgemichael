@@ -26,7 +26,7 @@ const securityHeaders = [
       "img-src 'self' data: blob: https://*.supabase.co https://www.thesportsdb.com https://www.google.com https://*.gstatic.com https://www.facebook.com https://pps.whatsapp.net",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' https://fonts.gstatic.com",
-      "frame-src 'none'",
+      "frame-src https://www.youtube.com https://www.youtube-nocookie.com",
       "object-src 'none'",
       "base-uri 'self'",
       "form-action 'self'",
