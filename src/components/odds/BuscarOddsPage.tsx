@@ -1267,6 +1267,7 @@ export function BuscarOddsPage() {
           videoId="w-Mj7WatbPU"
           title="Como usar o Buscar Odds"
           description="Aprenda a encontrar as melhores odds e oportunidades DuploGreen no SureEdge."
+          restricted
           onClose={() => setShowTutorial(false)}
         />
       )}

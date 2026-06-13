@@ -5,13 +5,15 @@ import { createPortal } from 'react-dom';
 import { X, PlayCircle, ExternalLink } from 'lucide-react';
 
 interface VideoTutorialModalProps {
-  videoId:      string;
-  title:        string;
-  description?: string;
-  onClose:      () => void;
+  videoId:       string;
+  title:         string;
+  description?:  string;
+  onClose:       () => void;
+  /** Usar quando o vídeo tem restrição de idade — exibe card com link ao invés do iframe */
+  restricted?:   boolean;
 }
 
-export function VideoTutorialModal({ videoId, title, description, onClose }: VideoTutorialModalProps) {
+export function VideoTutorialModal({ videoId, title, description, onClose, restricted }: VideoTutorialModalProps) {
   const [show, setShow] = useState(false);
 
   useEffect(() => {
@@ -137,14 +139,80 @@ export function VideoTutorialModal({ videoId, title, description, onClose }: Vid
         </div>
 
         {/* ── Player 16:9 ────────────────────────────────────────────────── */}
-        <div style={{ position: 'relative', paddingBottom: '56.25%', background: '#000' }}>
-          <iframe
-            src={`https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1&color=white&iv_load_policy=3&playsinline=1`}
-            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 'none' }}
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-            allowFullScreen
-          />
-        </div>
+        {restricted ? (
+          /* Card para vídeos com restrição de idade — não podem ser incorporados */
+          <div style={{
+            position: 'relative', paddingBottom: '56.25%',
+            background: 'linear-gradient(135deg, #0a0f1a 0%, #0d1117 60%, #111827 100%)',
+          }}>
+            {/* Thumbnail com blur */}
+            <img
+              src={`https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`}
+              alt=""
+              style={{
+                position: 'absolute', inset: 0, width: '100%', height: '100%',
+                objectFit: 'cover', opacity: 0.18, filter: 'blur(2px)',
+              }}
+            />
+            {/* Overlay content */}
+            <div style={{
+              position: 'absolute', inset: 0,
+              display: 'flex', flexDirection: 'column',
+              alignItems: 'center', justifyContent: 'center', gap: 20,
+              padding: 32,
+            }}>
+              {/* Ícone de cadeado + yt */}
+              <div style={{
+                width: 64, height: 64, borderRadius: '50%',
+                background: 'rgba(255,255,255,.06)',
+                border: '1px solid rgba(255,255,255,.1)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                </svg>
+              </div>
+              <div style={{ textAlign: 'center', maxWidth: 360 }}>
+                <p style={{ fontSize: 14, fontWeight: 700, color: '#E2E8F0', margin: '0 0 8px' }}>
+                  Vídeo com restrição de idade
+                </p>
+                <p style={{ fontSize: 12, color: '#4B5563', margin: 0, lineHeight: 1.6 }}>
+                  O YouTube exige login para assistir este conteúdo.<br />
+                  Abra diretamente no YouTube para assistir.
+                </p>
+              </div>
+              <a
+                href={`https://www.youtube.com/watch?v=${videoId}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 8,
+                  padding: '11px 24px', borderRadius: 100,
+                  background: 'linear-gradient(135deg, #3FFF21, #00BBFF)',
+                  color: '#0D1117', fontWeight: 800, fontSize: 13,
+                  textDecoration: 'none', cursor: 'pointer',
+                  boxShadow: '0 0 24px rgba(63,255,33,.25)',
+                  transition: 'opacity .15s',
+                }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.opacity = '0.88'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.opacity = '1'; }}
+              >
+                <PlayCircle size={15} />
+                Assistir no YouTube
+              </a>
+            </div>
+          </div>
+        ) : (
+          <div style={{ position: 'relative', paddingBottom: '56.25%', background: '#000' }}>
+            <iframe
+              src={`https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1&color=white&iv_load_policy=3&playsinline=1`}
+              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 'none' }}
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allowFullScreen
+            />
+          </div>
+        )}
 
         {/* ── Rodapé ─────────────────────────────────────────────────────── */}
         <div style={{
