@@ -4,10 +4,11 @@ import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import {
   X, ScanSearch, ChevronLeft, ChevronRight, ExternalLink,
-  ArrowDown, RefreshCw, Zap, TrendingUp, ChevronDown, Star, Check, Trophy,
+  ArrowDown, RefreshCw, Zap, TrendingUp, ChevronDown, Star, Check, Trophy, PlayCircle,
 } from 'lucide-react';
 import { SurebetCalc } from '@/components/calcalendario/SurebetCalc';
 import { DGOpportunitiesSection } from './DGOpportunitiesSection';
+import { VideoTutorialModal } from '@/components/ui/VideoTutorialModal';
 
 // ─── Palette DG ───────────────────────────────────────────────────────────────
 const C = {
@@ -679,6 +680,7 @@ export function BuscarOddsPage() {
   const [lastUpdated,     setLastUpdated]    = useState(Date.now());
   const [tick,            setTick]           = useState(0);
   const [dgMap,           setDgMap]          = useState<Map<string, DGInfo>>(new Map());
+  const [showTutorial,    setShowTutorial]   = useState(false);
 
   // ── Tick "atualizado há Xs" ─────────────────────────────────────────────────
   useEffect(() => {
@@ -825,6 +827,23 @@ export function BuscarOddsPage() {
 
         {/* Tab switcher + botão atualizar */}
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowTutorial(true)}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              padding: '6px 12px', borderRadius: 100,
+              background: 'rgba(63,255,33,.08)',
+              border: '1px solid rgba(63,255,33,.22)',
+              color: '#3FFF21', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+              transition: 'all .15s',
+            }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(63,255,33,.14)'; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(63,255,33,.08)'; }}
+          >
+            <PlayCircle size={13} />
+            <span className="hidden sm:inline">Tutorial</span>
+          </button>
           <div className="flex items-center rounded-xl overflow-hidden" style={{ background: 'rgba(255,255,255,.03)', border: `1px solid ${C.surfB}` }}>
             {([
               { key: 'odds' as const, icon: <Zap size={12} />, label: 'Odds do Dia', color: '#94a3b8', bg: 'rgba(99,102,241,.1)' },
@@ -1242,6 +1261,15 @@ export function BuscarOddsPage() {
         })}
 
       </> /* fim tab odds */}
+
+      {showTutorial && (
+        <VideoTutorialModal
+          videoId="w-Mj7WatbPU"
+          title="Como usar o Buscar Odds"
+          description="Aprenda a encontrar as melhores odds e oportunidades DuploGreen no SureEdge."
+          onClose={() => setShowTutorial(false)}
+        />
+      )}
     </div>
   );
 }

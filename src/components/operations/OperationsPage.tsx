@@ -4,11 +4,12 @@ import { useState, useMemo, useEffect } from 'react';
 import { useStore }   from '@/store/useStore';
 import { Button }     from '@/components/ui/Button';
 import { Modal }      from '@/components/ui/Modal';
+import { VideoTutorialModal } from '@/components/ui/VideoTutorialModal';
 import { groupLegsIntoOps, calcLegProfit } from '@/lib/finance/calculator';
 import { currentMonth } from '@/lib/parsers/dateParser';
 import {
   Trash2, Plus, AlertTriangle, Zap, Clock, ChevronDown,
-  Pencil, Check, X, Copy, Shuffle, DollarSign, Calculator, CircleHelp,
+  Pencil, Check, X, Copy, Shuffle, DollarSign, Calculator, CircleHelp, PlayCircle,
 } from 'lucide-react';
 import type { Leg, ResultType, OpType } from '@/types';
 import { houseFavicon } from '@/lib/bookmakers/logos';
@@ -2012,10 +2013,11 @@ export function OperationsPage() {
   const updateLeg = useStore(s => s.updateLeg);
   const toastFn   = useStore(s => s.toast);
 
-  const [showAdd,     setShowAdd]     = useState(false);
-  const [showAltAdd,  setShowAltAdd]  = useState(false);
-  const [showDGAdd,   setShowDGAdd]   = useState(false);
-  const [guideOpen,   setGuideOpen]   = useState(false);
+  const [showAdd,      setShowAdd]      = useState(false);
+  const [showAltAdd,   setShowAltAdd]   = useState(false);
+  const [showDGAdd,    setShowDGAdd]    = useState(false);
+  const [guideOpen,    setGuideOpen]    = useState(false);
+  const [showTutorial, setShowTutorial] = useState(false);
   const [editingOid,  setEditingOid]  = useState<string | null>(null);
   const [search,      setSearch]      = useState('');
   const [onlyFlag,    setOnlyFlag]    = useState(false);
@@ -2149,6 +2151,23 @@ export function OperationsPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setShowTutorial(true)}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              padding: '6px 12px', borderRadius: 100,
+              background: 'rgba(63,255,33,.08)',
+              border: '1px solid rgba(63,255,33,.22)',
+              color: '#3FFF21', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+              transition: 'all .15s',
+            }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(63,255,33,.14)'; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(63,255,33,.08)'; }}
+          >
+            <PlayCircle size={13} />
+            <span className="hidden sm:inline">Tutorial</span>
+          </button>
           <Button size="sm" variant="outline" onClick={() => setGuideOpen(true)}>
             <CircleHelp size={13} /><span className="hidden sm:inline">Guia</span>
           </Button>
@@ -2295,6 +2314,14 @@ export function OperationsPage() {
       {showAltAdd && <AltOpModal onClose={() => setShowAltAdd(false)} />}
       {showDGAdd && <DuploGreenModal onClose={() => setShowDGAdd(false)} onOpenCalc={() => { setShowDGAdd(false); setFilterOpType('calculadora'); }} />}
       {guideOpen && <OpsGuideModal onClose={() => setGuideOpen(false)} />}
+      {showTutorial && (
+        <VideoTutorialModal
+          videoId="Anyp5LUhEFI"
+          title="Como usar o Painel de Operações"
+          description="Aprenda a registrar, filtrar e acompanhar suas operações no SureEdge."
+          onClose={() => setShowTutorial(false)}
+        />
+      )}
     </div>
   );
 }
