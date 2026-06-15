@@ -52,6 +52,15 @@ function normalize(s: string) {
   return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
 }
 
+/** Garante que strings ISO sem indicador de fuso sejam tratadas como UTC.
+ *  APIs como Altenar retornam "2024-06-15T16:00:00" (sem Z) — browsers
+ *  interpretam isso como horário local, causando erro de 3h no Brasil. */
+function toUtcIso(s: string): string {
+  if (!s) return s;
+  if (s.endsWith('Z') || /[+-]\d{2}:?\d{2}$/.test(s)) return s;
+  return s + 'Z';
+}
+
 function fuzzyMatch(a: string, b: string): boolean {
   const an = normalize(a);
   const bn = normalize(b);
@@ -173,7 +182,7 @@ export async function GET(req: NextRequest) {
       match_id:    m.match_id,
       home_team:   m.home_team,
       away_team:   m.away_team,
-      start_time:  m.start_time,
+      start_time:  toUtcIso(m.start_time),
       league_name: m.league_name,
       league_id:   0,
       bookmakers:  m.bookmakers.map(b => ({
