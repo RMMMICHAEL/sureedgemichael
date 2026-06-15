@@ -254,7 +254,9 @@ export const useStore = create<StoreState>()((set, get) => ({
       const goalConfig         = db.goalConfig;
       const migrated = { ...db, bms: bmsNorm, legs: legsWithBalance, expenses, partnerAccounts, clients, targetHouses, sheetSync, excludedImportKeys, notes, transfers, operators, goalConfig };
       const { bms, totalCash } = recalc(migrated);
-      set({ ...migrated, bms, totalCash, initialized: true, toasts: [] });
+      // pipCalcOpen não é parte do AppDB — sempre reseta para false na inicialização
+      // para evitar que o BFCache (back/forward do browser) restaure a calculadora aberta
+      set({ ...migrated, bms, totalCash, initialized: true, toasts: [], pipCalcOpen: false });
       // Persiste se alguma migração foi aplicada
       if (bmsMigrated || betbraMigrated || balanceMigrated) {
         if (betbraMigrated) console.log('[migration] Betbra: cm=2.8 aplicado em legs existentes');

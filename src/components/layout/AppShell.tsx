@@ -322,6 +322,17 @@ export function AppShell() {
   const commitImport        = useStore(s => s.commitImport);
   const setSyncing          = useStore(s => s.setSyncing);
   const toastFn             = useStore(s => s.toast);
+  const setPipCalcOpen      = useStore(s => s.setPipCalcOpen);
+
+  // Fecha a calculadora quando o browser restaura a página do BFCache
+  // (usuário clicou num link externo e voltou com o botão Voltar)
+  useEffect(() => {
+    function onPageShow(e: PageTransitionEvent) {
+      if (e.persisted) setPipCalcOpen(false);
+    }
+    window.addEventListener('pageshow', onPageShow);
+    return () => window.removeEventListener('pageshow', onPageShow);
+  }, [setPipCalcOpen]);
 
   const [mobileOpen,       setMobileOpen]       = useState(false);
   const [subChecked,       setSubChecked]       = useState(false);
