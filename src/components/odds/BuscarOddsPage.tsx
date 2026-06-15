@@ -274,6 +274,133 @@ function BestOddCell({ bk, type, showPaBadge }: { bk: BookmakerOdds | null; type
 
 // (BookmakerFilterModal removed — filtro de casas não é mais exibido na lista)
 
+// ─── OddBtn e OddsSection em nível de módulo ─────────────────────────────────
+// IMPORTANTE: não podem ser definidos dentro de EventOddsPanel.
+// Funções aninhadas criam nova referência a cada render do pai → React desmonta/remonta
+// → useState(sortCol) reseta para 'home' toda vez que qualquer slot é clicado.
+
+function OddBtn({ bk, type, value, sectionBests, slots, onOddClick }: {
+  bk:           BookmakerOdds;
+  type:         OddType;
+  value:        number;
+  sectionBests: Record<OddType, number>;
+  slots:        (CalcSlot | null)[];
+  onOddClick:   (bk: BookmakerOdds, type: OddType, value: number) => void;
+}) {
+  const si     = slots.findIndex(s => s?.bk.slug === bk.slug && s?.type === type);
+  const sel    = si >= 0;
+  const sc     = SLOT_COLORS[si] ?? SLOT_COLORS[0];
+  const isBest = value > 1 && value === sectionBests[type];
+
+  if (value <= 1) return (
+    <div className="flex h-10 w-[72px] items-center justify-center rounded-xl"
+      style={{ background: 'rgba(255,255,255,.02)', border: '1px solid rgba(255,255,255,.04)' }}>
+      <span style={{ color: 'rgba(255,255,255,.1)', fontSize: 11 }}>—</span>
+    </div>
+  );
+
+  const base = sel ? {
+    background: `${sc}20`, border: `1px solid ${sc}70`, color: sc,
+    boxShadow: `0 0 14px ${sc}30`,
+  } : isBest ? {
+    background: `${C.green}18`, border: `1px solid ${C.green}55`, color: C.green,
+    textShadow: `0 0 10px ${C.green}88`,
+  } : {
+    background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.08)', color: C.t2,
+  };
+
+  return (
+    <button type="button" onClick={() => onOddClick(bk, type, value)}
+      className="relative flex h-10 w-[72px] items-center justify-center rounded-xl font-mono text-sm font-bold transition-all hover:opacity-80"
+      style={base}>
+      {value.toFixed(2)}
+      {sel && (
+        <span style={{
+          position: 'absolute', top: -5, right: -5, width: 15, height: 15,
+          borderRadius: '50%', background: sc, color: '#060A07',
+          fontSize: 11, fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>{si + 1}</span>
+      )}
+    </button>
+  );
+}
+
+function OddsSection({ label, bks, accent, slots, onOddClick }: {
+  label:      string;
+  bks:        BookmakerOdds[];
+  accent:     string;
+  slots:      (CalcSlot | null)[];
+  onOddClick: (bk: BookmakerOdds, type: OddType, value: number) => void;
+}) {
+  const [sortCol, setSortCol] = useState<'home'|'draw'|'away'>('home');
+  if (!bks.length) return null;
+  const acRgb = accent === C.amber ? '245,158,11' : '167,139,250';
+  const sorted = [...bks].sort((a, b) => (b[sortCol] as number) - (a[sortCol] as number));
+  const sectionBests: Record<OddType, number> = {
+    home: Math.max(0, ...bks.map(b => b.home > 1 ? b.home : 0)),
+    draw: Math.max(0, ...bks.map(b => b.draw > 1 ? b.draw : 0)),
+    away: Math.max(0, ...bks.map(b => b.away > 1 ? b.away : 0)),
+  };
+  const cols: { key: 'home'|'draw'|'away'; label: string }[] = [
+    { key: 'home', label: 'Casa (1)' },
+    { key: 'draw', label: 'Empate (X)' },
+    { key: 'away', label: 'Fora (2)' },
+  ];
+  return (
+    <div className="overflow-hidden rounded-2xl" style={{
+      background: `rgba(${acRgb},.03)`,
+      border: `1px solid rgba(${acRgb},.2)`,
+      boxShadow: `0 4px 24px rgba(0,0,0,.3)`,
+    }}>
+      <div style={{ height: 2, background: `linear-gradient(90deg, ${accent} 0%, ${accent}44 60%, transparent 100%)` }} />
+      <div className="flex items-center gap-2.5 px-5 py-3" style={{ background: `rgba(${acRgb},.07)`, borderBottom: `1px solid rgba(${acRgb},.1)` }}>
+        <div style={{ width: 3, height: 14, borderRadius: 2, background: accent }} />
+        <span style={{ fontSize: 11, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em', color: accent }}>{label}</span>
+        <span style={{ fontSize: 11, fontWeight: 700, borderRadius: 99, padding: '1px 6px', background: `rgba(${acRgb},.12)`, color: accent, border: `1px solid rgba(${acRgb},.25)` }}>
+          {bks.length} casas
+        </span>
+      </div>
+      <div className="grid items-center gap-3 px-5 py-2.5" style={{ gridTemplateColumns: '1fr 72px 72px 72px', background: 'rgba(255,255,255,.01)', borderBottom: '1px solid rgba(255,255,255,.04)' }}>
+        <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: C.t3 }}>Casa</span>
+        {cols.map(c => (
+          <button key={c.key} type="button" onClick={() => setSortCol(c.key)}
+            className="flex items-center justify-center gap-0.5 transition-colors"
+            style={{ fontSize: 11, fontWeight: 700, color: sortCol === c.key ? C.t1 : C.t3, borderBottom: sortCol === c.key ? `2px solid rgba(${acRgb},.7)` : '2px solid transparent', paddingBottom: 2, background: 'none', border: 'none', cursor: 'pointer' }}>
+            {c.label}{sortCol === c.key && <ArrowDown size={9} style={{ marginLeft: 2 }} />}
+          </button>
+        ))}
+      </div>
+      <div>
+        {sorted.map((bk, idx) => {
+          const anySelected = slots.some(s => s?.bk.slug === bk.slug);
+          const pa = bk.is_pa === true;
+          return (
+            <div key={bk.slug} className="grid items-center gap-3 px-5 py-3"
+              style={{ gridTemplateColumns: '1fr 72px 72px 72px', background: anySelected ? `rgba(${acRgb},.04)` : idx % 2 === 1 ? 'rgba(255,255,255,.01)' : undefined, borderTop: idx > 0 ? `1px solid rgba(255,255,255,.04)` : undefined }}>
+              <div className="flex items-center gap-2 min-w-0">
+                {bk.url ? (
+                  <a href={bk.url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+                    className="flex items-center gap-1.5 truncate transition-colors hover:opacity-80"
+                    style={{ fontSize: 13, fontWeight: 600, color: anySelected ? C.t1 : C.t2 }}>
+                    <ExternalLink size={10} style={{ opacity: 0.4, flexShrink: 0 }} />
+                    <span className="truncate">{bk.name}</span>
+                  </a>
+                ) : (
+                  <span className="truncate" style={{ fontSize: 13, fontWeight: 600, color: C.t2 }}>{bk.name}</span>
+                )}
+                {pa && <span style={{ fontSize: 11, fontWeight: 700, borderRadius: 4, padding: '1px 4px', background: C.amberDim, color: C.amber, border: `1px solid ${C.amberB}`, flexShrink: 0 }}>PA</span>}
+              </div>
+              <OddBtn bk={bk} type="home" value={bk.home} sectionBests={sectionBests} slots={slots} onOddClick={onOddClick} />
+              <OddBtn bk={bk} type="draw" value={bk.draw} sectionBests={sectionBests} slots={slots} onOddClick={onOddClick} />
+              <OddBtn bk={bk} type="away" value={bk.away} sectionBests={sectionBests} slots={slots} onOddClick={onOddClick} />
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ─── Painel de detalhes do evento ─────────────────────────────────────────────
 
 function EventOddsPanel({
@@ -318,9 +445,7 @@ function EventOddsPanel({
     });
   }
 
-  function slotOf(slug: string, type: OddType) { return slots.findIndex(s => s?.bk.slug === slug && s?.type === type); }
-
-  // Split pelo market_type: 1x2_pa = COM PA (mercado de pagamento antecipado)
+// Split pelo market_type: 1x2_pa = COM PA (mercado de pagamento antecipado)
   // 1x2 = SEM PA (mercado regular — inclui casas PA usando mercado normal)
   const comPa = event.bookmakers.filter(b => b.is_pa === true);
   const semPa = event.bookmakers.filter(b => b.is_pa !== true);
@@ -328,116 +453,6 @@ function EventOddsPanel({
   const eventName   = `${event.home_team} x ${event.away_team}`;
   const dgRgb = dgInfo ? dgRGB(dgInfo.dg_classification) : null;
   const dgCol = dgInfo ? dgColor(dgInfo.dg_classification) : null;
-
-  function OddBtn({ bk, type, value, sectionBests }: { bk: BookmakerOdds; type: OddType; value: number; sectionBests: Record<OddType, number> }) {
-    const si = slotOf(bk.slug, type);
-    const sel = si >= 0;
-    const sc  = SLOT_COLORS[si] ?? SLOT_COLORS[0];
-    const isBest = value > 1 && value === sectionBests[type];
-
-    if (value <= 1) return (
-      <div className="flex h-10 w-[72px] items-center justify-center rounded-xl"
-        style={{ background: 'rgba(255,255,255,.02)', border: '1px solid rgba(255,255,255,.04)' }}>
-        <span style={{ color: 'rgba(255,255,255,.1)', fontSize: 11 }}>—</span>
-      </div>
-    );
-
-    const base = sel ? {
-      background: `${sc}20`, border: `1px solid ${sc}70`, color: sc,
-      boxShadow: `0 0 14px ${sc}30`,
-    } : isBest ? {
-      background: `${C.green}18`, border: `1px solid ${C.green}55`, color: C.green,
-      textShadow: `0 0 10px ${C.green}88`,
-    } : {
-      background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.08)', color: C.t2,
-    };
-
-    return (
-      <button type="button" onClick={() => handleOddClick(bk, type, value)}
-        className="relative flex h-10 w-[72px] items-center justify-center rounded-xl font-mono text-sm font-bold transition-all hover:opacity-80"
-        style={base}>
-        {value.toFixed(2)}
-        {sel && (
-          <span style={{
-            position: 'absolute', top: -5, right: -5, width: 15, height: 15,
-            borderRadius: '50%', background: sc, color: '#060A07',
-            fontSize: 11, fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>{si + 1}</span>
-        )}
-      </button>
-    );
-  }
-
-  function OddsSection({ label, bks, accent }: { label: string; bks: BookmakerOdds[]; accent: string }) {
-    const [sortCol, setSortCol] = useState<'home'|'draw'|'away'>('home');
-    if (!bks.length) return null;
-    const acRgb = accent === C.amber ? '245,158,11' : '167,139,250';
-    const sorted = [...bks].sort((a, b) => (b[sortCol] as number) - (a[sortCol] as number));
-    const sectionBests: Record<OddType, number> = {
-      home: Math.max(0, ...bks.map(b => b.home > 1 ? b.home : 0)),
-      draw: Math.max(0, ...bks.map(b => b.draw > 1 ? b.draw : 0)),
-      away: Math.max(0, ...bks.map(b => b.away > 1 ? b.away : 0)),
-    };
-    const cols: { key: 'home'|'draw'|'away'; label: string }[] = [
-      { key: 'home', label: 'Casa (1)' },
-      { key: 'draw', label: 'Empate (X)' },
-      { key: 'away', label: 'Fora (2)' },
-    ];
-    return (
-      <div className="overflow-hidden rounded-2xl" style={{
-        background: `rgba(${acRgb},.03)`,
-        border: `1px solid rgba(${acRgb},.2)`,
-        boxShadow: `0 4px 24px rgba(0,0,0,.3)`,
-      }}>
-        <div style={{ height: 2, background: `linear-gradient(90deg, ${accent} 0%, ${accent}44 60%, transparent 100%)` }} />
-        <div className="flex items-center gap-2.5 px-5 py-3" style={{ background: `rgba(${acRgb},.07)`, borderBottom: `1px solid rgba(${acRgb},.1)` }}>
-          <div style={{ width: 3, height: 14, borderRadius: 2, background: accent }} />
-          <span style={{ fontSize: 11, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em', color: accent }}>{label}</span>
-          <span style={{ fontSize: 11, fontWeight: 700, borderRadius: 99, padding: '1px 6px', background: `rgba(${acRgb},.12)`, color: accent, border: `1px solid rgba(${acRgb},.25)` }}>
-            {bks.length} casas
-          </span>
-        </div>
-        <div className="grid items-center gap-3 px-5 py-2.5" style={{ gridTemplateColumns: '1fr 72px 72px 72px', background: 'rgba(255,255,255,.01)', borderBottom: '1px solid rgba(255,255,255,.04)' }}>
-          <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: C.t3 }}>Casa</span>
-          {cols.map(c => (
-            <button key={c.key} type="button" onClick={() => setSortCol(c.key)}
-              className="flex items-center justify-center gap-0.5 transition-colors"
-              style={{ fontSize: 11, fontWeight: 700, color: sortCol === c.key ? C.t1 : C.t3, borderBottom: sortCol === c.key ? `2px solid rgba(${acRgb},.7)` : '2px solid transparent', paddingBottom: 2, background: 'none', border: 'none', cursor: 'pointer' }}>
-              {c.label}{sortCol === c.key && <ArrowDown size={9} style={{ marginLeft: 2 }} />}
-            </button>
-          ))}
-        </div>
-        <div>
-          {sorted.map((bk, idx) => {
-            const anySelected = slots.some(s => s?.bk.slug === bk.slug);
-            // badge PA só para casas no mercado 1x2_pa (campo explícito), não inferência por slug
-            const pa = bk.is_pa === true;
-            return (
-              <div key={bk.slug} className="grid items-center gap-3 px-5 py-3"
-                style={{ gridTemplateColumns: '1fr 72px 72px 72px', background: anySelected ? `rgba(${acRgb},.04)` : idx % 2 === 1 ? 'rgba(255,255,255,.01)' : undefined, borderTop: idx > 0 ? `1px solid rgba(255,255,255,.04)` : undefined }}>
-                <div className="flex items-center gap-2 min-w-0">
-                  {bk.url ? (
-                    <a href={bk.url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
-                      className="flex items-center gap-1.5 truncate transition-colors hover:opacity-80"
-                      style={{ fontSize: 13, fontWeight: 600, color: anySelected ? C.t1 : C.t2 }}>
-                      <ExternalLink size={10} style={{ opacity: 0.4, flexShrink: 0 }} />
-                      <span className="truncate">{bk.name}</span>
-                    </a>
-                  ) : (
-                    <span className="truncate" style={{ fontSize: 13, fontWeight: 600, color: C.t2 }}>{bk.name}</span>
-                  )}
-                  {pa && <span style={{ fontSize: 11, fontWeight: 700, borderRadius: 4, padding: '1px 4px', background: C.amberDim, color: C.amber, border: `1px solid ${C.amberB}`, flexShrink: 0 }}>PA</span>}
-                </div>
-                <OddBtn bk={bk} type="home" value={bk.home} sectionBests={sectionBests} />
-                <OddBtn bk={bk} type="draw" value={bk.draw} sectionBests={sectionBests} />
-                <OddBtn bk={bk} type="away" value={bk.away} sectionBests={sectionBests} />
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -527,8 +542,8 @@ function EventOddsPanel({
         Clique em qualquer odd para adicionar à calculadora · max 3 slots
       </p>
 
-      <OddsSection label="Com Pagamento Antecipado (PA)" bks={comPa} accent={C.amber} />
-      <OddsSection label="Sem Pagamento Antecipado" bks={semPa} accent={C.purple} />
+      <OddsSection label="Com Pagamento Antecipado (PA)" bks={comPa} accent={C.amber} slots={slots} onOddClick={handleOddClick} />
+      <OddsSection label="Sem Pagamento Antecipado" bks={semPa} accent={C.purple} slots={slots} onOddClick={handleOddClick} />
     </div>
   );
 }
