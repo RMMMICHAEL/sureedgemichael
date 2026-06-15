@@ -182,6 +182,7 @@ interface OddsResult {
   cleaned_old:  number;
   by_market:    Record<string, number>;
   error?:       string;
+  errors?:      string[];
   tip?:         string;
 }
 
@@ -441,7 +442,7 @@ function DGImportPanel() {
           <div className="flex flex-col gap-0.5">
             {oddsRes && !oddsRes.ok && (
               <span className="text-xs font-bold" style={{ color: 'var(--r)' }}>
-                Odds: {oddsRes.error ?? 'erro desconhecido'}
+                Odds: {oddsRes.error ?? oddsRes.errors?.join(' | ') ?? 'erro desconhecido'}
               </span>
             )}
             {oppRes && !oppRes.ok && (
