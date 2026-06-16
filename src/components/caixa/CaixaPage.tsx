@@ -9,7 +9,7 @@ import {
 import { calcLegProfit } from '@/lib/finance/calculator';
 import { currentMonth, todayStr } from '@/lib/parsers/dateParser';
 import { houseFavicon } from '@/lib/bookmakers/logos';
-import { Wallet, Building2, TrendingUp, Percent, Filter, X } from 'lucide-react';
+import { Wallet, Building2, TrendingUp, Percent, Filter, X, CircleDollarSign } from 'lucide-react';
 import type { Leg } from '@/types';
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -223,8 +223,9 @@ export function CaixaPage() {
     .filter(l => l.re === 'Pendente' && l.source !== 'import')
     .reduce((s, l) => s + l.st, 0).toFixed(2);
   // Capital = saldo em casas + saldo em bancos APENAS.
-  // pendingStakes é exibido como informativo — já está descontado do bm.balance.
-  const totalCash     = totalBMs + totalBanks;
+  // pendingStakes é informativo: no modelo v3 não afeta o Capital Total.
+  const totalCash      = totalBMs + totalBanks;
+  const availableCash  = +(totalCash - pendingStakes).toFixed(2);
 
   const month  = currentMonth();
   const mStart = month + '-01';
@@ -261,14 +262,15 @@ export function CaixaPage() {
         >
           R$ {totalCash.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-4 pt-4" style={{ borderTop: '1px solid var(--b)' }}>
+        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-4 pt-4" style={{ borderTop: '1px solid var(--b)' }}>
           {[
-            { label: 'Em Casas',     value: fmtBRL(totalBMs),        icon: <Building2 size={13} />, color: 'var(--y)' },
-            { label: 'Em Bancos',    value: fmtBRL(totalBanks),       icon: <Wallet size={13} />,   color: '#4DA6FF' },
-            { label: 'Em Aberto',    value: fmtBRL(pendingStakes),    icon: <TrendingUp size={13} />, color: 'oklch(72% 0.18 55)' },
+            { label: 'Em Casas',    value: fmtBRL(totalBMs),     icon: <Building2 size={13} />,        color: 'var(--y)' },
+            { label: 'Em Bancos',   value: fmtBRL(totalBanks),   icon: <Wallet size={13} />,           color: '#4DA6FF' },
+            { label: 'Em Aberto',   value: fmtBRL(pendingStakes), icon: <TrendingUp size={13} />,      color: 'oklch(72% 0.18 55)' },
+            { label: 'Disponível',  value: fmtBRL(availableCash), icon: <CircleDollarSign size={13} />, color: 'var(--g)' },
             { label: `Lucro ${shortMonth}`, value: fmtBRL(mProfit, true), icon: <TrendingUp size={13} />,
               color: mProfit >= 0 ? 'var(--g)' : 'var(--r)' },
-            { label: 'ROI Mês',      value: `${mROI > 0 ? '+' : ''}${mROI}%`, icon: <Percent size={13} />, color: 'var(--t2)' },
+            { label: 'ROI Mês',     value: `${mROI > 0 ? '+' : ''}${mROI}%`, icon: <Percent size={13} />, color: 'var(--t2)' },
           ].map(k => (
             <div key={k.label}>
               <div className="flex items-center gap-1.5 text-[11px] mb-1.5" style={{ color: 'var(--t3)' }}>

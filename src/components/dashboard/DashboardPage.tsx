@@ -924,15 +924,15 @@ export function DashboardPage() {
   const profit7d    = profit7dGross    - expSum(sevenStart, today);
   const profitMonth = profitMonthGross - expSum(mStart,     today);
 
-  const pendingLegs   = legs.filter(l => l.re === 'Pendente' && l.source !== 'import');
-  const pendingStakes = +pendingLegs.reduce((s, l) => s + l.st, 0).toFixed(2);
-  // Capital = saldo em casas + saldo em bancos APENAS.
-  // NÃO soma pendingStakes: addLeg já deduz a stake do bm.balance,
-  // somar de volta criaria dupla contagem quando os saldos estão configurados.
+  const pendingLegs    = legs.filter(l => l.re === 'Pendente' && l.source !== 'import');
+  const pendingStakes  = +pendingLegs.reduce((s, l) => s + l.st, 0).toFixed(2);
+  // Capital = saldo em casas + saldo em bancos APENAS (modelo v3).
+  // Apostas pendentes não alteram o Capital Total — só a liquidação move o saldo.
   const totalCash = [
     ...bms.map(b => b.balance),
     ...banks.map(b => b.balance),
   ].reduce((s, v) => s + v, 0);
+  const availableCash = +(totalCash - pendingStakes).toFixed(2);
   const totalOps  = groupLegsIntoOps(legs).length;
 
   const monthName = new Date().toLocaleString('pt-BR', { month: 'long' });
@@ -1089,7 +1089,7 @@ export function DashboardPage() {
           label:         'Capital Total',
           value:         fmtCapital(totalCash),
           sub:           pendingStakes > 0
-            ? `${totalOps} operações · R$ ${pendingStakes.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} em aberto`
+            ? `Disponível R$ ${availableCash.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} · R$ ${pendingStakes.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} em aberto`
             : `${totalOps} operações`,
           positive:      null,
           icon:          <DollarSign size={14} />,

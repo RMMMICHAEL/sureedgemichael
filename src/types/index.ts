@@ -262,6 +262,8 @@ export interface AppDB {
     pas:   string[];
     clis:  string[];
   };
+  /** Flag de migração: indica que o DB já usa o modelo v3 (capital só muda na liquidação). */
+  balanceModelV3?: boolean;
 }
 
 // ── User profile ─────────────────────────────────────────

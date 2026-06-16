@@ -252,15 +252,38 @@ export const useStore = create<StoreState>()((set, get) => ({
       const transfers          = db.transfers          ?? [];
       const operators          = db.operators          ?? [];
       const goalConfig         = db.goalConfig;
-      const migrated = { ...db, bms: bmsNorm, legs: legsWithBalance, expenses, partnerAccounts, clients, targetHouses, sheetSync, excludedImportKeys, notes, transfers, operators, goalConfig };
+      // ── Migração v3: capital só muda na liquidação, não na abertura de apostas ──
+      //    O modelo antigo debitava a stake no bm.balance ao registrar apostas pendentes.
+      //    Restora essas stakes para que o saldo reflita o patrimônio real.
+      let pendingMigrated = false;
+      let bmsV3 = bmsNorm;
+      if (!db.balanceModelV3) {
+        const pendingToRestore = legsWithBalance.filter(
+          l => l.source !== 'import' && l.re === 'Pendente' && l.balance_processed === false
+        );
+        if (pendingToRestore.length > 0) {
+          const restoreMap = new Map<string, number>();
+          for (const l of pendingToRestore) {
+            const key = normHouse(l.ho).toLowerCase();
+            restoreMap.set(key, +((restoreMap.get(key) ?? 0) + l.st).toFixed(2));
+          }
+          bmsV3 = bmsNorm.map(bm => {
+            const restore = restoreMap.get(normHouse(bm.name).toLowerCase()) ?? 0;
+            return restore > 0 ? { ...bm, balance: +(bm.balance + restore).toFixed(2) } : bm;
+          });
+        }
+        pendingMigrated = true;
+      }
+      const migrated = { ...db, bms: bmsV3, legs: legsWithBalance, expenses, partnerAccounts, clients, targetHouses, sheetSync, excludedImportKeys, notes, transfers, operators, goalConfig, balanceModelV3: true as const };
       const { bms, totalCash } = recalc(migrated);
       // pipCalcOpen não é parte do AppDB — sempre reseta para false na inicialização
       // para evitar que o BFCache (back/forward do browser) restaure a calculadora aberta
       set({ ...migrated, bms, totalCash, initialized: true, toasts: [], pipCalcOpen: false });
       // Persiste se alguma migração foi aplicada
-      if (bmsMigrated || betbraMigrated || balanceMigrated) {
-        if (betbraMigrated) console.log('[migration] Betbra: cm=2.8 aplicado em legs existentes');
+      if (bmsMigrated || betbraMigrated || balanceMigrated || pendingMigrated) {
+        if (betbraMigrated)  console.log('[migration] Betbra: cm=2.8 aplicado em legs existentes');
         if (balanceMigrated) console.log('[migration] balance_processed: legs liquidadas marcadas como processadas');
+        if (pendingMigrated) console.log('[migration] v3: stakes de apostas pendentes restauradas no saldo das casas');
         persist(migrated);
       }
     }
@@ -429,12 +452,7 @@ export const useStore = create<StoreState>()((set, get) => ({
       if (leg.source !== 'import') {
         const bmKey = normHouse(leg.ho).toLowerCase();
         if (leg.re === 'Pendente') {
-          // Aposta pendente: debita a stake imediatamente para refletir saldo disponível
-          bms = bms.map(b =>
-            normHouse(b.name).toLowerCase() === bmKey
-              ? { ...b, balance: +(b.balance - leg.st).toFixed(2) }
-              : b
-          );
+          // Pendente: não altera saldo — capital muda só na liquidação (modelo v3)
           processedFlag = false;
         } else {
           // Leg já encerrada no ato do registro: aplica o lucro líquido diretamente
@@ -481,20 +499,13 @@ export const useStore = create<StoreState>()((set, get) => ({
       const deletedLegs = s.legs.filter(l => idSet.has(l.id));
 
       // Estornar efeito no saldo para todas as legs manuais deletadas
+      // Modelo v3: apenas legs liquidadas (balance_processed=true) têm efeito no saldo
       let bms = [...s.bms];
       deletedLegs
         .filter(l => l.source !== 'import')
         .forEach(leg => {
-          const bmKey = normHouse(leg.ho).toLowerCase();
-          if (leg.re === 'Pendente' && leg.balance_processed !== true) {
-            // Stake debitada → devolver
-            bms = bms.map(b =>
-              normHouse(b.name).toLowerCase() === bmKey
-                ? { ...b, balance: +(b.balance + leg.st).toFixed(2) }
-                : b
-            );
-          } else if (leg.balance_processed === true) {
-            // Lucro aplicado → estornar
+          if (leg.balance_processed === true) {
+            const bmKey = normHouse(leg.ho).toLowerCase();
             const profit = calcLegProfit(leg);
             bms = bms.map(b =>
               normHouse(b.name).toLowerCase() === bmKey
@@ -540,8 +551,8 @@ export const useStore = create<StoreState>()((set, get) => ({
         const tentativeNew = { ...oldLeg, ...safePatch };
 
         if (oldLeg.re === 'Pendente' && safePatch.re !== 'Pendente' && oldLeg.balance_processed !== true) {
-          // Stake foi debitada na criação; devolve stake + aplica lucro líquido
-          const delta = +(oldLeg.st + calcLegProfit(tentativeNew)).toFixed(2);
+          // Pendente → Liquidada: aplica apenas o lucro (stake não foi debitada no modelo v3)
+          const delta = +calcLegProfit(tentativeNew).toFixed(2);
           bms = bms.map(b =>
             normHouse(b.name).toLowerCase() === bmKey
               ? { ...b, balance: +(b.balance + delta).toFixed(2) }
@@ -554,10 +565,10 @@ export const useStore = create<StoreState>()((set, get) => ({
           const oldProfit = calcLegProfit(oldLeg);
 
           if (safePatch.re === 'Pendente') {
-            // Revertendo para Pendente: estorna o lucro aplicado e debita a stake novamente
+            // Liquidada → Pendente: estorna apenas o lucro (sem redebitir stake no modelo v3)
             bms = bms.map(b =>
               normHouse(b.name).toLowerCase() === bmKey
-                ? { ...b, balance: +(b.balance - oldProfit - oldLeg.st).toFixed(2) }
+                ? { ...b, balance: +(b.balance - oldProfit).toFixed(2) }
                 : b
             );
             balancePatch = { balance_processed: false };
@@ -595,15 +606,8 @@ export const useStore = create<StoreState>()((set, get) => ({
       let bms = [...s.bms];
       if (leg && leg.source !== 'import') {
         const bmKey = normHouse(leg.ho).toLowerCase();
-        if (leg.re === 'Pendente' && leg.balance_processed !== true) {
-          // Stake foi debitada na criação → devolver
-          bms = bms.map(b =>
-            normHouse(b.name).toLowerCase() === bmKey
-              ? { ...b, balance: +(b.balance + leg.st).toFixed(2) }
-              : b
-          );
-        } else if (leg.balance_processed === true) {
-          // Lucro foi aplicado → estornar
+        if (leg.balance_processed === true) {
+          // Lucro foi aplicado na liquidação → estornar (modelo v3: pendentes não têm efeito no saldo)
           const profit = calcLegProfit(leg);
           bms = bms.map(b =>
             normHouse(b.name).toLowerCase() === bmKey
