@@ -22,7 +22,7 @@ export function ResultBadge({ result, size = 'md' }: ResultBadgeProps) {
   return (
     <span
       className={clsx(
-        'inline-flex items-center rounded-md font-bold',
+        'inline-flex items-center rounded-full font-bold',
         size === 'sm' ? 'px-1.5 py-0.5 text-[11px]' : 'px-2 py-0.5 text-[11px]'
       )}
       style={{
@@ -52,7 +52,7 @@ export function FlagBadge({ level, label }: FlagBadgeProps) {
   const s = FLAG_STYLES[level];
   return (
     <span
-      className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[11px] font-bold"
+      className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold"
       style={{
         background: s.bg,
         color: s.color,

@@ -152,7 +152,7 @@ function LegCell({ leg, highlight }: { leg: Leg | undefined; highlight?: boolean
       )}
 
       {/* badge PA / SO */}
-      <span className="absolute -right-1 -top-1 rounded border px-[3px] py-px text-[11px] font-bold"
+      <span className="absolute -right-1 -top-1 rounded-full border px-[4px] py-px text-[10px] font-bold"
         style={pa
           ? { background: 'rgba(63,255,33,.1)',  color: 'rgba(63,255,33,.85)',  borderColor: 'rgba(63,255,33,.25)' }
           : { background: 'rgba(255,255,255,.05)', color: 'rgba(255,255,255,.45)',  borderColor: 'rgba(255,255,255,.12)' }
@@ -934,8 +934,8 @@ export function DGOpportunitiesSection() {
                 <button key={opt.value}
                   onClick={() => { setSortBy(opt.value); setSortOpen(false); }}
                   className="flex w-full items-center gap-2 px-4 py-2.5 text-[12px] font-semibold transition-colors hover:bg-white/5"
-                  style={{ color: sortBy === opt.value ? '#3FFF21' : 'var(--t2)', background: sortBy === opt.value ? 'rgba(63,255,33,.06)' : 'transparent' }}>
-                  {sortBy === opt.value && <span style={{ color: '#3FFF21', fontSize: 11 }}>✓</span>}
+                  style={{ color: sortBy === opt.value ? '#A78BFA' : 'var(--t2)', background: sortBy === opt.value ? 'rgba(167,139,250,.06)' : 'transparent' }}>
+                  {sortBy === opt.value && <span style={{ color: '#A78BFA', fontSize: 11 }}>✓</span>}
                   {opt.label}
                 </button>
               ))}
@@ -1023,13 +1023,13 @@ export function DGOpportunitiesSection() {
             boxShadow: '0 4px 20px rgba(0,0,0,.4), 0 1px 0 rgba(255,255,255,.04) inset',
             backdropFilter: 'blur(10px)',
           }}>
-            <div style={{ height: 2, background: 'linear-gradient(90deg, rgba(63,255,33,.5) 0%, rgba(63,255,33,.15) 50%, transparent 100%)' }} />
+            <div style={{ height: 2, background: 'linear-gradient(90deg, rgba(167,139,250,.5) 0%, rgba(167,139,250,.15) 50%, transparent 100%)' }} />
             <div className="flex items-center justify-between px-4 py-2.5" style={{
-              background: 'linear-gradient(90deg, rgba(63,255,33,.04) 0%, transparent 60%)',
+              background: 'linear-gradient(90deg, rgba(167,139,250,.04) 0%, transparent 60%)',
               borderBottom: '1px solid rgba(255,255,255,.05)',
             }}>
               <div className="flex items-center gap-2">
-                <div style={{ width: 2, height: 12, borderRadius: 1, background: 'rgba(63,255,33,.5)' }} />
+                <div style={{ width: 2, height: 12, borderRadius: 1, background: 'rgba(167,139,250,.45)' }} />
                 <span style={{ fontSize: 11, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'rgba(255,255,255,.5)' }}>
                   {league}
                 </span>
