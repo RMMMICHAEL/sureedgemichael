@@ -1086,11 +1086,11 @@ export function DashboardPage() {
           altSub:      `${monthLegs.length} apostas · s/ gastos`,
         },
         {
-          label:         'Capital Total',
-          value:         fmtCapital(totalCash),
+          label:         'Capital Líquido',
+          value:         fmtCapital(availableCash),
           sub:           pendingStakes > 0
-            ? `Disponível R$ ${availableCash.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} · R$ ${pendingStakes.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} em aberto`
-            : `${totalOps} operações`,
+            ? `Bruto R$ ${totalCash.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} · R$ ${pendingStakes.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} em aberto`
+            : `${totalOps} operações · bruto R$ ${totalCash.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
           positive:      null,
           icon:          <DollarSign size={14} />,
           hidden:        capitalHidden,

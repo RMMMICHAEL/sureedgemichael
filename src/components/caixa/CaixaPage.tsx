@@ -9,7 +9,7 @@ import {
 import { calcLegProfit } from '@/lib/finance/calculator';
 import { currentMonth, todayStr } from '@/lib/parsers/dateParser';
 import { houseFavicon } from '@/lib/bookmakers/logos';
-import { Wallet, Building2, TrendingUp, Percent, Filter, X, CircleDollarSign } from 'lucide-react';
+import { Wallet, Building2, TrendingUp, Percent, Filter, X } from 'lucide-react';
 import type { Leg } from '@/types';
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -254,20 +254,30 @@ export function CaixaPage() {
           className="text-[11px] font-bold uppercase tracking-widest mb-2"
           style={{ color: 'var(--t3)' }}
         >
-          Capital Total em Caixa
+          Capital Líquido
         </div>
+        {/* availableCash = totalCash − pendingStakes: sempre estável, sem inflação transitória */}
         <div
-          className="text-4xl font-extrabold mb-5"
+          className="text-4xl font-extrabold mb-1"
           style={{ color: '#4DA6FF', fontFamily: "'JetBrains Mono', monospace" }}
         >
-          R$ {totalCash.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+          R$ {availableCash.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-4 pt-4" style={{ borderTop: '1px solid var(--b)' }}>
+        {pendingStakes > 0 && (
+          <div className="text-[11px] mb-5" style={{ color: 'var(--t3)' }}>
+            Bruto em casas/bancos: R$ {totalCash.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+            {' '}·{' '}
+            <span style={{ color: 'oklch(72% 0.18 55)' }}>
+              R$ {pendingStakes.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} em aberto
+            </span>
+          </div>
+        )}
+        {pendingStakes === 0 && <div className="mb-5" />}
+        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-4 pt-4" style={{ borderTop: '1px solid var(--b)' }}>
           {[
-            { label: 'Em Casas',    value: fmtBRL(totalBMs),     icon: <Building2 size={13} />,        color: 'var(--y)' },
-            { label: 'Em Bancos',   value: fmtBRL(totalBanks),   icon: <Wallet size={13} />,           color: '#4DA6FF' },
-            { label: 'Em Aberto',   value: fmtBRL(pendingStakes), icon: <TrendingUp size={13} />,      color: 'oklch(72% 0.18 55)' },
-            { label: 'Disponível',  value: fmtBRL(availableCash), icon: <CircleDollarSign size={13} />, color: 'var(--g)' },
+            { label: 'Em Casas',    value: fmtBRL(totalBMs),      icon: <Building2 size={13} />,         color: 'var(--y)' },
+            { label: 'Em Bancos',   value: fmtBRL(totalBanks),    icon: <Wallet size={13} />,            color: '#4DA6FF' },
+            { label: 'Em Aberto',   value: fmtBRL(pendingStakes), icon: <TrendingUp size={13} />,        color: 'oklch(72% 0.18 55)' },
             { label: `Lucro ${shortMonth}`, value: fmtBRL(mProfit, true), icon: <TrendingUp size={13} />,
               color: mProfit >= 0 ? 'var(--g)' : 'var(--r)' },
             { label: 'ROI Mês',     value: `${mROI > 0 ? '+' : ''}${mROI}%`, icon: <Percent size={13} />, color: 'var(--t2)' },
