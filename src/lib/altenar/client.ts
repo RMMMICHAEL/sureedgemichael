@@ -24,6 +24,7 @@ const INTEGRATIONS: Record<string, string> = {
   betpix365:    'BetPix365',
   f12:          'F12.bet',
   vupi:         'VupiBet',
+  brasil:       'Brasil.bet',
 };
 
 const DEFAULT_PARAMS = {

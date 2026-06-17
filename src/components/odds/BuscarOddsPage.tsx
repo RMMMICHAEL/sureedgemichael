@@ -72,7 +72,7 @@ const PA_SET = new Set([
   '7k','bet7k','versusbet','meridianbet','betmgm','betsson','betvip',
   'br4bet','br4','esportesdasorte','vaidebet','pixbet','sportingbet',
   'apostabeat','apostabet','lotogreen','betpix365','betpix','f12',
-  'vupibet','vupibr','vupi','sortenabet','sorte','brasilbet',
+  'vupibet','vupibr','vupi','sortenabet','sorte','brasilbet','brasil',
   'esportivabr','estrelabeat','betnacional','pixbetsports',
   'betnow','sportbr','betbr','apostaganha',
 ]);

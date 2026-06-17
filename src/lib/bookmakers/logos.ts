@@ -35,6 +35,8 @@ const DOMAINS: Record<string, string> = {
 
   // Estrelabet group
   'estrelabet':   'estrelabet.bet.br',
+  'brasil':       'brasil.bet.br',
+  'brasilbet':    'brasil.bet.br',
   'nossabet':     'nossa.bet.br',
   'jogodeouro':   'jogodeouro.bet.br',
   'mcgames':      'mcgames.bet.br',

@@ -77,6 +77,7 @@ const CLONE_GROUPS: CloneGroup[] = [
       { name: 'UPbet',         url: 'https://www.up.bet.br',             logo: fav('up.bet.br') },
       { name: 'Pagol',         url: 'https://www.pagol.bet.br',          logo: fav('pagol.bet.br') },
       { name: 'Aviaobet',      url: 'https://www.aviao.bet.br',          logo: fav('aviao.bet.br') },
+      { name: 'Brasil.bet',    url: 'https://www.brasil.bet.br',         logo: fav('brasil.bet.br') },
     ],
   },
   {
@@ -228,6 +229,7 @@ const CATALOG: { name: string; color: string; domain: string }[] = [
   { name: 'UPbet',        color: '#1D4ED8', domain: 'up.bet.br' },
   { name: 'Pagol',        color: '#854D0E', domain: 'pagol.bet.br' },
   { name: 'Aviaobet',     color: '#DC2626', domain: 'aviao.bet.br' },
+  { name: 'Brasil.bet',   color: '#009c3b', domain: 'brasil.bet.br' },
   /* ── Grupo Bet7k ── */
   { name: 'Bet7k',        color: '#0F172A', domain: '7k.bet.br' },
   { name: 'MMABET',       color: '#DC2626', domain: 'mma.bet.br' },

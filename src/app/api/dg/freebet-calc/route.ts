@@ -106,7 +106,7 @@ function todayBRT(): string {
 const PA_SET = new Set([
   'estrelabet','br4bet','esportivabet','jogodeouro','vaidebet',
   'sortenabet','lotogreen','betpix365','f12','vupibet','vupibr',
-  'bet7k','esportesdasorte','apostabet','brasilbet','superbet',
+  'bet7k','esportesdasorte','apostabet','brasilbet','superbet','brasil',
 ]);
 function isPa(slug: string): boolean {
   const n = slug.toLowerCase().replace(/[\s\-_.]/g,'');
