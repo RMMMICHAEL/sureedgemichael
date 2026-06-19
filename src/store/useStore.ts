@@ -12,7 +12,7 @@ import type {
   AppDB, Bookmaker, Bank, Leg, ImportLog, OnboardingStep, ViewId,
   Expense, PartnerAccount, AccountTransaction, SheetSync,
   Client, PurchasedAccount, UserProfile, Note, Transfer,
-  Operator, GoalConfig, BookmakerTransaction,
+  Operator, GoalConfig, BookmakerTransaction, RecurringExpense,
 } from '@/types';
 import { loadDB, persistDB, loadUserId, saveUserId, wipeDB, EMPTY_DB } from '@/lib/storage/db';
 import { loadFromSupabase, saveToSupabase, scheduleSaveToSupabase, updateLastDb } from '@/lib/supabase/sync';
@@ -66,6 +66,11 @@ interface StoreState extends AppDB {
   addExpense:    (expense: Omit<Expense, 'id'>) => void;
   updateExpense: (id: string, patch: Partial<Expense>) => void;
   deleteExpense: (id: string) => void;
+
+  // Actions — Recurring expenses
+  addRecurringExpense:    (r: Omit<RecurringExpense, 'id'>) => void;
+  updateRecurringExpense: (id: string, patch: Partial<RecurringExpense>) => void;
+  deleteRecurringExpense: (id: string) => void;
 
   // Actions — Partner accounts
   addPartnerAccount:        (account: Omit<PartnerAccount, 'id' | 'totalDeposited' | 'totalWithdrawn' | 'transactions'>) => void;
@@ -180,6 +185,7 @@ export const useStore = create<StoreState>()((set, get) => ({
   bms:                 [],
   banks:               [],
   expenses:            [],
+  recurringExpenses:   [],
   partnerAccounts:     [],
   clients:             [],
   targetHouses:        [],
@@ -274,7 +280,8 @@ export const useStore = create<StoreState>()((set, get) => ({
         }
         pendingMigrated = true;
       }
-      const migrated = { ...db, bms: bmsV3, legs: legsWithBalance, expenses, partnerAccounts, clients, targetHouses, sheetSync, excludedImportKeys, notes, transfers, operators, goalConfig, balanceModelV3: true as const };
+      const recurringExpenses = db.recurringExpenses ?? [];
+      const migrated = { ...db, bms: bmsV3, legs: legsWithBalance, expenses, partnerAccounts, clients, targetHouses, sheetSync, excludedImportKeys, notes, transfers, operators, goalConfig, balanceModelV3: true as const, recurringExpenses };
       const { bms, totalCash } = recalc(migrated);
       // pipCalcOpen não é parte do AppDB — sempre reseta para false na inicialização
       // para evitar que o BFCache (back/forward do browser) restaure a calculadora aberta
@@ -780,6 +787,31 @@ export const useStore = create<StoreState>()((set, get) => ({
       const expenses = s.expenses.filter(e => e.id !== id);
       persist({ ...s, expenses });
       return { expenses };
+    });
+  },
+
+  // ── recurring expenses ────────────────────────────────────────────────────
+  addRecurringExpense(r) {
+    set(s => {
+      const recurringExpenses = [...(s.recurringExpenses ?? []), { ...r, id: `rec_${Date.now()}` }];
+      persist({ ...s, recurringExpenses });
+      return { recurringExpenses };
+    });
+  },
+
+  updateRecurringExpense(id, patch) {
+    set(s => {
+      const recurringExpenses = (s.recurringExpenses ?? []).map(r => r.id === id ? { ...r, ...patch } : r);
+      persist({ ...s, recurringExpenses });
+      return { recurringExpenses };
+    });
+  },
+
+  deleteRecurringExpense(id) {
+    set(s => {
+      const recurringExpenses = (s.recurringExpenses ?? []).filter(r => r.id !== id);
+      persist({ ...s, recurringExpenses });
+      return { recurringExpenses };
     });
   },
 

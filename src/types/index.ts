@@ -124,14 +124,31 @@ export type ExpenseCategory =
   | 'Gastos Pessoais'
   | 'Outros';
 
+export type ExpenseGroup = 'operacional' | 'pessoal';
+
 export interface Expense {
   id: string;
   date: string;        // ISO 8601
   category: ExpenseCategory | string;
+  subcategory?: string;
+  group?: ExpenseGroup;
   description: string;
   amount: number;      // R$ (always positive — represents a cost)
   notes?: string;
   recurring?: boolean; // if true, shown as fixed monthly expense
+}
+
+// ── Recurring expense template ────────────────────────────
+export interface RecurringExpense {
+  id: string;
+  description: string;
+  group: ExpenseGroup;
+  category: string;
+  subcategory?: string;
+  amount: number;
+  billingDay: number;   // 1-28, day of month charge falls
+  active: boolean;
+  notes?: string;
 }
 
 // ── Partner account control ──────────────────────────────
@@ -264,6 +281,7 @@ export interface AppDB {
   };
   /** Flag de migração: indica que o DB já usa o modelo v3 (capital só muda na liquidação). */
   balanceModelV3?: boolean;
+  recurringExpenses?: RecurringExpense[];
 }
 
 // ── User profile ─────────────────────────────────────────

@@ -43,7 +43,8 @@ export const EMPTY_DB: AppDB = {
   notes:            [],
   operators:        [],
   transfers:        [],
-  balanceModelV3:   true,
+  balanceModelV3:    true,
+  recurringExpenses: [],
 };
 
 // ── Load entire DB from localStorage ────────────────────────────────────────
@@ -68,6 +69,7 @@ export function loadDB(): AppDB {
     transfers:           load('transfers',           []),
     seedIds:             load('seedIds',             undefined),
     balanceModelV3:      load('balanceModelV3',      undefined),
+    recurringExpenses:   load('recurringExpenses',   []),
   };
 }
 
@@ -92,7 +94,8 @@ export function persistDB(db: AppDB): void {
   if (db.profile    !== undefined) save('profile',    db.profile);
   if (db.transfers  !== undefined) save('transfers',  db.transfers);
   if (db.seedIds         !== undefined) save('seedIds',         db.seedIds);
-  if (db.balanceModelV3  !== undefined) save('balanceModelV3',  db.balanceModelV3);
+  if (db.balanceModelV3      !== undefined) save('balanceModelV3',      db.balanceModelV3);
+  if (db.recurringExpenses   !== undefined) save('recurringExpenses',   db.recurringExpenses);
 }
 
 // ── User ID (guards against cross-account localStorage leaks) ───────────────
