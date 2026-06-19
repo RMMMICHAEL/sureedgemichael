@@ -63,9 +63,10 @@ interface StoreState extends AppDB {
   deleteBank:      (id: string) => void;
 
   // Actions — Expenses
-  addExpense:    (expense: Omit<Expense, 'id'>) => void;
-  updateExpense: (id: string, patch: Partial<Expense>) => void;
-  deleteExpense: (id: string) => void;
+  addExpense:          (expense: Omit<Expense, 'id'>) => void;
+  updateExpense:       (id: string, patch: Partial<Expense>) => void;
+  deleteExpense:       (id: string) => void;
+  bulkPatchExpenses:   (patches: Array<{ id: string; patch: Partial<Omit<Expense, 'id'>> }>) => void;
 
   // Actions — Recurring expenses
   addRecurringExpense:    (r: Omit<RecurringExpense, 'id'>) => void;
@@ -785,6 +786,19 @@ export const useStore = create<StoreState>()((set, get) => ({
   deleteExpense(id) {
     set(s => {
       const expenses = s.expenses.filter(e => e.id !== id);
+      persist({ ...s, expenses });
+      return { expenses };
+    });
+  },
+
+  bulkPatchExpenses(patches) {
+    set(s => {
+      const map = new Map(s.expenses.map(e => [e.id, e]));
+      patches.forEach(({ id, patch }) => {
+        const e = map.get(id);
+        if (e) map.set(id, { ...e, ...patch });
+      });
+      const expenses = Array.from(map.values());
       persist({ ...s, expenses });
       return { expenses };
     });
