@@ -487,6 +487,8 @@ interface ExpenseFormProps {
 function ExpenseForm({ existing, learnedKw, onLearn, onClose }: ExpenseFormProps) {
   const addExpense    = useStore(s => s.addExpense);
   const updateExpense = useStore(s => s.updateExpense);
+  const updateBank    = useStore(s => s.updateBank);
+  const banks         = useStore(s => s.banks);
   const toast         = useStore(s => s.toast);
 
   const [date,        setDate]        = useState(existing?.date        ?? todayStr());
@@ -499,6 +501,7 @@ function ExpenseForm({ existing, learnedKw, onLearn, onClose }: ExpenseFormProps
   const [subcategory, setSubcategory] = useState(existing?.subcategory ?? '');
   const [overridden,  setOverridden]  = useState(!!existing?.group);
   const [shouldLearn, setShouldLearn] = useState(false);
+  const [bankId,      setBankId]      = useState(existing?.bankId ?? '');
 
   const suggested = useMemo(() => classifyFull(desc, learnedKw), [desc, learnedKw]);
 
@@ -523,7 +526,21 @@ function ExpenseForm({ existing, learnedKw, onLearn, onClose }: ExpenseFormProps
       group:       (group || undefined) as ExpenseGroup | undefined,
       notes:       notes || undefined,
       recurring,
+      bankId:      bankId || undefined,
     };
+
+    // Bank balance adjustments (read fresh state to avoid stale closures)
+    if (existing?.bankId) {
+      // Editing: restore amount to old bank first
+      const oldBank = useStore.getState().banks.find(b => b.id === existing.bankId);
+      if (oldBank) updateBank(existing.bankId, { balance: oldBank.balance + existing.amount });
+    }
+    if (bankId) {
+      // Deduct from the selected bank (reads fresh after potential restore above)
+      const freshBank = useStore.getState().banks.find(b => b.id === bankId);
+      if (freshBank) updateBank(bankId, { balance: freshBank.balance - amt });
+    }
+
     if (existing) { updateExpense(existing.id, payload); toast('Gasto atualizado', 'ok'); }
     else          { addExpense(payload);                  toast('Gasto registrado', 'ok'); }
 
@@ -615,6 +632,45 @@ function ExpenseForm({ existing, learnedKw, onLearn, onClose }: ExpenseFormProps
               className="px-3 py-2.5 rounded-lg text-sm font-mono" style={s} />
           </label>
         </div>
+
+        {/* Bank account selector */}
+        <label className="flex flex-col gap-1.5">
+          <span className="text-[11px] font-black uppercase tracking-wider" style={{ color: 'var(--t3)' }}>Conta Bancária</span>
+          <select value={bankId} onChange={e => setBankId(e.target.value)}
+            className="px-3 py-2.5 rounded-lg text-sm" style={s}>
+            <option value="">Sem conta atrelada</option>
+            {banks.map(b => (
+              <option key={b.id} value={b.id}>
+                {b.name} — {fmtBRL(b.balance)}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        {/* Balance preview after deduction */}
+        {bankId && (() => {
+          const bank = banks.find(b => b.id === bankId);
+          const amt  = parseFloat(amount.replace(',', '.')) || 0;
+          if (!bank || amt === 0) return null;
+          const after    = bank.balance - amt;
+          const negative = after < 0;
+          return (
+            <div className="flex items-center gap-3 px-3 py-2 rounded-lg text-xs"
+              style={{
+                background: negative ? 'rgba(248,113,113,.06)' : 'rgba(63,255,33,.04)',
+                border:     `1px solid ${negative ? 'rgba(248,113,113,.2)' : 'rgba(63,255,33,.15)'}`,
+              }}>
+              <span style={{ color: 'var(--t3)' }}>
+                Saldo atual: <strong style={{ color: 'var(--t2)' }}>{fmtBRL(bank.balance)}</strong>
+              </span>
+              <span style={{ color: 'var(--t3)' }}>→</span>
+              <span style={{ color: negative ? '#F87171' : '#3FFF21' }}>
+                <strong>{negative ? '−' : ''}{fmtBRL(Math.abs(after))}</strong>
+                {negative && <span style={{ color: '#F87171' }}> (saldo negativo)</span>}
+              </span>
+            </div>
+          );
+        })()}
 
         <label className="flex flex-col gap-1.5">
           <span className="text-[11px] font-black uppercase tracking-wider" style={{ color: 'var(--t3)' }}>Observações</span>
@@ -771,6 +827,8 @@ export function GastosPage() {
   const deleteExpense     = useStore(s => s.deleteExpense);
   const deleteRec         = useStore(s => s.deleteRecurringExpense);
   const updateRec         = useStore(s => s.updateRecurringExpense);
+  const updateBank        = useStore(s => s.updateBank);
+  const banks             = useStore(s => s.banks);
   const bulkPatch         = useStore(s => s.bulkPatchExpenses);
   const toast             = useStore(s => s.toast);
 
@@ -818,6 +876,17 @@ export function GastosPage() {
     setFilterUnclassified(true);
     setFilterGroup('todos');
     setSearch('');
+  }
+
+  function handleDeleteExpense(e: Expense) {
+    if (!confirm('Remover gasto?')) return;
+    // Restore amount to the bank that was debited
+    if (e.bankId) {
+      const bank = useStore.getState().banks.find(b => b.id === e.bankId);
+      if (bank) updateBank(e.bankId, { balance: bank.balance + e.amount });
+    }
+    deleteExpense(e.id);
+    toast('Removido', 'ok');
   }
 
   // ── Derived data ──────────────────────────────────────────────────────────
@@ -1380,6 +1449,15 @@ export function GastosPage() {
                               )}
                               {e.subcategory && <span className="text-[11px]" style={{ color: 'var(--t3)' }}>{e.subcategory}</span>}
                               <span className="text-[11px] font-mono" style={{ color: 'var(--t3)' }}>{fmtDate(e.date)}</span>
+                              {e.bankId && (() => {
+                                const bank = banks.find(b => b.id === e.bankId);
+                                return bank ? (
+                                  <span className="text-[11px] px-1.5 py-0.5 rounded font-medium"
+                                    style={{ background: 'rgba(96,165,250,.1)', color: '#60A5FA' }}>
+                                    {bank.name}
+                                  </span>
+                                ) : null;
+                              })()}
                               {e.notes && <span className="text-[11px] truncate" style={{ color: 'var(--t3)' }}>{e.notes}</span>}
                             </div>
                           </div>
@@ -1395,7 +1473,7 @@ export function GastosPage() {
                               <Pencil size={12} />
                             </button>
                             <button
-                              onClick={() => { if (confirm('Remover gasto?')) { deleteExpense(e.id); toast('Removido', 'ok'); } }}
+                              onClick={() => handleDeleteExpense(e)}
                               className="w-7 h-7 rounded-lg flex items-center justify-center"
                               style={{ color: 'var(--r)', background: 'var(--rd)' }}>
                               <Trash2 size={12} />

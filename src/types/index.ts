@@ -136,6 +136,7 @@ export interface Expense {
   amount: number;      // R$ (always positive — represents a cost)
   notes?: string;
   recurring?: boolean; // if true, shown as fixed monthly expense
+  bankId?: string;     // bank account used — triggers automatic balance deduction
 }
 
 // ── Recurring expense template ────────────────────────────

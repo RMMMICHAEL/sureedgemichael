@@ -309,7 +309,7 @@ const CATALOG: { name: string; color: string; domain: string }[] = [
   { name: 'Betbra',       color: '#DC2626', domain: 'betbra.bet.br' },
   /* ── SuperMonitor / Outros ── */
   { name: 'Alfabet',      color: '#A78BFA', domain: 'alfabet.bet.br' },
-  { name: 'Apostabet',    color: '#B91C1C', domain: 'apostabet.bet.br' },
+  { name: 'Apostabet',    color: '#B91C1C', domain: 'aposta.bet.br' },
   { name: 'Apostaganha',  color: '#166534', domain: 'apostaganha.bet.br' },
   { name: 'Betesporte',   color: '#1D4ED8', domain: 'betesporte.com' },
   { name: 'Betsul',       color: '#0F172A', domain: 'betsul.com' },

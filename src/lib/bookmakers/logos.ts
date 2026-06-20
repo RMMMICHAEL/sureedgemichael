@@ -171,10 +171,10 @@ const DOMAINS: Record<string, string> = {
   'brbet':        'brbet.com',
 
   // ── SuperMonitor houses (nomes exatos retornados pela API) ───────────────────
-  'aposta':           'apostabet.bet.br', // aposta.bet.br = Apostabet (mesma marca)
-  'aposta.bet.br':    'apostabet.bet.br', // alias de URL → mesmo logo
+  'aposta':           'aposta.bet.br',
+  'aposta.bet.br':    'aposta.bet.br',
   'alfabet':          'alfabet.bet.br',
-  'apostabet':        'apostabet.bet.br',
+  'apostabet':        'aposta.bet.br',
   'betfairsb':        'betfair.com',     // SuperMonitor: "BetfairSB"
   'betfairex':        'betfair.com',     // SuperMonitor: "BetfairEx"
   'esportesdasorte':  'esportedasorte.com.br', // SM usa "esportesdasorte" (com s)
