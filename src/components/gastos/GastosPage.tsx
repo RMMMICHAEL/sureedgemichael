@@ -1048,6 +1048,9 @@ export function GastosPage() {
       .toFixed(2);
   }, [legs, filterMonth]);
 
+  // lucro líquido = lucro das apostas − despesas do mês selecionado
+  const netMonthlyProfit = +(monthlyBetProfit - totalAll).toFixed(2);
+
   const last3MonthsAvgProfit = useMemo(() => {
     const now = new Date();
     let total = 0;
@@ -1072,18 +1075,19 @@ export function GastosPage() {
     return { daysElapsed: elapsed, daysInMonth: dim, daysRemaining: remaining, workdaysRemaining: workdaysRem };
   }, [filterMonth]);
 
-  const dailyPace              = daysElapsed > 0 ? +(monthlyBetProfit / daysElapsed).toFixed(2) : 0;
+  // todos os cálculos abaixo usam lucro líquido (apostas − despesas do mês)
+  const dailyPace              = daysElapsed > 0 ? +(netMonthlyProfit / daysElapsed).toFixed(2) : 0;
   const projectedMonthProfit   = +(dailyPace * daysInMonth).toFixed(2);
   const recommendedGoal        = +(fixedMonthly * 1.2).toFixed(2);
   const idealGoal              = +(fixedMonthly * 1.5).toFixed(2);
-  const progressPct            = fixedMonthly > 0 ? Math.round(monthlyBetProfit / fixedMonthly * 100) : 0;
-  const remainingToBreakeven   = Math.max(0, +(fixedMonthly - monthlyBetProfit).toFixed(2));
-  const remainingToRecommended = Math.max(0, +(recommendedGoal - monthlyBetProfit).toFixed(2));
+  const progressPct            = fixedMonthly > 0 ? Math.round(netMonthlyProfit / fixedMonthly * 100) : 0;
+  const remainingToBreakeven   = Math.max(0, +(fixedMonthly - netMonthlyProfit).toFixed(2));
+  const remainingToRecommended = Math.max(0, +(recommendedGoal - netMonthlyProfit).toFixed(2));
   const dailyNeededForRecommended = workdaysRemaining > 0 ? +(remainingToRecommended / workdaysRemaining).toFixed(2) : 0;
   const daysToBreakevenAtPace  = dailyPace > 0 && remainingToBreakeven > 0
     ? Math.ceil(remainingToBreakeven / dailyPace)
     : remainingToBreakeven === 0 ? 0 : -1;
-  const safetyMargin           = +(monthlyBetProfit - fixedMonthly).toFixed(2);
+  const safetyMargin           = +(netMonthlyProfit - fixedMonthly).toFixed(2);
   const fixedCostEfficiency    = last3MonthsAvgProfit > 0 ? Math.round(fixedMonthly / last3MonthsAvgProfit * 100) : 0;
 
   const finHealth: FinHealthLevel = (() => {
@@ -1101,17 +1105,17 @@ export function GastosPage() {
 
   const decisaoHoje: string | null = (() => {
     if (fixedMonthly === 0) return null;
-    if (monthlyBetProfit >= recommendedGoal) {
-      const pct = Math.round((monthlyBetProfit / recommendedGoal - 1) * 100);
-      return `Meta recomendada já atingida${pct > 0 ? ` — você está ${pct}% acima do necessário` : ''}.`;
+    if (netMonthlyProfit >= recommendedGoal) {
+      const pct = Math.round((netMonthlyProfit / recommendedGoal - 1) * 100);
+      return `Meta recomendada já atingida${pct > 0 ? ` — você está ${pct}% acima do necessário (líquido)` : ''}.`;
     }
     if (dailyNeededForRecommended > 0 && workdaysRemaining > 0) {
-      return `Você precisa lucrar ${fmtBRL(dailyNeededForRecommended)} por dia útil nos próximos ${workdaysRemaining} dias para atingir a meta recomendada de ${fmtBRL(recommendedGoal)}.`;
+      return `Para atingir a meta recomendada, você precisa de ${fmtBRL(dailyNeededForRecommended)} líquidos por dia útil nos próximos ${workdaysRemaining} dias.`;
     }
     if (workdaysRemaining === 0) {
-      return `Mês encerrado. Resultado: ${fmtBRL(monthlyBetProfit)} (${progressPct}% da meta mínima).`;
+      return `Mês encerrado. Líquido: ${fmtBRL(netMonthlyProfit)} (${progressPct}% da meta mínima).`;
     }
-    return `Meta mínima: ${fmtBRL(fixedMonthly)}. Lucro atual: ${fmtBRL(monthlyBetProfit)} (${progressPct}% da meta).`;
+    return `Meta mínima: ${fmtBRL(fixedMonthly)}. Líquido atual: ${fmtBRL(netMonthlyProfit)} (${progressPct}% da meta).`;
   })();
 
   const finInsights: Array<{ icon: string; text: string; color: string }> = (() => {
@@ -1123,7 +1127,7 @@ export function GastosPage() {
       out.push({
         icon:  pct >= 0 ? '↑' : '↓',
         color: pct >= 0 ? '#3FFF21' : '#F87171',
-        text:  `No ritmo atual, encerrará o mês com ${fmtBRL(projectedMonthProfit)} (${sign}${pct}% ${pct >= 0 ? 'acima' : 'abaixo'} da meta mínima).`,
+        text:  `No ritmo atual, encerrará o mês com ${fmtBRL(projectedMonthProfit)} líquidos (${sign}${pct}% ${pct >= 0 ? 'acima' : 'abaixo'} da meta mínima).`,
       });
     }
     if (dailyPace > 0 && remainingToBreakeven > 0) {
@@ -1131,7 +1135,7 @@ export function GastosPage() {
       out.push({
         icon:  '→',
         color: daysLeft <= daysRemaining ? '#3FFF21' : '#FBBF24',
-        text:  `Se mantiver ${fmtBRL(dailyPace)}/dia, atingirá o breakeven em ${daysLeft} dia${daysLeft !== 1 ? 's' : ''}.`,
+        text:  `Se mantiver ${fmtBRL(dailyPace)} líquido/dia, atingirá o breakeven em ${daysLeft} dia${daysLeft !== 1 ? 's' : ''}.`,
       });
     }
     if (topFixed && topFixedPct > 30) {
@@ -1721,12 +1725,31 @@ export function GastosPage() {
                 <div className="text-[11px] font-black uppercase tracking-widest mb-3" style={{ color: 'var(--t3)' }}>
                   Progresso do Mês
                 </div>
+                {/* Bruto / Gastos / Líquido */}
+                <div className="grid grid-cols-3 gap-2 mb-3 pb-3" style={{ borderBottom: '1px solid var(--b)' }}>
+                  <div>
+                    <div className="text-[10px] mb-0.5" style={{ color: 'var(--t3)' }}>Lucro bruto</div>
+                    <div className="text-sm font-bold font-mono" style={{ color: 'var(--t2)' }}>{fmtBRL(monthlyBetProfit)}</div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] mb-0.5" style={{ color: 'var(--t3)' }}>Gastos</div>
+                    <div className="text-sm font-bold font-mono" style={{ color: totalAll > 0 ? '#F87171' : 'var(--t3)' }}>
+                      {totalAll > 0 ? `− ${fmtBRL(totalAll)}` : '—'}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] mb-0.5" style={{ color: 'var(--t3)' }}>Líquido</div>
+                    <div className="text-sm font-bold font-mono" style={{ color: netMonthlyProfit >= 0 ? 'var(--t)' : '#F87171' }}>
+                      {fmtBRL(netMonthlyProfit)}
+                    </div>
+                  </div>
+                </div>
                 <div className="flex items-baseline justify-between mb-2">
                   <div>
-                    <span className="text-[11px] mr-1.5" style={{ color: 'var(--t3)' }}>Gerado</span>
+                    <span className="text-[11px] mr-1.5" style={{ color: 'var(--t3)' }}>Líquido gerado</span>
                     <span className="text-2xl font-black font-mono"
-                      style={{ color: monthlyBetProfit >= fixedMonthly ? '#3FFF21' : 'var(--t)' }}>
-                      {fmtBRL(monthlyBetProfit)}
+                      style={{ color: netMonthlyProfit >= fixedMonthly ? '#3FFF21' : 'var(--t)' }}>
+                      {fmtBRL(netMonthlyProfit)}
                     </span>
                   </div>
                   <div className="text-right">
@@ -1745,7 +1768,7 @@ export function GastosPage() {
                   <span style={{ color: 'var(--t3)' }}>
                     {progressPct >= 100
                       ? `Meta atingida — ${progressPct - 100}% acima`
-                      : `${progressPct}% · faltam ${fmtBRL(remainingToBreakeven)}`}
+                      : `${Math.max(0, progressPct)}% · faltam ${fmtBRL(remainingToBreakeven)}`}
                   </span>
                   {dailyPace !== 0 && (
                     <span style={{ color: projectedMonthProfit >= fixedMonthly ? '#3FFF21' : '#F87171' }}>

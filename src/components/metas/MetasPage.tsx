@@ -2,118 +2,50 @@
 
 import { useState, useMemo } from 'react';
 import { useStore } from '@/store/useStore';
-import { Target, Settings, X, ChevronRight, Trash2 } from 'lucide-react';
+import { Target, Settings, X, TrendingUp, TrendingDown, Zap } from 'lucide-react';
 import type { GoalConfig } from '@/types';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function fmtBRL(v: number): string {
-  const abs = Math.abs(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  return `R$ ${abs}`;
+  return `R$ ${Math.abs(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 function getDaysInMode(mode: GoalConfig['daysMode'], year: number, month: number): number {
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  if (mode === 'all')        return daysInMonth;
+  const dim = new Date(year, month + 1, 0).getDate();
   if (mode === 'weekdays') {
-    let count = 0;
-    for (let d = 1; d <= daysInMonth; d++) {
-      const dow = new Date(year, month, d).getDay();
-      if (dow > 0 && dow < 6) count++;
-    }
-    return count;
+    let n = 0;
+    for (let d = 1; d <= dim; d++) { const dow = new Date(year, month, d).getDay(); if (dow > 0 && dow < 6) n++; }
+    return n;
   }
   if (mode === 'custom_20') return 20;
   if (mode === 'custom_25') return 25;
-  return daysInMonth;
-}
-
-// ── Progress bar ──────────────────────────────────────────────────────────────
-
-function ProgressBar({ pct, color }: { pct: number; color: string }) {
-  const clamped = Math.min(Math.max(pct, 0), 100);
-  const over    = pct > 100;
-  return (
-    <div className="relative h-2 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,.08)' }}>
-      <div
-        className="h-full rounded-full transition-all duration-700"
-        style={{
-          width: `${clamped}%`,
-          background: over
-            ? 'linear-gradient(90deg, var(--g), #00CC6E)'
-            : `linear-gradient(90deg, ${color}99, ${color})`,
-          boxShadow: over ? '0 0 12px rgba(63,255,33,.6)' : 'none',
-        }}
-      />
-    </div>
-  );
-}
-
-// ── Guide Modal ───────────────────────────────────────────────────────────────
-
-function GuideModal({ onClose }: { onClose: () => void }) {
-  const [open, setOpen] = useState<number | null>(0);
-  const items = [
-    { q: 'O que são Metas?', a: 'Configure uma meta diária de lucro. O sistema calcula automaticamente quanto você precisa ganhar por dia e por mês, e mostra o progresso em tempo real.' },
-    { q: 'Como configurar?', a: 'Clique em "Configurar Metas", informe o valor diário desejado e escolha quantos dias por mês deseja operar.' },
-    { q: 'Meta mensal automática', a: 'A meta mensal é calculada como Meta Diária × Dias do Modo. Você pode sobrescrever manualmente se preferir um valor fixo.' },
-    { q: 'Progresso', a: 'O gráfico de progresso mostra o lucro atual versus a meta do mês corrente. Operações Pendentes não são contadas.' },
-  ];
-  return (
-    <>
-      <div className="fixed inset-0 z-40" style={{ background: 'rgba(0,0,0,.6)', backdropFilter: 'blur(4px)' }} onClick={onClose} />
-      <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[calc(100%-2rem)] max-w-lg rounded-2xl overflow-hidden"
-        style={{ background: 'var(--bg)', border: '1px solid var(--b)' }}>
-        <div className="flex items-center justify-between px-5 pt-5 pb-3" style={{ borderBottom: '1px solid var(--b)' }}>
-          <h2 className="font-bold text-base" style={{ color: 'var(--t)' }}>Guia — Metas</h2>
-          <button type="button" onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg"
-            style={{ background: 'rgba(255,255,255,.06)', color: 'var(--t3)' }}>
-            <X size={14} />
-          </button>
-        </div>
-        <div className="overflow-y-auto max-h-[60vh] p-4 space-y-2">
-          {items.map((item, i) => (
-            <div key={i} className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--b)' }}>
-              <button type="button" onClick={() => setOpen(open === i ? null : i)}
-                className="flex items-center justify-between gap-3 w-full px-4 py-3 text-left text-sm font-bold"
-                style={{ color: 'var(--t)', background: open === i ? 'rgba(63,255,33,.05)' : 'transparent' }}>
-                {item.q}
-                <ChevronRight size={14} style={{ transform: open === i ? 'rotate(90deg)' : 'none', transition: 'transform .2s', color: 'var(--t3)', flexShrink: 0 }} />
-              </button>
-              {open === i && (
-                <div className="px-4 pb-4 pt-1 text-sm leading-relaxed" style={{ color: 'var(--t3)', borderTop: '1px solid var(--b)', background: 'rgba(255,255,255,.02)' }}>
-                  {item.a}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-    </>
-  );
+  return dim;
 }
 
 // ── Config Modal ──────────────────────────────────────────────────────────────
 
 function ConfigModal({ current, onSave, onClose }: {
   current?: GoalConfig;
-  onSave: (cfg: GoalConfig) => void;
+  onSave:  (cfg: GoalConfig) => void;
   onClose: () => void;
 }) {
-  const [daily,    setDaily]    = useState(String(current?.dailyGoal ?? ''));
-  const [mode,     setMode]     = useState<GoalConfig['daysMode']>(current?.daysMode ?? 'all');
-  const [monthly,  setMonthly]  = useState(String(current?.monthlyGoal ?? ''));
+  const [daily,   setDaily]   = useState(String(current?.dailyGoal   ?? ''));
+  const [mode,    setMode]    = useState<GoalConfig['daysMode']>(current?.daysMode ?? 'custom_20');
+  const [monthly, setMonthly] = useState(String(current?.monthlyGoal ?? ''));
 
   function handleSave() {
-    const dailyGoal = parseFloat(daily);
-    if (!dailyGoal || dailyGoal <= 0) return;
+    const dv = parseFloat(daily);
+    if (!dv || dv <= 0) return;
     onSave({
-      dailyGoal,
-      daysMode: mode,
+      dailyGoal:   dv,
+      daysMode:    mode,
       monthlyGoal: monthly ? parseFloat(monthly) || undefined : undefined,
     });
     onClose();
   }
+
+  const labelMode = { all: 'Todos os dias', weekdays: 'Dias úteis', custom_20: '20 dias', custom_25: '25 dias' };
 
   return (
     <>
@@ -121,42 +53,45 @@ function ConfigModal({ current, onSave, onClose }: {
       <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[calc(100%-2rem)] max-w-md rounded-2xl p-6"
         style={{ background: 'var(--bg)', border: '1px solid var(--b)' }}>
         <div className="flex items-center gap-2 mb-5">
-          <Settings size={18} style={{ color: 'var(--g)' }} />
-          <h2 className="font-bold text-base" style={{ color: 'var(--t)' }}>Configuração de Metas</h2>
+          <Settings size={16} style={{ color: 'var(--g)' }} />
+          <h2 className="font-bold text-sm" style={{ color: 'var(--t)' }}>Configurar Meta</h2>
           <button type="button" onClick={onClose} className="ml-auto w-7 h-7 flex items-center justify-center rounded-lg"
-            style={{ background: 'rgba(255,255,255,.06)', color: 'var(--t3)' }}>
-            <X size={12} />
-          </button>
+            style={{ background: 'rgba(255,255,255,.06)', color: 'var(--t3)' }}><X size={12} /></button>
         </div>
         <div className="flex flex-col gap-4">
           <div>
-            <label className="block text-xs font-bold mb-1.5" style={{ color: 'var(--t3)' }}>Meta Diária (R$)</label>
-            <input type="number" step="0.01" placeholder="Ex: 35.00" value={daily} onChange={e => setDaily(e.target.value)}
+            <label className="block text-xs font-bold mb-1.5" style={{ color: 'var(--t3)' }}>Meta Diária de Apostas (R$)</label>
+            <input type="number" step="0.01" placeholder="Ex: 120,00" value={daily} onChange={e => setDaily(e.target.value)}
               className="w-full rounded-xl px-3 py-2.5 text-sm font-semibold outline-none"
               style={{ background: 'rgba(255,255,255,.05)', border: '1px solid var(--b)', color: 'var(--t)' }} />
+            <p className="text-[10px] mt-1" style={{ color: 'var(--t3)' }}>Lucro bruto das apostas por dia operado.</p>
           </div>
           <div>
-            <label className="block text-xs font-bold mb-1.5" style={{ color: 'var(--t3)' }}>Considerar dias</label>
-            <select value={mode} onChange={e => setMode(e.target.value as GoalConfig['daysMode'])}
-              className="w-full rounded-xl px-3 py-2.5 text-sm font-semibold outline-none"
-              style={{ background: 'rgba(255,255,255,.05)', border: '1px solid var(--b)', color: 'var(--t)' }}>
-              <option value="all">Todos os dias do mês</option>
-              <option value="weekdays">Apenas dias úteis</option>
-              <option value="custom_20">20 dias</option>
-              <option value="custom_25">25 dias</option>
-            </select>
+            <label className="block text-xs font-bold mb-1.5" style={{ color: 'var(--t3)' }}>Dias operados por mês</label>
+            <div className="grid grid-cols-2 gap-2">
+              {(['all', 'weekdays', 'custom_20', 'custom_25'] as GoalConfig['daysMode'][]).map(m => (
+                <button key={m} type="button" onClick={() => setMode(m)}
+                  className="py-2 rounded-xl text-xs font-bold"
+                  style={{
+                    background: mode === m ? 'rgba(63,255,33,.12)' : 'rgba(255,255,255,.04)',
+                    border: `1px solid ${mode === m ? 'rgba(63,255,33,.3)' : 'var(--b)'}`,
+                    color: mode === m ? 'var(--g)' : 'var(--t3)',
+                  }}>
+                  {labelMode[m]}
+                </button>
+              ))}
+            </div>
           </div>
           <div>
             <label className="block text-xs font-bold mb-1.5" style={{ color: 'var(--t3)' }}>Meta Mensal Manual (opcional)</label>
-            <input type="number" step="0.01" placeholder="Deixe vazio para calcular automaticamente" value={monthly} onChange={e => setMonthly(e.target.value)}
+            <input type="number" step="0.01" placeholder="Calculada automaticamente" value={monthly} onChange={e => setMonthly(e.target.value)}
               className="w-full rounded-xl px-3 py-2.5 text-sm font-semibold outline-none"
               style={{ background: 'rgba(255,255,255,.05)', border: '1px solid var(--b)', color: 'var(--t)' }} />
-            <p className="text-[11px] mt-1.5" style={{ color: 'var(--t3)' }}>Se preenchido, sobrescreve o cálculo automático.</p>
           </div>
           <button type="button" onClick={handleSave} disabled={!daily || parseFloat(daily) <= 0}
             className="w-full rounded-xl py-2.5 text-sm font-black disabled:opacity-40"
             style={{ background: 'rgba(63,255,33,.15)', color: 'var(--g)', border: '1px solid rgba(63,255,33,.25)' }}>
-            Salvar Configuração
+            Salvar
           </button>
         </div>
       </div>
@@ -167,190 +102,377 @@ function ConfigModal({ current, onSave, onClose }: {
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 export function MetasPage() {
-  const legs        = useStore(s => s.legs);
-  const goalConfig  = useStore(s => s.goalConfig);
-  const setGoalConfig = useStore(s => s.setGoalConfig);
+  const legs              = useStore(s => s.legs);
+  const expenses          = useStore(s => s.expenses);
+  const recurringExpenses = useStore(s => s.recurringExpenses ?? []);
+  const goalConfig        = useStore(s => s.goalConfig);
+  const setGoalConfig     = useStore(s => s.setGoalConfig);
 
   const [configOpen, setConfigOpen] = useState(false);
-  const [guideOpen,  setGuideOpen]  = useState(false);
 
-  const now   = new Date();
-  const year  = now.getFullYear();
-  const month = now.getMonth();
-  const today = now.toISOString().slice(0, 10);
+  // ── Date anchors ────────────────────────────────────────────────────────
+  const now          = new Date();
+  const year         = now.getFullYear();
+  const month        = now.getMonth();
+  const today        = now.toISOString().slice(0, 10);
+  const monthPrefix  = `${year}-${String(month + 1).padStart(2, '0')}`;
+  const daysInMonth  = new Date(year, month + 1, 0).getDate();
+  const dayOfMonth   = now.getDate();
+  const remainingDays = daysInMonth - dayOfMonth;
 
-  // Monthly stats
-  const monthStats = useMemo(() => {
-    const prefix = `${year}-${String(month + 1).padStart(2, '0')}`;
-    const monthLegs = legs.filter(l => l.bd.startsWith(prefix) && l.re !== 'Pendente');
-    const todayLegs = legs.filter(l => l.bd.startsWith(today) && l.re !== 'Pendente');
-    return {
-      monthlyProfit: monthLegs.reduce((s, l) => s + l.pr, 0),
-      dailyProfit:   todayLegs.reduce((s, l) => s + l.pr, 0),
-      ops:           new Set(monthLegs.map(l => l.oid)).size,
-    };
-  }, [legs, year, month, today]);
+  // ── Fixed costs ─────────────────────────────────────────────────────────
+  const fixedMonthly = recurringExpenses.filter(r => r.active).reduce((s, r) => s + r.amount, 0);
 
+  // ── Monthly financials ──────────────────────────────────────────────────
+  const totalMonthlyExpenses = useMemo(() =>
+    +expenses.filter(e => e.date.startsWith(monthPrefix)).reduce((s, e) => s + e.amount, 0).toFixed(2),
+    [expenses, monthPrefix]);
+
+  const monthlyBetProfit = useMemo(() =>
+    +legs
+      .filter(l => l.re !== 'Pendente' && l.re !== 'Devolvido' && l.source !== 'import' && l.bd.startsWith(monthPrefix))
+      .reduce((s, l) => s + (l.pr ?? 0), 0)
+      .toFixed(2),
+    [legs, monthPrefix]);
+
+  const netMonthlyProfit = +(monthlyBetProfit - totalMonthlyExpenses).toFixed(2);
+
+  // ── Goal ────────────────────────────────────────────────────────────────
   const monthlyGoal = useMemo(() => {
     if (!goalConfig) return null;
     if (goalConfig.monthlyGoal) return goalConfig.monthlyGoal;
-    return goalConfig.dailyGoal * getDaysInMode(goalConfig.daysMode, year, month);
+    return +(goalConfig.dailyGoal * getDaysInMode(goalConfig.daysMode, year, month)).toFixed(2);
   }, [goalConfig, year, month]);
 
-  const dailyGoal   = goalConfig?.dailyGoal ?? null;
-  const monthPct    = monthlyGoal ? (monthStats.monthlyProfit / monthlyGoal) * 100 : 0;
-  const dailyPct    = dailyGoal   ? (monthStats.dailyProfit   / dailyGoal)   * 100 : 0;
-  const monthOver   = monthPct > 100;
-  const dailyOver   = dailyPct  > 100;
+  const dailyGoal = goalConfig?.dailyGoal ?? null;
 
+  // Adjusted daily goal: redistributes remaining net target across remaining days
+  const adjustedDailyGoal = useMemo(() => {
+    if (!monthlyGoal || remainingDays <= 0) return dailyGoal ?? 0;
+    const remaining = monthlyGoal - netMonthlyProfit;
+    return remaining <= 0 ? 0 : +(remaining / remainingDays).toFixed(2);
+  }, [monthlyGoal, netMonthlyProfit, remainingDays, dailyGoal]);
+
+  const monthPct = monthlyGoal ? Math.round((netMonthlyProfit / monthlyGoal) * 100) : 0;
+
+  // Projection based on daily net pace
+  const projectedNet = dayOfMonth > 1
+    ? +((netMonthlyProfit / dayOfMonth) * daysInMonth).toFixed(2)
+    : netMonthlyProfit;
+
+  // ── Weekly breakdown ────────────────────────────────────────────────────
+  const weekDays = useMemo(() => {
+    const dow    = now.getDay();
+    const monday = new Date(now);
+    monday.setDate(now.getDate() - (dow === 0 ? 6 : dow - 1));
+    monday.setHours(0, 0, 0, 0);
+
+    const labels = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+
+    return Array.from({ length: 7 }, (_, i) => {
+      const dt      = new Date(monday);
+      dt.setDate(monday.getDate() + i);
+      const dateStr  = dt.toISOString().slice(0, 10);
+      const dayNum   = dt.getDate();
+      const isPast   = dateStr < today;
+      const isToday  = dateStr === today;
+      const isFuture = dateStr > today;
+      const inMonth  = dateStr.startsWith(monthPrefix);
+
+      const dayBet = inMonth
+        ? +legs.filter(l => l.re !== 'Pendente' && l.re !== 'Devolvido' && l.source !== 'import' && l.bd.startsWith(dateStr))
+            .reduce((s, l) => s + (l.pr ?? 0), 0).toFixed(2)
+        : 0;
+
+      const dayExp = inMonth
+        ? +expenses.filter(e => e.date.startsWith(dateStr)).reduce((s, e) => s + e.amount, 0).toFixed(2)
+        : 0;
+
+      const dayNet = +(dayBet - dayExp).toFixed(2);
+
+      // Past: compare vs original daily goal; today/future: compare vs adjusted (redistributed)
+      const target = isPast ? (dailyGoal ?? 0) : (adjustedDailyGoal ?? dailyGoal ?? 0);
+      const hit    = !isFuture && inMonth ? (target > 0 ? dayNet >= target : null) : null;
+
+      return { label: labels[i], dayNum, date: dateStr, dayBet, dayExp, dayNet, target, isPast, isToday, isFuture, inMonth, hit };
+    });
+  }, [legs, expenses, today, monthPrefix, dailyGoal, adjustedDailyGoal, now]);
+
+  // ── Tier suggestions ────────────────────────────────────────────────────
+  const TIERS = fixedMonthly > 0 ? [
+    { label: 'Mínima',    sub: 'breakeven',   val: +fixedMonthly.toFixed(2),         color: '#6B7280' },
+    { label: '+20%',      sub: 'recomendada', val: +(fixedMonthly * 1.2).toFixed(2), color: '#FBBF24' },
+    { label: '+50%',      sub: 'ideal',       val: +(fixedMonthly * 1.5).toFixed(2), color: '#34D399' },
+    { label: '+100%',     sub: 'agressiva',   val: +(fixedMonthly * 2).toFixed(2),   color: '#3FFF21' },
+  ] : [];
+
+  function applyTier(tier: { val: number }) {
+    const days = getDaysInMode(goalConfig?.daysMode ?? 'custom_20', year, month);
+    setGoalConfig({
+      dailyGoal:   +(tier.val / days).toFixed(2),
+      daysMode:    goalConfig?.daysMode ?? 'custom_20',
+      monthlyGoal: tier.val,
+    });
+  }
+
+  // ── Decisão de hoje ─────────────────────────────────────────────────────
+  const todayTarget  = adjustedDailyGoal ?? dailyGoal ?? 0;
+  const todayBet     = weekDays.find(d => d.isToday)?.dayBet ?? 0;
+  const todayNet     = weekDays.find(d => d.isToday)?.dayNet ?? 0;
+
+  const decisao = (() => {
+    if (!goalConfig || !monthlyGoal) return null;
+    if (netMonthlyProfit >= monthlyGoal) {
+      const pct = Math.round((netMonthlyProfit / monthlyGoal - 1) * 100);
+      return { type: 'ok' as const, text: `Meta mensal atingida — você está ${pct}% acima do necessário.` };
+    }
+    if (remainingDays <= 0) {
+      return { type: 'info' as const, text: `Mês encerrado. Líquido: ${fmtBRL(netMonthlyProfit)} de ${fmtBRL(monthlyGoal)}.` };
+    }
+    const needed = Math.max(0, +(monthlyGoal - netMonthlyProfit).toFixed(2));
+    const adjDaily = remainingDays > 0 ? +(needed / remainingDays).toFixed(2) : 0;
+    return {
+      type: adjDaily > (dailyGoal ?? 0) * 1.5 ? 'warn' as const : 'info' as const,
+      text: `Você precisa de ${fmtBRL(adjDaily)} líquidos/dia nos próximos ${remainingDays} dias para atingir a meta.`,
+    };
+  })();
+
+  const card = { background: 'var(--bg2)', border: '1px solid var(--b)', borderRadius: '0.75rem' };
   const MONTHS = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 
   return (
-    <div className="flex flex-col gap-6">
-      {/* Header */}
+    <div className="flex flex-col gap-5">
+
+      {/* ── Header ──────────────────────────────────────────────────── */}
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-xl font-black tracking-tight" style={{ color: 'var(--t)' }}>Metas</h1>
-          <p className="text-xs mt-0.5" style={{ color: 'var(--t3)' }}>Acompanhe suas metas diárias e mensais</p>
+          <p className="text-xs mt-0.5" style={{ color: 'var(--t3)' }}>{MONTHS[month]} {year}</p>
         </div>
         <div className="flex items-center gap-2">
-          <button type="button" onClick={() => setGuideOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold"
-            style={{ background: 'var(--bg2)', border: '1px solid var(--b)', color: 'var(--t3)' }}>
-            <Target size={13} /> Guia
-          </button>
           {goalConfig && (
             <button type="button" onClick={() => { if (confirm('Remover configuração de metas?')) setGoalConfig(undefined); }}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold"
-              style={{ background: 'rgba(239,68,68,.10)', border: '1px solid rgba(239,68,68,.2)', color: '#ef4444' }}>
-              <Trash2 size={13} /> Remover
+              className="px-3 py-2 rounded-xl text-xs font-bold"
+              style={{ background: 'rgba(239,68,68,.08)', border: '1px solid rgba(239,68,68,.18)', color: '#ef4444' }}>
+              Remover
             </button>
           )}
           <button type="button" onClick={() => setConfigOpen(true)}
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold"
             style={{ background: 'rgba(63,255,33,.10)', border: '1px solid rgba(63,255,33,.2)', color: 'var(--g)' }}>
-            <Settings size={13} /> Configurar Metas
+            <Settings size={13} /> {goalConfig ? 'Editar Meta' : 'Configurar Meta'}
           </button>
         </div>
       </div>
 
-      {!goalConfig ? (
-        /* Empty state */
-        <div className="rounded-2xl p-16 flex flex-col items-center justify-center text-center gap-4"
-          style={{ background: 'var(--bg2)', border: '1px solid var(--b)' }}>
-          <div className="w-16 h-16 rounded-2xl flex items-center justify-center"
-            style={{ background: 'rgba(255,255,255,.05)', border: '1px solid var(--b)' }}>
-            <Target size={32} style={{ color: 'var(--t3)' }} />
+      {/* ── Resumo financeiro (sempre visível) ──────────────────────── */}
+      <div style={card} className="px-5 py-4">
+        <div className="text-[11px] font-black uppercase tracking-widest mb-3" style={{ color: 'var(--t3)' }}>
+          Resumo do Mês
+        </div>
+        <div className="grid grid-cols-3 gap-3 mb-4">
+          <div>
+            <div className="text-[10px] mb-1" style={{ color: 'var(--t3)' }}>Lucro bruto</div>
+            <div className="text-lg font-black font-mono" style={{ color: 'var(--t)' }}>{fmtBRL(monthlyBetProfit)}</div>
+            <div className="text-[10px]" style={{ color: 'var(--t3)' }}>das apostas</div>
           </div>
           <div>
-            <p className="font-bold text-base" style={{ color: 'var(--t)' }}>Nenhuma meta configurada</p>
-            <p className="text-sm mt-1" style={{ color: 'var(--t3)' }}>Configure sua meta diária para começar a acompanhar</p>
+            <div className="text-[10px] mb-1" style={{ color: 'var(--t3)' }}>Gastos</div>
+            <div className="text-lg font-black font-mono" style={{ color: totalMonthlyExpenses > 0 ? '#F87171' : 'var(--t3)' }}>
+              {totalMonthlyExpenses > 0 ? `− ${fmtBRL(totalMonthlyExpenses)}` : '—'}
+            </div>
+            <div className="text-[10px]" style={{ color: 'var(--t3)' }}>despesas do mês</div>
           </div>
-          <button type="button" onClick={() => setConfigOpen(true)}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold"
-            style={{ background: 'rgba(63,255,33,.10)', border: '1px solid rgba(63,255,33,.2)', color: 'var(--g)' }}>
-            <Settings size={14} /> Configurar Metas
-          </button>
+          <div>
+            <div className="text-[10px] mb-1" style={{ color: 'var(--t3)' }}>Lucro líquido</div>
+            <div className="text-lg font-black font-mono" style={{ color: netMonthlyProfit >= 0 ? '#3FFF21' : '#F87171' }}>
+              {fmtBRL(netMonthlyProfit)}
+            </div>
+            <div className="text-[10px]" style={{ color: 'var(--t3)' }}>resultado real</div>
+          </div>
         </div>
-      ) : (
-        <div className="flex flex-col gap-4">
-          {/* Month header */}
-          <p className="text-xs font-bold uppercase tracking-widest" style={{ color: 'var(--t3)' }}>
-            {MONTHS[month]} {year}
-          </p>
 
-          {/* Monthly goal card */}
-          <div className="rounded-2xl p-5" style={{ background: 'var(--bg2)', border: '1px solid var(--b)' }}>
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <p className="text-[11px] uppercase tracking-widest font-black mb-1" style={{ color: 'var(--t3)' }}>Meta Mensal</p>
-                <p className="text-2xl font-black" style={{ color: monthOver ? 'var(--g)' : 'var(--t)' }}>
-                  {fmtBRL(monthStats.monthlyProfit)}
-                  <span className="text-sm font-medium ml-2" style={{ color: 'var(--t3)' }}>
-                    / {monthlyGoal ? fmtBRL(monthlyGoal) : '—'}
-                  </span>
-                </p>
-              </div>
-              <div className="text-right">
-                <p className="text-xs font-bold" style={{ color: 'var(--t3)' }}>{monthStats.ops} operações</p>
-                {monthOver ? (
-                  <span className="text-[11px] font-black px-2 py-0.5 rounded-full mt-1 inline-block"
-                    style={{ background: 'rgba(63,255,33,.15)', color: 'var(--g)', border: '1px solid rgba(63,255,33,.25)' }}>
-                    META ATINGIDA
-                  </span>
-                ) : monthlyGoal && (
-                  <p className="text-xs mt-1" style={{ color: 'var(--t3)' }}>
-                    Faltam {fmtBRL(monthlyGoal - monthStats.monthlyProfit)}
-                  </p>
-                )}
-              </div>
-            </div>
-            <ProgressBar pct={monthPct} color="#3FFF21" />
-            <div className="flex justify-between mt-2">
-              <span className="text-[11px]" style={{ color: 'var(--t3)' }}>0%</span>
-              <span className="text-[11px] font-bold" style={{ color: monthOver ? 'var(--g)' : 'var(--t3)' }}>
-                {monthPct.toFixed(1)}%
+        {/* Progresso vs meta */}
+        {monthlyGoal ? (
+          <>
+            <div className="flex items-baseline justify-between mb-1.5">
+              <span className="text-[11px]" style={{ color: 'var(--t3)' }}>
+                {monthPct >= 100 ? `Meta atingida (+${monthPct - 100}%)` : `${Math.max(0, monthPct)}% da meta`}
               </span>
-              <span className="text-[11px]" style={{ color: 'var(--t3)' }}>100%</span>
+              <span className="text-[11px] font-mono" style={{ color: 'var(--t2)' }}>
+                {fmtBRL(netMonthlyProfit)} / {fmtBRL(monthlyGoal)}
+              </span>
             </div>
-          </div>
-
-          {/* Daily goal card */}
-          <div className="rounded-2xl p-5" style={{ background: 'var(--bg2)', border: '1px solid var(--b)' }}>
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <p className="text-[11px] uppercase tracking-widest font-black mb-1" style={{ color: 'var(--t3)' }}>Meta Hoje</p>
-                <p className="text-2xl font-black" style={{ color: dailyOver ? 'var(--g)' : 'var(--t)' }}>
-                  {fmtBRL(monthStats.dailyProfit)}
-                  <span className="text-sm font-medium ml-2" style={{ color: 'var(--t3)' }}>
-                    / {fmtBRL(goalConfig.dailyGoal)}
-                  </span>
-                </p>
-              </div>
-              {dailyOver && (
-                <span className="text-[11px] font-black px-2 py-0.5 rounded-full"
-                  style={{ background: 'rgba(63,255,33,.15)', color: 'var(--g)', border: '1px solid rgba(63,255,33,.25)' }}>
-                  META ATINGIDA
+            <div className="h-1.5 rounded-full overflow-hidden mb-2" style={{ background: 'var(--sur)' }}>
+              <div className="h-full rounded-full transition-all"
+                style={{
+                  width: `${Math.min(100, Math.max(0, monthPct))}%`,
+                  background: monthPct >= 100 ? '#3FFF21' : monthPct >= 70 ? '#FBBF24' : '#F87171',
+                }} />
+            </div>
+            <div className="flex items-center justify-between text-[11px]">
+              <span style={{ color: 'var(--t3)' }}>
+                {monthPct < 100 ? `Faltam ${fmtBRL(Math.max(0, monthlyGoal - netMonthlyProfit))}` : 'Meta mensal concluída'}
+              </span>
+              {dayOfMonth > 2 && (
+                <span style={{ color: projectedNet >= monthlyGoal ? '#3FFF21' : '#F87171' }}>
+                  Projeção: {fmtBRL(projectedNet)}
                 </span>
               )}
             </div>
-            <ProgressBar pct={dailyPct} color="#0A84FF" />
-            <div className="flex justify-between mt-2">
-              <span className="text-[11px]" style={{ color: 'var(--t3)' }}>0%</span>
-              <span className="text-[11px] font-bold" style={{ color: dailyOver ? 'var(--g)' : '#0A84FF' }}>
-                {dailyPct.toFixed(1)}%
-              </span>
-              <span className="text-[11px]" style={{ color: 'var(--t3)' }}>100%</span>
-            </div>
+          </>
+        ) : (
+          <div className="pt-2" style={{ borderTop: '1px solid var(--b)' }}>
+            <p className="text-xs" style={{ color: 'var(--t3)' }}>
+              Configure uma meta para ver o progresso.
+              {TIERS.length > 0 && ' Ou use uma das sugestões abaixo baseadas nos seus custos fixos.'}
+            </p>
           </div>
+        )}
+      </div>
 
-          {/* Config summary */}
-          <div className="rounded-xl px-4 py-3 flex items-center justify-between text-xs"
-            style={{ background: 'rgba(255,255,255,.03)', border: '1px solid var(--b)' }}>
-            <div className="flex items-center gap-4">
-              <span style={{ color: 'var(--t3)' }}>
-                Meta diária: <strong style={{ color: 'var(--t)' }}>{fmtBRL(goalConfig.dailyGoal)}</strong>
-              </span>
-              <span style={{ color: 'var(--t3)' }}>
-                Dias: <strong style={{ color: 'var(--t)' }}>
-                  {goalConfig.daysMode === 'all' ? 'Todos' :
-                   goalConfig.daysMode === 'weekdays' ? 'Úteis' :
-                   goalConfig.daysMode === 'custom_20' ? '20 dias' : '25 dias'}
+      {/* ── Decisão de hoje ─────────────────────────────────────────── */}
+      {decisao && (
+        <div style={{
+          background: decisao.type === 'ok' ? 'rgba(63,255,33,.04)' : decisao.type === 'warn' ? 'rgba(251,191,36,.04)' : 'rgba(255,255,255,.02)',
+          border: `1px solid ${decisao.type === 'ok' ? 'rgba(63,255,33,.18)' : decisao.type === 'warn' ? 'rgba(251,191,36,.18)' : 'var(--b)'}`,
+          borderRadius: '0.75rem',
+        }} className="px-5 py-4">
+          <div className="text-[11px] font-black uppercase tracking-widest mb-1.5"
+            style={{ color: decisao.type === 'ok' ? '#3FFF21' : decisao.type === 'warn' ? '#FBBF24' : 'var(--t3)' }}>
+            Decisão de Hoje
+          </div>
+          <p className="text-sm" style={{ color: 'var(--t)' }}>{decisao.text}</p>
+          {goalConfig && todayTarget > 0 && (
+            <div className="mt-2 flex items-center gap-4 text-[11px]" style={{ color: 'var(--t3)' }}>
+              <span>Meta ajustada hoje: <strong style={{ color: 'var(--t)' }}>{fmtBRL(todayTarget)}</strong></span>
+              {todayBet > 0 && <span>Bruto gerado: <strong style={{ color: todayBet >= todayTarget ? '#3FFF21' : 'var(--t2)' }}>{fmtBRL(todayBet)}</strong></span>}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Semana atual ────────────────────────────────────────────── */}
+      <div style={card} className="px-5 py-4">
+        <div className="text-[11px] font-black uppercase tracking-widest mb-3" style={{ color: 'var(--t3)' }}>
+          Semana Atual
+        </div>
+        <div className="grid grid-cols-7 gap-1">
+          {weekDays.map(d => {
+            const hitColor  = d.hit === true ? '#3FFF21' : d.hit === false ? '#F87171' : undefined;
+            const cellBg    = d.isToday ? 'rgba(63,255,33,.06)' : d.isFuture ? 'transparent' : 'rgba(255,255,255,.025)';
+            const cellBord  = d.isToday ? 'rgba(63,255,33,.2)' : 'var(--b)';
+
+            return (
+              <div key={d.date}
+                className="rounded-xl px-1 py-2.5 flex flex-col items-center gap-1 text-center"
+                style={{ background: cellBg, border: `1px solid ${cellBord}` }}>
+                <div className="text-[10px] font-bold" style={{ color: d.isToday ? '#3FFF21' : 'var(--t3)' }}>
+                  {d.label}
+                </div>
+                <div className="text-[11px]" style={{ color: 'var(--t3)' }}>{d.dayNum}</div>
+                {d.isFuture ? (
+                  <>
+                    <div className="text-[10px] font-mono" style={{ color: 'var(--t3)' }}>—</div>
+                    {d.target > 0 && (
+                      <div className="text-[9px]" style={{ color: 'var(--t3)' }}>{fmtBRL(d.target)}</div>
+                    )}
+                  </>
+                ) : d.inMonth ? (
+                  <>
+                    <div className="text-[11px] font-bold font-mono" style={{ color: hitColor ?? 'var(--t2)' }}>
+                      {fmtBRL(d.dayBet)}
+                    </div>
+                    {d.target > 0 && (
+                      <div className="text-[9px]" style={{ color: 'var(--t3)' }}>
+                        {d.hit === true ? '✓' : d.hit === false ? `−${fmtBRL(d.target - d.dayBet)}` : '—'}
+                      </div>
+                    )}
+                    {d.dayExp > 0 && (
+                      <div className="text-[9px]" style={{ color: '#F87171' }}>−{fmtBRL(d.dayExp)}</div>
+                    )}
+                  </>
+                ) : (
+                  <div className="text-[10px]" style={{ color: 'var(--t3)' }}>—</div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        {goalConfig && (
+          <div className="mt-3 flex items-center gap-4 flex-wrap text-[11px]" style={{ color: 'var(--t3)' }}>
+            <span>Meta original: <strong style={{ color: 'var(--t2)' }}>{fmtBRL(dailyGoal ?? 0)}/dia</strong></span>
+            {adjustedDailyGoal !== dailyGoal && adjustedDailyGoal !== null && (
+              <span>
+                Ajustada (redistribuição):
+                <strong style={{ color: adjustedDailyGoal > (dailyGoal ?? 0) ? '#FBBF24' : '#3FFF21' }}>
+                  {' '}{fmtBRL(adjustedDailyGoal)}/dia
                 </strong>
               </span>
-            </div>
-            <button type="button" onClick={() => setConfigOpen(true)}
-              className="flex items-center gap-1 font-bold" style={{ color: 'var(--g)' }}>
-              <Settings size={11} /> Editar
-            </button>
+            )}
           </div>
+        )}
+      </div>
+
+      {/* ── Sugestões de meta baseadas nos fixos ────────────────────── */}
+      {TIERS.length > 0 && (
+        <div style={card} className="px-5 py-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Zap size={13} style={{ color: '#FBBF24' }} />
+            <div className="text-[11px] font-black uppercase tracking-widest" style={{ color: 'var(--t3)' }}>
+              Sugestões de Meta — baseadas nos seus fixos
+            </div>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {TIERS.map(tier => {
+              const isActive = monthlyGoal !== null && Math.abs(monthlyGoal - tier.val) < 1;
+              return (
+                <button key={tier.label} type="button" onClick={() => applyTier(tier)}
+                  className="rounded-xl px-3 py-3 text-left"
+                  style={{
+                    background: isActive ? `${tier.color}14` : 'rgba(255,255,255,.03)',
+                    border: `1px solid ${isActive ? tier.color + '40' : 'var(--b)'}`,
+                  }}>
+                  <div className="text-[10px] font-bold mb-0.5" style={{ color: tier.color }}>{tier.label}</div>
+                  <div className="text-sm font-black font-mono mb-0.5" style={{ color: isActive ? tier.color : 'var(--t)' }}>
+                    {fmtBRL(tier.val)}
+                  </div>
+                  <div className="text-[10px]" style={{ color: 'var(--t3)' }}>{tier.sub}</div>
+                  {isActive && (
+                    <div className="text-[9px] mt-1 font-bold" style={{ color: tier.color }}>✓ ativa</div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+          <p className="text-[10px] mt-2.5" style={{ color: 'var(--t3)' }}>
+            Clique em qualquer sugestão para aplicar como meta mensal. A meta diária é calculada automaticamente.
+          </p>
+        </div>
+      )}
+
+      {/* ── Empty state: sem fixos nem config ───────────────────────── */}
+      {!goalConfig && TIERS.length === 0 && (
+        <div className="rounded-2xl p-12 flex flex-col items-center text-center gap-3"
+          style={{ background: 'var(--bg2)', border: '1px solid var(--b)' }}>
+          <Target size={28} style={{ color: 'var(--t3)', opacity: 0.4 }} />
+          <div>
+            <p className="font-bold text-sm mb-1" style={{ color: 'var(--t)' }}>Nenhuma meta configurada</p>
+            <p className="text-xs" style={{ color: 'var(--t3)' }}>
+              Configure uma meta diária ou cadastre custos fixos na aba Gastos para receber sugestões automáticas.
+            </p>
+          </div>
+          <button type="button" onClick={() => setConfigOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold"
+            style={{ background: 'rgba(63,255,33,.10)', border: '1px solid rgba(63,255,33,.2)', color: 'var(--g)' }}>
+            <Settings size={13} /> Configurar Meta
+          </button>
         </div>
       )}
 
       {configOpen && (
         <ConfigModal current={goalConfig} onSave={setGoalConfig} onClose={() => setConfigOpen(false)} />
       )}
-      {guideOpen && <GuideModal onClose={() => setGuideOpen(false)} />}
     </div>
   );
 }
