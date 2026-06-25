@@ -198,6 +198,20 @@ export function MetasPage() {
     });
   }, [legs, expenses, today, monthPrefix, dailyGoal, adjustedDailyGoal, now]);
 
+  // ── Weekly summary ─────────────────────────────────────────────────────
+  const weekSummary = useMemo(() => {
+    const worked = weekDays.filter(d => !d.isFuture && d.inMonth);
+    const netTotal    = +worked.reduce((s, d) => s + d.dayNet, 0).toFixed(2);
+    const targetTotal = +worked.filter(d => d.target > 0).reduce((s, d) => s + d.target, 0).toFixed(2);
+    const hitCount    = worked.filter(d => d.hit === true).length;
+    const missCount   = worked.filter(d => d.hit === false).length;
+    const diff        = +(netTotal - targetTotal).toFixed(2);
+    return { netTotal, targetTotal, hitCount, missCount, diff };
+  }, [weekDays]);
+
+  // ── Redistribution alert ─────────────────────────────────────────────
+  const redistAlert = !!(goalConfig && dailyGoal && dailyGoal > 0 && adjustedDailyGoal > dailyGoal * 1.5 && remainingDays > 0);
+
   // ── Tier suggestions ────────────────────────────────────────────────────
   const TIERS = fixedMonthly > 0 ? [
     { label: 'Mínima',    sub: 'breakeven',   val: +fixedMonthly.toFixed(2),         color: '#6B7280' },
@@ -352,6 +366,22 @@ export function MetasPage() {
         </div>
       )}
 
+      {/* ── Alerta de Replanejamento ────────────────────────────────── */}
+      {redistAlert && (
+        <div style={{
+          background: 'rgba(251,191,36,.04)',
+          border: '1px solid rgba(251,191,36,.18)',
+          borderRadius: '0.75rem',
+        }} className="px-5 py-4">
+          <div className="text-[11px] font-black uppercase tracking-widest mb-1.5" style={{ color: '#FBBF24' }}>
+            Replanejamento Necessário
+          </div>
+          <p className="text-xs" style={{ color: 'var(--t2)' }}>
+            A meta ajustada ({fmtBRL(adjustedDailyGoal)}/dia) está {Math.round((adjustedDailyGoal / (dailyGoal ?? 1)) * 100 - 100)}% acima da meta original ({fmtBRL(dailyGoal ?? 0)}/dia). Considere revisar a meta mensal ou aceitar que o mês fechará abaixo do objetivo.
+          </p>
+        </div>
+      )}
+
       {/* ── Semana atual ────────────────────────────────────────────── */}
       <div style={card} className="px-5 py-4">
         <div className="text-[11px] font-black uppercase tracking-widest mb-3" style={{ color: 'var(--t3)' }}>
@@ -384,8 +414,8 @@ export function MetasPage() {
                       {fmtBRL(d.dayBet)}
                     </div>
                     {d.target > 0 && (
-                      <div className="text-[9px]" style={{ color: 'var(--t3)' }}>
-                        {d.hit === true ? '✓' : d.hit === false ? `−${fmtBRL(d.target - d.dayBet)}` : '—'}
+                      <div className="text-[9px]" style={{ color: d.hit === true ? '#3FFF21' : d.hit === false ? '#F87171' : 'var(--t3)' }}>
+                        {d.hit === true ? '✓' : d.hit === false ? `−${fmtBRL(d.target - d.dayNet)}` : '—'}
                       </div>
                     )}
                     {d.dayExp > 0 && (
@@ -400,16 +430,44 @@ export function MetasPage() {
           })}
         </div>
         {goalConfig && (
-          <div className="mt-3 flex items-center gap-4 flex-wrap text-[11px]" style={{ color: 'var(--t3)' }}>
-            <span>Meta original: <strong style={{ color: 'var(--t2)' }}>{fmtBRL(dailyGoal ?? 0)}/dia</strong></span>
-            {adjustedDailyGoal !== dailyGoal && adjustedDailyGoal !== null && (
+          <div className="mt-3 pt-3" style={{ borderTop: '1px solid var(--b)' }}>
+            <div className="grid grid-cols-3 gap-3 mb-2">
+              <div>
+                <div className="text-[10px] mb-0.5" style={{ color: 'var(--t3)' }}>Meta da semana</div>
+                <div className="text-xs font-bold font-mono" style={{ color: 'var(--t2)' }}>
+                  {weekSummary.targetTotal > 0 ? fmtBRL(weekSummary.targetTotal) : '—'}
+                </div>
+              </div>
+              <div>
+                <div className="text-[10px] mb-0.5" style={{ color: 'var(--t3)' }}>Resultado líquido</div>
+                <div className="text-xs font-bold font-mono"
+                  style={{ color: weekSummary.targetTotal > 0 ? (weekSummary.netTotal >= weekSummary.targetTotal ? '#3FFF21' : '#F87171') : 'var(--t2)' }}>
+                  {fmtBRL(weekSummary.netTotal)}
+                </div>
+              </div>
+              <div>
+                <div className="text-[10px] mb-0.5" style={{ color: 'var(--t3)' }}>Diferença</div>
+                <div className="text-xs font-bold font-mono"
+                  style={{ color: weekSummary.diff >= 0 ? '#3FFF21' : '#F87171' }}>
+                  {weekSummary.targetTotal > 0 ? `${weekSummary.diff >= 0 ? '+' : ''}${fmtBRL(weekSummary.diff)}` : '—'}
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center gap-4 flex-wrap text-[11px]" style={{ color: 'var(--t3)' }}>
               <span>
-                Ajustada (redistribuição):
-                <strong style={{ color: adjustedDailyGoal > (dailyGoal ?? 0) ? '#FBBF24' : '#3FFF21' }}>
-                  {' '}{fmtBRL(adjustedDailyGoal)}/dia
-                </strong>
+                {weekSummary.hitCount > 0
+                  ? `${weekSummary.hitCount} dia${weekSummary.hitCount !== 1 ? 's' : ''} batido${weekSummary.hitCount !== 1 ? 's' : ''}`
+                  : 'Nenhum dia batido ainda'}
+                {weekSummary.missCount > 0 && ` · ${weekSummary.missCount} com déficit`}
               </span>
-            )}
+              {adjustedDailyGoal !== dailyGoal && adjustedDailyGoal !== null && (
+                <span>
+                  Meta ajustada: <strong style={{ color: adjustedDailyGoal > (dailyGoal ?? 0) ? '#FBBF24' : '#3FFF21' }}>
+                    {fmtBRL(adjustedDailyGoal)}/dia
+                  </strong>
+                </span>
+              )}
+            </div>
           </div>
         )}
       </div>

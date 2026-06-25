@@ -895,6 +895,7 @@ export function GastosPage() {
   const updateRec         = useStore(s => s.updateRecurringExpense);
   const updateBank        = useStore(s => s.updateBank);
   const banks             = useStore(s => s.banks);
+  const bms               = useStore(s => s.bms);
   const bulkPatch         = useStore(s => s.bulkPatchExpenses);
   const toast             = useStore(s => s.toast);
 
@@ -1089,6 +1090,14 @@ export function GastosPage() {
     : remainingToBreakeven === 0 ? 0 : -1;
   const safetyMargin           = +(netMonthlyProfit - fixedMonthly).toFixed(2);
   const fixedCostEfficiency    = last3MonthsAvgProfit > 0 ? Math.round(fixedMonthly / last3MonthsAvgProfit * 100) : 0;
+
+  // ── Patrimônio operacional ────────────────────────────────────────────────
+  const bmsTotal            = +bms.reduce((s, b) => s + b.balance, 0).toFixed(2);
+  const banksTotal          = +banks.reduce((s, b) => s + b.balance, 0).toFixed(2);
+  const operationalAssets   = +(bmsTotal + banksTotal).toFixed(2);
+  const assetsProfitPct     = operationalAssets > 0 ? +(netMonthlyProfit / operationalAssets * 100).toFixed(1) : 0;
+  const withdrawableAboveBreakeven   = Math.max(0, +(netMonthlyProfit - fixedMonthly).toFixed(2));
+  const withdrawableAboveRecommended = Math.max(0, +(netMonthlyProfit - recommendedGoal).toFixed(2));
 
   const finHealth: FinHealthLevel = (() => {
     if (fixedMonthly === 0) return 'saudavel';
@@ -1336,9 +1345,9 @@ export function GastosPage() {
             </div>
 
             <div style={card} className="px-4 py-4">
-              <div className="flex items-center gap-2 mb-4">
+              <div className="flex items-center gap-2 mb-3">
                 <Target size={14} style={{ color: '#3FFF21' }} />
-                <span className="text-xs font-bold" style={{ color: 'var(--t2)' }}>Meta de Cobertura</span>
+                <span className="text-xs font-bold" style={{ color: 'var(--t2)' }}>Cobertura dos Fixos</span>
               </div>
               {fixedMonthly === 0 ? (
                 <div className="flex flex-col items-center justify-center py-4 gap-2">
@@ -1353,21 +1362,33 @@ export function GastosPage() {
                 </div>
               ) : (
                 <>
-                  <div className="grid grid-cols-2 gap-3 mb-3">
-                    {[
-                      { label: 'Meta mensal',    val: fixedMonthly,      color: 'var(--t)'  },
-                      { label: 'Meta semanal',   val: fixedWeekly,       color: 'var(--t2)' },
-                      { label: 'Meta diária',    val: fixedDaily,        color: 'var(--t2)' },
-                      { label: 'Dia útil (22d)', val: fixedTotalDaily22, color: 'var(--t2)' },
-                    ].map(({ label, val, color }) => (
-                      <div key={label}>
-                        <div className="text-[10px] mb-0.5" style={{ color: 'var(--t3)' }}>{label}</div>
-                        <div className="text-sm font-black font-mono" style={{ color }}>{fmtBRL(val)}</div>
-                      </div>
-                    ))}
+                  <div className="flex items-baseline justify-between mb-3">
+                    <div>
+                      <div className="text-[10px] mb-0.5" style={{ color: 'var(--t3)' }}>Breakeven mensal</div>
+                      <div className="text-lg font-black font-mono" style={{ color: 'var(--t)' }}>{fmtBRL(fixedMonthly)}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-[10px] mb-0.5" style={{ color: 'var(--t3)' }}>Por dia útil</div>
+                      <div className="text-sm font-bold font-mono" style={{ color: 'var(--t2)' }}>{fmtBRL(fixedTotalDaily22)}</div>
+                    </div>
                   </div>
-                  <div className="pt-2.5 text-xs" style={{ borderTop: '1px solid var(--b)', color: 'var(--t3)' }}>
-                    Oper. <span style={{ color: '#818CF8' }}>{fmtBRL(fixedOp)}</span> · Pess. <span style={{ color: '#FB923C' }}>{fmtBRL(fixedPs)}</span>
+                  {netMonthlyProfit !== 0 && (
+                    <div className="mb-3">
+                      <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--bg2)' }}>
+                        <div className="h-full rounded-full transition-all"
+                          style={{ width: `${Math.min(100, Math.max(0, progressPct))}%`, background: progressPct >= 100 ? '#3FFF21' : progressPct >= 60 ? '#FBBF24' : '#F87171' }} />
+                      </div>
+                      <div className="mt-1 text-[10px]" style={{ color: 'var(--t3)' }}>
+                        {progressPct}% coberto este mês (líquido)
+                      </div>
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    <button onClick={() => setTab('fixos')}
+                      className="flex-1 text-[11px] py-1.5 rounded-lg font-bold"
+                      style={{ background: 'rgba(255,255,255,.04)', color: 'var(--t2)', border: '1px solid var(--b)' }}>
+                      Análise completa →
+                    </button>
                   </div>
                 </>
               )}
@@ -1809,6 +1830,56 @@ export function GastosPage() {
                   ))}
                 </div>
               </div>
+
+              {/* Patrimônio Operacional */}
+              {operationalAssets > 0 && (
+                <div style={card} className="px-5 py-4">
+                  <div className="text-[11px] font-black uppercase tracking-widest mb-3" style={{ color: 'var(--t3)' }}>
+                    Patrimônio Operacional
+                  </div>
+                  <div className="grid grid-cols-3 gap-3 mb-3">
+                    <div>
+                      <div className="text-[10px] mb-0.5" style={{ color: 'var(--t3)' }}>Total</div>
+                      <div className="text-sm font-bold font-mono" style={{ color: 'var(--t)' }}>{fmtBRL(operationalAssets)}</div>
+                      <div className="text-[10px]" style={{ color: 'var(--t3)' }}>saldo atual</div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] mb-0.5" style={{ color: 'var(--t3)' }}>Casas</div>
+                      <div className="text-sm font-bold font-mono" style={{ color: 'var(--t2)' }}>{fmtBRL(bmsTotal)}</div>
+                      <div className="text-[10px]" style={{ color: 'var(--t3)' }}>{bms.filter(b => b.balance > 0).length} ativas</div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] mb-0.5" style={{ color: 'var(--t3)' }}>Bancos</div>
+                      <div className="text-sm font-bold font-mono" style={{ color: 'var(--t2)' }}>{fmtBRL(banksTotal)}</div>
+                      <div className="text-[10px]" style={{ color: 'var(--t3)' }}>{banks.filter(b => b.balance > 0).length} com saldo</div>
+                    </div>
+                  </div>
+                  {netMonthlyProfit !== 0 && (
+                    <div className="pt-3 flex flex-col gap-2" style={{ borderTop: '1px solid var(--b)' }}>
+                      <PlanRow
+                        label="Retorno sobre patrimônio"
+                        val={`${assetsProfitPct > 0 ? '+' : ''}${assetsProfitPct}%`}
+                        note="lucro líquido do mês ÷ capital total"
+                        color={assetsProfitPct >= 0 ? '#3FFF21' : '#F87171'}
+                      />
+                      <PlanRow
+                        label="Disponível para retirada"
+                        val={withdrawableAboveRecommended > 0
+                          ? fmtBRL(withdrawableAboveRecommended)
+                          : withdrawableAboveBreakeven > 0
+                            ? fmtBRL(withdrawableAboveBreakeven)
+                            : 'Aguardar breakeven'}
+                        note={withdrawableAboveRecommended > 0
+                          ? 'sem comprometer meta recomendada (+20%)'
+                          : withdrawableAboveBreakeven > 0
+                            ? 'acima do breakeven — meta recomendada em risco'
+                            : 'breakeven ainda não atingido este mês'}
+                        color={withdrawableAboveRecommended > 0 ? '#3FFF21' : withdrawableAboveBreakeven > 0 ? '#FBBF24' : '#F87171'}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Planejamento */}
               <div style={card} className="px-5 py-4">
