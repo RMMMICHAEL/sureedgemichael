@@ -13,6 +13,7 @@ import {
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import type { Expense, ExpenseGroup, RecurringExpense } from '@/types';
 import { currentMonth, todayStr } from '@/lib/parsers/dateParser';
+import { calcLegProfit }          from '@/lib/finance/calculator';
 
 // ── Taxonomy ──────────────────────────────────────────────────────────────────
 
@@ -475,6 +476,70 @@ const HCFG: Record<Health, { label: string; color: string; bg: string; Icon: Rea
   neutral: { label: 'Sem histórico para comparar',      color: '#6B7280', bg: 'rgba(107,114,128,.05)', Icon: ShieldCheck },
 };
 
+// ── Financial decision panel ──────────────────────────────────────────────────
+
+type FinHealthLevel = 'critico' | 'atencao' | 'saudavel' | 'excelente';
+
+const FH_CFG: Record<FinHealthLevel, {
+  label:    string;
+  color:    string;
+  bg:       string;
+  border:   string;
+  Icon:     React.ElementType;
+  subtitle: (proj: number, fixed: number) => string;
+}> = {
+  critico:   {
+    label:    'Crítico',
+    color:    '#F87171',
+    bg:       'rgba(248,113,113,.04)',
+    border:   'rgba(248,113,113,.18)',
+    Icon:     ShieldX,
+    subtitle: (proj, fixed) =>
+      proj <= 0
+        ? 'Sem operações registradas no mês. Registre seus resultados para ativar a análise.'
+        : `Projeção ${fmtBRL(proj)} não cobre os custos fixos de ${fmtBRL(fixed)}. Ritmo insuficiente — ação necessária.`,
+  },
+  atencao:   {
+    label:    'Atenção',
+    color:    '#FBBF24',
+    bg:       'rgba(251,191,36,.04)',
+    border:   'rgba(251,191,36,.18)',
+    Icon:     ShieldAlert,
+    subtitle: (proj, fixed) =>
+      `Projeção ${fmtBRL(proj)} cobre os fixos com margem mínima de +${Math.round((proj / fixed - 1) * 100)}%. Aumente o ritmo para garantir segurança.`,
+  },
+  saudavel:  {
+    label:    'Saudável',
+    color:    '#34D399',
+    bg:       'rgba(52,211,153,.04)',
+    border:   'rgba(52,211,153,.18)',
+    Icon:     ShieldCheck,
+    subtitle: (proj, fixed) =>
+      `Projeção ${fmtBRL(proj)} supera os custos fixos com +${Math.round((proj / fixed - 1) * 100)}% de margem. No caminho certo.`,
+  },
+  excelente: {
+    label:    'Excelente',
+    color:    '#3FFF21',
+    bg:       'rgba(63,255,33,.04)',
+    border:   'rgba(63,255,33,.18)',
+    Icon:     ShieldCheck,
+    subtitle: (proj, fixed) =>
+      `Projeção ${fmtBRL(proj)} supera em +${Math.round((proj / fixed - 1) * 100)}% a meta mínima. Performance acima do ideal.`,
+  },
+};
+
+function PlanRow({ label, val, note, color }: { label: string; val: string; note: string; color?: string }) {
+  return (
+    <div className="flex items-start justify-between gap-4">
+      <span className="text-xs shrink-0" style={{ color: 'var(--t3)' }}>{label}</span>
+      <div className="text-right">
+        <div className="text-xs font-bold font-mono" style={{ color: color ?? 'var(--t)' }}>{val}</div>
+        <div className="text-[10px]" style={{ color: 'var(--t3)' }}>{note}</div>
+      </div>
+    </div>
+  );
+}
+
 // ── Expense form ──────────────────────────────────────────────────────────────
 
 interface ExpenseFormProps {
@@ -823,6 +888,7 @@ function ChartTip({ active, payload, label }: Record<string, unknown>) {
 
 export function GastosPage() {
   const expenses          = useStore(s => s.expenses);
+  const legs              = useStore(s => s.legs);
   const recurringExpenses = useStore(s => s.recurringExpenses ?? []);
   const deleteExpense     = useStore(s => s.deleteExpense);
   const deleteRec         = useStore(s => s.deleteRecurringExpense);
@@ -972,6 +1038,126 @@ export function GastosPage() {
   const fixedPs           = activeRec.filter(r => r.group === 'pessoal').reduce((s, r) => s + r.amount, 0);
   const fixedTotalDaily22 = +(fixedMonthly / 22).toFixed(2);
   const fixedOpDaily22    = +(fixedOp / 22).toFixed(2);
+
+  // ── Financial decision panel ──────────────────────────────────────────────
+
+  const monthlyBetProfit = useMemo(() => {
+    return +legs
+      .filter(l => l.source !== 'import' && l.re !== 'Pendente' && l.re !== 'Devolvido' && (l.bd ?? '').slice(0, 7) === filterMonth)
+      .reduce((s, l) => s + calcLegProfit(l), 0)
+      .toFixed(2);
+  }, [legs, filterMonth]);
+
+  const last3MonthsAvgProfit = useMemo(() => {
+    const now = new Date();
+    let total = 0;
+    for (let i = 1; i <= 3; i++) {
+      const d  = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      total += legs
+        .filter(l => l.source !== 'import' && l.re !== 'Pendente' && l.re !== 'Devolvido' && (l.bd ?? '').slice(0, 7) === ym)
+        .reduce((s, l) => s + calcLegProfit(l), 0);
+    }
+    return +(total / 3).toFixed(2);
+  }, [legs]);
+
+  const { daysElapsed, daysInMonth, daysRemaining, workdaysRemaining } = useMemo(() => {
+    const now = new Date();
+    const [y, m] = filterMonth.split('-').map(Number);
+    const isCurrentMonth = y === now.getFullYear() && m === now.getMonth() + 1;
+    const dim      = new Date(y, m, 0).getDate();
+    const elapsed  = isCurrentMonth ? Math.max(1, now.getDate()) : dim;
+    const remaining      = isCurrentMonth ? dim - now.getDate() : 0;
+    const workdaysRem    = Math.round(remaining * 22 / 30);
+    return { daysElapsed: elapsed, daysInMonth: dim, daysRemaining: remaining, workdaysRemaining: workdaysRem };
+  }, [filterMonth]);
+
+  const dailyPace              = daysElapsed > 0 ? +(monthlyBetProfit / daysElapsed).toFixed(2) : 0;
+  const projectedMonthProfit   = +(dailyPace * daysInMonth).toFixed(2);
+  const recommendedGoal        = +(fixedMonthly * 1.2).toFixed(2);
+  const idealGoal              = +(fixedMonthly * 1.5).toFixed(2);
+  const progressPct            = fixedMonthly > 0 ? Math.round(monthlyBetProfit / fixedMonthly * 100) : 0;
+  const remainingToBreakeven   = Math.max(0, +(fixedMonthly - monthlyBetProfit).toFixed(2));
+  const remainingToRecommended = Math.max(0, +(recommendedGoal - monthlyBetProfit).toFixed(2));
+  const dailyNeededForRecommended = workdaysRemaining > 0 ? +(remainingToRecommended / workdaysRemaining).toFixed(2) : 0;
+  const daysToBreakevenAtPace  = dailyPace > 0 && remainingToBreakeven > 0
+    ? Math.ceil(remainingToBreakeven / dailyPace)
+    : remainingToBreakeven === 0 ? 0 : -1;
+  const safetyMargin           = +(monthlyBetProfit - fixedMonthly).toFixed(2);
+  const fixedCostEfficiency    = last3MonthsAvgProfit > 0 ? Math.round(fixedMonthly / last3MonthsAvgProfit * 100) : 0;
+
+  const finHealth: FinHealthLevel = (() => {
+    if (fixedMonthly === 0) return 'saudavel';
+    if (projectedMonthProfit <= 0) return 'critico';
+    const ratio = projectedMonthProfit / fixedMonthly;
+    if (ratio < 1)   return 'critico';
+    if (ratio < 1.2) return 'atencao';
+    if (ratio < 1.5) return 'saudavel';
+    return 'excelente';
+  })();
+
+  const topFixed    = activeRec.length > 0 ? activeRec.reduce((a, b) => b.amount > a.amount ? b : a) : null;
+  const topFixedPct = topFixed && fixedMonthly > 0 ? Math.round(topFixed.amount / fixedMonthly * 100) : 0;
+
+  const decisaoHoje: string | null = (() => {
+    if (fixedMonthly === 0) return null;
+    if (monthlyBetProfit >= recommendedGoal) {
+      const pct = Math.round((monthlyBetProfit / recommendedGoal - 1) * 100);
+      return `Meta recomendada já atingida${pct > 0 ? ` — você está ${pct}% acima do necessário` : ''}.`;
+    }
+    if (dailyNeededForRecommended > 0 && workdaysRemaining > 0) {
+      return `Você precisa lucrar ${fmtBRL(dailyNeededForRecommended)} por dia útil nos próximos ${workdaysRemaining} dias para atingir a meta recomendada de ${fmtBRL(recommendedGoal)}.`;
+    }
+    if (workdaysRemaining === 0) {
+      return `Mês encerrado. Resultado: ${fmtBRL(monthlyBetProfit)} (${progressPct}% da meta mínima).`;
+    }
+    return `Meta mínima: ${fmtBRL(fixedMonthly)}. Lucro atual: ${fmtBRL(monthlyBetProfit)} (${progressPct}% da meta).`;
+  })();
+
+  const finInsights: Array<{ icon: string; text: string; color: string }> = (() => {
+    if (fixedMonthly === 0 || daysElapsed < 3) return [];
+    const out: Array<{ icon: string; text: string; color: string }> = [];
+    if (projectedMonthProfit !== 0) {
+      const pct  = Math.round((projectedMonthProfit / fixedMonthly - 1) * 100);
+      const sign = pct >= 0 ? '+' : '';
+      out.push({
+        icon:  pct >= 0 ? '↑' : '↓',
+        color: pct >= 0 ? '#3FFF21' : '#F87171',
+        text:  `No ritmo atual, encerrará o mês com ${fmtBRL(projectedMonthProfit)} (${sign}${pct}% ${pct >= 0 ? 'acima' : 'abaixo'} da meta mínima).`,
+      });
+    }
+    if (dailyPace > 0 && remainingToBreakeven > 0) {
+      const daysLeft = Math.ceil(remainingToBreakeven / dailyPace);
+      out.push({
+        icon:  '→',
+        color: daysLeft <= daysRemaining ? '#3FFF21' : '#FBBF24',
+        text:  `Se mantiver ${fmtBRL(dailyPace)}/dia, atingirá o breakeven em ${daysLeft} dia${daysLeft !== 1 ? 's' : ''}.`,
+      });
+    }
+    if (topFixed && topFixedPct > 30) {
+      out.push({
+        icon:  '·',
+        color: 'var(--t3)',
+        text:  `${topFixed.description} representa ${topFixedPct}% dos custos fixos (${fmtBRL(topFixed.amount)}/mês).`,
+      });
+    }
+    if (fixedCostEfficiency > 0) {
+      out.push({
+        icon:  '%',
+        color: fixedCostEfficiency > 60 ? '#F87171' : fixedCostEfficiency > 40 ? '#FBBF24' : '#3FFF21',
+        text:  `Custos fixos consomem ${fixedCostEfficiency}% do lucro médio dos últimos 3 meses (${fmtBRL(last3MonthsAvgProfit)}/mês).`,
+      });
+    }
+    const spendable = projectedMonthProfit > 0 ? Math.max(0, +(projectedMonthProfit * 0.8 - fixedMonthly).toFixed(2)) : 0;
+    if (spendable > 0) {
+      out.push({
+        icon:  '+',
+        color: '#3FFF21',
+        text:  `Pode adicionar até ${fmtBRL(spendable)} em novos custos fixos sem comprometer a saúde financeira.`,
+      });
+    }
+    return out;
+  })();
 
   // ── Gastos tab filtering ──────────────────────────────────────────────────
 
@@ -1165,14 +1351,14 @@ export function GastosPage() {
                 <>
                   <div className="grid grid-cols-2 gap-3 mb-3">
                     {[
-                      { label: 'Por Mês',       val: fixedMonthly,      color: 'var(--r)'  },
-                      { label: 'Por Semana',     val: fixedWeekly,       color: '#FBBF24'   },
-                      { label: 'Por Dia',        val: fixedDaily,        color: '#FB923C'   },
-                      { label: 'Dia Útil (22d)', val: fixedTotalDaily22, color: '#A78BFA'   },
+                      { label: 'Meta mensal',    val: fixedMonthly,      color: 'var(--t)'  },
+                      { label: 'Meta semanal',   val: fixedWeekly,       color: 'var(--t2)' },
+                      { label: 'Meta diária',    val: fixedDaily,        color: 'var(--t2)' },
+                      { label: 'Dia útil (22d)', val: fixedTotalDaily22, color: 'var(--t2)' },
                     ].map(({ label, val, color }) => (
                       <div key={label}>
                         <div className="text-[10px] mb-0.5" style={{ color: 'var(--t3)' }}>{label}</div>
-                        <div className="text-sm font-black font-mono" style={{ color }}>− {fmtBRL(val)}</div>
+                        <div className="text-sm font-black font-mono" style={{ color }}>{fmtBRL(val)}</div>
                       </div>
                     ))}
                   </div>
@@ -1493,61 +1679,173 @@ export function GastosPage() {
       {/* ═══ FIXOS ═══ */}
       {tab === 'fixos' && (
         <>
-          <div style={{ ...card, background: fixedMonthly > 0 ? 'rgba(63,255,33,.03)' : 'var(--bg2)' }}
-            className="px-5 py-5">
-            <div className="flex items-center gap-2 mb-5">
-              <Target size={15} style={{ color: '#3FFF21' }} />
-              <span className="text-sm font-bold" style={{ color: 'var(--t)' }}>Meta de Cobertura dos Fixos</span>
-              {fixedMonthly > 0 && (
-                <span className="ml-auto text-xs font-mono" style={{ color: 'var(--t3)' }}>
-                  {activeRec.length} ativo{activeRec.length !== 1 ? 's' : ''}
-                </span>
-              )}
-            </div>
-            {fixedMonthly === 0 ? (
-              <p className="text-sm text-center py-2" style={{ color: 'var(--t2)' }}>
-                Cadastre despesas fixas mensais (academia, softwares, VPS, chips...) para calcular quanto precisar lucrar para cobri-las.
+          {/* ── Painel de Decisão Financeira ─────────────────────── */}
+          {fixedMonthly === 0 ? (
+            <div style={card} className="px-5 py-6 text-center">
+              <Target size={22} className="mx-auto mb-2.5" style={{ color: '#3FFF21', opacity: 0.35 }} />
+              <p className="text-sm font-medium mb-1" style={{ color: 'var(--t)' }}>Nenhum custo fixo cadastrado</p>
+              <p className="text-xs" style={{ color: 'var(--t3)' }}>
+                Cadastre academia, softwares, VPS, chips e assinaturas abaixo para ver quanto você precisa lucrar para cobri-los.
               </p>
-            ) : (
-              <>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3">
+
+              {/* Saúde financeira */}
+              {(() => {
+                const fhc    = FH_CFG[finHealth];
+                const FHIcon = fhc.Icon;
+                return (
+                  <div style={{ background: fhc.bg, border: `1px solid ${fhc.border}`, borderRadius: '0.75rem' }}
+                    className="px-5 py-4">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <div className="flex items-center gap-2">
+                        <FHIcon size={13} style={{ color: fhc.color }} />
+                        <span className="text-[11px] font-black uppercase tracking-widest" style={{ color: fhc.color }}>
+                          {fhc.label}
+                        </span>
+                      </div>
+                      <span className="text-[11px] font-mono" style={{ color: 'var(--t3)' }}>
+                        {activeRec.length} fixo{activeRec.length !== 1 ? 's' : ''} · {fmtBRL(fixedMonthly)}/mês
+                      </span>
+                    </div>
+                    <p className="text-xs leading-relaxed" style={{ color: 'var(--t2)' }}>
+                      {fhc.subtitle(projectedMonthProfit, fixedMonthly)}
+                    </p>
+                  </div>
+                );
+              })()}
+
+              {/* Progresso do mês */}
+              <div style={card} className="px-5 py-4">
+                <div className="text-[11px] font-black uppercase tracking-widest mb-3" style={{ color: 'var(--t3)' }}>
+                  Progresso do Mês
+                </div>
+                <div className="flex items-baseline justify-between mb-2">
+                  <div>
+                    <span className="text-[11px] mr-1.5" style={{ color: 'var(--t3)' }}>Gerado</span>
+                    <span className="text-2xl font-black font-mono"
+                      style={{ color: monthlyBetProfit >= fixedMonthly ? '#3FFF21' : 'var(--t)' }}>
+                      {fmtBRL(monthlyBetProfit)}
+                    </span>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-[10px]" style={{ color: 'var(--t3)' }}>Meta mínima</div>
+                    <div className="text-sm font-bold font-mono" style={{ color: 'var(--t2)' }}>{fmtBRL(fixedMonthly)}</div>
+                  </div>
+                </div>
+                <div className="h-1.5 rounded-full overflow-hidden mb-1.5" style={{ background: 'var(--sur)' }}>
+                  <div className="h-full rounded-full transition-all"
+                    style={{
+                      width: `${Math.min(100, Math.max(0, progressPct))}%`,
+                      background: progressPct >= 100 ? '#3FFF21' : progressPct >= 70 ? '#FBBF24' : '#F87171',
+                    }} />
+                </div>
+                <div className="flex items-center justify-between text-[11px]">
+                  <span style={{ color: 'var(--t3)' }}>
+                    {progressPct >= 100
+                      ? `Meta atingida — ${progressPct - 100}% acima`
+                      : `${progressPct}% · faltam ${fmtBRL(remainingToBreakeven)}`}
+                  </span>
+                  {dailyPace !== 0 && (
+                    <span style={{ color: projectedMonthProfit >= fixedMonthly ? '#3FFF21' : '#F87171' }}>
+                      Projeção: {fmtBRL(projectedMonthProfit)}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Decisão de hoje */}
+              {decisaoHoje && (
+                <div style={{ background: 'rgba(63,255,33,.04)', border: '1px solid rgba(63,255,33,.15)', borderRadius: '0.75rem' }}
+                  className="px-5 py-4">
+                  <div className="text-[11px] font-black uppercase tracking-widest mb-1.5" style={{ color: '#3FFF21' }}>
+                    Decisão de Hoje
+                  </div>
+                  <p className="text-sm leading-relaxed" style={{ color: 'var(--t)' }}>{decisaoHoje}</p>
+                </div>
+              )}
+
+              {/* Metas operacionais */}
+              <div style={card} className="px-5 py-4">
+                <div className="text-[11px] font-black uppercase tracking-widest mb-3" style={{ color: 'var(--t3)' }}>
+                  Metas Operacionais
+                </div>
+                <div className="grid grid-cols-2 gap-x-8 gap-y-3">
                   {[
-                    { label: 'Por Mês',       val: fixedMonthly,      color: 'var(--r)',  desc: 'total fixo mensal' },
-                    { label: 'Por Semana',     val: fixedWeekly,       color: '#FBBF24',   desc: '÷ 4,33 semanas'    },
-                    { label: 'Por Dia',        val: fixedDaily,        color: '#FB923C',   desc: '÷ 30 dias'         },
-                    { label: 'Dia Útil (22d)', val: fixedTotalDaily22, color: '#A78BFA',   desc: '÷ 22 dias úteis'   },
-                  ].map(({ label, val, color, desc }) => (
-                    <div key={label} className="text-center">
-                      <div className="text-[11px] mb-1" style={{ color: 'var(--t3)' }}>{label}</div>
-                      <div className="text-xl font-black font-mono" style={{ color }}>− {fmtBRL(val)}</div>
-                      <div className="text-[10px] mt-0.5" style={{ color: 'var(--t3)' }}>{desc}</div>
+                    { label: 'Breakeven',          val: fixedMonthly,      note: 'cobrir custos fixos'  },
+                    { label: 'Recomendado (+20%)', val: recommendedGoal,   note: 'margem de segurança'  },
+                    { label: 'Ideal (+50%)',        val: idealGoal,          note: 'crescimento sólido'   },
+                    { label: 'Média por dia útil',  val: fixedTotalDaily22,  note: '÷ 22 dias úteis'      },
+                  ].map(({ label, val, note }) => (
+                    <div key={label}>
+                      <div className="text-[10px] mb-0.5" style={{ color: 'var(--t3)' }}>{label}</div>
+                      <div className="text-sm font-bold font-mono" style={{ color: 'var(--t)' }}>{fmtBRL(val)}</div>
+                      <div className="text-[10px]" style={{ color: 'var(--t3)' }}>{note}</div>
                     </div>
                   ))}
                 </div>
-                <div className="rounded-xl px-4 py-3 flex flex-col gap-1.5"
-                  style={{ background: 'rgba(63,255,33,.06)', border: '1px solid rgba(63,255,33,.15)' }}>
-                  <p className="text-sm font-bold" style={{ color: 'var(--g)' }}>
-                    Para empatá-las, você precisa lucrar {fmtBRL(fixedMonthly)}/mês.
-                  </p>
-                  <div className="flex gap-6 text-xs flex-wrap" style={{ color: 'var(--t3)' }}>
-                    <span>Oper.: <strong style={{ color: '#818CF8' }}>{fmtBRL(fixedOp)}</strong></span>
-                    <span>Pess.: <strong style={{ color: '#FB923C' }}>{fmtBRL(fixedPs)}</strong></span>
-                    <span>Oper./dia útil: <strong style={{ color: '#A78BFA' }}>{fmtBRL(fixedOpDaily22)}</strong></span>
+              </div>
+
+              {/* Planejamento */}
+              <div style={card} className="px-5 py-4">
+                <div className="text-[11px] font-black uppercase tracking-widest mb-3" style={{ color: 'var(--t3)' }}>
+                  Planejamento
+                </div>
+                <div className="flex flex-col gap-2.5">
+                  <PlanRow
+                    label="Ritmo atual"
+                    val={dailyPace !== 0 ? `${fmtBRL(dailyPace)}/dia` : '—'}
+                    note={`baseado em ${daysElapsed} dia${daysElapsed !== 1 ? 's' : ''}`}
+                  />
+                  <PlanRow
+                    label="Necessário p/ meta recomendada"
+                    val={dailyNeededForRecommended > 0 ? `${fmtBRL(dailyNeededForRecommended)}/dia útil` : 'Meta atingida'}
+                    note={`${workdaysRemaining} dia${workdaysRemaining !== 1 ? 's' : ''} útil${workdaysRemaining !== 1 ? 'is' : ''} restante${workdaysRemaining !== 1 ? 's' : ''}`}
+                    color={dailyNeededForRecommended > 0 ? (dailyPace < dailyNeededForRecommended ? '#FBBF24' : '#3FFF21') : '#3FFF21'}
+                  />
+                  <PlanRow
+                    label="Dias para breakeven"
+                    val={daysToBreakevenAtPace === 0 ? 'Já atingido' : daysToBreakevenAtPace > 0 ? `${daysToBreakevenAtPace} dias` : '—'}
+                    note="no ritmo atual"
+                    color={daysToBreakevenAtPace === 0 ? '#3FFF21' : daysToBreakevenAtPace > daysRemaining ? '#F87171' : undefined}
+                  />
+                  <PlanRow
+                    label="Margem de segurança"
+                    val={safetyMargin >= 0 ? fmtBRL(safetyMargin) : `Déficit ${fmtBRL(Math.abs(safetyMargin))}`}
+                    note="lucro gerado − custos fixos"
+                    color={safetyMargin >= 0 ? '#3FFF21' : '#F87171'}
+                  />
+                  {fixedCostEfficiency > 0 && (
+                    <PlanRow
+                      label="Eficiência operacional"
+                      val={`${fixedCostEfficiency}% comprometido`}
+                      note="fixos vs lucro médio 3 meses"
+                      color={fixedCostEfficiency > 60 ? '#F87171' : fixedCostEfficiency > 40 ? '#FBBF24' : '#3FFF21'}
+                    />
+                  )}
+                </div>
+              </div>
+
+              {/* Inteligência financeira */}
+              {finInsights.length > 0 && (
+                <div style={card} className="px-5 py-4">
+                  <div className="text-[11px] font-black uppercase tracking-widest mb-3" style={{ color: 'var(--t3)' }}>
+                    Inteligência Financeira
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    {finInsights.map((ins, i) => (
+                      <div key={i} className="flex items-start gap-2.5 text-xs leading-relaxed" style={{ color: 'var(--t2)' }}>
+                        <span className="shrink-0 font-bold w-3 text-center mt-px" style={{ color: ins.color }}>{ins.icon}</span>
+                        <span>{ins.text}</span>
+                      </div>
+                    ))}
                   </div>
                 </div>
-                {projecao && projecao > fixedMonthly && (
-                  <div className="mt-3 rounded-xl px-4 py-3"
-                    style={{ background: 'rgba(251,191,36,.06)', border: '1px solid rgba(251,191,36,.18)' }}>
-                    <p className="text-xs" style={{ color: 'var(--t2)' }}>
-                      <span style={{ color: '#FBBF24' }}>⚠ </span>
-                      Projeção de gastos ({fmtBRL(projecao)}) está
-                      <strong> {fmtBRL(projecao - fixedMonthly)} acima</strong> dos seus custos fixos. Revise gastos variáveis.
-                    </p>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
+              )}
+
+            </div>
+          )}
 
           <div className="flex items-center justify-between">
             <span className="text-sm font-bold" style={{ color: 'var(--t2)' }}>
