@@ -9,6 +9,7 @@ import {
 import { SurebetCalc } from '@/components/calcalendario/SurebetCalc';
 import { DGOpportunitiesSection } from './DGOpportunitiesSection';
 import { VideoTutorialModal } from '@/components/ui/VideoTutorialModal';
+import { useOdds } from '@/hooks/useOdds';
 
 // ─── Palette DG ───────────────────────────────────────────────────────────────
 const C = {
@@ -683,19 +684,20 @@ export function BuscarOddsPage() {
   const today = todayBRT();
 
   const [tab,             setTab]            = useState<'odds' | 'dg'>('odds');
-  const [allOdds,         setAllOdds]        = useState<OddsSummary[]>([]);
-  const [loading,         setLoading]        = useState(true);
-  const [fetchErr,        setFetchErr]       = useState('');
   const [selectedEvent,   setSelectedEvent]  = useState<OddsSummary | null>(null);
   const [paFilter,        setPaFilter]       = useState<PAFilter>('ALL');
   const [leagueFav,       setLeagueFav]      = useState<Set<string>>(new Set());
   const [leagueCollapsed, setLeagueCollapsed]= useState<Set<string>>(new Set());
   const [leagueFilter,    setLeagueFilter]   = useState<Set<string>>(new Set()); // empty = todos
   const [leagueModalOpen, setLeagueModalOpen]= useState(false);
-  const [lastUpdated,     setLastUpdated]    = useState(Date.now());
   const [tick,            setTick]           = useState(0);
   const [dgMap,           setDgMap]          = useState<Map<string, DGInfo>>(new Map());
   const [showTutorial,    setShowTutorial]   = useState(false);
+
+  // ── SSE em tempo real via DuploGreenEngine ──────────────────────────────────
+  const { odds: rawOdds, loading, error: oddsError, connected, lastUpdate: lastUpdated } = useOdds();
+  const allOdds  = rawOdds as unknown as OddsSummary[];
+  const fetchErr = oddsError ?? '';
 
   // ── Tick "atualizado há Xs" ─────────────────────────────────────────────────
   useEffect(() => {
@@ -720,36 +722,7 @@ export function BuscarOddsPage() {
     } catch { /* silencia */ }
   }, []);
 
-  // ── Carregar odds ───────────────────────────────────────────────────────────
-  const loadOdds = useCallback(async (silent = false) => {
-    if (!silent) { setLoading(true); setFetchErr(''); setAllOdds([]); setSelectedEvent(null); }
-    try {
-      // ?all=1 → carrega TODOS os jogos importados (o admin já remove os antigos no import)
-      const [dbRes] = await Promise.all([fetch('/api/dg/odds-db?all=1'), loadDGMap()]);
-      const dbJson  = await dbRes.json() as { ok: boolean; odds?: OddsSummary[] };
-      if (dbJson.ok && (dbJson.odds?.length ?? 0) > 0) {
-        setAllOdds(dbJson.odds!);
-        setLastUpdated(Date.now());
-        return;
-      }
-      // fallback: endpoint legado (sem DB)
-      const res  = await fetch('/api/dg/odds');
-      const json = await res.json() as { ok: boolean; odds?: OddsSummary[]; error?: string };
-      if (!json.ok) throw new Error(json.error ?? 'Erro ao carregar odds');
-      setAllOdds(json.odds ?? []);
-      setLastUpdated(Date.now());
-    } catch {
-      if (!silent) setFetchErr('Não foi possível carregar as odds.');
-    } finally {
-      if (!silent) setLoading(false);
-    }
-  }, [loadDGMap]);
-
-  useEffect(() => { loadOdds(); }, [loadOdds]);
-  useEffect(() => {
-    const id = setInterval(() => loadOdds(true), 30_000);
-    return () => clearInterval(id);
-  }, [loadOdds]);
+  useEffect(() => { loadDGMap(); }, [loadDGMap]);
 
   // ── Ligas disponíveis ────────────────────────────────────────────────────────
   const allLeagues = useMemo(
@@ -817,7 +790,7 @@ export function BuscarOddsPage() {
         <EventOddsPanel
           event={selectedEvent}
           onBack={() => setSelectedEvent(null)}
-          onRefresh={() => loadOdds()}
+          onRefresh={() => loadDGMap()}
           dgInfo={dgMap.get(selectedEvent.match_id) ?? null}
         />
       </div>
@@ -835,7 +808,7 @@ export function BuscarOddsPage() {
             {loading
               ? 'Carregando…'
               : tab === 'odds'
-                ? `${allLeagues.length} campeonatos · atualizado há ${secsAgo(lastUpdated)}`
+                ? `${allLeagues.length} campeonatos · ${connected ? '🟢 ao vivo' : '🔴 reconectando'} · atualizado há ${secsAgo(lastUpdated)}`
                 : 'Oportunidades DuploGreen importadas'}
           </p>
         </div>
@@ -874,7 +847,7 @@ export function BuscarOddsPage() {
               </React.Fragment>
             ))}
           </div>
-          <button onClick={() => loadOdds()} disabled={loading}
+          <button onClick={() => { loadDGMap(); }} disabled={loading}
             className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-[11px] font-semibold hover:opacity-80 disabled:opacity-40 transition-opacity"
             style={{ background: `${C.surf}cc`, border: `1px solid ${C.surfB}`, color: C.t3 }}>
             <RefreshCw size={11} className={loading ? 'animate-spin' : ''} />
@@ -968,7 +941,7 @@ export function BuscarOddsPage() {
           <div className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm"
             style={{ background: C.redDim, border: `1px solid rgba(248,113,113,.25)`, color: C.red }}>
             {fetchErr}
-            <button onClick={() => loadOdds()} className="ml-auto text-xs" style={{ color: '#A78BFA', background: 'none', border: 'none', cursor: 'pointer' }}>
+            <button onClick={() => window.location.reload()} className="ml-auto text-xs" style={{ color: '#A78BFA', background: 'none', border: 'none', cursor: 'pointer' }}>
               Tentar novamente
             </button>
           </div>
