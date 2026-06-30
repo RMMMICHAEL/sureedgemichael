@@ -597,6 +597,7 @@ const PA_SET = new Set([
   'apostabet','br4bet','esportesdasorte','esportiva','esportivabet','sortenabet',
   'betmgm','estrelabet','bet7k','jogodeouro','mcgames','meridianbet','meridian',
   'versusbet','vupi','vupibet','vaidebet','brasil',
+  'leon','leonbet',
 ]);
 
 function isPa(house: string): boolean {

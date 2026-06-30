@@ -113,6 +113,7 @@ const PA_SET = new Set([
   'vupibet','vupibr','vupi','sortenabet','sorte','brasilbet','brasil',
   'esportivabr','estrelabeat','betnacional','pixbetsports',
   'betnow','sportbr','betbr','apostaganha',
+  'leon','leonbet',
 ]);
 function normSlug(s: string) { return s.toLowerCase().replace(/[\s\-_.]/g, ''); }
 function isSlugPA(slug: string): boolean {
