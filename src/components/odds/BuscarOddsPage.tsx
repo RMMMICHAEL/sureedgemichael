@@ -132,6 +132,39 @@ interface SportsDBMatch {
   home_badge: string | null; away_badge: string | null; league_badge?: string | null;
   home_team_pt: string | null; away_team_pt: string | null; league_pt: string | null;
 }
+// ─── Mapa país (PT) → ISO2 para flagcdn.com ──────────────────────────────────
+const COUNTRY_ISO: Record<string, string> = {
+  'brasil':'br','argentina':'ar','frança':'fr','alemanha':'de','espanha':'es',
+  'portugal':'pt','itália':'it','italia':'it','países baixos':'nl','holanda':'nl',
+  'bélgica':'be','uruguai':'uy','méxico':'mx','estados unidos':'us','japão':'jp',
+  'coreia do sul':'kr','coreia':'kr','austrália':'au','senegal':'sn','marrocos':'ma',
+  'gana':'gh','nigéria':'ng','camarões':'cm','costa do marfim':'ci','equador':'ec',
+  'colômbia':'co','chile':'cl','peru':'pe','paraguai':'py','bolívia':'bo',
+  'venezuela':'ve','costa rica':'cr','honduras':'hn','panamá':'pa','jamaica':'jm',
+  'canadá':'ca','suíça':'ch','áustria':'at','croácia':'hr','sérvia':'rs',
+  'polônia':'pl','república checa':'cz','tchéquia':'cz','hungria':'hu',
+  'dinamarca':'dk','suécia':'se','noruega':'no','finlândia':'fi','turquia':'tr',
+  'grécia':'gr','romênia':'ro','ucrânia':'ua','rússia':'ru','eslováquia':'sk',
+  'eslovênia':'si','albânia':'al','israel':'il','argélia':'dz','tunísia':'tn',
+  'egito':'eg','África do sul':'za','africa do sul':'za','irã':'ir','iraque':'iq',
+  'arábia saudita':'sa','catar':'qa','coreia do norte':'kp','rd congo':'cd',
+  'república democrática do congo':'cd','bósnia e herzegovina':'ba','bósnia':'ba',
+  'kosovo':'xk','cabo verde':'cv','montenegro':'me','macedônia do norte':'mk',
+  'geórgia':'ge','islândia':'is','luxemburgo':'lu','letônia':'lv','lituânia':'lt',
+  'estônia':'ee','moldávia':'md','bielorrússia':'by','china':'cn','índia':'in',
+  'tailândia':'th','vietnã':'vn','emirados árabes':'ae',
+  'nova zelândia':'nz','angola':'ao','moçambique':'mz','tanzânia':'tz',
+  'quênia':'ke','etiópia':'et','zâmbia':'zm','zimbábue':'zw','ruanda':'rw',
+  // sub-seleções GB
+  'inglaterra':'gb-eng','escócia':'gb-sct','país de gales':'gb-wls','irlanda do norte':'gb-nir',
+  'irlanda':'ie','gales':'gb-wls',
+};
+function flagUrl(name: string): string | null {
+  const k = name.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+  const iso = COUNTRY_ISO[k] ?? COUNTRY_ISO[k.replace(/[^a-z\s]/g, '').trim()];
+  return iso ? `https://flagcdn.com/20x15/${iso}.png` : null;
+}
+
 /** Chave de join por nome de time normalizado */
 function sportsKey(home: string, away: string): string {
   const n = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]/g,'');
@@ -556,11 +589,11 @@ function MatchCard({ ev, dgInfo, isFlash, isFav, onSelect, onToggleFav, prevSnap
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' as const }}>
             <div style={{ fontSize: 14, fontWeight: 800, color: C.t1, lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: '1 1 0', minWidth: 0 }}>
-              {liveData?.home_badge && <img src={liveData.home_badge} alt="" width={14} height={14} style={{ borderRadius: '50%', marginRight: 4, verticalAlign: 'middle', objectFit: 'cover' }} />}
+              {(() => { const b = liveData?.home_badge ?? flagUrl(liveData?.home_team_pt ?? ev.home_team); return b ? <img src={b} alt="" width={14} height={14} style={{ borderRadius: liveData?.home_badge ? '50%' : 2, marginRight: 4, verticalAlign: 'middle', objectFit: 'cover' }} /> : null; })()}
               {liveData?.home_team_pt ?? ev.home_team}
               <span style={{ color: C.t3, fontWeight: 500 }}> x </span>
               {liveData?.away_team_pt ?? ev.away_team}
-              {liveData?.away_badge && <img src={liveData.away_badge} alt="" width={14} height={14} style={{ borderRadius: '50%', marginLeft: 4, verticalAlign: 'middle', objectFit: 'cover' }} />}
+              {(() => { const b = liveData?.away_badge ?? flagUrl(liveData?.away_team_pt ?? ev.away_team); return b ? <img src={b} alt="" width={14} height={14} style={{ borderRadius: liveData?.away_badge ? '50%' : 2, marginLeft: 4, verticalAlign: 'middle', objectFit: 'cover' }} /> : null; })()}
             </div>
             {liveData && liveData.home_score !== null && liveData.away_score !== null && (() => {
               const sl = statusLabel(liveData.status, liveData.is_live);
@@ -1364,7 +1397,7 @@ export function BuscarOddsPage() {
                                     <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
                                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0, flex: 1 }}>
-                                        {liveInfo?.home_badge && <img src={liveInfo.home_badge} alt="" width={14} height={14} style={{ borderRadius: '50%', flexShrink: 0, objectFit: 'cover' }} />}
+                                        {(() => { const b = liveInfo?.home_badge ?? flagUrl(liveInfo?.home_team_pt ?? ev.home_team); return b ? <img src={b} alt="" width={14} height={14} style={{ borderRadius: liveInfo?.home_badge ? '50%' : 2, flexShrink: 0, objectFit: 'cover' }} /> : null; })()}
                                         <p style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 13, fontWeight: 700, color: C.t1, margin: 0 }}>{liveInfo?.home_team_pt ?? ev.home_team}</p>
                                         {liveInfo && liveInfo.home_score !== null && liveInfo.away_score !== null && (() => {
                                           const sl = statusLabel(liveInfo.status, liveInfo.is_live);
@@ -1397,7 +1430,7 @@ export function BuscarOddsPage() {
                                         )}
                                       </div>
                                       <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
-                                        {liveInfo?.away_badge && <img src={liveInfo.away_badge} alt="" width={14} height={14} style={{ borderRadius: '50%', flexShrink: 0, objectFit: 'cover' }} />}
+                                        {(() => { const b = liveInfo?.away_badge ?? flagUrl(liveInfo?.away_team_pt ?? ev.away_team); return b ? <img src={b} alt="" width={14} height={14} style={{ borderRadius: liveInfo?.away_badge ? '50%' : 2, flexShrink: 0, objectFit: 'cover' }} /> : null; })()}
                                         <p style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 13, fontWeight: 500, color: C.t2, margin: 0 }}>{liveInfo?.away_team_pt ?? ev.away_team}</p>
                                       </div>
                                       <p style={{ fontSize: 11, color: C.t3, margin: 0 }}>{ev.bookmakers.length} casas{isMFav ? ' · ⭐' : ''}</p>
