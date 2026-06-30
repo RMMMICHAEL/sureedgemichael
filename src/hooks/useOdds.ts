@@ -1,52 +1,54 @@
 'use client';
 
-/**
- * useOdds — hook para consumir odds em tempo real via SSE.
- *
- * Conecta em /api/odds/stream (EventSource), mantém snapshot local,
- * aplica updates incrementais e reconecta automaticamente.
- *
- * Uso:
- *   const { odds, loading, error, connected } = useOdds();
- *   const { match, loading } = useOdds({ matchId: 'uuid' });
- */
-
 import { useState, useEffect, useRef, useCallback } from 'react';
 import type { OddsMatch, OddsUpdateEvent } from '@/lib/odds-source/types';
 
 interface UseOddsOptions {
-  /** Se fornecido, filtra o snapshot para apenas este jogo */
   matchId?: string;
-  /** Pausa a conexão SSE */
   paused?: boolean;
 }
 
 interface UseOddsResult {
-  odds:      OddsMatch[];
-  match:     OddsMatch | null;
-  loading:   boolean;
-  error:     string | null;
-  connected: boolean;
-  lastUpdate: number;
+  odds:             OddsMatch[];
+  match:            OddsMatch | null;
+  loading:          boolean;
+  error:            string | null;
+  connected:        boolean;
+  lastUpdate:       number;
+  recentlyUpdated:  Set<string>;
 }
 
-const RECONNECT_BASE_MS  = 2_000;
-const RECONNECT_MAX_MS   = 30_000;
-const RECONNECT_BACKOFF  = 1.5;
+const RECONNECT_BASE_MS = 2_000;
+const RECONNECT_MAX_MS  = 30_000;
+const RECONNECT_BACKOFF = 1.5;
+const FLASH_DURATION_MS = 2_000;
 
 export function useOdds(opts: UseOddsOptions = {}): UseOddsResult {
   const { matchId, paused = false } = opts;
 
-  const [odds,       setOdds]       = useState<OddsMatch[]>([]);
-  const [loading,    setLoading]    = useState(true);
-  const [error,      setError]      = useState<string | null>(null);
-  const [connected,  setConnected]  = useState(false);
-  const [lastUpdate, setLastUpdate] = useState(0);
+  const [odds,            setOdds]            = useState<OddsMatch[]>([]);
+  const [loading,         setLoading]         = useState(true);
+  const [error,           setError]           = useState<string | null>(null);
+  const [connected,       setConnected]       = useState(false);
+  const [lastUpdate,      setLastUpdate]      = useState(0);
+  const [recentlyUpdated, setRecentlyUpdated] = useState<Set<string>>(new Set());
 
-  const esRef        = useRef<EventSource | null>(null);
-  const retryMsRef   = useRef(RECONNECT_BASE_MS);
-  const retryTimer   = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const unmounted    = useRef(false);
+  const esRef      = useRef<EventSource | null>(null);
+  const retryMsRef = useRef(RECONNECT_BASE_MS);
+  const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const unmounted  = useRef(false);
+
+  const flash = useCallback((matchId: string) => {
+    setRecentlyUpdated(prev => new Set([...prev, matchId]));
+    setTimeout(() => {
+      if (unmounted.current) return;
+      setRecentlyUpdated(prev => {
+        const next = new Set(prev);
+        next.delete(matchId);
+        return next;
+      });
+    }, FLASH_DURATION_MS);
+  }, []);
 
   const connect = useCallback(() => {
     if (unmounted.current || paused) return;
@@ -68,8 +70,7 @@ export function useOdds(opts: UseOddsOptions = {}): UseOddsResult {
         if (event.type === 'heartbeat') return;
 
         if (event.type === 'snapshot') {
-          const data = event.data as OddsMatch[];
-          setOdds(data);
+          setOdds(event.data as OddsMatch[]);
           setLoading(false);
           setConnected(true);
           setError(null);
@@ -90,6 +91,7 @@ export function useOdds(opts: UseOddsOptions = {}): UseOddsResult {
             return [...prev, updated];
           });
           setLastUpdate(event.ts);
+          flash(updated.match_id);
         }
       } catch { /* JSON parse error */ }
     });
@@ -104,7 +106,7 @@ export function useOdds(opts: UseOddsOptions = {}): UseOddsResult {
         connect();
       }, retryMsRef.current);
     };
-  }, [paused]);
+  }, [paused, flash]);
 
   useEffect(() => {
     unmounted.current = false;
@@ -117,9 +119,8 @@ export function useOdds(opts: UseOddsOptions = {}): UseOddsResult {
     };
   }, [connect, paused]);
 
-  // Filtra pelo matchId se fornecido
-  const match = matchId ? (odds.find(m => m.match_id === matchId) ?? null) : null;
+  const match       = matchId ? (odds.find(m => m.match_id === matchId) ?? null) : null;
   const filteredOdds = matchId ? (match ? [match] : []) : odds;
 
-  return { odds: filteredOdds, match, loading, error, connected, lastUpdate };
+  return { odds: filteredOdds, match, loading, error, connected, lastUpdate, recentlyUpdated };
 }
