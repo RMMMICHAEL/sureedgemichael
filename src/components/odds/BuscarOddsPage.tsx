@@ -122,6 +122,33 @@ type PAFilter = 'ALL' | 'AMBOS_PA' | 'APENAS_PA';
 type SortBy   = 'padrao' | 'maior_lucro' | 'menor_lucro' | 'dg_score';
 type ViewMode = 'table' | 'card';
 
+// ─── SportsDB enrichment (live scores + team badges) ─────────────────────────
+interface SportsDBMatch {
+  api_event_id: string;
+  home_team: string; away_team: string; league: string;
+  event_time: string;
+  home_score: number | null; away_score: number | null;
+  status: string; is_live: boolean; progress: string | null;
+  home_badge: string | null; away_badge: string | null;
+  home_team_pt: string | null; away_team_pt: string | null; league_pt: string | null;
+}
+/** Chave de join por nome de time normalizado */
+function sportsKey(home: string, away: string): string {
+  const n = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]/g,'');
+  return `${n(home)}~~${n(away)}`;
+}
+function statusLabel(status: string, isLive: boolean): { text: string; color: string } | null {
+  if (isLive) {
+    if (status === '1H') return { text: '1T', color: '#3FFF21' };
+    if (status === '2H') return { text: '2T', color: '#3FFF21' };
+    if (status === 'HT') return { text: 'INT', color: '#F59E0B' };
+    return { text: 'AO VIVO', color: '#3FFF21' };
+  }
+  if (status === 'FT' || status === 'Encerrado') return { text: 'FT', color: 'rgba(255,255,255,.35)' };
+  if (status === 'CANC') return { text: 'CANC', color: '#EF4444' };
+  return null;
+}
+
 // ─── Odds trend tracking (match_id → { home, draw, away }) ───────────────────
 type OddSnapshot = Record<string, { home: number; draw: number; away: number }>;
 type OddTrend    = 'up' | 'down' | 'same';
@@ -435,10 +462,10 @@ function OddsSection({ label, bks, accent, slots, onOddClick, prevSnap }: {
 }
 
 // ─── MatchCard (card view) ────────────────────────────────────────────────────
-function MatchCard({ ev, dgInfo, isFlash, isFav, onSelect, onToggleFav, prevSnap }: {
+function MatchCard({ ev, dgInfo, isFlash, isFav, onSelect, onToggleFav, prevSnap, liveData }: {
   ev: OddsSummary; dgInfo: DGInfo | null; isFlash: boolean;
   isFav: boolean; onSelect: () => void; onToggleFav: () => void;
-  prevSnap?: OddSnapshot;
+  prevSnap?: OddSnapshot; liveData?: SportsDBMatch;
 }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -529,11 +556,29 @@ function MatchCard({ ev, dgInfo, isFlash, isFav, onSelect, onToggleFav, prevSnap
               </Tip>
             )}
           </div>
-          <div style={{ fontSize: 14, fontWeight: 800, color: C.t1, lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {ev.home_team} <span style={{ color: C.t3, fontWeight: 500 }}>x</span> {ev.away_team}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' as const }}>
+            <div style={{ fontSize: 14, fontWeight: 800, color: C.t1, lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: '1 1 0', minWidth: 0 }}>
+              {liveData?.home_badge && <img src={liveData.home_badge} alt="" width={14} height={14} style={{ borderRadius: '50%', marginRight: 4, verticalAlign: 'middle', objectFit: 'cover' }} />}
+              {liveData?.home_team_pt ?? ev.home_team}
+              <span style={{ color: C.t3, fontWeight: 500 }}> x </span>
+              {liveData?.away_team_pt ?? ev.away_team}
+              {liveData?.away_badge && <img src={liveData.away_badge} alt="" width={14} height={14} style={{ borderRadius: '50%', marginLeft: 4, verticalAlign: 'middle', objectFit: 'cover' }} />}
+            </div>
+            {liveData && liveData.home_score !== null && liveData.away_score !== null && (() => {
+              const sl = statusLabel(liveData.status, liveData.is_live);
+              return (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                  <span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 900, fontSize: 13, color: C.t1, background: 'rgba(255,255,255,.07)', border: '1px solid rgba(255,255,255,.1)', borderRadius: 6, padding: '1px 6px' }}>
+                    {liveData.home_score} – {liveData.away_score}
+                  </span>
+                  {sl && <span style={{ fontSize: 9, fontWeight: 900, borderRadius: 4, padding: '2px 5px', background: liveData.is_live ? 'rgba(63,255,33,.12)' : 'rgba(255,255,255,.05)', color: sl.color, border: `1px solid ${sl.color}33` }}>{sl.text}</span>}
+                </div>
+              );
+            })()}
           </div>
           <div style={{ fontSize: 11, color: C.t3, marginTop: 2 }}>
-            {ev.league_name} · {fmtTime(ev.start_time)}
+            {liveData?.league_pt ?? ev.league_name} · {fmtTime(ev.start_time)}
+            {liveData?.progress && <span style={{ marginLeft: 4, color: C.green, fontWeight: 700 }}>{liveData.progress}&apos;</span>}
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
@@ -865,6 +910,24 @@ export function BuscarOddsPage() {
   // matchId → { slugCasa → { home, draw, away } }
   const [oddsPrevSnap, setOddsPrevSnap] = useState<Map<string, OddSnapshot>>(new Map());
 
+  // ── SportsDB enrichment ────────────────────────────────────────────────────
+  const [sportsMap, setSportsMap] = useState<Map<string, SportsDBMatch>>(new Map());
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const res  = await fetch(`/api/sportsdb?date=${today}`);
+        if (!res.ok) return;
+        const data = await res.json() as SportsDBMatch[];
+        const map  = new Map<string, SportsDBMatch>();
+        for (const m of data) map.set(sportsKey(m.home_team, m.away_team), m);
+        setSportsMap(map);
+      } catch { /* silencia */ }
+    };
+    load();
+    const id = setInterval(load, 60_000);
+    return () => clearInterval(id);
+  }, [today]);
+
   // ── SSE ────────────────────────────────────────────────────────────────────
   const { odds: rawOdds, loading, error: oddsError, connected, lastUpdate, recentlyUpdated } = useOdds();
   const allOdds  = rawOdds as unknown as OddsSummary[];
@@ -1195,6 +1258,7 @@ export function BuscarOddsPage() {
                           onSelect={() => setSelectedEvent(ev)}
                           onToggleFav={() => toggleMatchFav(ev.match_id)}
                           prevSnap={oddsPrevSnap.get(ev.match_id)}
+                          liveData={sportsMap.get(sportsKey(ev.home_team, ev.away_team))}
                         />
                       ))}
                     </div>
@@ -1257,9 +1321,10 @@ export function BuscarOddsPage() {
                             const dgCol2  = dg ? dgColor(dg.dg_classification) : null;
                             const started = new Date(ev.start_time).getTime() < Date.now();
                             const paCnt   = paSideCount(ev);
-                            const isFlash = recentlyUpdated.has(ev.match_id);
-                            const isMFav  = matchFav.has(ev.match_id);
-                            const snap    = oddsPrevSnap.get(ev.match_id);
+                            const isFlash  = recentlyUpdated.has(ev.match_id);
+                            const isMFav   = matchFav.has(ev.match_id);
+                            const snap     = oddsPrevSnap.get(ev.match_id);
+                            const liveInfo = sportsMap.get(sportsKey(ev.home_team, ev.away_team));
 
                             function trendBk(bk: BookmakerOdds | null, t: OddType): OddTrend {
                               if (!bk || !snap?.[bk.slug]) return 'same';
@@ -1284,7 +1349,21 @@ export function BuscarOddsPage() {
                                     </div>
                                     <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
                                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-                                        <p style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 13, fontWeight: 700, color: C.t1, margin: 0 }}>{ev.home_team}</p>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0, flex: 1 }}>
+                                        {liveInfo?.home_badge && <img src={liveInfo.home_badge} alt="" width={14} height={14} style={{ borderRadius: '50%', flexShrink: 0, objectFit: 'cover' }} />}
+                                        <p style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 13, fontWeight: 700, color: C.t1, margin: 0 }}>{liveInfo?.home_team_pt ?? ev.home_team}</p>
+                                        {liveInfo && liveInfo.home_score !== null && liveInfo.away_score !== null && (() => {
+                                          const sl = statusLabel(liveInfo.status, liveInfo.is_live);
+                                          return (
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
+                                              <span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 900, fontSize: 11, color: C.t1, background: 'rgba(255,255,255,.07)', borderRadius: 5, padding: '0 4px' }}>
+                                                {liveInfo.home_score}–{liveInfo.away_score}
+                                              </span>
+                                              {sl && <span style={{ fontSize: 9, fontWeight: 900, borderRadius: 3, padding: '1px 4px', background: liveInfo.is_live ? 'rgba(63,255,33,.12)' : 'rgba(255,255,255,.04)', color: sl.color, border: `1px solid ${sl.color}33` }}>{sl.text}</span>}
+                                            </div>
+                                          );
+                                        })()}
+                                      </div>
                                         {dg && dgRgb2 && dgCol2 && (
                                           <Tip text={`Score DG: ${dg.dg_score}. Classificação: ${dg.dg_classification}. Profit estimado: ${dg.dg_profit_pct != null ? '+' + dg.dg_profit_pct.toFixed(2) + '%' : '—'}.`}>
                                             <span style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 4, borderRadius: 4, padding: '1px 5px', fontSize: 11, fontWeight: 900, background: `rgba(${dgRgb2},.1)`, color: dgCol2, border: `1px solid rgba(${dgRgb2},.25)`, cursor: 'default' }}>
@@ -1303,7 +1382,10 @@ export function BuscarOddsPage() {
                                           </Tip>
                                         )}
                                       </div>
-                                      <p style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 13, fontWeight: 500, color: C.t2, margin: 0 }}>{ev.away_team}</p>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
+                                        {liveInfo?.away_badge && <img src={liveInfo.away_badge} alt="" width={14} height={14} style={{ borderRadius: '50%', flexShrink: 0, objectFit: 'cover' }} />}
+                                        <p style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 13, fontWeight: 500, color: C.t2, margin: 0 }}>{liveInfo?.away_team_pt ?? ev.away_team}</p>
+                                      </div>
                                       <p style={{ fontSize: 11, color: C.t3, margin: 0 }}>{ev.bookmakers.length} casas{isMFav ? ' · ⭐' : ''}</p>
                                     </div>
                                     <BestOddCell bk={bkH} type="home" flash={isFlash} trend={trendBk(bkH, 'home')} />
