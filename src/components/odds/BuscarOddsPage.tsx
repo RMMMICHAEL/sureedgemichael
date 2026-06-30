@@ -1073,9 +1073,12 @@ export function BuscarOddsPage() {
   // ── Filtered + sorted ──────────────────────────────────────────────────────
   const filtered = useMemo(() => {
     const now = Date.now();
+    const isPlaceholder = (name: string) =>
+      /^(\d+)[A-Z]+(?:\s*\([^)]+\))?$/.test(name) || /^W\d+$/.test(name) || /^RU\d+$/.test(name);
     let evs = allOdds
       .filter(ev => !isExcluded(ev.league_name ?? ''))
       .filter(ev => { try { return new Date(ev.start_time).getTime() + GAME_MS > now; } catch { return true; } })
+      .filter(ev => !isPlaceholder(ev.home_team) && !isPlaceholder(ev.away_team))
       .filter(ev => leagueFilter.size === 0 || leagueFilter.has(ev.league_name))
       .filter(ev => {
         if (paFilter === 'AMBOS_PA') return paSideCount(ev) >= 2;
