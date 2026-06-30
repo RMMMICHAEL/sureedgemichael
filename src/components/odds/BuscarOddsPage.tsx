@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom';
 import {
   X, ScanSearch, ChevronLeft, ExternalLink, ArrowDown, RefreshCw, Zap,
   TrendingUp, ChevronDown, Star, Check, Trophy, PlayCircle,
-  LayoutGrid, List, Search, Radio, Clock,
+  LayoutGrid, List, Search, Radio, Clock, TrendingDown, ChevronUp,
 } from 'lucide-react';
 import { SurebetCalc }           from '@/components/calcalendario/SurebetCalc';
 import { DGOpportunitiesSection } from './DGOpportunitiesSection';
@@ -33,8 +33,8 @@ const C = {
   t3:       '#7E92A3',
 };
 
-// ─── Flash keyframes (injected once) ─────────────────────────────────────────
-const FLASH_CSS = `
+// ─── CSS injetado (flash + tooltip) ──────────────────────────────────────────
+const GLOBAL_CSS = `
 @keyframes row-flash {
   0%   { background-color: rgba(63,255,33,.13); }
   100% { background-color: transparent; }
@@ -46,10 +46,62 @@ const FLASH_CSS = `
   100% { color: inherit; transform: scale(1); }
 }
 .odd-pop { animation: odd-pop 1.2s ease-out forwards; }
+
+/* Tooltip */
+.tt { position: relative; display: inline-flex; }
+.tt .tip {
+  pointer-events: none;
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: normal;
+  width: max-content;
+  max-width: 220px;
+  background: #111827;
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 8px;
+  padding: 6px 9px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: #c8d6e5;
+  font-weight: 500;
+  z-index: 9999;
+  opacity: 0;
+  transition: opacity .15s;
+  box-shadow: 0 8px 28px rgba(0,0,0,.6);
+}
+.tt:hover .tip { opacity: 1; }
+.tt .tip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: rgba(255,255,255,.12);
+}
+
+/* Card expand animation */
+@keyframes card-expand {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.card-expanded-rows { animation: card-expand .2s ease-out forwards; }
 `;
 
-function FlashStyles() {
-  return <style dangerouslySetInnerHTML={{ __html: FLASH_CSS }} />;
+function GlobalStyles() {
+  return <style dangerouslySetInnerHTML={{ __html: GLOBAL_CSS }} />;
+}
+
+// ─── Tooltip wrapper ──────────────────────────────────────────────────────────
+function Tip({ text, children }: { text: string; children: React.ReactNode }) {
+  return (
+    <span className="tt">
+      {children}
+      <span className="tip">{text}</span>
+    </span>
+  );
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -68,6 +120,15 @@ interface DGInfo {
 type PAFilter = 'ALL' | 'AMBOS_PA' | 'APENAS_PA';
 type SortBy   = 'padrao' | 'maior_lucro' | 'menor_lucro' | 'dg_score';
 type ViewMode = 'table' | 'card';
+
+// ─── Odds trend tracking (match_id → { home, draw, away }) ───────────────────
+type OddSnapshot = Record<string, { home: number; draw: number; away: number }>;
+type OddTrend    = 'up' | 'down' | 'same';
+function getOddTrend(prev: number, curr: number): OddTrend {
+  if (curr > prev + 0.005)  return 'up';
+  if (curr < prev - 0.005) return 'down';
+  return 'same';
+}
 
 // ─── PA helpers ───────────────────────────────────────────────────────────────
 const PA_SET = new Set([
@@ -207,6 +268,13 @@ interface CalcSlot { bk: BookmakerOdds; type: OddType; value: number }
 const SLOT_COLORS = ['#3FFF21', '#4DA6FF', '#FF9F0A'];
 const SLOT_LABELS = ['1ª', '2ª', '3ª'];
 
+// ─── TrendArrow ───────────────────────────────────────────────────────────────
+function TrendArrow({ trend }: { trend: OddTrend }) {
+  if (trend === 'up')   return <TrendingUp   size={10} style={{ color: C.green, flexShrink: 0 }} />;
+  if (trend === 'down') return <TrendingDown  size={10} style={{ color: C.red,   flexShrink: 0 }} />;
+  return null;
+}
+
 // ─── ScoreRing ────────────────────────────────────────────────────────────────
 function ScoreRing({ score, classification }: { score: number | null; classification: string | null }) {
   const r     = 22;
@@ -214,26 +282,28 @@ function ScoreRing({ score, classification }: { score: number | null; classifica
   const pct   = score != null ? Math.min(score, 100) / 100 : 0;
   const color = dgColor(classification);
   return (
-    <div style={{ position: 'relative', width: 56, height: 56, flexShrink: 0 }}>
-      <svg width="56" height="56" viewBox="0 0 56 56" style={{ transform: 'rotate(-90deg)' }}>
-        <circle cx="28" cy="28" r={r} fill="none" stroke="rgba(255,255,255,.07)" strokeWidth="3.5" />
-        <circle
-          cx="28" cy="28" r={r} fill="none" stroke={color}
-          strokeWidth="3.5" strokeDasharray={circ}
-          strokeDashoffset={circ * (1 - pct)} strokeLinecap="round"
-          style={{ transition: 'stroke-dashoffset .6s ease-out' }}
-        />
-      </svg>
-      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <span style={{ fontSize: 15, fontWeight: 900, color, lineHeight: 1 }}>{score ?? '—'}</span>
+    <Tip text="Score DG: pontuação do Duplo Green Engine (0–100). Quanto maior, maior a probabilidade de lucro identificada pelo algoritmo.">
+      <div style={{ position: 'relative', width: 56, height: 56, flexShrink: 0 }}>
+        <svg width="56" height="56" viewBox="0 0 56 56" style={{ transform: 'rotate(-90deg)' }}>
+          <circle cx="28" cy="28" r={r} fill="none" stroke="rgba(255,255,255,.07)" strokeWidth="3.5" />
+          <circle
+            cx="28" cy="28" r={r} fill="none" stroke={color}
+            strokeWidth="3.5" strokeDasharray={circ}
+            strokeDashoffset={circ * (1 - pct)} strokeLinecap="round"
+            style={{ transition: 'stroke-dashoffset .6s ease-out' }}
+          />
+        </svg>
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <span style={{ fontSize: 15, fontWeight: 900, color, lineHeight: 1 }}>{score ?? '—'}</span>
+        </div>
       </div>
-    </div>
+    </Tip>
   );
 }
 
 // ─── BestOddCell ──────────────────────────────────────────────────────────────
-function BestOddCell({ bk, type, showPaBadge, flash }: {
-  bk: BookmakerOdds | null; type: OddType; showPaBadge?: boolean; flash?: boolean;
+function BestOddCell({ bk, type, showPaBadge, flash, trend }: {
+  bk: BookmakerOdds | null; type: OddType; showPaBadge?: boolean; flash?: boolean; trend?: OddTrend;
 }) {
   if (!bk) return (
     <div style={{ display: 'flex', height: 52, alignItems: 'center', justifyContent: 'center', borderRadius: 8, background: 'rgba(255,255,255,.02)', border: '1px solid rgba(255,255,255,.05)' }}>
@@ -249,28 +319,36 @@ function BestOddCell({ bk, type, showPaBadge, flash }: {
       ...(pa ? { background: 'rgba(63,255,33,.08)', border: '1px solid rgba(63,255,33,.28)' }
              : { background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.08)' }),
     }}>
-      <span className={flash ? 'odd-pop' : ''} style={{ fontSize: 15, fontWeight: 900, fontVariantNumeric: 'tabular-nums', color: pa ? C.green : C.t2 }}>
-        {val.toFixed(2)}
-      </span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+        <span className={flash ? 'odd-pop' : ''} style={{ fontSize: 15, fontWeight: 900, fontVariantNumeric: 'tabular-nums', color: pa ? C.green : C.t2 }}>
+          {val.toFixed(2)}
+        </span>
+        {trend && trend !== 'same' && <TrendArrow trend={trend} />}
+      </div>
       <span style={{ maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: '0 8px', fontSize: 11, color: C.t3 }}>
         {bk.name}
       </span>
-      <span style={{
-        position: 'absolute', top: -4, right: -4, borderRadius: 4, padding: '1px 3px', fontSize: 10, fontWeight: 700,
-        ...(pa ? { background: C.greenDim, color: C.green, border: `1px solid ${C.greenB}` }
-               : { background: 'rgba(255,255,255,.04)', color: C.t3, border: '1px solid rgba(255,255,255,.1)' }),
-      }}>
-        {pa ? 'PA' : 'SO'}
-      </span>
+      <Tip text={pa
+        ? 'PA — casa com Pagamento Antecipado: paga antes do resultado. Ideal para Duplo Green.'
+        : 'SO — casa Somente Online: paga após o resultado. Odds geralmente mais altas.'}>
+        <span style={{
+          position: 'absolute', top: -4, right: -4, borderRadius: 4, padding: '1px 3px', fontSize: 10, fontWeight: 700, cursor: 'default',
+          ...(pa ? { background: C.greenDim, color: C.green, border: `1px solid ${C.greenB}` }
+                 : { background: 'rgba(255,255,255,.04)', color: C.t3, border: '1px solid rgba(255,255,255,.1)' }),
+        }}>
+          {pa ? 'PA' : 'SO'}
+        </span>
+      </Tip>
     </div>
   );
 }
 
 // ─── OddBtn ───────────────────────────────────────────────────────────────────
-function OddBtn({ bk, type, value, sectionBests, slots, onOddClick }: {
+function OddBtn({ bk, type, value, sectionBests, slots, onOddClick, trend }: {
   bk: BookmakerOdds; type: OddType; value: number;
   sectionBests: Record<OddType, number>; slots: (CalcSlot|null)[];
   onOddClick: (bk: BookmakerOdds, type: OddType, value: number) => void;
+  trend?: OddTrend;
 }) {
   const si    = slots.findIndex(s => s?.bk.slug === bk.slug && s?.type === type);
   const sel   = si >= 0;
@@ -290,8 +368,11 @@ function OddBtn({ bk, type, value, sectionBests, slots, onOddClick }: {
 
   return (
     <button type="button" onClick={() => onOddClick(bk, type, value)}
-      style={{ position: 'relative', display: 'flex', height: 40, width: 72, alignItems: 'center', justifyContent: 'center', borderRadius: 10, fontFamily: 'monospace', fontSize: 13, fontWeight: 700, cursor: 'pointer', transition: 'opacity .15s', ...base }}>
-      {value.toFixed(2)}
+      style={{ position: 'relative', display: 'flex', height: 40, width: 72, flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1, borderRadius: 10, fontFamily: 'monospace', fontSize: 13, fontWeight: 700, cursor: 'pointer', transition: 'opacity .15s', ...base }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+        {value.toFixed(2)}
+        {trend && trend !== 'same' && <TrendArrow trend={trend} />}
+      </div>
       {sel && (
         <span style={{ position: 'absolute', top: -5, right: -5, width: 15, height: 15, borderRadius: '50%', background: sc, color: '#060A07', fontSize: 11, fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           {si + 1}
@@ -302,9 +383,10 @@ function OddBtn({ bk, type, value, sectionBests, slots, onOddClick }: {
 }
 
 // ─── OddsSection ──────────────────────────────────────────────────────────────
-function OddsSection({ label, bks, accent, slots, onOddClick }: {
+function OddsSection({ label, bks, accent, slots, onOddClick, prevSnap }: {
   label: string; bks: BookmakerOdds[]; accent: string;
   slots: (CalcSlot|null)[]; onOddClick: (bk: BookmakerOdds, type: OddType, value: number) => void;
+  prevSnap?: OddSnapshot;
 }) {
   const [sortCol, setSortCol] = useState<'home'|'draw'|'away'>('home');
   if (!bks.length) return null;
@@ -318,6 +400,13 @@ function OddsSection({ label, bks, accent, slots, onOddClick }: {
   const cols: { key: 'home'|'draw'|'away'; label: string }[] = [
     { key: 'home', label: 'Casa (1)' }, { key: 'draw', label: 'Empate (X)' }, { key: 'away', label: 'Fora (2)' },
   ];
+
+  function trendFor(bk: BookmakerOdds, t: OddType): OddTrend {
+    const prev = prevSnap?.[bk.slug];
+    if (!prev) return 'same';
+    return getOddTrend(prev[t], bk[t] as number);
+  }
+
   return (
     <div style={{ overflow: 'hidden', borderRadius: 16, background: `rgba(${acRgb},.03)`, border: `1px solid rgba(${acRgb},.2)`, boxShadow: '0 4px 24px rgba(0,0,0,.3)' }}>
       <div style={{ height: 2, background: `linear-gradient(90deg,${accent} 0%,${accent}44 60%,transparent 100%)` }} />
@@ -350,11 +439,15 @@ function OddsSection({ label, bks, accent, slots, onOddClick }: {
                 ) : (
                   <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 13, fontWeight: 600, color: C.t2 }}>{bk.name}</span>
                 )}
-                {pa && <span style={{ fontSize: 11, fontWeight: 700, borderRadius: 4, padding: '1px 4px', background: C.amberDim, color: C.amber, border: `1px solid ${C.amberB}`, flexShrink: 0 }}>PA</span>}
+                {pa && (
+                  <Tip text="Casa com Pagamento Antecipado: paga antes do resultado, ideal para estratégia Duplo Green.">
+                    <span style={{ fontSize: 11, fontWeight: 700, borderRadius: 4, padding: '1px 4px', background: C.amberDim, color: C.amber, border: `1px solid ${C.amberB}`, flexShrink: 0, cursor: 'default' }}>PA</span>
+                  </Tip>
+                )}
               </div>
-              <OddBtn bk={bk} type="home" value={bk.home} sectionBests={bests} slots={slots} onOddClick={onOddClick} />
-              <OddBtn bk={bk} type="draw" value={bk.draw} sectionBests={bests} slots={slots} onOddClick={onOddClick} />
-              <OddBtn bk={bk} type="away" value={bk.away} sectionBests={bests} slots={slots} onOddClick={onOddClick} />
+              <OddBtn bk={bk} type="home" value={bk.home} sectionBests={bests} slots={slots} onOddClick={onOddClick} trend={trendFor(bk, 'home')} />
+              <OddBtn bk={bk} type="draw" value={bk.draw} sectionBests={bests} slots={slots} onOddClick={onOddClick} trend={trendFor(bk, 'draw')} />
+              <OddBtn bk={bk} type="away" value={bk.away} sectionBests={bests} slots={slots} onOddClick={onOddClick} trend={trendFor(bk, 'away')} />
             </div>
           );
         })}
@@ -364,19 +457,22 @@ function OddsSection({ label, bks, accent, slots, onOddClick }: {
 }
 
 // ─── MatchCard (card view) ────────────────────────────────────────────────────
-function MatchCard({ ev, dgInfo, isNew, isFlash, isFav, onSelect, onToggleFav }: {
-  ev: OddsSummary; dgInfo: DGInfo | null; isNew: boolean; isFlash: boolean;
+function MatchCard({ ev, dgInfo, isFlash, isFav, onSelect, onToggleFav, prevSnap }: {
+  ev: OddsSummary; dgInfo: DGInfo | null; isFlash: boolean;
   isFav: boolean; onSelect: () => void; onToggleFav: () => void;
+  prevSnap?: OddSnapshot;
 }) {
-  const mgn     = calcMargin(ev.bookmakers);
-  const isSure  = mgn !== null && mgn < 0;
-  const bkH     = bestBk(ev.bookmakers, 'home');
-  const bkD     = bestBk(ev.bookmakers, 'draw');
-  const bkA     = bestBk(ev.bookmakers, 'away');
-  const paCnt   = paSideCount(ev);
-  const hasDg   = dgInfo != null;
-  const dgCol   = hasDg ? dgColor(dgInfo!.dg_classification) : null;
-  const dgRgb2  = hasDg ? dgRGB(dgInfo!.dg_classification) : null;
+  const [expanded, setExpanded] = useState(false);
+
+  const mgn    = calcMargin(ev.bookmakers);
+  const isSure = mgn !== null && mgn < 0;
+  const bkH    = bestBk(ev.bookmakers, 'home');
+  const bkD    = bestBk(ev.bookmakers, 'draw');
+  const bkA    = bestBk(ev.bookmakers, 'away');
+  const paCnt  = paSideCount(ev);
+  const hasDg  = dgInfo != null;
+  const dgCol  = hasDg ? dgColor(dgInfo!.dg_classification) : null;
+  const dgRgb2 = hasDg ? dgRGB(dgInfo!.dg_classification) : null;
 
   const borderCol = isFlash
     ? C.green
@@ -384,10 +480,16 @@ function MatchCard({ ev, dgInfo, isNew, isFlash, isFav, onSelect, onToggleFav }:
     : isSure ? `rgba(63,255,33,.25)`
     : C.surfB;
 
-  const OddBox = ({ bk, type }: { bk: BookmakerOdds | null; type: OddType }) => {
+  function trendFor(bk: BookmakerOdds | null, t: OddType): OddTrend {
+    if (!bk || !prevSnap?.[bk.slug]) return 'same';
+    return getOddTrend(prevSnap[bk.slug][t], bk[t] as number);
+  }
+
+  function OddBox({ bk, type }: { bk: BookmakerOdds | null; type: OddType }) {
     if (!bk) return <div style={{ flex: 1, height: 62, borderRadius: 8, background: 'rgba(255,255,255,.02)', border: '1px solid rgba(255,255,255,.05)' }} />;
-    const val = bk[type] as number;
-    const pa  = isBkPA(bk);
+    const val   = bk[type] as number;
+    const pa    = isBkPA(bk);
+    const trend = trendFor(bk, type);
     return (
       <div style={{
         flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
@@ -395,16 +497,28 @@ function MatchCard({ ev, dgInfo, isNew, isFlash, isFav, onSelect, onToggleFav }:
         ...(pa ? { background: 'rgba(63,255,33,.07)', border: '1px solid rgba(63,255,33,.22)' }
                : { background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.07)' }),
       }}>
-        <span className={isFlash ? 'odd-pop' : ''} style={{ fontSize: 16, fontWeight: 900, fontVariantNumeric: 'tabular-nums', color: pa ? C.green : C.t1 }}>
-          {val > 1 ? val.toFixed(2) : '—'}
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+          <span className={isFlash ? 'odd-pop' : ''} style={{ fontSize: 16, fontWeight: 900, fontVariantNumeric: 'tabular-nums', color: pa ? C.green : C.t1 }}>
+            {val > 1 ? val.toFixed(2) : '—'}
+          </span>
+          {trend !== 'same' && <TrendArrow trend={trend} />}
+        </div>
         <span style={{ fontSize: 10, color: C.t3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%', padding: '0 2px', textAlign: 'center' }}>
           {bk.name}
         </span>
-        {pa && <span style={{ fontSize: 9, fontWeight: 900, borderRadius: 3, padding: '0 3px', background: C.greenDim, color: C.green, border: `1px solid ${C.greenB}` }}>PA</span>}
+        {pa && (
+          <Tip text="Casa com Pagamento Antecipado — paga antes do resultado.">
+            <span style={{ fontSize: 9, fontWeight: 900, borderRadius: 3, padding: '0 3px', background: C.greenDim, color: C.green, border: `1px solid ${C.greenB}`, cursor: 'default' }}>PA</span>
+          </Tip>
+        )}
       </div>
     );
-  };
+  }
+
+  // Todas as casas para o painel expandido
+  const comPa  = ev.bookmakers.filter(b => isBkPA(b));
+  const semPa  = ev.bookmakers.filter(b => !isBkPA(b));
+  const allBks = [...comPa, ...semPa];
 
   return (
     <div
@@ -416,19 +530,26 @@ function MatchCard({ ev, dgInfo, isNew, isFlash, isFav, onSelect, onToggleFav }:
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '14px 16px 10px' }}>
         {hasDg && <ScoreRing score={dgInfo!.dg_score} classification={dgInfo!.dg_classification} />}
         {!hasDg && (
-          <div style={{ width: 56, height: 56, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.08)' }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: C.t3 }}>{ev.bookmakers.length}</span>
-          </div>
+          <Tip text="Número de casas disponíveis para este jogo.">
+            <div style={{ width: 56, height: 56, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.08)', cursor: 'default' }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: C.t3 }}>{ev.bookmakers.length}</span>
+            </div>
+          </Tip>
         )}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' as const, marginBottom: 3 }}>
-            {isNew && <span style={{ fontSize: 10, fontWeight: 900, borderRadius: 99, padding: '1px 6px', background: C.greenDim, color: C.green, border: `1px solid ${C.greenB}` }}>NOVO</span>}
             {hasDg && dgCol && dgRgb2 && (
-              <span style={{ fontSize: 10, fontWeight: 900, borderRadius: 99, padding: '1px 6px', background: `rgba(${dgRgb2},.12)`, color: dgCol, border: `1px solid rgba(${dgRgb2},.3)` }}>
-                {dgInfo!.dg_classification}
-              </span>
+              <Tip text={`Classificação DG: ${dgInfo!.dg_classification}. O algoritmo Duplo Green avaliou este jogo como oportunidade de ${dgInfo!.dg_classification === 'ALTA' ? 'alto' : 'médio'} potencial.`}>
+                <span style={{ fontSize: 10, fontWeight: 900, borderRadius: 99, padding: '1px 6px', background: `rgba(${dgRgb2},.12)`, color: dgCol, border: `1px solid rgba(${dgRgb2},.3)`, cursor: 'default' }}>
+                  {dgInfo!.dg_classification}
+                </span>
+              </Tip>
             )}
-            {paCnt >= 2 && <span style={{ fontSize: 10, fontWeight: 900, borderRadius: 99, padding: '1px 6px', background: C.greenDim, color: C.green, border: `1px solid ${C.greenB}` }}>PA×2</span>}
+            {paCnt >= 2 && (
+              <Tip text="Ambos os lados (Casa e Fora) têm a melhor odd em casas com Pagamento Antecipado — situação ideal para Duplo Green.">
+                <span style={{ fontSize: 10, fontWeight: 900, borderRadius: 99, padding: '1px 6px', background: C.greenDim, color: C.green, border: `1px solid ${C.greenB}`, cursor: 'default' }}>PA×2</span>
+              </Tip>
+            )}
           </div>
           <div style={{ fontSize: 14, fontWeight: 800, color: C.t1, lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {ev.home_team} <span style={{ color: C.t3, fontWeight: 500 }}>x</span> {ev.away_team}
@@ -440,17 +561,23 @@ function MatchCard({ ev, dgInfo, isNew, isFlash, isFav, onSelect, onToggleFav }:
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
           {mgn !== null && (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: C.t3, lineHeight: 1 }}>MARGEM</span>
-              <span style={{ fontSize: 16, fontWeight: 900, color: marginColor(mgn), lineHeight: 1.2, fontVariantNumeric: 'tabular-nums' }}>
-                {isSure ? `+${Math.abs(mgn).toFixed(2)}%` : `${mgn.toFixed(1)}%`}
-              </span>
-              {hasDg && dgInfo!.dg_profit_pct != null && (
-                <>
-                  <span style={{ fontSize: 10, fontWeight: 700, color: C.t3, lineHeight: 1, marginTop: 4 }}>DG PROFIT</span>
-                  <span style={{ fontSize: 14, fontWeight: 900, color: C.green, lineHeight: 1.2, fontVariantNumeric: 'tabular-nums' }}>
-                    +{dgInfo!.dg_profit_pct.toFixed(2)}%
+              <Tip text="Margem: soma das probabilidades implícitas menos 1. Negativa = surebet (lucro garantido). Quanto menor, mais justo o mercado.">
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', cursor: 'default' }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: C.t3, lineHeight: 1 }}>MARGEM</span>
+                  <span style={{ fontSize: 16, fontWeight: 900, color: marginColor(mgn), lineHeight: 1.2, fontVariantNumeric: 'tabular-nums' }}>
+                    {isSure ? `+${Math.abs(mgn).toFixed(2)}%` : `${mgn.toFixed(1)}%`}
                   </span>
-                </>
+                </div>
+              </Tip>
+              {hasDg && dgInfo!.dg_profit_pct != null && (
+                <Tip text="DG Profit: percentual de lucro estimado pelo Duplo Green Engine caso a oportunidade seja aproveitada corretamente.">
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', marginTop: 4, cursor: 'default' }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: C.t3, lineHeight: 1 }}>DG PROFIT</span>
+                    <span style={{ fontSize: 14, fontWeight: 900, color: C.green, lineHeight: 1.2, fontVariantNumeric: 'tabular-nums' }}>
+                      +{dgInfo!.dg_profit_pct.toFixed(2)}%
+                    </span>
+                  </div>
+                </Tip>
               )}
             </div>
           )}
@@ -461,28 +588,72 @@ function MatchCard({ ev, dgInfo, isNew, isFlash, isFav, onSelect, onToggleFav }:
         </div>
       </div>
 
-      {/* Odds boxes */}
-      <div style={{ display: 'flex', gap: 6, padding: '0 16px 14px' }}>
+      {/* Odds boxes (melhores) */}
+      <div style={{ display: 'flex', gap: 6, padding: '0 16px 10px' }}>
         <OddBox bk={bkH} type="home" />
         <OddBox bk={bkD} type="draw" />
         <OddBox bk={bkA} type="away" />
       </div>
 
-      {/* Footer action */}
-      <button onClick={onSelect}
-        style={{ display: 'flex', width: '100%', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '10px 16px', background: 'rgba(255,255,255,.02)', borderTop: `1px solid ${C.surfB}`, borderLeft: 'none', borderRight: 'none', borderBottom: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, color: C.t2, transition: 'background .15s' }}
-        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,.05)'; }}
-        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,.02)'; }}>
-        <Zap size={11} style={{ color: C.green }} />
-        Ver {ev.bookmakers.length} casas e calcular
-      </button>
+      {/* Painel expandido — todas as casas */}
+      {expanded && (
+        <div className="card-expanded-rows" style={{ borderTop: `1px solid ${C.surfB}`, padding: '0 16px 12px' }}>
+          <p style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: C.t3, margin: '10px 0 8px' }}>Todas as {ev.bookmakers.length} casas</p>
+          {allBks.map((bk, i) => {
+            const pa     = isBkPA(bk);
+            const hTrend = prevSnap?.[bk.slug] ? getOddTrend(prevSnap[bk.slug].home, bk.home) : 'same' as OddTrend;
+            const dTrend = prevSnap?.[bk.slug] ? getOddTrend(prevSnap[bk.slug].draw, bk.draw) : 'same' as OddTrend;
+            const aTrend = prevSnap?.[bk.slug] ? getOddTrend(prevSnap[bk.slug].away, bk.away) : 'same' as OddTrend;
+            return (
+              <div key={bk.slug} style={{
+                display: 'grid', gridTemplateColumns: '1fr 52px 52px 52px', alignItems: 'center', gap: 6,
+                padding: '7px 0', borderTop: i > 0 ? `1px solid rgba(255,255,255,.04)` : undefined,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                  {bk.url
+                    ? <a href={bk.url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, fontWeight: 600, color: C.t2, textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{bk.name}</a>
+                    : <span style={{ fontSize: 12, fontWeight: 600, color: C.t2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{bk.name}</span>
+                  }
+                  {pa && <Tip text="Casa com Pagamento Antecipado."><span style={{ fontSize: 9, fontWeight: 900, borderRadius: 3, padding: '0 3px', background: C.amberDim, color: C.amber, border: `1px solid ${C.amberB}`, cursor: 'default', flexShrink: 0 }}>PA</span></Tip>}
+                </div>
+                {([['home', hTrend], ['draw', dTrend], ['away', aTrend]] as [OddType, OddTrend][]).map(([t, trend]) => {
+                  const val = bk[t] as number;
+                  return (
+                    <div key={t} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2, height: 36, borderRadius: 6, ...(pa ? { background: 'rgba(63,255,33,.06)', border: '1px solid rgba(63,255,33,.18)' } : { background: 'rgba(255,255,255,.03)', border: `1px solid rgba(255,255,255,.07)` }) }}>
+                      <span style={{ fontSize: 12, fontWeight: 800, fontVariantNumeric: 'tabular-nums', color: pa ? C.green : val > 1 ? C.t1 : C.t3 }}>{val > 1 ? val.toFixed(2) : '—'}</span>
+                      {trend !== 'same' && <TrendArrow trend={trend} />}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Footer actions */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', borderTop: `1px solid ${C.surfB}` }}>
+        <button onClick={() => setExpanded(e => !e)}
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, padding: '9px 8px', background: expanded ? 'rgba(255,255,255,.04)' : 'rgba(255,255,255,.02)', borderRight: `1px solid ${C.surfB}`, borderLeft: 'none', borderTop: 'none', borderBottom: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, color: expanded ? C.t1 : C.t2 }}>
+          {expanded ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+          {expanded ? 'Recolher' : `${ev.bookmakers.length} casas`}
+        </button>
+        <button onClick={onSelect}
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, padding: '9px 8px', background: 'rgba(255,255,255,.02)', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, color: C.t2 }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,.05)'; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,.02)'; }}>
+          <Zap size={11} style={{ color: C.green }} />
+          Calcular
+        </button>
+      </div>
     </div>
   );
 }
 
 // ─── EventOddsPanel ───────────────────────────────────────────────────────────
-function EventOddsPanel({ event, onBack, onRefresh, dgInfo }: {
+function EventOddsPanel({ event, onBack, onRefresh, dgInfo, prevSnap }: {
   event: OddsSummary; onBack: () => void; onRefresh: () => void; dgInfo?: DGInfo | null;
+  prevSnap?: OddSnapshot;
 }) {
   const [slots, setSlots]       = useState<(CalcSlot|null)[]>([null, null, null]);
   const [calcFill, setCalcFill] = useState<{ odds: string[]; houses: string[]; urls: string[] } | null>(null);
@@ -531,18 +702,20 @@ function EventOddsPanel({ event, onBack, onRefresh, dgInfo }: {
           <div style={{ fontSize: 11, color: C.t3, marginTop: 2 }}>{event.league_name} · {fmtTime(event.start_time)}</div>
         </div>
         {dgInfo && dgRgb2 && dgCol2 && (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', borderRadius: 10, padding: '6px 12px', background: `rgba(${dgRgb2},.1)`, border: `1px solid rgba(${dgRgb2},.3)`, flexShrink: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <Zap size={9} style={{ color: dgCol2 }} />
-              <span style={{ fontSize: 18, fontWeight: 900, color: dgCol2 }}>{dgInfo.dg_score ?? '—'}</span>
+          <Tip text={`Score DG: ${dgInfo.dg_score}. DG Profit estimado: ${dgInfo.dg_profit_pct != null ? '+' + dgInfo.dg_profit_pct.toFixed(2) + '%' : '—'}. Classificação: ${dgInfo.dg_classification}.`}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', borderRadius: 10, padding: '6px 12px', background: `rgba(${dgRgb2},.1)`, border: `1px solid rgba(${dgRgb2},.3)`, flexShrink: 0, cursor: 'default' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <Zap size={9} style={{ color: dgCol2 }} />
+                <span style={{ fontSize: 18, fontWeight: 900, color: dgCol2 }}>{dgInfo.dg_score ?? '—'}</span>
+              </div>
+              <span style={{ fontSize: 10, fontWeight: 900, textTransform: 'uppercase' as const, color: `rgba(${dgRgb2},.5)` }}>DG score</span>
+              {dgInfo.dg_profit_pct != null && (
+                <span style={{ fontSize: 11, fontWeight: 700, marginTop: 2, color: dgInfo.dg_profit_pct >= 0 ? C.green : C.red }}>
+                  {dgInfo.dg_profit_pct >= 0 ? '+' : ''}{dgInfo.dg_profit_pct.toFixed(1)}%
+                </span>
+              )}
             </div>
-            <span style={{ fontSize: 10, fontWeight: 900, textTransform: 'uppercase' as const, color: `rgba(${dgRgb2},.5)` }}>DG score</span>
-            {dgInfo.dg_profit_pct != null && (
-              <span style={{ fontSize: 11, fontWeight: 700, marginTop: 2, color: dgInfo.dg_profit_pct >= 0 ? C.green : C.red }}>
-                {dgInfo.dg_profit_pct >= 0 ? '+' : ''}{dgInfo.dg_profit_pct.toFixed(1)}%
-              </span>
-            )}
-          </div>
+          </Tip>
         )}
         <button onClick={onRefresh} style={{ display: 'flex', alignItems: 'center', gap: 6, borderRadius: 10, padding: '6px 12px', fontSize: 11, fontWeight: 700, background: C.purpleDim, color: C.purple, border: `1px solid ${C.purpleB}`, cursor: 'pointer', flexShrink: 0 }}>
           <RefreshCw size={11} /> Atualizar
@@ -578,8 +751,8 @@ function EventOddsPanel({ event, onBack, onRefresh, dgInfo }: {
       </div>
 
       <p style={{ fontSize: 11, color: C.t3, paddingLeft: 4 }}>Clique em qualquer odd para adicionar à calculadora · max 3 slots</p>
-      <OddsSection label="Com Pagamento Antecipado (PA)" bks={comPa} accent={C.amber} slots={slots} onOddClick={handleOddClick} />
-      <OddsSection label="Sem Pagamento Antecipado" bks={semPa} accent={C.purple} slots={slots} onOddClick={handleOddClick} />
+      <OddsSection label="Com Pagamento Antecipado (PA)" bks={comPa} accent={C.amber} slots={slots} onOddClick={handleOddClick} prevSnap={prevSnap} />
+      <OddsSection label="Sem Pagamento Antecipado" bks={semPa} accent={C.purple} slots={slots} onOddClick={handleOddClick} prevSnap={prevSnap} />
     </div>
   );
 }
@@ -709,19 +882,34 @@ export function BuscarOddsPage() {
   const [dgMap,           setDgMap]           = useState<Map<string, DGInfo>>(new Map());
   const [showTutorial,    setShowTutorial]    = useState(false);
   const [tick,            setTick]            = useState(0);
-  const newMatchIds = useRef<Set<string>>(new Set());
+
+  // ── Odds trend: snapshot das odds anteriores ────────────────────────────────
+  // matchId → { slugCasa → { home, draw, away } }
+  const [oddsPrevSnap, setOddsPrevSnap] = useState<Map<string, OddSnapshot>>(new Map());
 
   // ── SSE ────────────────────────────────────────────────────────────────────
   const { odds: rawOdds, loading, error: oddsError, connected, lastUpdate, recentlyUpdated } = useOdds();
   const allOdds  = rawOdds as unknown as OddsSummary[];
   const fetchErr = oddsError ?? '';
 
-  // Track newly seen match IDs
+  // Quando uma partida é atualizada via SSE, salva snapshot das odds anteriores
   useEffect(() => {
-    if (!allOdds.length) return;
-    const prevIds = newMatchIds.current;
-    allOdds.forEach(ev => { if (!prevIds.has(ev.match_id)) prevIds.add(ev.match_id); });
-  }, [allOdds]);
+    if (!recentlyUpdated.size) return;
+    setOddsPrevSnap(prevMap => {
+      const next = new Map(prevMap);
+      for (const matchId of recentlyUpdated) {
+        const ev = allOdds.find(e => e.match_id === matchId);
+        if (!ev) continue;
+        const snap: OddSnapshot = {};
+        for (const bk of ev.bookmakers) {
+          snap[bk.slug] = { home: bk.home, draw: bk.draw, away: bk.away };
+        }
+        next.set(matchId, snap);
+      }
+      return next;
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recentlyUpdated]);
 
   // Tick for "updated X ago"
   useEffect(() => { const id = setInterval(() => setTick(t => t + 1), 10_000); return () => clearInterval(id); }, []);
@@ -797,10 +985,9 @@ export function BuscarOddsPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allOdds, leagueFilter, paFilter, searchQ]);
 
-  // Counts for filter chips
-  const cntAll     = useMemo(() => filtered.length, [filtered]);
-  const cntAmbosPA = useMemo(() => filtered.filter(ev => paSideCount(ev) >= 2).length, [filtered]);
-  const cntApenasPA = useMemo(() => filtered.filter(ev => paSideCount(ev) > 0).length, [filtered]);
+  const cntAll      = filtered.length;
+  const cntAmbosPA  = useMemo(() => filtered.filter(ev => paSideCount(ev) >= 2).length, [filtered]);
+  const cntApenasPA = useMemo(() => filtered.filter(ev => paSideCount(ev) > 0).length,  [filtered]);
   const hasFilter   = paFilter !== 'ALL' || leagueFilter.size > 0 || searchQ.trim().length > 0;
 
   // ── Grouped by league ──────────────────────────────────────────────────────
@@ -811,39 +998,40 @@ export function BuscarOddsPage() {
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(ev);
     }
-    const entries = Array.from(map.entries()).map(([lg, evs]) => {
-      const sorted = sortMatches(evs, sortBy, dgMap);
-      return [lg, sorted] as [string, OddsSummary[]];
-    });
-    return entries.sort((a, b) => {
-      const aFav = leagueFav.has(a[0]), bFav = leagueFav.has(b[0]);
-      if (aFav !== bFav) return aFav ? -1 : 1;
-      const aBr = a[0].toLowerCase().includes('brasil') || a[0].toLowerCase().includes('série');
-      const bBr = b[0].toLowerCase().includes('brasil') || b[0].toLowerCase().includes('série');
-      if (aBr && !bBr) return -1; if (!aBr && bBr) return 1;
-      return a[0].localeCompare(b[0]);
-    });
+    return Array.from(map.entries())
+      .map(([lg, evs]) => [lg, sortMatches(evs, sortBy, dgMap)] as [string, OddsSummary[]])
+      .sort((a, b) => {
+        const aFav = leagueFav.has(a[0]), bFav = leagueFav.has(b[0]);
+        if (aFav !== bFav) return aFav ? -1 : 1;
+        const aBr = a[0].toLowerCase().includes('brasil') || a[0].toLowerCase().includes('série');
+        const bBr = b[0].toLowerCase().includes('brasil') || b[0].toLowerCase().includes('série');
+        if (aBr && !bBr) return -1; if (!aBr && bBr) return 1;
+        return a[0].localeCompare(b[0]);
+      });
   }, [filtered, sortBy, dgMap, leagueFav]);
 
   // ── Detail view ────────────────────────────────────────────────────────────
   if (selectedEvent) {
     return (
       <>
-        <FlashStyles />
-        <EventOddsPanel event={selectedEvent} onBack={() => setSelectedEvent(null)} onRefresh={loadDGMap} dgInfo={dgMap.get(selectedEvent.match_id) ?? null} />
+        <GlobalStyles />
+        <EventOddsPanel
+          event={selectedEvent}
+          onBack={() => setSelectedEvent(null)}
+          onRefresh={loadDGMap}
+          dgInfo={dgMap.get(selectedEvent.match_id) ?? null}
+          prevSnap={oddsPrevSnap.get(selectedEvent.match_id)}
+        />
       </>
     );
   }
 
-  // ── Filter chip label helper ───────────────────────────────────────────────
-  const leagueLabel = leagueFilter.size > 0 && leagueFilter.size < allLeagues.length
-    ? `${leagueFilter.size} campeonatos`
-    : 'Campeonatos';
+  const leagueLabel  = leagueFilter.size > 0 && leagueFilter.size < allLeagues.length ? `${leagueFilter.size} campeonatos` : 'Campeonatos';
   const leagueActive = leagueFilter.size > 0 && leagueFilter.size < allLeagues.length;
 
   return (
     <>
-      <FlashStyles />
+      <GlobalStyles />
       <div style={{ display: 'flex', flexDirection: 'column', gap: 0, maxWidth: 980, margin: '0 auto' }}>
 
         {/* ── Page header ─────────────────────────────────────────────────── */}
@@ -862,7 +1050,7 @@ export function BuscarOddsPage() {
             </button>
             <div style={{ display: 'flex', alignItems: 'center', borderRadius: 10, overflow: 'hidden', background: 'rgba(255,255,255,.03)', border: `1px solid ${C.surfB}` }}>
               {([
-                { key: 'odds' as const, icon: <Zap size={12} />,       label: 'Odds',         col: '#94a3b8', bg: 'rgba(99,102,241,.1)' },
+                { key: 'odds' as const, icon: <Zap size={12} />,       label: 'Odds',            col: '#94a3b8', bg: 'rgba(99,102,241,.1)' },
                 { key: 'dg'   as const, icon: <TrendingUp size={12} />, label: 'Oportunidades DG', col: C.green,  bg: C.greenDim },
               ]).map((t, i) => (
                 <React.Fragment key={t.key}>
@@ -879,50 +1067,47 @@ export function BuscarOddsPage() {
           </div>
         </div>
 
-        {/* ── DG tab ──────────────────────────────────────────────────────── */}
         {tab === 'dg' && <DGOpportunitiesSection />}
 
-        {/* ── Odds tab ────────────────────────────────────────────────────── */}
         {tab === 'odds' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
 
             {/* ── Filter bar ──────────────────────────────────────────────── */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: '10px 14px', borderRadius: 14, background: `${C.surf}ee`, border: `1px solid ${C.surfB}`, boxShadow: '0 2px 12px rgba(0,0,0,.3)', position: 'sticky', top: 0, zIndex: 40 }}>
-              {/* Search */}
               <div style={{ position: 'relative', flexShrink: 0 }}>
                 <Search size={13} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: C.t3, pointerEvents: 'none' }} />
-                <input
-                  type="text" value={searchQ} onChange={e => setSearchQ(e.target.value)}
-                  placeholder="Buscar time ou liga…"
-                  style={{ height: 34, paddingLeft: 30, paddingRight: 10, borderRadius: 8, background: 'rgba(255,255,255,.05)', border: `1px solid ${C.surfB}`, color: C.t1, fontSize: 12, outline: 'none', width: 180 }}
-                />
+                <input type="text" value={searchQ} onChange={e => setSearchQ(e.target.value)} placeholder="Buscar time ou liga…"
+                  style={{ height: 34, paddingLeft: 30, paddingRight: 10, borderRadius: 8, background: 'rgba(255,255,255,.05)', border: `1px solid ${C.surfB}`, color: C.t1, fontSize: 12, outline: 'none', width: 180 }} />
               </div>
 
-              {/* League filter */}
               <button onClick={() => setLeagueModalOpen(true)} style={{ display: 'flex', alignItems: 'center', gap: 6, height: 34, padding: '0 12px', borderRadius: 8, background: leagueActive ? 'rgba(63,255,33,.1)' : 'rgba(255,255,255,.05)', border: `1px solid ${leagueActive ? C.greenB : C.surfB}`, color: leagueActive ? C.green : C.t2, fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
                 <Trophy size={11} />{leagueLabel}
                 {leagueActive && <span style={{ fontSize: 10, fontWeight: 900, borderRadius: 99, padding: '0 5px', background: 'rgba(63,255,33,.18)', color: C.green }}>{leagueFilter.size}/{allLeagues.length}</span>}
                 <ChevronDown size={10} style={{ opacity: .5 }} />
               </button>
 
-              {/* PA chips */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 2, borderRadius: 8, padding: 3, background: 'rgba(255,255,255,.03)', border: `1px solid ${C.surfB}` }}>
                 {([
-                  ['ALL',      'Todos',    cntAll,      C.t2,   '255,255,255'] as const,
-                  ['AMBOS_PA', 'PA 2 lados', cntAmbosPA, C.green,'63,255,33' ] as const,
-                  ['APENAS_PA','Algum PA', cntApenasPA, C.amber,'245,158,11'] as const,
+                  ['ALL',       'Todos',      cntAll,      C.t2,   '255,255,255'] as const,
+                  ['AMBOS_PA',  'PA 2 lados', cntAmbosPA,  C.green,'63,255,33'  ] as const,
+                  ['APENAS_PA', 'Algum PA',   cntApenasPA, C.amber,'245,158,11' ] as const,
                 ]).map(([v, label, cnt, col, rgb]) => {
                   const active = paFilter === v;
                   return (
-                    <button key={v} onClick={() => setPaFilter(v as PAFilter)} style={{ display: 'flex', alignItems: 'center', gap: 5, height: 28, padding: '0 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, background: active ? `rgba(${rgb},.14)` : 'transparent', color: active ? col : C.t3, border: active ? `1px solid rgba(${rgb},.35)` : '1px solid transparent', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                      {label}
-                      <span style={{ fontSize: 10, fontWeight: 900, borderRadius: 99, padding: '0 4px', background: active ? `rgba(${rgb},.18)` : 'rgba(255,255,255,.06)', color: active ? col : C.t3 }}>{cnt}</span>
-                    </button>
+                    <Tip key={v} text={
+                      v === 'ALL'       ? 'Todos os jogos disponíveis, sem filtro de PA.' :
+                      v === 'AMBOS_PA'  ? 'Apenas jogos onde AMBOS os lados (Casa e Fora) têm a melhor odd em casas com Pagamento Antecipado. Ideal para Duplo Green.' :
+                                          'Jogos onde pelo menos UM lado tem odd melhor em casa de Pagamento Antecipado.'
+                    }>
+                      <button onClick={() => setPaFilter(v as PAFilter)} style={{ display: 'flex', alignItems: 'center', gap: 5, height: 28, padding: '0 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, background: active ? `rgba(${rgb},.14)` : 'transparent', color: active ? col : C.t3, border: active ? `1px solid rgba(${rgb},.35)` : '1px solid transparent', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                        {label}
+                        <span style={{ fontSize: 10, fontWeight: 900, borderRadius: 99, padding: '0 4px', background: active ? `rgba(${rgb},.18)` : 'rgba(255,255,255,.06)', color: active ? col : C.t3 }}>{cnt}</span>
+                      </button>
+                    </Tip>
                   );
                 })}
               </div>
 
-              {/* Sort */}
               <select value={sortBy} onChange={e => setSortBy(e.target.value as SortBy)} style={{ height: 34, padding: '0 10px', borderRadius: 8, background: 'rgba(255,255,255,.05)', border: `1px solid ${C.surfB}`, color: C.t2, fontSize: 12, cursor: 'pointer', outline: 'none' }}>
                 <option value="padrao">Ordenar: Horário</option>
                 <option value="maior_lucro">Maior Lucro</option>
@@ -937,18 +1122,19 @@ export function BuscarOddsPage() {
               )}
 
               <span style={{ flex: 1 }} />
-
-              {/* Result count */}
               <span style={{ fontSize: 12, fontWeight: 700, color: C.t3, whiteSpace: 'nowrap' }}>{filtered.length} de {allOdds.filter(e => !isExcluded(e.league_name)).length} jogos</span>
 
-              {/* View toggle */}
               <div style={{ display: 'flex', alignItems: 'center', borderRadius: 8, overflow: 'hidden', border: `1px solid ${C.surfB}` }}>
-                <button onClick={() => setViewMode('table')} title="Tabela" style={{ display: 'flex', height: 34, width: 34, alignItems: 'center', justifyContent: 'center', background: viewMode === 'table' ? 'rgba(255,255,255,.1)' : 'transparent', border: 'none', cursor: 'pointer', color: viewMode === 'table' ? C.t1 : C.t3, borderRight: `1px solid ${C.surfB}` }}>
-                  <List size={14} />
-                </button>
-                <button onClick={() => setViewMode('card')} title="Cartões" style={{ display: 'flex', height: 34, width: 34, alignItems: 'center', justifyContent: 'center', background: viewMode === 'card' ? 'rgba(255,255,255,.1)' : 'transparent', border: 'none', cursor: 'pointer', color: viewMode === 'card' ? C.t1 : C.t3 }}>
-                  <LayoutGrid size={14} />
-                </button>
+                <Tip text="Modo tabela: visão compacta com todos os jogos em lista.">
+                  <button onClick={() => setViewMode('table')} title="Tabela" style={{ display: 'flex', height: 34, width: 34, alignItems: 'center', justifyContent: 'center', background: viewMode === 'table' ? 'rgba(255,255,255,.1)' : 'transparent', border: 'none', borderRight: `1px solid ${C.surfB}`, cursor: 'pointer', color: viewMode === 'table' ? C.t1 : C.t3 }}>
+                    <List size={14} />
+                  </button>
+                </Tip>
+                <Tip text="Modo cartão: visualização expandida com ScoreRing DG, odds destacadas e painel por jogo.">
+                  <button onClick={() => setViewMode('card')} title="Cartões" style={{ display: 'flex', height: 34, width: 34, alignItems: 'center', justifyContent: 'center', background: viewMode === 'card' ? 'rgba(255,255,255,.1)' : 'transparent', border: 'none', cursor: 'pointer', color: viewMode === 'card' ? C.t1 : C.t3 }}>
+                    <LayoutGrid size={14} />
+                  </button>
+                </Tip>
               </div>
             </div>
 
@@ -956,24 +1142,29 @@ export function BuscarOddsPage() {
             {!loading && allOdds.length > 0 && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                 {liveCount > 0 && (
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 700, borderRadius: 99, padding: '3px 10px', background: 'rgba(248,113,113,.08)', border: '1px solid rgba(248,113,113,.2)', color: C.red }}>
-                    <Radio size={10} />  {liveCount} ao vivo
-                  </span>
+                  <Tip text="Jogos que já começaram e ainda estão em andamento (estimativa de 110 min de duração).">
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 700, borderRadius: 99, padding: '3px 10px', background: 'rgba(248,113,113,.08)', border: '1px solid rgba(248,113,113,.2)', color: C.red, cursor: 'default' }}>
+                      <Radio size={10} /> {liveCount} ao vivo
+                    </span>
+                  </Tip>
                 )}
                 {todayCount > 0 && (
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 700, borderRadius: 99, padding: '3px 10px', background: 'rgba(63,255,33,.06)', border: `1px solid ${C.greenB}`, color: C.green }}>
-                    <Clock size={10} />  {todayCount} hoje
-                  </span>
+                  <Tip text="Jogos programados para hoje que ainda não começaram.">
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 700, borderRadius: 99, padding: '3px 10px', background: 'rgba(63,255,33,.06)', border: `1px solid ${C.greenB}`, color: C.green, cursor: 'default' }}>
+                      <Clock size={10} /> {todayCount} hoje
+                    </span>
+                  </Tip>
                 )}
                 {futureCount > 0 && (
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 700, borderRadius: 99, padding: '3px 10px', background: 'rgba(255,255,255,.04)', border: `1px solid ${C.surfB}`, color: C.t3 }}>
-                    {futureCount} futuros
-                  </span>
+                  <Tip text="Jogos programados para os próximos dias.">
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 700, borderRadius: 99, padding: '3px 10px', background: 'rgba(255,255,255,.04)', border: `1px solid ${C.surfB}`, color: C.t3, cursor: 'default' }}>
+                      {futureCount} futuros
+                    </span>
+                  </Tip>
                 )}
               </div>
             )}
 
-            {/* ── Error ───────────────────────────────────────────────────── */}
             {fetchErr && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, borderRadius: 12, padding: '12px 16px', background: C.redDim, border: '1px solid rgba(248,113,113,.25)', color: C.red, fontSize: 13 }}>
                 {fetchErr}
@@ -981,10 +1172,8 @@ export function BuscarOddsPage() {
               </div>
             )}
 
-            {/* ── Skeleton ────────────────────────────────────────────────── */}
             {loading && <SkeletonList viewMode={viewMode} />}
 
-            {/* ── Empty ───────────────────────────────────────────────────── */}
             {!loading && !fetchErr && filtered.length === 0 && (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '80px 0', gap: 12, color: C.t3 }}>
                 <ScanSearch size={36} style={{ opacity: .2 }} />
@@ -995,7 +1184,6 @@ export function BuscarOddsPage() {
               </div>
             )}
 
-            {/* ── League filter modal ──────────────────────────────────────── */}
             {leagueModalOpen && (
               <LeagueFilterModal leagues={allLeagues} selected={leagueFilter} onChange={setLeagueFilter} onClose={() => setLeagueModalOpen(false)} />
             )}
@@ -1006,7 +1194,6 @@ export function BuscarOddsPage() {
               const isCollapsed = leagueCollapsed.has(league);
               return (
                 <div key={league}>
-                  {/* League header */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 4px', marginBottom: isCollapsed ? 0 : 10 }}>
                     <button onClick={() => toggleCollapse(league)} style={{ display: 'flex', flex: 1, alignItems: 'center', gap: 8, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
                       <div style={{ width: 6, height: 6, borderRadius: '50%', background: isFav ? C.green : 'rgba(63,255,33,.4)', flexShrink: 0, boxShadow: isFav ? `0 0 6px ${C.green}` : 'none' }} />
@@ -1025,11 +1212,11 @@ export function BuscarOddsPage() {
                           key={ev.match_id}
                           ev={ev}
                           dgInfo={dgMap.get(ev.match_id) ?? null}
-                          isNew={false}
                           isFlash={recentlyUpdated.has(ev.match_id)}
                           isFav={matchFav.has(ev.match_id)}
                           onSelect={() => setSelectedEvent(ev)}
                           onToggleFav={() => toggleMatchFav(ev.match_id)}
+                          prevSnap={oddsPrevSnap.get(ev.match_id)}
                         />
                       ))}
                     </div>
@@ -1039,155 +1226,149 @@ export function BuscarOddsPage() {
             })}
 
             {/* ── Table view ──────────────────────────────────────────────── */}
-            {!loading && viewMode === 'table' && (
-              <>
-                {byLeague.length > 0 && (
-                  <div style={{ display: 'none' }} className="md:grid" aria-hidden>
-                    <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr 70px 70px 70px', alignItems: 'center', gap: 12, padding: '0 16px 6px', fontSize: 11, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em', color: C.t3 }}>
-                      <span>Hora</span><span>Jogo</span>
-                      <span style={{ textAlign: 'center' }}>Casa (1)</span>
-                      <span style={{ textAlign: 'center' }}>Empate (X)</span>
-                      <span style={{ textAlign: 'center' }}>Fora (2)</span>
-                    </div>
+            {!loading && viewMode === 'table' && byLeague.map(([league, evs]) => {
+              const isFav       = leagueFav.has(league);
+              const isCollapsed = leagueCollapsed.has(league);
+              const dateGroups: Array<{ date: string; isToday: boolean; label: string; events: OddsSummary[] }> = [];
+              for (const ev of evs) {
+                const d    = dateBRT(ev.start_time);
+                const last = dateGroups[dateGroups.length - 1];
+                if (!last || last.date !== d) dateGroups.push({ date: d, isToday: d === today, label: weekdayLabel(ev.start_time, today), events: [ev] });
+                else last.events.push(ev);
+              }
+
+              return (
+                <div key={league} style={{ overflow: 'hidden', borderRadius: 16, background: `${C.surf}cc`, border: `1px solid ${isFav ? C.greenB : C.surfB}`, boxShadow: isFav ? `0 4px 24px rgba(0,0,0,.4),0 0 16px rgba(63,255,33,.05)` : '0 4px 20px rgba(0,0,0,.4)', marginBottom: 4 }}>
+                  <div style={{ height: 2, background: isFav ? `linear-gradient(90deg,${C.green} 0%,${C.green}44 55%,transparent 100%)` : `linear-gradient(90deg,rgba(63,255,33,.35) 0%,rgba(63,255,33,.08) 55%,transparent 100%)` }} />
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', background: isFav ? 'rgba(63,255,33,.06)' : 'rgba(255,255,255,.016)', borderBottom: isCollapsed ? 'none' : `1px solid ${C.surfB}` }}>
+                    <button onClick={() => toggleCollapse(league)} style={{ display: 'flex', flex: 1, alignItems: 'center', gap: 10, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                      <div style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: isFav ? C.green : 'rgba(63,255,33,.45)', boxShadow: isFav ? `0 0 6px ${C.green}` : 'none' }} />
+                      <span style={{ fontSize: 12, fontWeight: 800, color: isFav ? C.green : C.t1 }}>{league}</span>
+                      <span style={{ fontSize: 11, fontWeight: 700, borderRadius: 99, padding: '1px 7px', background: 'rgba(255,255,255,.06)', color: C.t3, border: `1px solid ${C.surfB}` }}>{evs.length}</span>
+                      <ChevronDown size={13} style={{ color: C.t3, transform: isCollapsed ? 'rotate(-90deg)' : 'none', transition: 'transform .2s ease' }} />
+                    </button>
+                    <button onClick={() => toggleLeagueFav(league)} style={{ marginLeft: 8, display: 'flex', height: 28, width: 28, alignItems: 'center', justifyContent: 'center', borderRadius: 8, background: isFav ? C.greenDim : 'rgba(255,255,255,.03)', border: `1px solid ${isFav ? C.greenB : C.surfB}`, cursor: 'pointer' }}>
+                      <Star size={12} style={{ color: isFav ? C.green : C.t3, fill: isFav ? C.green : 'none' }} />
+                    </button>
                   </div>
-                )}
-                {byLeague.map(([league, evs]) => {
-                  const isFav       = leagueFav.has(league);
-                  const isCollapsed = leagueCollapsed.has(league);
 
-                  const dateGroups: Array<{ date: string; isToday: boolean; label: string; events: OddsSummary[] }> = [];
-                  for (const ev of evs) {
-                    const d    = dateBRT(ev.start_time);
-                    const last = dateGroups[dateGroups.length - 1];
-                    if (!last || last.date !== d) dateGroups.push({ date: d, isToday: d === today, label: weekdayLabel(ev.start_time, today), events: [ev] });
-                    else last.events.push(ev);
-                  }
+                  {!isCollapsed && (
+                    <div>
+                      {dateGroups.map(group => (
+                        <React.Fragment key={group.date}>
+                          {dateGroups.length > 1 && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 20px', borderTop: `1px solid ${C.surfB}`, background: group.isToday ? 'rgba(63,255,33,.04)' : 'rgba(255,255,255,.01)' }}>
+                              <span style={{ fontSize: 11, fontWeight: 800, color: group.isToday ? C.green : C.t3, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{group.label}</span>
+                              <div style={{ flex: 1, height: 1, background: group.isToday ? 'rgba(63,255,33,.12)' : 'rgba(255,255,255,.04)' }} />
+                              <span style={{ fontSize: 11, fontWeight: 700, color: C.t3 }}>{group.events.length}</span>
+                            </div>
+                          )}
+                          {group.events.map((ev, idx) => {
+                            const mgn     = calcMargin(ev.bookmakers);
+                            const isSure  = mgn !== null && mgn < 0;
+                            const bkH     = bestBk(ev.bookmakers, 'home');
+                            const bkD     = bestBk(ev.bookmakers, 'draw');
+                            const bkA     = bestBk(ev.bookmakers, 'away');
+                            const bestD   = bestVal(ev.bookmakers, 'draw');
+                            const bestH   = bestVal(ev.bookmakers, 'home');
+                            const bestAw  = bestVal(ev.bookmakers, 'away');
+                            const drawIsTop = bestD > 0 && bestD >= bestH && bestD >= bestAw;
+                            const drawPA  = bkD && isBkPA(bkD) && drawIsTop ? true : (bkD ? false : undefined);
+                            const dg      = dgMap.get(ev.match_id);
+                            const dgRgb2  = dg ? dgRGB(dg.dg_classification) : null;
+                            const dgCol2  = dg ? dgColor(dg.dg_classification) : null;
+                            const started = new Date(ev.start_time).getTime() < Date.now();
+                            const paCnt   = paSideCount(ev);
+                            const isFlash = recentlyUpdated.has(ev.match_id);
+                            const isMFav  = matchFav.has(ev.match_id);
+                            const snap    = oddsPrevSnap.get(ev.match_id);
 
-                  return (
-                    <div key={league} style={{ overflow: 'hidden', borderRadius: 16, background: `${C.surf}cc`, border: `1px solid ${isFav ? C.greenB : C.surfB}`, boxShadow: isFav ? `0 4px 24px rgba(0,0,0,.4),0 0 16px rgba(63,255,33,.05)` : '0 4px 20px rgba(0,0,0,.4)', marginBottom: 4 }}>
-                      <div style={{ height: 2, background: isFav ? `linear-gradient(90deg,${C.green} 0%,${C.green}44 55%,transparent 100%)` : `linear-gradient(90deg,rgba(63,255,33,.35) 0%,rgba(63,255,33,.08) 55%,transparent 100%)` }} />
+                            function trendBk(bk: BookmakerOdds | null, t: OddType): OddTrend {
+                              if (!bk || !snap?.[bk.slug]) return 'same';
+                              return getOddTrend(snap[bk.slug][t], bk[t] as number);
+                            }
 
-                      {/* League header */}
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', background: isFav ? 'rgba(63,255,33,.06)' : 'rgba(255,255,255,.016)', borderBottom: isCollapsed ? 'none' : `1px solid ${C.surfB}` }}>
-                        <button onClick={() => toggleCollapse(league)} style={{ display: 'flex', flex: 1, alignItems: 'center', gap: 10, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
-                          <div style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: isFav ? C.green : 'rgba(63,255,33,.45)', boxShadow: isFav ? `0 0 6px ${C.green}` : 'none' }} />
-                          <span style={{ fontSize: 12, fontWeight: 800, color: isFav ? C.green : C.t1 }}>{league}</span>
-                          <span style={{ fontSize: 11, fontWeight: 700, borderRadius: 99, padding: '1px 7px', background: 'rgba(255,255,255,.06)', color: C.t3, border: `1px solid ${C.surfB}` }}>{evs.length}</span>
-                          <ChevronDown size={13} style={{ color: C.t3, transform: isCollapsed ? 'rotate(-90deg)' : 'none', transition: 'transform .2s ease' }} />
-                        </button>
-                        <button onClick={() => toggleLeagueFav(league)} style={{ marginLeft: 8, display: 'flex', height: 28, width: 28, alignItems: 'center', justifyContent: 'center', borderRadius: 8, background: isFav ? C.greenDim : 'rgba(255,255,255,.03)', border: `1px solid ${isFav ? C.greenB : C.surfB}`, cursor: 'pointer' }}>
-                          <Star size={12} style={{ color: isFav ? C.green : C.t3, fill: isFav ? C.green : 'none' }} />
-                        </button>
-                      </div>
-
-                      {/* Rows */}
-                      {!isCollapsed && (
-                        <div>
-                          {dateGroups.map(group => (
-                            <React.Fragment key={group.date}>
-                              {dateGroups.length > 1 && (
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 20px', borderTop: `1px solid ${C.surfB}`, background: group.isToday ? 'rgba(63,255,33,.04)' : 'rgba(255,255,255,.01)' }}>
-                                  <span style={{ fontSize: 11, fontWeight: 800, color: group.isToday ? C.green : C.t3, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{group.label}</span>
-                                  <div style={{ flex: 1, height: 1, background: group.isToday ? 'rgba(63,255,33,.12)' : 'rgba(255,255,255,.04)' }} />
-                                  <span style={{ fontSize: 11, fontWeight: 700, color: C.t3 }}>{group.events.length}</span>
-                                </div>
-                              )}
-                              {group.events.map((ev, idx) => {
-                                const mgn       = calcMargin(ev.bookmakers);
-                                const isSure    = mgn !== null && mgn < 0;
-                                const bkH       = bestBk(ev.bookmakers, 'home');
-                                const bkD       = bestBk(ev.bookmakers, 'draw');
-                                const bkA       = bestBk(ev.bookmakers, 'away');
-                                const bestH     = bestVal(ev.bookmakers, 'home');
-                                const bestD     = bestVal(ev.bookmakers, 'draw');
-                                const bestAw    = bestVal(ev.bookmakers, 'away');
-                                const drawIsTop = bestD > 0 && bestD >= bestH && bestD >= bestAw;
-                                const drawPA    = bkD && isBkPA(bkD) && drawIsTop ? true : (bkD ? false : undefined);
-                                const dg        = dgMap.get(ev.match_id);
-                                const dgRgb2    = dg ? dgRGB(dg.dg_classification) : null;
-                                const dgCol2    = dg ? dgColor(dg.dg_classification) : null;
-                                const started   = new Date(ev.start_time).getTime() < Date.now();
-                                const paCnt     = paSideCount(ev);
-                                const isFlash   = recentlyUpdated.has(ev.match_id);
-                                const isMFav    = matchFav.has(ev.match_id);
-
-                                return (
-                                  <div key={ev.match_id} className={`group relative ${isFlash ? 'row-flash' : ''}`} style={{ borderTop: idx > 0 || dateGroups.length > 1 ? `1px solid ${C.surfB}` : undefined }}>
-                                    {/* Left accent on hover */}
-                                    <div className="pointer-events-none absolute inset-y-0 left-0 opacity-0 group-hover:opacity-100 transition-opacity duration-150" style={{ width: 3, background: group.isToday ? C.green : C.amber }} />
-
-                                    <button type="button" onClick={() => setSelectedEvent(ev)} style={{ display: 'block', width: '100%', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
-                                      {/* Desktop row */}
-                                      <div className="hidden md:grid" style={{ gridTemplateColumns: '80px 1fr 70px 70px 70px', alignItems: 'center', gap: 12, padding: '12px 16px 12px 20px' }}>
-                                        {/* Time + margin */}
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                                          <span style={{ fontSize: 13, fontWeight: 900, fontVariantNumeric: 'tabular-nums', color: started ? C.amber : group.isToday ? C.green : C.t2 }}>{fmtTime(ev.start_time)}</span>
-                                          <span style={{ fontSize: 11, fontWeight: 700, color: started ? `${C.amber}88` : group.isToday ? C.t3 : `${C.amber}99` }}>{started ? 'Em andamento' : group.isToday ? 'Hoje' : fmtDateShort(ev.start_time)}</span>
-                                          {mgn !== null && (
-                                            <span style={{ fontSize: 11, fontWeight: 900, color: marginColor(mgn), background: marginBg(mgn), border: `1px solid ${marginColor(mgn)}33`, borderRadius: 4, padding: '1px 5px', display: 'inline-block', alignSelf: 'flex-start', fontVariantNumeric: 'tabular-nums' }}>
-                                              {isSure ? `+${Math.abs(mgn).toFixed(2)}%` : `${mgn.toFixed(1)}%`}
+                            return (
+                              <div key={ev.match_id} className={isFlash ? 'row-flash' : ''} style={{ borderTop: idx > 0 || dateGroups.length > 1 ? `1px solid ${C.surfB}` : undefined }}>
+                                <button type="button" onClick={() => setSelectedEvent(ev)} style={{ display: 'block', width: '100%', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
+                                  {/* Desktop */}
+                                  <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr 70px 70px 70px', alignItems: 'center', gap: 12, padding: '12px 16px 12px 20px' }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                      <span style={{ fontSize: 13, fontWeight: 900, fontVariantNumeric: 'tabular-nums', color: started ? C.amber : group.isToday ? C.green : C.t2 }}>{fmtTime(ev.start_time)}</span>
+                                      <span style={{ fontSize: 11, fontWeight: 700, color: started ? `${C.amber}88` : group.isToday ? C.t3 : `${C.amber}99` }}>{started ? 'Em andamento' : group.isToday ? 'Hoje' : fmtDateShort(ev.start_time)}</span>
+                                      {mgn !== null && (
+                                        <Tip text={`Margem de mercado: ${mgn.toFixed(2)}%. ${isSure ? 'Margem negativa — possível surebet (lucro garantido independente do resultado).' : 'Quanto menor a margem, mais justas são as odds.'}`}>
+                                          <span style={{ fontSize: 11, fontWeight: 900, color: marginColor(mgn), background: marginBg(mgn), border: `1px solid ${marginColor(mgn)}33`, borderRadius: 4, padding: '1px 5px', display: 'inline-block', alignSelf: 'flex-start', fontVariantNumeric: 'tabular-nums', cursor: 'default' }}>
+                                            {isSure ? `+${Math.abs(mgn).toFixed(2)}%` : `${mgn.toFixed(1)}%`}
+                                          </span>
+                                        </Tip>
+                                      )}
+                                    </div>
+                                    <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                                        <p style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 13, fontWeight: 700, color: C.t1, margin: 0 }}>{ev.home_team}</p>
+                                        {dg && dgRgb2 && dgCol2 && (
+                                          <Tip text={`Score DG: ${dg.dg_score}. Classificação: ${dg.dg_classification}. Profit estimado: ${dg.dg_profit_pct != null ? '+' + dg.dg_profit_pct.toFixed(2) + '%' : '—'}.`}>
+                                            <span style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 4, borderRadius: 4, padding: '1px 5px', fontSize: 11, fontWeight: 900, background: `rgba(${dgRgb2},.1)`, color: dgCol2, border: `1px solid rgba(${dgRgb2},.25)`, cursor: 'default' }}>
+                                              <Zap size={7} />{dg.dg_score}
                                             </span>
-                                          )}
-                                        </div>
-
-                                        {/* Match */}
-                                        <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
-                                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-                                            <p style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 13, fontWeight: 700, color: C.t1, margin: 0 }}>{ev.home_team}</p>
-                                            {dg && dgRgb2 && dgCol2 && (
-                                              <span style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 4, borderRadius: 4, padding: '1px 5px', fontSize: 11, fontWeight: 900, background: `rgba(${dgRgb2},.1)`, color: dgCol2, border: `1px solid rgba(${dgRgb2},.25)` }}>
-                                                <Zap size={7} />{dg.dg_score}
-                                              </span>
-                                            )}
-                                            {paCnt >= 2 && <span style={{ fontSize: 11, fontWeight: 900, borderRadius: 4, padding: '1px 4px', background: C.greenDim, color: C.green, border: `1px solid ${C.greenB}`, flexShrink: 0 }}>PA×2</span>}
-                                            {paCnt === 1 && <span style={{ fontSize: 11, fontWeight: 900, borderRadius: 4, padding: '1px 4px', background: 'rgba(63,255,33,.05)', color: `${C.green}99`, border: '1px solid rgba(63,255,33,.18)', flexShrink: 0 }}>PA</span>}
-                                          </div>
-                                          <p style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 13, fontWeight: 500, color: C.t2, margin: 0 }}>{ev.away_team}</p>
-                                          <p style={{ fontSize: 11, color: C.t3, margin: 0 }}>{ev.bookmakers.length} casas{isMFav ? ' · ⭐' : ''}</p>
-                                        </div>
-
-                                        <BestOddCell bk={bkH} type="home" flash={isFlash} />
-                                        <BestOddCell bk={bkD} type="draw" showPaBadge={drawPA ?? undefined} flash={isFlash} />
-                                        <BestOddCell bk={bkA} type="away" flash={isFlash} />
+                                          </Tip>
+                                        )}
+                                        {paCnt >= 2 && (
+                                          <Tip text="Ambos os lados têm a melhor odd em casas com Pagamento Antecipado.">
+                                            <span style={{ fontSize: 11, fontWeight: 900, borderRadius: 4, padding: '1px 4px', background: C.greenDim, color: C.green, border: `1px solid ${C.greenB}`, flexShrink: 0, cursor: 'default' }}>PA×2</span>
+                                          </Tip>
+                                        )}
+                                        {paCnt === 1 && (
+                                          <Tip text="Um dos lados tem a melhor odd em casa com Pagamento Antecipado.">
+                                            <span style={{ fontSize: 11, fontWeight: 900, borderRadius: 4, padding: '1px 4px', background: 'rgba(63,255,33,.05)', color: `${C.green}99`, border: '1px solid rgba(63,255,33,.18)', flexShrink: 0, cursor: 'default' }}>PA</span>
+                                          </Tip>
+                                        )}
                                       </div>
-
-                                      {/* Mobile row */}
-                                      <div className="flex items-center gap-3 px-4 py-3 md:hidden">
-                                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 44, flexShrink: 0 }}>
-                                          <span style={{ fontSize: 13, fontWeight: 900, color: started ? C.amber : group.isToday ? C.green : C.t2 }}>{fmtTime(ev.start_time)}</span>
-                                          {mgn !== null && <span style={{ fontSize: 11, fontWeight: 700, color: marginColor(mgn) }}>{isSure ? `+${Math.abs(mgn).toFixed(1)}%` : `${mgn.toFixed(1)}%`}</span>}
-                                        </div>
-                                        <div style={{ flex: 1, minWidth: 0 }}>
-                                          <p style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 13, fontWeight: 600, color: C.t1, margin: 0 }}>{ev.home_team} x {ev.away_team}</p>
-                                          <p style={{ fontSize: 11, color: C.t3, margin: '2px 0 0' }}>{ev.bookmakers.length} casas{paCnt > 0 ? ` · PA×${paCnt}` : ''}</p>
-                                        </div>
-                                        <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
-                                          {([bkH, bkD, bkA] as const).map((bk, ki) => {
-                                            const type = (['home','draw','away'] as const)[ki];
-                                            if (!bk) return <div key={ki} style={{ width: 36, height: 36, borderRadius: 6, background: 'rgba(255,255,255,.02)' }} />;
-                                            const val = bk[type] as number;
-                                            const pa2 = ki === 1 ? (drawPA ?? isBkPA(bk)) : isBkPA(bk);
-                                            return (
-                                              <div key={ki} className={isFlash ? 'odd-pop' : ''} style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: 36, height: 36, borderRadius: 6, ...(pa2 ? { background: 'rgba(63,255,33,.08)', border: '1px solid rgba(63,255,33,.25)' } : { background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.08)' }) }}>
-                                                <span style={{ fontSize: 11, fontWeight: 900, color: pa2 ? C.green : C.t2 }}>{val.toFixed(2)}</span>
-                                              </div>
-                                            );
-                                          })}
-                                        </div>
-                                      </div>
-                                    </button>
+                                      <p style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 13, fontWeight: 500, color: C.t2, margin: 0 }}>{ev.away_team}</p>
+                                      <p style={{ fontSize: 11, color: C.t3, margin: 0 }}>{ev.bookmakers.length} casas{isMFav ? ' · ⭐' : ''}</p>
+                                    </div>
+                                    <BestOddCell bk={bkH} type="home" flash={isFlash} trend={trendBk(bkH, 'home')} />
+                                    <BestOddCell bk={bkD} type="draw" showPaBadge={drawPA ?? undefined} flash={isFlash} trend={trendBk(bkD, 'draw')} />
+                                    <BestOddCell bk={bkA} type="away" flash={isFlash} trend={trendBk(bkA, 'away')} />
                                   </div>
-                                );
-                              })}
-                            </React.Fragment>
-                          ))}
-                        </div>
-                      )}
+                                  {/* Mobile */}
+                                  <div className="flex items-center gap-3 px-4 py-3 md:hidden">
+                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 44, flexShrink: 0 }}>
+                                      <span style={{ fontSize: 13, fontWeight: 900, color: started ? C.amber : group.isToday ? C.green : C.t2 }}>{fmtTime(ev.start_time)}</span>
+                                      {mgn !== null && <span style={{ fontSize: 11, fontWeight: 700, color: marginColor(mgn) }}>{isSure ? `+${Math.abs(mgn).toFixed(1)}%` : `${mgn.toFixed(1)}%`}</span>}
+                                    </div>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                      <p style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 13, fontWeight: 600, color: C.t1, margin: 0 }}>{ev.home_team} x {ev.away_team}</p>
+                                      <p style={{ fontSize: 11, color: C.t3, margin: '2px 0 0' }}>{ev.bookmakers.length} casas{paCnt > 0 ? ` · PA×${paCnt}` : ''}</p>
+                                    </div>
+                                    <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                                      {([bkH, bkD, bkA] as const).map((bk, ki) => {
+                                        const type = (['home','draw','away'] as const)[ki];
+                                        if (!bk) return <div key={ki} style={{ width: 36, height: 36, borderRadius: 6, background: 'rgba(255,255,255,.02)' }} />;
+                                        const val  = bk[type] as number;
+                                        const pa2  = ki === 1 ? (drawPA ?? isBkPA(bk)) : isBkPA(bk);
+                                        const tr   = trendBk(bk, type);
+                                        return (
+                                          <div key={ki} style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: 36, height: 36, borderRadius: 6, ...(pa2 ? { background: 'rgba(63,255,33,.08)', border: '1px solid rgba(63,255,33,.25)' } : { background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.08)' }) }}>
+                                            <span className={isFlash ? 'odd-pop' : ''} style={{ fontSize: 11, fontWeight: 900, color: pa2 ? C.green : C.t2 }}>{val.toFixed(2)}</span>
+                                            {tr !== 'same' && <div style={{ position: 'absolute', bottom: 1, right: 1 }}><TrendArrow trend={tr} /></div>}
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </React.Fragment>
+                      ))}
                     </div>
-                  );
-                })}
-              </>
-            )}
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
