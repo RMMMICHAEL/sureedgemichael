@@ -165,6 +165,30 @@ function flagUrl(name: string): string | null {
   return iso ? `https://flagcdn.com/20x15/${iso}.png` : null;
 }
 
+// Decodifica códigos de Copa do Mundo: "2E (Wwc)" → "2° do Grupo E", "3CDFGH" → "3° de C,D,F,G ou H"
+function decodeTeamName(name: string): string {
+  if (!name) return name;
+  // "2E (Wwc)" ou "1I" → Xº do Grupo Y
+  const single = name.match(/^(\d+)([A-Z])(?:\s*\([^)]+\))?$/);
+  if (single) {
+    return `${single[1]}° do Grupo ${single[2]}`;
+  }
+  // "3CDFGH" → 3° de C, D, F, G ou H
+  const multi = name.match(/^(\d+)([A-Z]{2,})(?:\s*\([^)]+\))?$/);
+  if (multi) {
+    const gs = multi[2].split('');
+    const last = gs.pop()!;
+    return `${multi[1]}° de ${gs.join(', ')} ou ${last}`;
+  }
+  // "W73" → Venc. jogo 73
+  const wMatch = name.match(/^W(\d+)$/);
+  if (wMatch) return `Venc. jogo ${wMatch[1]}`;
+  // "RU101" → Perd. jogo 101
+  const ruMatch = name.match(/^RU(\d+)$/);
+  if (ruMatch) return `Perd. jogo ${ruMatch[1]}`;
+  return name;
+}
+
 /** Chave de join por nome de time normalizado */
 function sportsKey(home: string, away: string): string {
   const n = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]/g,'');
@@ -590,9 +614,9 @@ function MatchCard({ ev, dgInfo, isFlash, isFav, onSelect, onToggleFav, prevSnap
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' as const }}>
             <div style={{ fontSize: 14, fontWeight: 800, color: C.t1, lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: '1 1 0', minWidth: 0 }}>
               {(() => { const b = liveData?.home_badge ?? flagUrl(liveData?.home_team_pt ?? ev.home_team); return b ? <img src={b} alt="" width={14} height={14} style={{ borderRadius: liveData?.home_badge ? '50%' : 2, marginRight: 4, verticalAlign: 'middle', objectFit: 'cover' }} /> : null; })()}
-              {liveData?.home_team_pt ?? ev.home_team}
+              {decodeTeamName(liveData?.home_team_pt ?? ev.home_team)}
               <span style={{ color: C.t3, fontWeight: 500 }}> x </span>
-              {liveData?.away_team_pt ?? ev.away_team}
+              {decodeTeamName(liveData?.away_team_pt ?? ev.away_team)}
               {(() => { const b = liveData?.away_badge ?? flagUrl(liveData?.away_team_pt ?? ev.away_team); return b ? <img src={b} alt="" width={14} height={14} style={{ borderRadius: liveData?.away_badge ? '50%' : 2, marginLeft: 4, verticalAlign: 'middle', objectFit: 'cover' }} /> : null; })()}
             </div>
             {liveData && liveData.home_score !== null && liveData.away_score !== null && (() => {
@@ -1398,7 +1422,7 @@ export function BuscarOddsPage() {
                                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0, flex: 1 }}>
                                         {(() => { const b = liveInfo?.home_badge ?? flagUrl(liveInfo?.home_team_pt ?? ev.home_team); return b ? <img src={b} alt="" width={14} height={14} style={{ borderRadius: liveInfo?.home_badge ? '50%' : 2, flexShrink: 0, objectFit: 'cover' }} /> : null; })()}
-                                        <p style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 13, fontWeight: 700, color: C.t1, margin: 0 }}>{liveInfo?.home_team_pt ?? ev.home_team}</p>
+                                        <p style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 13, fontWeight: 700, color: C.t1, margin: 0 }}>{decodeTeamName(liveInfo?.home_team_pt ?? ev.home_team)}</p>
                                         {liveInfo && liveInfo.home_score !== null && liveInfo.away_score !== null && (() => {
                                           const sl = statusLabel(liveInfo.status, liveInfo.is_live);
                                           return (
@@ -1431,7 +1455,7 @@ export function BuscarOddsPage() {
                                       </div>
                                       <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
                                         {(() => { const b = liveInfo?.away_badge ?? flagUrl(liveInfo?.away_team_pt ?? ev.away_team); return b ? <img src={b} alt="" width={14} height={14} style={{ borderRadius: liveInfo?.away_badge ? '50%' : 2, flexShrink: 0, objectFit: 'cover' }} /> : null; })()}
-                                        <p style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 13, fontWeight: 500, color: C.t2, margin: 0 }}>{liveInfo?.away_team_pt ?? ev.away_team}</p>
+                                        <p style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 13, fontWeight: 500, color: C.t2, margin: 0 }}>{decodeTeamName(liveInfo?.away_team_pt ?? ev.away_team)}</p>
                                       </div>
                                       <p style={{ fontSize: 11, color: C.t3, margin: 0 }}>{ev.bookmakers.length} casas{isMFav ? ' · ⭐' : ''}</p>
                                     </div>
