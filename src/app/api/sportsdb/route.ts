@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 const BASE   = process.env.DUCKTIPS_API_URL ?? 'https://api.ducktipsbr.com';
 const APIKEY = process.env.DUCKTIPS_APIKEY  ?? '';
+const JWT    = process.env.DUCKTIPS_JWT     ?? '';   // JWT do usuário ducktipsbr — renovar ao expirar
 const TSDB   = 'https://www.thesportsdb.com/api/v1/json/3';
 
 const SELECT = [
@@ -56,7 +57,7 @@ export async function GET(req: NextRequest) {
 
   try {
     const res = await fetch(url, {
-      headers: { 'apikey': APIKEY, 'Authorization': `Bearer ${APIKEY}`, 'Accept': 'application/json' },
+      headers: { 'apikey': APIKEY, 'Authorization': `Bearer ${JWT || APIKEY}`, 'Accept': 'application/json' },
       next: { revalidate: 30 },
     });
 
