@@ -129,7 +129,7 @@ interface SportsDBMatch {
   event_time: string;
   home_score: number | null; away_score: number | null;
   status: string; is_live: boolean; progress: string | null;
-  home_badge: string | null; away_badge: string | null;
+  home_badge: string | null; away_badge: string | null; league_badge?: string | null;
   home_team_pt: string | null; away_team_pt: string | null; league_pt: string | null;
 }
 /** Chave de join por nome de time normalizado */
@@ -333,17 +333,15 @@ function BestOddCell({ bk, type, showPaBadge, flash, trend }: {
       <span style={{ maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: '0 8px', fontSize: 11, color: C.t3 }}>
         {bk.name}
       </span>
-      <Tip text={pa
-        ? 'PA — casa com Pagamento Antecipado: paga antes do resultado. Ideal para Duplo Green.'
-        : 'SO — casa Somente Online: paga após o resultado. Odds geralmente mais altas.'}>
-        <span style={{
-          position: 'absolute', top: -4, right: -4, borderRadius: 4, padding: '1px 3px', fontSize: 10, fontWeight: 700, cursor: 'default',
-          ...(pa ? { background: C.greenDim, color: C.green, border: `1px solid ${C.greenB}` }
-                 : { background: 'rgba(255,255,255,.04)', color: C.t3, border: '1px solid rgba(255,255,255,.1)' }),
-        }}>
-          {pa ? 'PA' : 'SO'}
-        </span>
-      </Tip>
+      {pa && (
+        <Tip text="PA — casa com Pagamento Antecipado: paga antes do resultado. Ideal para Duplo Green.">
+          <span style={{
+            position: 'absolute', top: -4, right: -4, borderRadius: 4, padding: '1px 3px',
+            fontSize: 10, fontWeight: 700, cursor: 'default',
+            background: C.greenDim, color: C.green, border: `1px solid ${C.greenB}`,
+          }}>PA</span>
+        </Tip>
+      )}
     </div>
   );
 }
@@ -576,9 +574,12 @@ function MatchCard({ ev, dgInfo, isFlash, isFav, onSelect, onToggleFav, prevSnap
               );
             })()}
           </div>
-          <div style={{ fontSize: 11, color: C.t3, marginTop: 2 }}>
-            {liveData?.league_pt ?? ev.league_name} · {fmtTime(ev.start_time)}
-            {liveData?.progress && <span style={{ marginLeft: 4, color: C.green, fontWeight: 700 }}>{liveData.progress}&apos;</span>}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}>
+            {liveData?.league_badge && <img src={liveData.league_badge} alt="" width={12} height={12} style={{ borderRadius: 2, objectFit: 'contain', flexShrink: 0 }} />}
+            <span style={{ fontSize: 11, color: C.t3 }}>
+              {liveData?.league_pt ?? ev.league_name} · {fmtTime(ev.start_time)}
+              {liveData?.progress && <span style={{ marginLeft: 4, color: C.green, fontWeight: 700 }}>{liveData.progress}&apos;</span>}
+            </span>
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
@@ -911,7 +912,8 @@ export function BuscarOddsPage() {
   const [oddsPrevSnap, setOddsPrevSnap] = useState<Map<string, OddSnapshot>>(new Map());
 
   // ── SportsDB enrichment ────────────────────────────────────────────────────
-  const [sportsMap, setSportsMap] = useState<Map<string, SportsDBMatch>>(new Map());
+  const [sportsMap,       setSportsMap]       = useState<Map<string, SportsDBMatch>>(new Map());
+  const [leagueBadgeMap,  setLeagueBadgeMap]  = useState<Map<string, string>>(new Map());
   useEffect(() => {
     const load = async () => {
       try {
@@ -919,8 +921,13 @@ export function BuscarOddsPage() {
         if (!res.ok) return;
         const data = await res.json() as SportsDBMatch[];
         const map  = new Map<string, SportsDBMatch>();
-        for (const m of data) map.set(sportsKey(m.home_team, m.away_team), m);
+        const lgMap = new Map<string, string>();
+        for (const m of data) {
+          map.set(sportsKey(m.home_team, m.away_team), m);
+          if (m.league_badge && m.league && !lgMap.has(m.league)) lgMap.set(m.league, m.league_badge);
+        }
         setSportsMap(map);
+        setLeagueBadgeMap(lgMap);
       } catch { /* silencia */ }
     };
     load();
@@ -1044,6 +1051,10 @@ export function BuscarOddsPage() {
       .sort((a, b) => {
         const aFav = leagueFav.has(a[0]), bFav = leagueFav.has(b[0]);
         if (aFav !== bFav) return aFav ? -1 : 1;
+        // Ligas com jogos hoje aparecem antes de ligas apenas com futuros
+        const aToday = a[1].some(ev => dateBRT(ev.start_time) === today);
+        const bToday = b[1].some(ev => dateBRT(ev.start_time) === today);
+        if (aToday !== bToday) return aToday ? -1 : 1;
         const aBr = a[0].toLowerCase().includes('brasil') || a[0].toLowerCase().includes('série');
         const bBr = b[0].toLowerCase().includes('brasil') || b[0].toLowerCase().includes('série');
         if (aBr && !bBr) return -1; if (!aBr && bBr) return 1;
@@ -1284,7 +1295,10 @@ export function BuscarOddsPage() {
                   <div style={{ height: 2, background: isFav ? `linear-gradient(90deg,${C.green} 0%,${C.green}44 55%,transparent 100%)` : `linear-gradient(90deg,rgba(63,255,33,.35) 0%,rgba(63,255,33,.08) 55%,transparent 100%)` }} />
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', background: isFav ? 'rgba(63,255,33,.06)' : 'rgba(255,255,255,.016)', borderBottom: isCollapsed ? 'none' : `1px solid ${C.surfB}` }}>
                     <button onClick={() => toggleCollapse(league)} style={{ display: 'flex', flex: 1, alignItems: 'center', gap: 10, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
-                      <div style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: isFav ? C.green : 'rgba(63,255,33,.45)', boxShadow: isFav ? `0 0 6px ${C.green}` : 'none' }} />
+                      {leagueBadgeMap.get(league)
+                        ? <img src={leagueBadgeMap.get(league)!} alt="" width={20} height={20} style={{ borderRadius: 4, objectFit: 'contain', flexShrink: 0 }} />
+                        : <div style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: isFav ? C.green : 'rgba(63,255,33,.45)', boxShadow: isFav ? `0 0 6px ${C.green}` : 'none' }} />
+                      }
                       <span style={{ fontSize: 12, fontWeight: 800, color: isFav ? C.green : C.t1 }}>{league}</span>
                       <span style={{ fontSize: 11, fontWeight: 700, borderRadius: 99, padding: '1px 7px', background: 'rgba(255,255,255,.06)', color: C.t3, border: `1px solid ${C.surfB}` }}>{evs.length}</span>
                       <ChevronDown size={13} style={{ color: C.t3, transform: isCollapsed ? 'rotate(-90deg)' : 'none', transition: 'transform .2s ease' }} />
