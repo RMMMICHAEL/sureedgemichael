@@ -27,6 +27,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse }   from 'next/server';
 import { cookies }                     from 'next/headers';
 import { createSupabaseServerClient }  from '@/lib/supabase/server';
+import { isPaBookmaker as isPa }       from '@/lib/bookmakers';
 
 // ── Tipos internos ─────────────────────────────────────────────────────────────
 
@@ -103,18 +104,6 @@ function todayBRT(): string {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`;
 }
 
-const PA_SET = new Set([
-  'estrelabet','br4bet','esportivabet','jogodeouro','vaidebet',
-  'sortenabet','lotogreen','betpix365','f12','vupibet','vupibr',
-  'bet7k','esportesdasorte','apostabet','brasilbet','superbet','brasil',
-]);
-function isPa(slug: string): boolean {
-  const n = slug.toLowerCase().replace(/[\s\-_.]/g,'');
-  for (const pa of PA_SET) {
-    if (n === pa || n.startsWith(pa.slice(0,5)) || pa.startsWith(n.slice(0,5))) return true;
-  }
-  return false;
-}
 
 function slugMatch(a: string, b: string): boolean {
   const na = a.toLowerCase().replace(/[\s\-_.]/g,'');

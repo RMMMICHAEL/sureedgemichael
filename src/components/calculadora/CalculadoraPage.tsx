@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { SurebetCalc } from '@/components/calcalendario/SurebetCalc';
 import { Search, X, Building2, ScanSearch, Layers } from 'lucide-react';
 import { useStore } from '@/store/useStore';
+import { isPaBookmaker as isPa } from '@/lib/bookmakers';
 
 // ── Formatters ─────────────────────────────────────────────────────────────────
 
@@ -591,23 +592,6 @@ function EventSearchCard({
 // ── Buscar Odds Tab ────────────────────────────────────────────────────────────
 
 // Casas com Pagamento Antecipado (PA)
-const PA_SET = new Set([
-  'betano','novibet','betvip','betsul','betesporte','brasilbet','betsson','bet365',
-  'bet365arg','bet365pe','lotogreen','kto','vivasorte','sportingbet','superbet',
-  'apostabet','br4bet','esportesdasorte','esportiva','esportivabet','sortenabet',
-  'betmgm','estrelabet','bet7k','jogodeouro','mcgames','meridianbet','meridian',
-  'versusbet','vupi','vupibet','vaidebet','brasil',
-  'leon','leonbet',
-]);
-
-function isPa(house: string): boolean {
-  const n = house.toLowerCase().replace(/[\s\-_.]/g, '');
-  if (PA_SET.has(n)) return true;
-  for (const pa of PA_SET) {
-    if (n.length >= 4 && pa.length >= 4 && (n.startsWith(pa) || pa.startsWith(n))) return true;
-  }
-  return false;
-}
 
 // ── BMRow types ────────────────────────────────────────────────────────────────
 

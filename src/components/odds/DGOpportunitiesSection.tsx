@@ -7,6 +7,7 @@ import {
   Trophy, Star, ChevronDown, Zap, ScanSearch,
 } from 'lucide-react';
 import { SurebetCalc } from '@/components/calcalendario/SurebetCalc';
+import { normSlug, isPaBookmaker as isSlugPA } from '@/lib/bookmakers';
 
 // ─── Palette (espelha BuscarOddsPage) ────────────────────────────────────────
 const C = {
@@ -104,29 +105,6 @@ function lsSet(key: string, val: unknown) {
 }
 
 // ─── PA helpers ───────────────────────────────────────────────────────────────
-const PA_SET = new Set([
-  'betano','bet365','betfair','kto','superbet','vivasorte','betao',
-  '7games','betesporte','novibet','estrelabet','esportivabet','jogodeouro',
-  '7k','bet7k','versusbet','meridianbet','betmgm','betsson','betvip',
-  'br4bet','br4','esportesdasorte','vaidebet','pixbet','sportingbet',
-  'apostabeat','apostabet','lotogreen','betpix365','betpix','f12',
-  'vupibet','vupibr','vupi','sortenabet','sorte','brasilbet','brasil',
-  'esportivabr','estrelabeat','betnacional','pixbetsports',
-  'betnow','sportbr','betbr','apostaganha',
-  'leon','leonbet',
-]);
-function normSlug(s: string) { return s.toLowerCase().replace(/[\s\-_.]/g, ''); }
-function isSlugPA(slug: string): boolean {
-  if (!slug) return false;
-  const n = normSlug(slug);
-  if (PA_SET.has(n)) return true;
-  for (const pa of PA_SET) {
-    if (n.includes(pa) || pa.includes(n)) return true;
-    const prefix = Math.min(n.length, pa.length, 6);
-    if (prefix >= 4 && n.slice(0, prefix) === pa.slice(0, prefix)) return true;
-  }
-  return false;
-}
 function isLegPA(leg: Leg): boolean {
   if (leg.isPA === true) return true;
   if (leg.isPA === false) return false;
