@@ -124,9 +124,12 @@ type SortBy   = 'padrao' | 'maior_lucro' | 'menor_lucro' | 'dg_score';
 type ViewMode = 'table' | 'card';
 
 // ─── Componente de logo de time (DG CDN com fallback silencioso) ──────────────
-function TeamLogo({ name, size, style }: { name: string; size: number; style?: React.CSSProperties }) {
-  void name; void size; void style;
+// CDN logos.duplogreenengine.com bloqueado — desabilitado temporariamente
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function TeamLogo(_props: { name: string; size: number; style?: React.CSSProperties }) {
   return null;
+}
+function _TeamLogoImpl({ name, size, style }: { name: string; size: number; style?: React.CSSProperties }) {
   const resolved = resolveTeamLogoUrl(name);
   if (!resolved) return null;
   const isFlag = resolved.type === 'flag';
