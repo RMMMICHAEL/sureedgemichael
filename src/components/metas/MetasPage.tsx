@@ -476,36 +476,46 @@ export function MetasPage() {
       {/* ── Sugestões de meta baseadas nos fixos ────────────────────── */}
       {TIERS.length > 0 && (
         <div style={card} className="px-5 py-4">
-          <div className="flex items-center gap-2 mb-3">
-            <Zap size={13} style={{ color: '#FBBF24' }} />
-            <div className="text-[11px] font-black uppercase tracking-widest" style={{ color: 'var(--t3)' }}>
-              Sugestões de Meta — baseadas nos seus fixos
+          <div className="flex items-start justify-between gap-3 mb-1">
+            <div className="flex items-center gap-2">
+              <Zap size={13} style={{ color: '#FBBF24' }} />
+              <div className="text-[11px] font-black uppercase tracking-widest" style={{ color: 'var(--t3)' }}>
+                Sugestões de Meta
+              </div>
             </div>
           </div>
+          <p className="text-xs mb-3" style={{ color: 'var(--t2)' }}>
+            Toque em uma opção abaixo para aplicar como sua meta mensal.
+          </p>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {TIERS.map(tier => {
               const isActive = monthlyGoal !== null && Math.abs(monthlyGoal - tier.val) < 1;
               return (
                 <button key={tier.label} type="button" onClick={() => applyTier(tier)}
-                  className="rounded-xl px-3 py-3 text-left"
+                  className="rounded-xl px-3 py-3 text-left active:scale-95 transition-transform"
                   style={{
                     background: isActive ? `${tier.color}14` : 'rgba(255,255,255,.03)',
                     border: `1px solid ${isActive ? tier.color + '40' : 'var(--b)'}`,
+                    cursor: 'pointer',
                   }}>
                   <div className="text-[10px] font-bold mb-0.5" style={{ color: tier.color }}>{tier.label}</div>
                   <div className="text-sm font-black font-mono mb-0.5" style={{ color: isActive ? tier.color : 'var(--t)' }}>
                     {fmtBRL(tier.val)}
                   </div>
-                  <div className="text-[10px]" style={{ color: 'var(--t3)' }}>{tier.sub}</div>
-                  {isActive && (
-                    <div className="text-[9px] mt-1 font-bold" style={{ color: tier.color }}>✓ ativa</div>
+                  <div className="text-[10px] mb-1.5" style={{ color: 'var(--t3)' }}>{tier.sub}</div>
+                  {isActive ? (
+                    <div className="text-[9px] font-black px-1.5 py-0.5 rounded-md inline-block"
+                      style={{ background: `${tier.color}20`, color: tier.color }}>✓ ativa</div>
+                  ) : (
+                    <div className="text-[9px] font-bold px-1.5 py-0.5 rounded-md inline-block"
+                      style={{ background: 'rgba(255,255,255,.06)', color: 'var(--t3)' }}>Aplicar →</div>
                   )}
                 </button>
               );
             })}
           </div>
           <p className="text-[10px] mt-2.5" style={{ color: 'var(--t3)' }}>
-            Clique em qualquer sugestão para aplicar como meta mensal. A meta diária é calculada automaticamente.
+            A meta diária é calculada automaticamente com base nos dias operados configurados.
           </p>
         </div>
       )}
