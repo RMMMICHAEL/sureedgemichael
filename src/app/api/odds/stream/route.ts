@@ -92,15 +92,20 @@ async function isAuthenticated(): Promise<boolean> {
   } catch { return false; }
 }
 
-/** Busca com timeout + auth header DG */
+/** Busca com timeout + auth headers DG */
 async function fetchWithTimeout(url: string, token: string): Promise<Response> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
   try {
     return await fetch(url, {
       signal:  ctrl.signal,
-      headers: { 'Authorization': `Bearer ${token}` },
-      next:    { revalidate: 0 },
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Origin':        'https://www.duplogreenengine.com',
+        'Referer':       'https://www.duplogreenengine.com/',
+        'User-Agent':    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36',
+      },
+      next: { revalidate: 0 },
     });
   } finally {
     clearTimeout(timer);
