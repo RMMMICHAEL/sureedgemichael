@@ -29,18 +29,56 @@ const POLL_MS      = 15_000;
 const HEARTBEAT_MS = 25_000;
 const FETCH_TIMEOUT_MS = 10_000;
 
-// ── DG auth — token cache com auto-refresh ───────────────────────────────────
+// ── DG auth — token cache com auto-refresh e persistência no Supabase ────────
+const SB_URL      = process.env.NEXT_PUBLIC_SUPABASE_URL    ?? '';
+const SB_SVC_KEY  = process.env.SUPABASE_SERVICE_ROLE_KEY   ?? '';
+
 let dgJwt     = process.env.DG_JWT     ?? '';
 let dgRefresh = process.env.DG_REFRESH ?? '';
+let sbLoaded  = false; // já leu do Supabase neste processo
+
+async function sbGet(key: string): Promise<string | null> {
+  try {
+    const res = await fetch(`${SB_URL}/rest/v1/app_settings?key=eq.${key}&select=value`, {
+      headers: { 'apikey': SB_SVC_KEY, 'Authorization': `Bearer ${SB_SVC_KEY}` },
+    });
+    if (!res.ok) return null;
+    const rows = await res.json() as { value: string }[];
+    return rows[0]?.value ?? null;
+  } catch { return null; }
+}
+
+async function sbSet(key: string, value: string): Promise<void> {
+  try {
+    await fetch(`${SB_URL}/rest/v1/app_settings`, {
+      method:  'POST',
+      headers: {
+        'apikey': SB_SVC_KEY, 'Authorization': `Bearer ${SB_SVC_KEY}`,
+        'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates',
+      },
+      body: JSON.stringify({ key, value, updated_at: new Date().toISOString() }),
+    });
+  } catch { /* ignora erros de escrita */ }
+}
 
 async function getDGToken(): Promise<string> {
-  // Verifica se o token ainda é válido (margem de 60s)
+  // Cold start: tenta carregar refresh persistido no Supabase
+  if (!sbLoaded) {
+    sbLoaded = true;
+    const persisted = await sbGet('dg_refresh_token');
+    if (persisted) dgRefresh = persisted;
+    const persistedJwt = await sbGet('dg_access_token');
+    if (persistedJwt) dgJwt = persistedJwt;
+  }
+
+  // Token em cache ainda válido?
   if (dgJwt) {
     try {
       const payload = JSON.parse(Buffer.from(dgJwt.split('.')[1], 'base64').toString());
       if (payload.exp * 1000 > Date.now() + 60_000) return dgJwt;
-    } catch { /* token malformado — tenta refresh */ }
+    } catch { /* tenta refresh */ }
   }
+
   if (!dgRefresh) return dgJwt;
   try {
     const res = await fetch(DG_AUTH, {
@@ -54,8 +92,14 @@ async function getDGToken(): Promise<string> {
     });
     if (!res.ok) return dgJwt;
     const data = await res.json() as { access_token?: string; refresh_token?: string };
-    if (data.access_token)  dgJwt     = data.access_token;
-    if (data.refresh_token) dgRefresh = data.refresh_token;
+    if (data.access_token)  {
+      dgJwt = data.access_token;
+      void sbSet('dg_access_token', dgJwt);
+    }
+    if (data.refresh_token) {
+      dgRefresh = data.refresh_token;
+      void sbSet('dg_refresh_token', dgRefresh); // persiste imediatamente
+    }
   } catch { /* mantém token atual */ }
   return dgJwt;
 }
