@@ -250,11 +250,5 @@ export function resolveTeamLogoUrl(teamName: string): TeamLogoResult | null {
     return { url: `${DG_CDN}/logos/${knownSlug}.png`, type: 'logo' };
   }
 
-  // 3. Gera slug automaticamente e tenta
-  const autoSlug = toSlug(norm);
-  if (autoSlug.length >= 2) {
-    return { url: `${DG_CDN}/logos/${autoSlug}.png`, type: 'logo' };
-  }
-
   return null;
 }
