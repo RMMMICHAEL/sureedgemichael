@@ -154,21 +154,24 @@ async function isAuthenticated(): Promise<boolean> {
   } catch { return false; }
 }
 
-/** Decodifica HTTP chunked transfer encoding para string limpa */
+/** Decodifica HTTP chunked transfer encoding preservando UTF-8 */
 function decodeChunked(buf: Buffer): string {
-  const parts: string[] = [];
+  const chunks: Buffer[] = [];
   let pos = 0;
-  const str = buf.toString('binary');
-  while (pos < str.length) {
-    const crlf = str.indexOf('\r\n', pos);
+  while (pos < buf.length) {
+    // encontra fim da linha de tamanho do chunk
+    let crlf = -1;
+    for (let i = pos; i < buf.length - 1; i++) {
+      if (buf[i] === 0x0d && buf[i + 1] === 0x0a) { crlf = i; break; }
+    }
     if (crlf === -1) break;
-    const size = parseInt(str.slice(pos, crlf).split(';')[0].trim(), 16);
+    const size = parseInt(buf.slice(pos, crlf).toString('ascii').split(';')[0].trim(), 16);
     if (isNaN(size) || size === 0) break;
     pos = crlf + 2;
-    parts.push(str.slice(pos, pos + size));
-    pos += size + 2;
+    chunks.push(buf.slice(pos, pos + size));
+    pos += size + 2; // pula \r\n após dados do chunk
   }
-  return parts.join('');
+  return Buffer.concat(chunks).toString('utf-8');
 }
 
 // Proxy residencial para contornar Cloudflare bot-check no IP do Vercel
