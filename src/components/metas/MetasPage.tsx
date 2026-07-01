@@ -110,6 +110,8 @@ export function MetasPage() {
   const setGoalConfig     = useStore(s => s.setGoalConfig);
 
   const [configOpen, setConfigOpen] = useState(false);
+  const [pendingTier, setPendingTier] = useState<{ label: string; val: number; color: string } | null>(null);
+  const [pendingMode, setPendingMode] = useState<GoalConfig['daysMode']>(goalConfig?.daysMode ?? 'weekdays');
 
   // ── Date anchors ────────────────────────────────────────────────────────
   const now          = new Date();
@@ -221,13 +223,15 @@ export function MetasPage() {
     { label: '+100%',     sub: 'agressiva',   val: +(fixedMonthly * 2).toFixed(2),   color: '#3FFF21' },
   ] : [];
 
-  function applyTier(tier: { val: number }) {
-    const days = getDaysInMode(goalConfig?.daysMode ?? 'weekdays', year, month);
+  function confirmTier() {
+    if (!pendingTier) return;
+    const days = getDaysInMode(pendingMode, year, month);
     setGoalConfig({
-      dailyGoal:   +(tier.val / days).toFixed(2),
-      daysMode:    goalConfig?.daysMode ?? 'weekdays',
-      monthlyGoal: tier.val,
+      dailyGoal:   +(pendingTier.val / days).toFixed(2),
+      daysMode:    pendingMode,
+      monthlyGoal: pendingTier.val,
     });
+    setPendingTier(null);
   }
 
   // ── Decisão de hoje ─────────────────────────────────────────────────────
@@ -489,23 +493,28 @@ export function MetasPage() {
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {TIERS.map(tier => {
-              const isActive = monthlyGoal !== null && Math.abs(monthlyGoal - tier.val) < 1;
+              const isActive  = monthlyGoal !== null && Math.abs(monthlyGoal - tier.val) < 1;
+              const isPending = pendingTier?.label === tier.label;
               return (
-                <button key={tier.label} type="button" onClick={() => applyTier(tier)}
+                <button key={tier.label} type="button"
+                  onClick={() => { setPendingTier(isPending ? null : tier); setPendingMode(goalConfig?.daysMode ?? 'weekdays'); }}
                   className="rounded-xl px-3 py-3 text-left active:scale-95 transition-transform"
                   style={{
-                    background: isActive ? `${tier.color}14` : 'rgba(255,255,255,.03)',
-                    border: `1px solid ${isActive ? tier.color + '40' : 'var(--b)'}`,
+                    background: isPending ? `${tier.color}18` : isActive ? `${tier.color}14` : 'rgba(255,255,255,.03)',
+                    border: `1px solid ${isPending || isActive ? tier.color + '40' : 'var(--b)'}`,
                     cursor: 'pointer',
                   }}>
                   <div className="text-[10px] font-bold mb-0.5" style={{ color: tier.color }}>{tier.label}</div>
-                  <div className="text-sm font-black font-mono mb-0.5" style={{ color: isActive ? tier.color : 'var(--t)' }}>
+                  <div className="text-sm font-black font-mono mb-0.5" style={{ color: isPending || isActive ? tier.color : 'var(--t)' }}>
                     {fmtBRL(tier.val)}
                   </div>
                   <div className="text-[10px] mb-1.5" style={{ color: 'var(--t3)' }}>{tier.sub}</div>
-                  {isActive ? (
+                  {isActive && !isPending ? (
                     <div className="text-[9px] font-black px-1.5 py-0.5 rounded-md inline-block"
                       style={{ background: `${tier.color}20`, color: tier.color }}>✓ ativa</div>
+                  ) : isPending ? (
+                    <div className="text-[9px] font-bold px-1.5 py-0.5 rounded-md inline-block"
+                      style={{ background: `${tier.color}20`, color: tier.color }}>Selecionada ↓</div>
                   ) : (
                     <div className="text-[9px] font-bold px-1.5 py-0.5 rounded-md inline-block"
                       style={{ background: 'rgba(255,255,255,.06)', color: 'var(--t3)' }}>Aplicar →</div>
@@ -514,9 +523,59 @@ export function MetasPage() {
               );
             })}
           </div>
-          <p className="text-[10px] mt-2.5" style={{ color: 'var(--t3)' }}>
-            A meta diária é calculada automaticamente com base nos dias operados configurados.
-          </p>
+
+          {/* Seletor de dias — aparece ao escolher um tier */}
+          {pendingTier && (
+            <div className="mt-3 pt-3" style={{ borderTop: '1px solid var(--b)' }}>
+              <p className="text-xs font-bold mb-2" style={{ color: 'var(--t2)' }}>
+                Quantos dias você opera por mês?
+              </p>
+              <div className="grid grid-cols-2 gap-1.5 mb-3">
+                {([
+                  { key: 'weekdays',  label: 'Dias úteis', desc: `~${getDaysInMode('weekdays', year, month)} dias` },
+                  { key: 'all',       label: 'Todos os dias', desc: `${getDaysInMode('all', year, month)} dias` },
+                  { key: 'custom_20', label: '20 dias', desc: 'fixo' },
+                  { key: 'custom_25', label: '25 dias', desc: 'fixo' },
+                ] as { key: GoalConfig['daysMode']; label: string; desc: string }[]).map(opt => {
+                  const sel = pendingMode === opt.key;
+                  const dailyPreview = +(pendingTier.val / getDaysInMode(opt.key, year, month)).toFixed(2);
+                  return (
+                    <button key={opt.key} type="button" onClick={() => setPendingMode(opt.key)}
+                      className="rounded-xl px-3 py-2.5 text-left active:scale-95 transition-transform"
+                      style={{
+                        background: sel ? `${pendingTier.color}14` : 'rgba(255,255,255,.03)',
+                        border: `1px solid ${sel ? pendingTier.color + '50' : 'var(--b)'}`,
+                        cursor: 'pointer',
+                      }}>
+                      <div className="text-[11px] font-bold" style={{ color: sel ? pendingTier.color : 'var(--t2)' }}>{opt.label}</div>
+                      <div className="text-[10px]" style={{ color: 'var(--t3)' }}>{opt.desc}</div>
+                      <div className="text-[10px] font-mono mt-0.5" style={{ color: sel ? pendingTier.color : 'var(--t3)' }}>
+                        {fmtBRL(dailyPreview)}/dia
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="flex items-center gap-2">
+                <button type="button" onClick={confirmTier}
+                  className="flex-1 rounded-xl py-2.5 text-sm font-black active:scale-95 transition-transform"
+                  style={{ background: `${pendingTier.color}18`, color: pendingTier.color, border: `1px solid ${pendingTier.color}40` }}>
+                  Confirmar — {fmtBRL(pendingTier.val)}/mês · {fmtBRL(+(pendingTier.val / getDaysInMode(pendingMode, year, month)).toFixed(2))}/dia
+                </button>
+                <button type="button" onClick={() => setPendingTier(null)}
+                  className="w-9 h-9 flex items-center justify-center rounded-xl"
+                  style={{ background: 'rgba(255,255,255,.04)', border: '1px solid var(--b)', color: 'var(--t3)' }}>
+                  <X size={13} />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {!pendingTier && (
+            <p className="text-[10px] mt-2.5" style={{ color: 'var(--t3)' }}>
+              A meta diária é calculada automaticamente com base nos dias operados.
+            </p>
+          )}
         </div>
       )}
 
