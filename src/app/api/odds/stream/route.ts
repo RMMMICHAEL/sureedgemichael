@@ -61,8 +61,28 @@ async function sbSet(key: string, value: string): Promise<void> {
   } catch { /* ignora erros de escrita */ }
 }
 
+const DG_EMAIL    = process.env.DG_EMAIL    ?? '';
+const DG_PASSWORD = process.env.DG_PASSWORD ?? '';
+const DG_LOGIN    = 'https://db.duplogreenengine.com/auth/v1/token?grant_type=password';
+
+/** Login com email/senha — cria sessão exclusiva do servidor, independente do browser */
+async function dgLogin(): Promise<void> {
+  try {
+    const res = await fetch(DG_LOGIN, {
+      method:  'POST',
+      headers: { 'apikey': DG_ANON, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: DG_EMAIL, password: DG_PASSWORD }),
+    });
+    if (!res.ok) { console.error(`[odds/stream] login falhou: ${res.status}`); return; }
+    const data = await res.json() as { access_token?: string; refresh_token?: string };
+    if (data.access_token)  { dgJwt     = data.access_token;  void sbSet('dg_access_token',  dgJwt); }
+    if (data.refresh_token) { dgRefresh = data.refresh_token; void sbSet('dg_refresh_token', dgRefresh); }
+    console.log('[odds/stream] login DG ok, novo token obtido');
+  } catch (e) { console.error('[odds/stream] login erro:', e); }
+}
+
 async function getDGToken(): Promise<string> {
-  // Cold start: tenta carregar refresh persistido no Supabase
+  // Cold start: tenta carregar tokens persistidos no Supabase
   if (!sbLoaded) {
     sbLoaded = true;
     const persisted = await sbGet('dg_refresh_token');
@@ -79,28 +99,26 @@ async function getDGToken(): Promise<string> {
     } catch { /* tenta refresh */ }
   }
 
-  if (!dgRefresh) return dgJwt;
-  try {
-    const res = await fetch(DG_AUTH, {
-      method:  'POST',
-      headers: {
-        'apikey':        DG_ANON,
-        'Authorization': `Bearer ${DG_ANON}`,
-        'Content-Type':  'application/json',
-      },
-      body: JSON.stringify({ refresh_token: dgRefresh }),
-    });
-    if (!res.ok) return dgJwt;
-    const data = await res.json() as { access_token?: string; refresh_token?: string };
-    if (data.access_token)  {
-      dgJwt = data.access_token;
-      void sbSet('dg_access_token', dgJwt);
-    }
-    if (data.refresh_token) {
-      dgRefresh = data.refresh_token;
-      void sbSet('dg_refresh_token', dgRefresh); // persiste imediatamente
-    }
-  } catch { /* mantém token atual */ }
+  // Tenta refresh
+  if (dgRefresh) {
+    try {
+      const res = await fetch(DG_AUTH, {
+        method:  'POST',
+        headers: { 'apikey': DG_ANON, 'Authorization': `Bearer ${DG_ANON}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: dgRefresh }),
+      });
+      if (res.ok) {
+        const data = await res.json() as { access_token?: string; refresh_token?: string };
+        if (data.access_token)  { dgJwt     = data.access_token;  void sbSet('dg_access_token',  dgJwt); }
+        if (data.refresh_token) { dgRefresh = data.refresh_token; void sbSet('dg_refresh_token', dgRefresh); }
+        if (data.access_token) return dgJwt;
+      }
+    } catch { /* cai no login */ }
+  }
+
+  // Refresh falhou ou não existe — faz login completo com email/senha
+  console.log('[odds/stream] refresh inválido, fazendo login completo');
+  await dgLogin();
   return dgJwt;
 }
 
