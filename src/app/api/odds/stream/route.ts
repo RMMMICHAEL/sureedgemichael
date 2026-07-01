@@ -23,9 +23,42 @@ import type { OddsMatch, OddsUpdateEvent } from '@/lib/odds-source/types';
 
 // ── Config ────────────────────────────────────────────────────────────────────
 const DG_API       = 'https://api.duplogreenengine.com/functions/v1/get-individual-odds';
-const POLL_MS      = 15_000;  // 15s — compromisso entre latência e carga
-const HEARTBEAT_MS = 25_000;  // keepalive para proxy/Vercel
-const FETCH_TIMEOUT_MS = 10_000; // timeout por requisição ao DG
+const DG_AUTH      = 'https://db.duplogreenengine.com/auth/v1/token?grant_type=refresh_token';
+const DG_ANON      = process.env.DG_ANON_KEY ?? '';
+const POLL_MS      = 15_000;
+const HEARTBEAT_MS = 25_000;
+const FETCH_TIMEOUT_MS = 10_000;
+
+// ── DG auth — token cache com auto-refresh ───────────────────────────────────
+let dgJwt     = process.env.DG_JWT     ?? '';
+let dgRefresh = process.env.DG_REFRESH ?? '';
+
+async function getDGToken(): Promise<string> {
+  // Verifica se o token ainda é válido (margem de 60s)
+  if (dgJwt) {
+    try {
+      const payload = JSON.parse(Buffer.from(dgJwt.split('.')[1], 'base64').toString());
+      if (payload.exp * 1000 > Date.now() + 60_000) return dgJwt;
+    } catch { /* token malformado — tenta refresh */ }
+  }
+  if (!dgRefresh) return dgJwt;
+  try {
+    const res = await fetch(DG_AUTH, {
+      method:  'POST',
+      headers: {
+        'apikey':        DG_ANON,
+        'Authorization': `Bearer ${DG_ANON}`,
+        'Content-Type':  'application/json',
+      },
+      body: JSON.stringify({ refresh_token: dgRefresh }),
+    });
+    if (!res.ok) return dgJwt;
+    const data = await res.json() as { access_token?: string; refresh_token?: string };
+    if (data.access_token)  dgJwt     = data.access_token;
+    if (data.refresh_token) dgRefresh = data.refresh_token;
+  } catch { /* mantém token atual */ }
+  return dgJwt;
+}
 
 // ── Tipos da resposta DG ──────────────────────────────────────────────────────
 interface DGRow {
@@ -59,12 +92,16 @@ async function isAuthenticated(): Promise<boolean> {
   } catch { return false; }
 }
 
-/** Busca com timeout para evitar que um fetch travado bloqueie o próximo ciclo */
-async function fetchWithTimeout(url: string): Promise<Response> {
+/** Busca com timeout + auth header DG */
+async function fetchWithTimeout(url: string, token: string): Promise<Response> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
   try {
-    return await fetch(url, { signal: ctrl.signal, next: { revalidate: 0 } });
+    return await fetch(url, {
+      signal:  ctrl.signal,
+      headers: { 'Authorization': `Bearer ${token}` },
+      next:    { revalidate: 0 },
+    });
   } finally {
     clearTimeout(timer);
   }
@@ -74,10 +111,11 @@ async function fetchWithTimeout(url: string): Promise<Response> {
  *  Lança erro se QUALQUER endpoint falhar — evita falsos "removes"
  *  por mistura de dados novos (1x2) com dados ausentes (1x2_pa). */
 async function fetchDGOdds(): Promise<OddsMatch[]> {
+  const token = await getDGToken();
   const t = Date.now();
   const [r1, r2] = await Promise.allSettled([
-    fetchWithTimeout(`${DG_API}?market=1x2&_t=${t}`),
-    fetchWithTimeout(`${DG_API}?market=1x2_pa&_t=${t}`),
+    fetchWithTimeout(`${DG_API}?market=1x2&_t=${t}`, token),
+    fetchWithTimeout(`${DG_API}?market=1x2_pa&_t=${t}`, token),
   ]);
 
   // Se qualquer endpoint falhou, abortamos — não queremos dados parciais
