@@ -12,6 +12,7 @@ import { DGOpportunitiesSection } from './DGOpportunitiesSection';
 import { VideoTutorialModal }     from '@/components/ui/VideoTutorialModal';
 import { useOdds }               from '@/hooks/useOdds';
 import { normSlug, isPaBookmaker as isPa } from '@/lib/bookmakers';
+import { resolveTeamLogoUrl } from '@/lib/team-logos';
 
 // ─── Palette ──────────────────────────────────────────────────────────────────
 const C = {
@@ -132,37 +133,29 @@ interface SportsDBMatch {
   home_badge: string | null; away_badge: string | null; league_badge?: string | null;
   home_team_pt: string | null; away_team_pt: string | null; league_pt: string | null;
 }
-// ─── Mapa país (PT) → ISO2 para flagcdn.com ──────────────────────────────────
-const COUNTRY_ISO: Record<string, string> = {
-  'brasil':'br','argentina':'ar','frança':'fr','alemanha':'de','espanha':'es',
-  'portugal':'pt','itália':'it','italia':'it','países baixos':'nl','holanda':'nl',
-  'bélgica':'be','uruguai':'uy','méxico':'mx','estados unidos':'us','japão':'jp',
-  'coreia do sul':'kr','coreia':'kr','austrália':'au','senegal':'sn','marrocos':'ma',
-  'gana':'gh','nigéria':'ng','camarões':'cm','costa do marfim':'ci','equador':'ec',
-  'colômbia':'co','chile':'cl','peru':'pe','paraguai':'py','bolívia':'bo',
-  'venezuela':'ve','costa rica':'cr','honduras':'hn','panamá':'pa','jamaica':'jm',
-  'canadá':'ca','suíça':'ch','áustria':'at','croácia':'hr','sérvia':'rs',
-  'polônia':'pl','república checa':'cz','tchéquia':'cz','hungria':'hu',
-  'dinamarca':'dk','suécia':'se','noruega':'no','finlândia':'fi','turquia':'tr',
-  'grécia':'gr','romênia':'ro','ucrânia':'ua','rússia':'ru','eslováquia':'sk',
-  'eslovênia':'si','albânia':'al','israel':'il','argélia':'dz','tunísia':'tn',
-  'egito':'eg','África do sul':'za','africa do sul':'za','irã':'ir','iraque':'iq',
-  'arábia saudita':'sa','catar':'qa','coreia do norte':'kp','rd congo':'cd',
-  'república democrática do congo':'cd','bósnia e herzegovina':'ba','bósnia':'ba',
-  'kosovo':'xk','cabo verde':'cv','montenegro':'me','macedônia do norte':'mk',
-  'geórgia':'ge','islândia':'is','luxemburgo':'lu','letônia':'lv','lituânia':'lt',
-  'estônia':'ee','moldávia':'md','bielorrússia':'by','china':'cn','índia':'in',
-  'tailândia':'th','vietnã':'vn','emirados árabes':'ae',
-  'nova zelândia':'nz','angola':'ao','moçambique':'mz','tanzânia':'tz',
-  'quênia':'ke','etiópia':'et','zâmbia':'zm','zimbábue':'zw','ruanda':'rw',
-  // sub-seleções GB
-  'inglaterra':'gb-eng','escócia':'gb-sct','país de gales':'gb-wls','irlanda do norte':'gb-nir',
-  'irlanda':'ie','gales':'gb-wls',
-};
-function flagUrl(name: string): string | null {
-  const k = name.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
-  const iso = COUNTRY_ISO[k] ?? COUNTRY_ISO[k.replace(/[^a-z\s]/g, '').trim()];
-  return iso ? `https://flagcdn.com/20x15/${iso}.png` : null;
+// ─── Componente de logo de time (DG CDN com fallback silencioso) ──────────────
+function TeamLogo({ name, size, style }: { name: string; size: number; style?: React.CSSProperties }) {
+  const resolved = resolveTeamLogoUrl(name);
+  if (!resolved) return null;
+  const isFlag = resolved.type === 'flag';
+  return (
+    <img
+      src={resolved.url}
+      alt={name}
+      width={size}
+      height={isFlag ? Math.round(size * 0.67) : size}
+      loading="lazy"
+      decoding="async"
+      referrerPolicy="no-referrer"
+      onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+      style={{
+        borderRadius: isFlag ? 2 : '50%',
+        objectFit: 'cover',
+        flexShrink: 0,
+        ...style,
+      }}
+    />
+  );
 }
 
 // Decodifica códigos de Copa do Mundo: "2E (Wwc)" → "2° do Grupo E", "3CDFGH" → "3° de C,D,F,G ou H"
@@ -613,11 +606,11 @@ function MatchCard({ ev, dgInfo, isFlash, isFav, onSelect, onToggleFav, prevSnap
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' as const }}>
             <div style={{ fontSize: 14, fontWeight: 800, color: C.t1, lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: '1 1 0', minWidth: 0 }}>
-              {(() => { const b = liveData?.home_badge ?? flagUrl(liveData?.home_team_pt ?? ev.home_team); return b ? <img src={b} alt="" width={14} height={14} style={{ borderRadius: liveData?.home_badge ? '50%' : 2, marginRight: 4, verticalAlign: 'middle', objectFit: 'cover' }} /> : null; })()}
+              <TeamLogo name={liveData?.home_team_pt ?? ev.home_team} size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />
               {decodeTeamName(liveData?.home_team_pt ?? ev.home_team)}
               <span style={{ color: C.t3, fontWeight: 500 }}> x </span>
               {decodeTeamName(liveData?.away_team_pt ?? ev.away_team)}
-              {(() => { const b = liveData?.away_badge ?? flagUrl(liveData?.away_team_pt ?? ev.away_team); return b ? <img src={b} alt="" width={14} height={14} style={{ borderRadius: liveData?.away_badge ? '50%' : 2, marginLeft: 4, verticalAlign: 'middle', objectFit: 'cover' }} /> : null; })()}
+              <TeamLogo name={liveData?.away_team_pt ?? ev.away_team} size={14} style={{ marginLeft: 4, verticalAlign: 'middle' }} />
             </div>
             {liveData && liveData.home_score !== null && liveData.away_score !== null && (() => {
               const sl = statusLabel(liveData.status, liveData.is_live);
@@ -1432,7 +1425,7 @@ export function BuscarOddsPage() {
                                     <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
                                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0, flex: 1 }}>
-                                        {(() => { const b = liveInfo?.home_badge ?? flagUrl(liveInfo?.home_team_pt ?? ev.home_team); return b ? <img src={b} alt="" width={14} height={14} style={{ borderRadius: liveInfo?.home_badge ? '50%' : 2, flexShrink: 0, objectFit: 'cover' }} /> : null; })()}
+                                        <TeamLogo name={liveInfo?.home_team_pt ?? ev.home_team} size={14} />
                                         <p style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 13, fontWeight: 700, color: C.t1, margin: 0 }}>{decodeTeamName(liveInfo?.home_team_pt ?? ev.home_team)}</p>
                                         {liveInfo && liveInfo.home_score !== null && liveInfo.away_score !== null && (() => {
                                           const sl = statusLabel(liveInfo.status, liveInfo.is_live);
@@ -1465,7 +1458,7 @@ export function BuscarOddsPage() {
                                         )}
                                       </div>
                                       <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
-                                        {(() => { const b = liveInfo?.away_badge ?? flagUrl(liveInfo?.away_team_pt ?? ev.away_team); return b ? <img src={b} alt="" width={14} height={14} style={{ borderRadius: liveInfo?.away_badge ? '50%' : 2, flexShrink: 0, objectFit: 'cover' }} /> : null; })()}
+                                        <TeamLogo name={liveInfo?.away_team_pt ?? ev.away_team} size={14} />
                                         <p style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 13, fontWeight: 500, color: C.t2, margin: 0 }}>{decodeTeamName(liveInfo?.away_team_pt ?? ev.away_team)}</p>
                                       </div>
                                       <p style={{ fontSize: 11, color: C.t3, margin: 0 }}>{ev.bookmakers.length} casas{isMFav ? ' · ⭐' : ''}</p>
