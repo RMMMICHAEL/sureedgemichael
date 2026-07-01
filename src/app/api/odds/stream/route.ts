@@ -154,20 +154,21 @@ async function isAuthenticated(): Promise<boolean> {
   } catch { return false; }
 }
 
-/** Decodifica HTTP chunked transfer encoding para Buffer limpo */
-function decodeChunked(buf: Buffer): Buffer {
-  const chunks: Buffer[] = [];
+/** Decodifica HTTP chunked transfer encoding para string limpa */
+function decodeChunked(buf: Buffer): string {
+  const parts: string[] = [];
   let pos = 0;
-  while (pos < buf.length) {
-    const crlf = buf.indexOf('\r\n', pos);
+  const str = buf.toString('binary');
+  while (pos < str.length) {
+    const crlf = str.indexOf('\r\n', pos);
     if (crlf === -1) break;
-    const size = parseInt(buf.slice(pos, crlf).toString().split(';')[0].trim(), 16);
+    const size = parseInt(str.slice(pos, crlf).split(';')[0].trim(), 16);
     if (isNaN(size) || size === 0) break;
     pos = crlf + 2;
-    chunks.push(buf.slice(pos, pos + size));
-    pos += size + 2; // pula \r\n após o chunk
+    parts.push(str.slice(pos, pos + size));
+    pos += size + 2;
   }
-  return Buffer.concat(chunks);
+  return parts.join('');
 }
 
 // Proxy residencial para contornar Cloudflare bot-check no IP do Vercel
@@ -247,17 +248,17 @@ async function fetchViaProxy(url: string, authToken: string): Promise<Response> 
         try {
           const sep  = rawData.indexOf('\r\n\r\n');
           const head = rawData.slice(0, sep).toString();
-          let body   = rawData.slice(sep + 4);
+          const body = rawData.slice(sep + 4);
 
           const statusMatch = head.match(/^HTTP\/1\.\d (\d+)/);
           const status = statusMatch ? parseInt(statusMatch[1]) : 200;
 
           // Decodifica chunked transfer encoding se necessário
-          if (/transfer-encoding:\s*chunked/i.test(head)) {
-            body = decodeChunked(body);
-          }
+          const bodyStr = /transfer-encoding:\s*chunked/i.test(head)
+            ? decodeChunked(body)
+            : body.toString();
 
-          resolve(new Response(body, { status }));
+          resolve(new Response(bodyStr, { status }));
         } catch (e) { reject(e); }
       });
     });
