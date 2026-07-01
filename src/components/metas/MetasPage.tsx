@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import { useStore } from '@/store/useStore';
+import { parseBRLInput } from '@/lib/parseBRL';
 import { Target, Settings, X, TrendingUp, TrendingDown, Zap } from 'lucide-react';
 import type { GoalConfig } from '@/types';
 
@@ -35,12 +36,12 @@ function ConfigModal({ current, onSave, onClose }: {
   const [monthly, setMonthly] = useState(String(current?.monthlyGoal ?? ''));
 
   function handleSave() {
-    const dv = parseFloat(daily);
+    const dv = parseBRLInput(daily);
     if (!dv || dv <= 0) return;
     onSave({
       dailyGoal:   dv,
       daysMode:    mode,
-      monthlyGoal: monthly ? parseFloat(monthly) || undefined : undefined,
+      monthlyGoal: monthly ? parseBRLInput(monthly) || undefined : undefined,
     });
     onClose();
   }
@@ -88,7 +89,7 @@ function ConfigModal({ current, onSave, onClose }: {
               className="w-full rounded-xl px-3 py-2.5 text-sm font-semibold outline-none"
               style={{ background: 'rgba(255,255,255,.05)', border: '1px solid var(--b)', color: 'var(--t)' }} />
           </div>
-          <button type="button" onClick={handleSave} disabled={!daily || parseFloat(daily) <= 0}
+          <button type="button" onClick={handleSave} disabled={!daily || parseBRLInput(daily) <= 0}
             className="w-full rounded-xl py-2.5 text-sm font-black disabled:opacity-40"
             style={{ background: 'rgba(63,255,33,.15)', color: 'var(--g)', border: '1px solid rgba(63,255,33,.25)' }}>
             Salvar

@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useCallback } from 'react';
 import { useStore }  from '@/store/useStore';
+import { parseBRLInput } from '@/lib/parseBRL';
 import { Button }    from '@/components/ui/Button';
 import { Modal }     from '@/components/ui/Modal';
 import {
@@ -329,29 +330,6 @@ function catColor(cat: string): string {
 
 function fmtBRL(v: number) {
   return `R$ ${Math.abs(v).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
-}
-
-/** Converte valor digitado em BR (1.234,56 ou 1234,56 ou 1.234) para número */
-function parseBRLInput(raw: string): number {
-  const s = raw.trim();
-  const hasDot   = s.includes('.');
-  const hasComma = s.includes(',');
-  let normalized: string;
-  if (hasDot && hasComma) {
-    // formato 1.234,56 → remove . e troca , por .
-    normalized = s.replace(/\./g, '').replace(',', '.');
-  } else if (hasDot && !hasComma) {
-    // 1.234 ou 1.5 → se 3 dígitos após o ponto = milhar, senão decimal
-    const afterDot = s.slice(s.lastIndexOf('.') + 1);
-    normalized = afterDot.length === 3 ? s.replace(/\./g, '') : s;
-  } else if (hasComma && !hasDot) {
-    // 1,5 ou 1,500 → se 3 dígitos após vírgula = milhar, senão decimal
-    const afterComma = s.slice(s.lastIndexOf(',') + 1);
-    normalized = afterComma.length === 3 ? s.replace(',', '') : s.replace(',', '.');
-  } else {
-    normalized = s;
-  }
-  return parseFloat(normalized);
 }
 
 function fmtDate(iso: string) {
