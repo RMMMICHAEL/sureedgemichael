@@ -149,9 +149,14 @@ const DG_HEADERS = {
 
 /** Busca via proxy residencial usando undici diretamente (não o fetch global) */
 async function fetchViaProxy(url: string, token: string): Promise<Response> {
-  const { request } = await import('undici');
-  const { ProxyAgent } = await import('undici');
-  const proxy = new ProxyAgent(PROXY_URL);
+  const { request, ProxyAgent } = await import('undici');
+  // Extrai credenciais da URL e passa explicitamente como Proxy-Authorization
+  const proxyParsed = new URL(PROXY_URL);
+  const proxyUri    = `${proxyParsed.protocol}//${proxyParsed.host}`;
+  const proxyAuth   = proxyParsed.username
+    ? `Basic ${Buffer.from(`${proxyParsed.username}:${proxyParsed.password}`).toString('base64')}`
+    : undefined;
+  const proxy = new ProxyAgent({ uri: proxyUri, ...(proxyAuth ? { token: proxyAuth } : {}) });
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
   try {
