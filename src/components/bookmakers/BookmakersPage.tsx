@@ -317,7 +317,7 @@ const CATALOG: { name: string; color: string; domain: string }[] = [
   { name: 'Sporty',       color: '#166534', domain: 'sporty.bet.br' },
   { name: 'Tradeball',    color: '#0369A1', domain: 'tradeball.bet.br' },
   { name: 'Vaidebet',     color: '#B45309', domain: 'vaidebet.com' },
-  { name: 'Versusbet',    color: '#6B21A8', domain: 'versusbet.bet.br' },
+  { name: 'Versusbet',    color: '#6B21A8', domain: 'versus.bet.br' },
   { name: 'Vivasorte',    color: '#DC2626', domain: 'vivasorte.bet.br' },
   { name: 'Meridianbet',  color: '#374151', domain: 'meridianbet.com' },
   { name: 'Betway',       color: '#00632B', domain: 'betway.com' },
