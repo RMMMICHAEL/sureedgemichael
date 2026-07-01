@@ -84,7 +84,6 @@ const FLAG_MAP: Record<string, string> = {
   'trinidad e tobago': 'tt',
   'catar': 'qa', 'qatar': 'qa',
   'emirados arabes unidos': 'ae', 'uae': 'ae',
-  'nigeria': 'ng',
   'tunisia': 'tn',
   'mali': 'ml',
   'burkina faso': 'bf',

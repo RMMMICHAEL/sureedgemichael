@@ -70,7 +70,9 @@ async function fetchWithTimeout(url: string): Promise<Response> {
   }
 }
 
-/** Busca e normaliza os dois mercados do DG em paralelo */
+/** Busca e normaliza os dois mercados do DG em paralelo.
+ *  Lança erro se QUALQUER endpoint falhar — evita falsos "removes"
+ *  por mistura de dados novos (1x2) com dados ausentes (1x2_pa). */
 async function fetchDGOdds(): Promise<OddsMatch[]> {
   const t = Date.now();
   const [r1, r2] = await Promise.allSettled([
@@ -78,22 +80,21 @@ async function fetchDGOdds(): Promise<OddsMatch[]> {
     fetchWithTimeout(`${DG_API}?market=1x2_pa&_t=${t}`),
   ]);
 
-  const rows: DGRow[] = [];
+  // Se qualquer endpoint falhou, abortamos — não queremos dados parciais
+  if (r1.status === 'rejected') throw new Error(`DG 1x2 unreachable: ${r1.reason}`);
+  if (r2.status === 'rejected') throw new Error(`DG 1x2_pa unreachable: ${r2.reason}`);
+  if (!r1.value.ok) throw new Error(`DG 1x2 HTTP ${r1.value.status}`);
+  if (!r2.value.ok) throw new Error(`DG 1x2_pa HTTP ${r2.value.status}`);
 
-  for (const r of [r1, r2]) {
-    if (r.status !== 'fulfilled' || !r.value.ok) continue;
+  const rows: DGRow[] = [];
+  for (const res of [r1.value, r2.value]) {
     try {
-      const json = await r.value.json() as { success?: boolean; odds?: DGRow[] } | DGRow[];
+      const json = await res.json() as { success?: boolean; odds?: DGRow[] } | DGRow[];
       const list: DGRow[] = Array.isArray(json)
         ? json
         : ((json as { odds?: DGRow[] }).odds ?? []);
       rows.push(...list);
-    } catch { /* ignora parse errors individuais */ }
-  }
-
-  // Falha total: nenhum dos dois endpoints respondeu
-  if (rows.length === 0 && r1.status === 'rejected' && r2.status === 'rejected') {
-    throw new Error('DG API unreachable');
+    } catch { /* parse error individual — não bloqueia o outro mercado */ }
   }
 
   return rowsToMatches(rows);
@@ -204,9 +205,8 @@ export async function GET() {
   }
 
   const encoder  = new TextEncoder();
-  let closed     = false;
-  let snapshot:    OddsMatch[] = [];
-  let polling    = false; // lock anti-sobreposição
+  let closed   = false;
+  let snapshot: OddsMatch[] = [];
 
   const stream = new ReadableStream({
     async start(ctrl) {
@@ -221,33 +221,37 @@ export async function GET() {
         push({ type: 'snapshot', data: snapshot, ts: Date.now() });
       } catch (err) {
         push({ type: 'error', error: `Falha no snapshot inicial: ${err}`, ts: Date.now() });
-        // Continua — próximo poll pode recuperar
+        // Continua — próximo ciclo pode recuperar
       }
 
-      // 2. Polling periódico com lock anti-sobreposição
-      const poll = setInterval(async () => {
-        if (closed || polling) return; // skip se já tem um poll em andamento
-        polling = true;
-
-        try {
-          const next = await fetchDGOdds();
-          // Só atualiza snapshot se o fetch foi bem-sucedido
-          const { updated, removed } = diffMatches(snapshot, next);
-          snapshot = next;
-
-          for (const match of updated) {
-            push({ type: 'update', match_id: match.match_id, data: match, ts: Date.now() });
+      // 2. Loop sequencial: aguarda conclusão do fetch, depois espera POLL_MS.
+      //    Garante que o intervalo sempre começa APÓS o fetch terminar — sem sobreposição,
+      //    sem drift acumulado em caso de fetches lentos.
+      const schedulePoll = () => {
+        if (closed) return;
+        setTimeout(async () => {
+          if (closed) return;
+          const cycleStart = Date.now();
+          try {
+            const next = await fetchDGOdds();
+            const { updated, removed } = diffMatches(snapshot, next);
+            snapshot = next; // só atualiza se fetch completo e ambos os mercados ok
+            for (const match of updated) {
+              push({ type: 'update', match_id: match.match_id, data: match, ts: Date.now() });
+            }
+            for (const match_id of removed) {
+              push({ type: 'remove', match_id, ts: Date.now() });
+            }
+          } catch {
+            // Qualquer falha parcial: snapshot não é atualizado, próximo ciclo tenta novamente
           }
-          for (const match_id of removed) {
-            push({ type: 'remove', match_id, ts: Date.now() });
+          if (process.env.NODE_ENV === 'development') {
+            console.log(`[odds/stream] ciclo em ${Date.now() - cycleStart}ms`);
           }
-        } catch {
-          // Erro de rede: snapshot NÃO é atualizado (evita perder diff na próxima rodada)
-          // SSE continua vivo — próximo ciclo tenta novamente
-        } finally {
-          polling = false;
-        }
-      }, POLL_MS);
+          schedulePoll(); // agenda próximo ciclo apenas após este terminar
+        }, POLL_MS);
+      };
+      schedulePoll();
 
       // 3. Heartbeat para manter a conexão viva em proxies
       const heartbeat = setInterval(() => {
@@ -257,7 +261,6 @@ export async function GET() {
       // 4. Cleanup quando cliente desconecta
       return () => {
         closed = true;
-        clearInterval(poll);
         clearInterval(heartbeat);
       };
     },
