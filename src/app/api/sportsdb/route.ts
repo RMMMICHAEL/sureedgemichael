@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 const BASE    = process.env.DUCKTIPS_API_URL  ?? 'https://api.ducktipsbr.com';
 const APIKEY  = process.env.DUCKTIPS_APIKEY   ?? '';
-const SUPABASE_AUTH = 'https://rkndrpqsmqdrbcvsmzl.supabase.co/auth/v1';
+const SUPABASE_AUTH = 'https://rkndrrpqsmqdrbcvsmzl.supabase.co/auth/v1';
 const TSDB    = 'https://www.thesportsdb.com/api/v1/json/3';
 
 const SELECT = [
