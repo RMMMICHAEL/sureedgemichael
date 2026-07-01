@@ -158,7 +158,6 @@ async function fetchWithTimeout(url: string, token: string): Promise<Response> {
   try {
     return await fetch(url, {
       signal:  ctrl.signal,
-      // @ts-expect-error — undici dispatcher não está nos tipos padrão do fetch
       ...(dispatcher ? { dispatcher } : {}),
       headers: {
         'Authorization': `Bearer ${token}`,
