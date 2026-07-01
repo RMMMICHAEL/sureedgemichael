@@ -154,6 +154,22 @@ async function isAuthenticated(): Promise<boolean> {
   } catch { return false; }
 }
 
+/** Decodifica HTTP chunked transfer encoding para Buffer limpo */
+function decodeChunked(buf: Buffer): Buffer {
+  const chunks: Buffer[] = [];
+  let pos = 0;
+  while (pos < buf.length) {
+    const crlf = buf.indexOf('\r\n', pos);
+    if (crlf === -1) break;
+    const size = parseInt(buf.slice(pos, crlf).toString().split(';')[0].trim(), 16);
+    if (isNaN(size) || size === 0) break;
+    pos = crlf + 2;
+    chunks.push(buf.slice(pos, pos + size));
+    pos += size + 2; // pula \r\n após o chunk
+  }
+  return Buffer.concat(chunks);
+}
+
 // Proxy residencial para contornar Cloudflare bot-check no IP do Vercel
 const PROXY_URL = process.env.RESIDENTIAL_PROXY ?? '';
 
@@ -229,13 +245,19 @@ async function fetchViaProxy(url: string, authToken: string): Promise<Response> 
       tlsSocket.on('end', () => {
         clearTimeout(timer);
         try {
-          const raw   = rawData.toString();
-          const sep   = raw.indexOf('\r\n\r\n');
-          const head  = raw.slice(0, sep);
-          const bodyStr = raw.slice(sep + 4);
+          const sep  = rawData.indexOf('\r\n\r\n');
+          const head = rawData.slice(0, sep).toString();
+          let body   = rawData.slice(sep + 4);
+
           const statusMatch = head.match(/^HTTP\/1\.\d (\d+)/);
           const status = statusMatch ? parseInt(statusMatch[1]) : 200;
-          resolve(new Response(bodyStr, { status }));
+
+          // Decodifica chunked transfer encoding se necessário
+          if (/transfer-encoding:\s*chunked/i.test(head)) {
+            body = decodeChunked(body);
+          }
+
+          resolve(new Response(body, { status }));
         } catch (e) { reject(e); }
       });
     });
