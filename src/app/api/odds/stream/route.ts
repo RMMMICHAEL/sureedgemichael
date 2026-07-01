@@ -162,6 +162,13 @@ async function fetchWithTimeout(url: string, token: string): Promise<Response> {
 async function fetchDGOdds(): Promise<OddsMatch[]> {
   const token = await getDGToken();
   const t = Date.now();
+
+  // Log diagnóstico: token usado (últimos 30 chars) e expiração
+  try {
+    const p = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
+    console.log(`[odds/stream] token sub=${p.sub?.slice(0,8)} exp=${new Date(p.exp*1000).toISOString()} now=${new Date().toISOString()} valid=${p.exp*1000 > Date.now()}`);
+  } catch { console.log('[odds/stream] token inválido ou ausente'); }
+
   const [r1, r2] = await Promise.allSettled([
     fetchWithTimeout(`${DG_API}?market=1x2&_t=${t}`, token),
     fetchWithTimeout(`${DG_API}?market=1x2_pa&_t=${t}`, token),
@@ -170,8 +177,16 @@ async function fetchDGOdds(): Promise<OddsMatch[]> {
   // Se qualquer endpoint falhou, abortamos — não queremos dados parciais
   if (r1.status === 'rejected') throw new Error(`DG 1x2 unreachable: ${r1.reason}`);
   if (r2.status === 'rejected') throw new Error(`DG 1x2_pa unreachable: ${r2.reason}`);
-  if (!r1.value.ok) throw new Error(`DG 1x2 HTTP ${r1.value.status}`);
-  if (!r2.value.ok) throw new Error(`DG 1x2_pa HTTP ${r2.value.status}`);
+  if (!r1.value.ok) {
+    let body = '';
+    try { body = await r1.value.clone().text(); } catch { /* ignore */ }
+    throw new Error(`DG 1x2 HTTP ${r1.value.status} | cf-ray=${r1.value.headers.get('cf-ray')} | body=${body.slice(0,300)}`);
+  }
+  if (!r2.value.ok) {
+    let body = '';
+    try { body = await r2.value.clone().text(); } catch { /* ignore */ }
+    throw new Error(`DG 1x2_pa HTTP ${r2.value.status} | body=${body.slice(0,300)}`);
+  }
 
   const rows: DGRow[] = [];
   for (const res of [r1.value, r2.value]) {
