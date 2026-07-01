@@ -139,48 +139,91 @@ async function isAuthenticated(): Promise<boolean> {
 // Proxy residencial para contornar Cloudflare bot-check no IP do Vercel
 const PROXY_URL = process.env.RESIDENTIAL_PROXY ?? '';
 
-const DG_HEADERS = {
-  'Origin':        'https://www.duplogreenengine.com',
-  'Referer':       'https://www.duplogreenengine.com/',
-  'User-Agent':    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-  'Accept':        'application/json, */*',
+const DG_HEADERS: Record<string, string> = {
+  'Origin':          'https://www.duplogreenengine.com',
+  'Referer':         'https://www.duplogreenengine.com/',
+  'User-Agent':      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+  'Accept':          'application/json, */*',
   'Accept-Language': 'pt-BR,pt;q=0.9,en;q=0.8',
 };
 
-/** Busca via proxy residencial usando undici diretamente (não o fetch global) */
-async function fetchViaProxy(url: string, token: string): Promise<Response> {
-  const { request, ProxyAgent } = await import('undici');
-  // Extrai credenciais da URL e passa explicitamente como Proxy-Authorization
-  const proxyParsed = new URL(PROXY_URL);
-  const proxyUri    = `${proxyParsed.protocol}//${proxyParsed.host}`;
-  const proxyAuth   = proxyParsed.username
-    ? `Basic ${Buffer.from(`${proxyParsed.username}:${proxyParsed.password}`).toString('base64')}`
+/**
+ * Busca via proxy HTTP usando CONNECT tunnel (node:http + node:https raw).
+ * Controla diretamente o header Proxy-Authorization no CONNECT — sem depender
+ * de como o undici interpreta a URL do proxy.
+ */
+async function fetchViaProxy(url: string, authToken: string): Promise<Response> {
+  const http  = await import('node:http');
+  const https = await import('node:https');
+  const tls   = await import('node:tls');
+
+  const target = new URL(url);
+  const proxy  = new URL(PROXY_URL);
+  const proxyAuth = proxy.username
+    ? `Basic ${Buffer.from(`${decodeURIComponent(proxy.username)}:${decodeURIComponent(proxy.password)}`).toString('base64')}`
     : undefined;
-  const proxy = new ProxyAgent({ uri: proxyUri, ...(proxyAuth ? { token: proxyAuth } : {}) });
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
-  try {
-    const res = await request(url, {
-      dispatcher: proxy,
-      signal: ctrl.signal,
-      headers: { 'Authorization': `Bearer ${token}`, ...DG_HEADERS },
+
+  return new Promise<Response>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('proxy timeout')), FETCH_TIMEOUT_MS);
+
+    // Passo 1: CONNECT para abrir o tunnel TCP
+    const connectReq = http.request({
+      host:   proxy.hostname,
+      port:   parseInt(proxy.port || '80'),
+      method: 'CONNECT',
+      path:   `${target.hostname}:443`,
+      headers: {
+        'Host': `${target.hostname}:443`,
+        ...(proxyAuth ? { 'Proxy-Authorization': proxyAuth } : {}),
+      },
     });
-    // converte undici response → Web Response
-    const chunks: Buffer[] = [];
-    for await (const chunk of res.body) chunks.push(Buffer.from(chunk));
-    const body = Buffer.concat(chunks);
-    return new Response(body, {
-      status: res.statusCode,
-      headers: Object.fromEntries(Object.entries(res.headers).map(([k, v]) => [k, Array.isArray(v) ? v.join(', ') : v ?? ''])),
+
+    connectReq.on('error', (err) => { clearTimeout(timer); reject(err); });
+
+    connectReq.on('connect', (res, socket) => {
+      if (res.statusCode !== 200) {
+        clearTimeout(timer);
+        socket.destroy();
+        reject(new Error(`Proxy CONNECT ${res.statusCode}`));
+        return;
+      }
+
+      // Passo 2: TLS sobre o socket do tunnel
+      const tlsSocket = tls.connect({ socket, servername: target.hostname, rejectUnauthorized: false });
+
+      const path = target.pathname + target.search;
+      const headers: Record<string, string> = {
+        'Host':       target.hostname,
+        'Connection': 'close',
+        'Authorization': `Bearer ${authToken}`,
+        ...DG_HEADERS,
+      };
+      const headerLines = Object.entries(headers).map(([k, v]) => `${k}: ${v}`).join('\r\n');
+      const request = `GET ${path} HTTP/1.1\r\n${headerLines}\r\n\r\n`;
+
+      tlsSocket.on('error', (err) => { clearTimeout(timer); reject(err); });
+
+      tlsSocket.write(request);
+
+      // Passo 3: lê a resposta HTTP crua
+      let rawData = Buffer.alloc(0);
+      tlsSocket.on('data', (chunk: Buffer) => { rawData = Buffer.concat([rawData, chunk]); });
+      tlsSocket.on('end', () => {
+        clearTimeout(timer);
+        try {
+          const raw   = rawData.toString();
+          const sep   = raw.indexOf('\r\n\r\n');
+          const head  = raw.slice(0, sep);
+          const bodyStr = raw.slice(sep + 4);
+          const statusMatch = head.match(/^HTTP\/1\.\d (\d+)/);
+          const status = statusMatch ? parseInt(statusMatch[1]) : 200;
+          resolve(new Response(bodyStr, { status }));
+        } catch (e) { reject(e); }
+      });
     });
-  } catch (err) {
-    const e = err as NodeJS.ErrnoException;
-    console.error(`[odds/stream] proxy error code=${e.code} errno=${e.errno} cause=${String((e as { cause?: unknown }).cause)}`);
-    throw err;
-  } finally {
-    clearTimeout(timer);
-    proxy.destroy().catch(() => {});
-  }
+
+    connectReq.end();
+  });
 }
 
 /** Busca sem proxy (fallback direto) */
@@ -201,7 +244,12 @@ async function fetchDirect(url: string, token: string): Promise<Response> {
 /** Busca com timeout + auth headers DG — usa proxy se configurado */
 async function fetchWithTimeout(url: string, token: string): Promise<Response> {
   if (PROXY_URL) {
-    return fetchViaProxy(url, token);
+    try {
+      return await fetchViaProxy(url, token);
+    } catch (err) {
+      console.error(`[odds/stream] proxy falhou (${(err as Error).message}), tentando direto`);
+      return fetchDirect(url, token);
+    }
   }
   return fetchDirect(url, token);
 }
