@@ -15,7 +15,7 @@ export const ALL_HOUSES: string[] = [
   'B1Bet','B2x','Bateubet',
   'Bet365','Bet365Arg','Bet365Pe','Bet4','Bet7k','Betagora','Betaki','Betano','Betao',
   'Betbet','Betboo','Betboom','Betbra','BetDaSorte','Betesporte',
-  'Betfair','BetfairEx','BetfairSB','Betfast','Betfusion','Betbufalos','Betfalcons','Betgorillas',
+  'Betfair','BetfairEx','BetfairSB','Betfast','Betfusion','Betbufalos','Betfalcons','Betgo','Betgorillas',
   'BetMGM','Betnacional','Betonline','Betou','Betpark','Betpix365','Betpontobet','Betsson','Betsul',
   'BetVip','Betwarrior','Betway','Bigbet','Blaze','Bolsadeaposta',
   'BR4Bet','BrasildaSorte','Bravobet','Brbet','BRXBet','Bullsbet',
