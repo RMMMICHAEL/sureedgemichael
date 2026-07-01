@@ -27,7 +27,6 @@ const FLAG_MAP: Record<string, string> = {
   'estados unidos': 'us', 'usa': 'us',
   'canada': 'ca',
   'australia': 'au',
-  'japao': 'jp', 'japan': 'jp',
   'coreia do sul': 'kr', 'south korea': 'kr',
   'marrocos': 'ma', 'morocco': 'ma',
   'senegal': 'sn',
