@@ -1073,8 +1073,16 @@ export function BuscarOddsPage() {
   // ── Filtered + sorted ──────────────────────────────────────────────────────
   const filtered = useMemo(() => {
     const now = Date.now();
-    const isPlaceholder = (name: string) =>
-      /^(\d+)[A-Z]+(?:\s*\([^)]+\))?$/.test(name) || /^W\d+$/.test(name) || /^RU\d+$/.test(name);
+    const isPlaceholder = (name: string) => {
+      const n = name.trim();
+      // códigos brutos da bookmaker (W73, RU101, 2E, 3CDFGH)
+      if (/^(\d+)[A-Z]+(?:\s*\([^)]+\))?$/.test(n) || /^W\d+$/.test(n) || /^RU\d+$/.test(n)) return true;
+      // nomes em português que indicam time ainda não definido
+      const pt = n.toLowerCase();
+      return pt.startsWith('vencedor') || pt.startsWith('perdedor') || pt.startsWith('segundo do') ||
+             pt.startsWith('terceiro') || pt.startsWith('winner') || pt.startsWith('loser') ||
+             pt.startsWith('runner') || pt.includes('a definir') || pt.includes('tbd');
+    };
     let evs = allOdds
       .filter(ev => !isExcluded(ev.league_name ?? ''))
       .filter(ev => { try { return new Date(ev.start_time).getTime() + GAME_MS > now; } catch { return true; } })
