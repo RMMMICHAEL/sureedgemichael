@@ -123,16 +123,6 @@ type PAFilter = 'ALL' | 'AMBOS_PA' | 'APENAS_PA';
 type SortBy   = 'padrao' | 'maior_lucro' | 'menor_lucro' | 'dg_score';
 type ViewMode = 'table' | 'card';
 
-// ─── SportsDB enrichment (live scores + team badges) ─────────────────────────
-interface SportsDBMatch {
-  api_event_id: string;
-  home_team: string; away_team: string; league: string;
-  event_time: string;
-  home_score: number | null; away_score: number | null;
-  status: string; is_live: boolean; progress: string | null;
-  home_badge: string | null; away_badge: string | null; league_badge?: string | null;
-  home_team_pt: string | null; away_team_pt: string | null; league_pt: string | null;
-}
 // ─── Componente de logo de time (DG CDN com fallback silencioso) ──────────────
 function TeamLogo({ name, size, style }: { name: string; size: number; style?: React.CSSProperties }) {
   const resolved = resolveTeamLogoUrl(name);
@@ -180,23 +170,6 @@ function decodeTeamName(name: string): string {
   const ruMatch = name.match(/^RU(\d+)$/);
   if (ruMatch) return `Perd. jogo ${ruMatch[1]}`;
   return name;
-}
-
-/** Chave de join por nome de time normalizado */
-function sportsKey(home: string, away: string): string {
-  const n = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]/g,'');
-  return `${n(home)}~~${n(away)}`;
-}
-function statusLabel(status: string, isLive: boolean): { text: string; color: string } | null {
-  if (isLive) {
-    if (status === '1H') return { text: '1T', color: '#3FFF21' };
-    if (status === '2H') return { text: '2T', color: '#3FFF21' };
-    if (status === 'HT') return { text: 'INT', color: '#F59E0B' };
-    return { text: 'AO VIVO', color: '#3FFF21' };
-  }
-  if (status === 'FT' || status === 'Encerrado') return { text: 'FT', color: 'rgba(255,255,255,.35)' };
-  if (status === 'CANC') return { text: 'CANC', color: '#EF4444' };
-  return null;
 }
 
 // ─── Odds trend tracking (match_id → { home, draw, away }) ───────────────────
@@ -510,10 +483,10 @@ function OddsSection({ label, bks, accent, slots, onOddClick, prevSnap }: {
 }
 
 // ─── MatchCard (card view) ────────────────────────────────────────────────────
-function MatchCard({ ev, dgInfo, isFlash, isFav, onSelect, onToggleFav, prevSnap, liveData }: {
+function MatchCard({ ev, dgInfo, isFlash, isFav, onSelect, onToggleFav, prevSnap }: {
   ev: OddsSummary; dgInfo: DGInfo | null; isFlash: boolean;
   isFav: boolean; onSelect: () => void; onToggleFav: () => void;
-  prevSnap?: OddSnapshot; liveData?: SportsDBMatch;
+  prevSnap?: OddSnapshot;
 }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -606,29 +579,16 @@ function MatchCard({ ev, dgInfo, isFlash, isFav, onSelect, onToggleFav, prevSnap
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' as const }}>
             <div style={{ fontSize: 14, fontWeight: 800, color: C.t1, lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: '1 1 0', minWidth: 0 }}>
-              <TeamLogo name={liveData?.home_team_pt ?? ev.home_team} size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />
-              {decodeTeamName(liveData?.home_team_pt ?? ev.home_team)}
+              <TeamLogo name={ev.home_team} size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />
+              {decodeTeamName(ev.home_team)}
               <span style={{ color: C.t3, fontWeight: 500 }}> x </span>
-              {decodeTeamName(liveData?.away_team_pt ?? ev.away_team)}
-              <TeamLogo name={liveData?.away_team_pt ?? ev.away_team} size={14} style={{ marginLeft: 4, verticalAlign: 'middle' }} />
+              {decodeTeamName(ev.away_team)}
+              <TeamLogo name={ev.away_team} size={14} style={{ marginLeft: 4, verticalAlign: 'middle' }} />
             </div>
-            {liveData && liveData.home_score !== null && liveData.away_score !== null && (() => {
-              const sl = statusLabel(liveData.status, liveData.is_live);
-              return (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
-                  <span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 900, fontSize: 13, color: C.t1, background: 'rgba(255,255,255,.07)', border: '1px solid rgba(255,255,255,.1)', borderRadius: 6, padding: '1px 6px' }}>
-                    {liveData.home_score} – {liveData.away_score}
-                  </span>
-                  {sl && <span style={{ fontSize: 9, fontWeight: 900, borderRadius: 4, padding: '2px 5px', background: liveData.is_live ? 'rgba(63,255,33,.12)' : 'rgba(255,255,255,.05)', color: sl.color, border: `1px solid ${sl.color}33` }}>{sl.text}</span>}
-                </div>
-              );
-            })()}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}>
-            {liveData?.league_badge && <img src={liveData.league_badge} alt="" width={12} height={12} style={{ borderRadius: 2, objectFit: 'contain', flexShrink: 0 }} />}
             <span style={{ fontSize: 11, color: C.t3 }}>
-              {liveData?.league_pt ?? ev.league_name} · {fmtTime(ev.start_time)}
-              {liveData?.progress && <span style={{ marginLeft: 4, color: C.green, fontWeight: 700 }}>{liveData.progress}&apos;</span>}
+              {ev.league_name} · {fmtTime(ev.start_time)}
             </span>
           </div>
         </div>
@@ -961,29 +921,6 @@ export function BuscarOddsPage() {
   // matchId → { slugCasa → { home, draw, away } }
   const [oddsPrevSnap, setOddsPrevSnap] = useState<Map<string, OddSnapshot>>(new Map());
 
-  // ── SportsDB enrichment ────────────────────────────────────────────────────
-  const [sportsMap,       setSportsMap]       = useState<Map<string, SportsDBMatch>>(new Map());
-  const [leagueBadgeMap,  setLeagueBadgeMap]  = useState<Map<string, string>>(new Map());
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const res  = await fetch(`/api/sportsdb?date=${today}`);
-        if (!res.ok) return;
-        const data = await res.json() as SportsDBMatch[];
-        const map  = new Map<string, SportsDBMatch>();
-        const lgMap = new Map<string, string>();
-        for (const m of data) {
-          map.set(sportsKey(m.home_team, m.away_team), m);
-          if (m.league_badge && m.league && !lgMap.has(m.league)) lgMap.set(m.league, m.league_badge);
-        }
-        setSportsMap(map);
-        setLeagueBadgeMap(lgMap);
-      } catch { /* silencia */ }
-    };
-    load();
-    const id = setInterval(load, 60_000);
-    return () => clearInterval(id);
-  }, [today]);
 
   // ── SSE ────────────────────────────────────────────────────────────────────
   const { odds: rawOdds, loading, error: oddsError, connected, lastUpdate, recentlyUpdated } = useOdds();
@@ -1330,7 +1267,6 @@ export function BuscarOddsPage() {
                           onSelect={() => setSelectedEvent(ev)}
                           onToggleFav={() => toggleMatchFav(ev.match_id)}
                           prevSnap={oddsPrevSnap.get(ev.match_id)}
-                          liveData={sportsMap.get(sportsKey(ev.home_team, ev.away_team))}
                         />
                       ))}
                     </div>
@@ -1356,10 +1292,7 @@ export function BuscarOddsPage() {
                   <div style={{ height: 2, background: isFav ? `linear-gradient(90deg,${C.green} 0%,${C.green}44 55%,transparent 100%)` : `linear-gradient(90deg,rgba(63,255,33,.35) 0%,rgba(63,255,33,.08) 55%,transparent 100%)` }} />
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', background: isFav ? 'rgba(63,255,33,.06)' : 'rgba(255,255,255,.016)', borderBottom: isCollapsed ? 'none' : `1px solid ${C.surfB}` }}>
                     <button onClick={() => toggleCollapse(league)} style={{ display: 'flex', flex: 1, alignItems: 'center', gap: 10, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
-                      {leagueBadgeMap.get(league)
-                        ? <img src={leagueBadgeMap.get(league)!} alt="" width={20} height={20} style={{ borderRadius: 4, objectFit: 'contain', flexShrink: 0 }} />
-                        : <div style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: isFav ? C.green : 'rgba(63,255,33,.45)', boxShadow: isFav ? `0 0 6px ${C.green}` : 'none' }} />
-                      }
+                      <div style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: isFav ? C.green : 'rgba(63,255,33,.45)', boxShadow: isFav ? `0 0 6px ${C.green}` : 'none' }} />
                       <span style={{ fontSize: 12, fontWeight: 800, color: isFav ? C.green : C.t1 }}>{league}</span>
                       <span style={{ fontSize: 11, fontWeight: 700, borderRadius: 99, padding: '1px 7px', background: 'rgba(255,255,255,.06)', color: C.t3, border: `1px solid ${C.surfB}` }}>{evs.length}</span>
                       <ChevronDown size={13} style={{ color: C.t3, transform: isCollapsed ? 'rotate(-90deg)' : 'none', transition: 'transform .2s ease' }} />
@@ -1399,7 +1332,6 @@ export function BuscarOddsPage() {
                             const isFlash  = recentlyUpdated.has(ev.match_id);
                             const isMFav   = matchFav.has(ev.match_id);
                             const snap     = oddsPrevSnap.get(ev.match_id);
-                            const liveInfo = sportsMap.get(sportsKey(ev.home_team, ev.away_team));
 
                             function trendBk(bk: BookmakerOdds | null, t: OddType): OddTrend {
                               if (!bk || !snap?.[bk.slug]) return 'same';
@@ -1425,19 +1357,8 @@ export function BuscarOddsPage() {
                                     <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
                                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0, flex: 1 }}>
-                                        <TeamLogo name={liveInfo?.home_team_pt ?? ev.home_team} size={14} />
-                                        <p style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 13, fontWeight: 700, color: C.t1, margin: 0 }}>{decodeTeamName(liveInfo?.home_team_pt ?? ev.home_team)}</p>
-                                        {liveInfo && liveInfo.home_score !== null && liveInfo.away_score !== null && (() => {
-                                          const sl = statusLabel(liveInfo.status, liveInfo.is_live);
-                                          return (
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
-                                              <span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 900, fontSize: 11, color: C.t1, background: 'rgba(255,255,255,.07)', borderRadius: 5, padding: '0 4px' }}>
-                                                {liveInfo.home_score}–{liveInfo.away_score}
-                                              </span>
-                                              {sl && <span style={{ fontSize: 9, fontWeight: 900, borderRadius: 3, padding: '1px 4px', background: liveInfo.is_live ? 'rgba(63,255,33,.12)' : 'rgba(255,255,255,.04)', color: sl.color, border: `1px solid ${sl.color}33` }}>{sl.text}</span>}
-                                            </div>
-                                          );
-                                        })()}
+                                        <TeamLogo name={ev.home_team} size={14} />
+                                        <p style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 13, fontWeight: 700, color: C.t1, margin: 0 }}>{decodeTeamName(ev.home_team)}</p>
                                       </div>
                                         {dg && dgRgb2 && dgCol2 && (
                                           <Tip text={`Score DG: ${dg.dg_score}. Classificação: ${dg.dg_classification}. Profit estimado: ${dg.dg_profit_pct != null ? '+' + dg.dg_profit_pct.toFixed(2) + '%' : '—'}.`}>
@@ -1458,8 +1379,8 @@ export function BuscarOddsPage() {
                                         )}
                                       </div>
                                       <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
-                                        <TeamLogo name={liveInfo?.away_team_pt ?? ev.away_team} size={14} />
-                                        <p style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 13, fontWeight: 500, color: C.t2, margin: 0 }}>{decodeTeamName(liveInfo?.away_team_pt ?? ev.away_team)}</p>
+                                        <TeamLogo name={ev.away_team} size={14} />
+                                        <p style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 13, fontWeight: 500, color: C.t2, margin: 0 }}>{decodeTeamName(ev.away_team)}</p>
                                       </div>
                                       <p style={{ fontSize: 11, color: C.t3, margin: 0 }}>{ev.bookmakers.length} casas{isMFav ? ' · ⭐' : ''}</p>
                                     </div>
