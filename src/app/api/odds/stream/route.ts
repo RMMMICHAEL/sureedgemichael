@@ -138,40 +138,67 @@ async function isAuthenticated(): Promise<boolean> {
 
 // Proxy residencial para contornar Cloudflare bot-check no IP do Vercel
 const PROXY_URL = process.env.RESIDENTIAL_PROXY ?? '';
-let _proxyDispatcher: import('undici').ProxyAgent | null = null;
 
-async function getProxyDispatcher(): Promise<import('undici').ProxyAgent | null> {
-  if (!PROXY_URL) return null;
-  if (_proxyDispatcher) return _proxyDispatcher;
-  try {
-    const { ProxyAgent } = await import('undici');
-    _proxyDispatcher = new ProxyAgent(PROXY_URL);
-  } catch { /* undici não disponível */ }
-  return _proxyDispatcher;
-}
+const DG_HEADERS = {
+  'Origin':        'https://www.duplogreenengine.com',
+  'Referer':       'https://www.duplogreenengine.com/',
+  'User-Agent':    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+  'Accept':        'application/json, */*',
+  'Accept-Language': 'pt-BR,pt;q=0.9,en;q=0.8',
+};
 
-/** Busca com timeout + auth headers DG + proxy residencial */
-async function fetchWithTimeout(url: string, token: string): Promise<Response> {
+/** Busca via proxy residencial usando undici diretamente (não o fetch global) */
+async function fetchViaProxy(url: string, token: string): Promise<Response> {
+  const { request } = await import('undici');
+  const { ProxyAgent } = await import('undici');
+  const proxy = new ProxyAgent(PROXY_URL);
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
-  const dispatcher = await getProxyDispatcher();
+  try {
+    const res = await request(url, {
+      dispatcher: proxy,
+      signal: ctrl.signal,
+      headers: { 'Authorization': `Bearer ${token}`, ...DG_HEADERS },
+    });
+    // converte undici response → Web Response
+    const chunks: Buffer[] = [];
+    for await (const chunk of res.body) chunks.push(Buffer.from(chunk));
+    const body = Buffer.concat(chunks);
+    return new Response(body, {
+      status: res.statusCode,
+      headers: Object.fromEntries(Object.entries(res.headers).map(([k, v]) => [k, Array.isArray(v) ? v.join(', ') : v ?? ''])),
+    });
+  } catch (err) {
+    const e = err as NodeJS.ErrnoException;
+    console.error(`[odds/stream] proxy error code=${e.code} errno=${e.errno} cause=${String((e as { cause?: unknown }).cause)}`);
+    throw err;
+  } finally {
+    clearTimeout(timer);
+    proxy.destroy().catch(() => {});
+  }
+}
+
+/** Busca sem proxy (fallback direto) */
+async function fetchDirect(url: string, token: string): Promise<Response> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
   try {
     return await fetch(url, {
-      signal:  ctrl.signal,
-      ...(dispatcher ? { dispatcher } : {}),
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Origin':        'https://www.duplogreenengine.com',
-        'Referer':       'https://www.duplogreenengine.com/',
-        'User-Agent':    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-        'Accept':        'application/json, */*',
-        'Accept-Language': 'pt-BR,pt;q=0.9,en;q=0.8',
-      },
+      signal: ctrl.signal,
+      headers: { 'Authorization': `Bearer ${token}`, ...DG_HEADERS },
       next: { revalidate: 0 },
     });
   } finally {
     clearTimeout(timer);
   }
+}
+
+/** Busca com timeout + auth headers DG — usa proxy se configurado */
+async function fetchWithTimeout(url: string, token: string): Promise<Response> {
+  if (PROXY_URL) {
+    return fetchViaProxy(url, token);
+  }
+  return fetchDirect(url, token);
 }
 
 /** Busca e normaliza os dois mercados do DG em paralelo.
