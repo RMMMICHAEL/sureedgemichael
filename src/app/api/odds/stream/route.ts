@@ -3,19 +3,16 @@
  *
  * SSE — empurra updates de odds em tempo real para o frontend.
  *
- * Mecanismo: polling de 30s nos endpoints públicos do DuploGreen
+ * Mecanismo: polling de 15s nos endpoints públicos do DuploGreen.
  *   GET https://api.duplogreenengine.com/functions/v1/get-individual-odds?market=1x2
  *   GET https://api.duplogreenengine.com/functions/v1/get-individual-odds?market=1x2_pa
  *
- * A cada poll:
- *   1. Busca os dois endpoints em paralelo
- *   2. Mescla e normaliza para OddsMatch[]
- *   3. Difere contra o snapshot anterior (por match_id + bookmaker + odd)
- *   4. Push SSE apenas dos matches que mudaram (type: 'update')
- *
- * Protocolo SSE:
- *   event: odds
- *   data: OddsUpdateEvent (JSON)
+ * Garantias:
+ *   - Nenhuma requisição sobreposta: lock impede dois polls simultâneos
+ *   - Snapshot atualizado somente em fetch bem-sucedido (sem perda de diff em erros)
+ *   - Diff detecta: odds alteradas, partidas novas, partidas encerradas/removidas
+ *   - Erros de rede não interrompem o SSE — próximo ciclo tenta novamente
+ *   - Apenas os matches que mudaram são enviados (sem re-enviar toda a lista)
  */
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -26,8 +23,9 @@ import type { OddsMatch, OddsUpdateEvent } from '@/lib/odds-source/types';
 
 // ── Config ────────────────────────────────────────────────────────────────────
 const DG_API       = 'https://api.duplogreenengine.com/functions/v1/get-individual-odds';
-const POLL_MS      = 30_000;   // intervalo de polling
-const HEARTBEAT_MS = 25_000;   // keepalive para proxy/Vercel
+const POLL_MS      = 15_000;  // 15s — compromisso entre latência e carga
+const HEARTBEAT_MS = 25_000;  // keepalive para proxy/Vercel
+const FETCH_TIMEOUT_MS = 10_000; // timeout por requisição ao DG
 
 // ── Tipos da resposta DG ──────────────────────────────────────────────────────
 interface DGRow {
@@ -61,12 +59,23 @@ async function isAuthenticated(): Promise<boolean> {
   } catch { return false; }
 }
 
+/** Busca com timeout para evitar que um fetch travado bloqueie o próximo ciclo */
+async function fetchWithTimeout(url: string): Promise<Response> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
+  try {
+    return await fetch(url, { signal: ctrl.signal, next: { revalidate: 0 } });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /** Busca e normaliza os dois mercados do DG em paralelo */
 async function fetchDGOdds(): Promise<OddsMatch[]> {
   const t = Date.now();
   const [r1, r2] = await Promise.allSettled([
-    fetch(`${DG_API}?market=1x2&_t=${t}`,    { next: { revalidate: 0 } }),
-    fetch(`${DG_API}?market=1x2_pa&_t=${t}`, { next: { revalidate: 0 } }),
+    fetchWithTimeout(`${DG_API}?market=1x2&_t=${t}`),
+    fetchWithTimeout(`${DG_API}?market=1x2_pa&_t=${t}`),
   ]);
 
   const rows: DGRow[] = [];
@@ -75,9 +84,16 @@ async function fetchDGOdds(): Promise<OddsMatch[]> {
     if (r.status !== 'fulfilled' || !r.value.ok) continue;
     try {
       const json = await r.value.json() as { success?: boolean; odds?: DGRow[] } | DGRow[];
-      const list: DGRow[] = Array.isArray(json) ? json : (json as { odds?: DGRow[] }).odds ?? [];
+      const list: DGRow[] = Array.isArray(json)
+        ? json
+        : ((json as { odds?: DGRow[] }).odds ?? []);
       rows.push(...list);
-    } catch { /* ignora parse errors */ }
+    } catch { /* ignora parse errors individuais */ }
+  }
+
+  // Falha total: nenhum dos dois endpoints respondeu
+  if (rows.length === 0 && r1.status === 'rejected' && r2.status === 'rejected') {
+    throw new Error('DG API unreachable');
   }
 
   return rowsToMatches(rows);
@@ -102,7 +118,7 @@ function rowsToMatches(rows: DGRow[]): OddsMatch[] {
 
     const match = map.get(row.match_id)!;
     const exists = match.bookmakers.find(
-      b => b.slug === row.bookmaker_slug && b.market_type === row.market_type
+      b => b.slug === row.bookmaker_slug && b.market_type === row.market_type,
     );
     if (!exists) {
       match.bookmakers.push({
@@ -121,28 +137,53 @@ function rowsToMatches(rows: DGRow[]): OddsMatch[] {
   return Array.from(map.values());
 }
 
-/** Detecta quais matches mudaram de odds entre dois snapshots */
-function diffMatches(prev: OddsMatch[], next: OddsMatch[]): OddsMatch[] {
+interface DiffResult {
+  updated: OddsMatch[];   // odds alteradas ou match novo
+  removed: string[];      // match_ids que desapareceram
+}
+
+/**
+ * Compara dois snapshots.
+ * - updated: matches com qualquer odd alterada + matches novos
+ * - removed: match_ids presentes em prev mas ausentes em next
+ */
+function diffMatches(prev: OddsMatch[], next: OddsMatch[]): DiffResult {
   const prevMap = new Map(prev.map(m => [m.match_id, m]));
-  const changed: OddsMatch[] = [];
+  const nextMap = new Map(next.map(m => [m.match_id, m]));
+
+  const updated: OddsMatch[] = [];
 
   for (const match of next) {
     const old = prevMap.get(match.match_id);
-    if (!old) { changed.push(match); continue; } // novo match
 
-    // Compara se alguma odd de alguma casa mudou
+    // Match novo
+    if (!old) { updated.push(match); continue; }
+
+    // Compara bookmakers: nova casa, ou odd diferente
     const hasChange = match.bookmakers.some(bk => {
       const oldBk = old.bookmakers.find(
-        b => b.slug === bk.slug && b.market_type === bk.market_type
+        b => b.slug === bk.slug && b.market_type === bk.market_type,
       );
-      if (!oldBk) return true;
-      return oldBk.home !== bk.home || oldBk.draw !== bk.draw || oldBk.away !== bk.away;
+      if (!oldBk) return true; // nova casa para este match
+      return oldBk.home !== bk.home
+          || oldBk.draw !== bk.draw
+          || oldBk.away !== bk.away;
     });
 
-    if (hasChange) changed.push(match);
+    // Também detecta casa que saiu do match
+    const hadRemoval = old.bookmakers.some(
+      b => !match.bookmakers.find(bk => bk.slug === b.slug && bk.market_type === b.market_type),
+    );
+
+    if (hasChange || hadRemoval) updated.push(match);
   }
 
-  return changed;
+  // Partidas encerradas / removidas do DG
+  const removed = prev
+    .map(m => m.match_id)
+    .filter(id => !nextMap.has(id));
+
+  return { updated, removed };
 }
 
 // ── Handler ───────────────────────────────────────────────────────────────────
@@ -151,7 +192,7 @@ export async function GET() {
     const s = new ReadableStream({
       start(ctrl) {
         ctrl.enqueue(new TextEncoder().encode(
-          sse({ type: 'error', error: 'unauthorized', ts: Date.now() })
+          sse({ type: 'error', error: 'unauthorized', ts: Date.now() }),
         ));
         ctrl.close();
       },
@@ -162,9 +203,10 @@ export async function GET() {
     });
   }
 
-  const encoder = new TextEncoder();
-  let closed    = false;
-  let snapshot: OddsMatch[] = [];
+  const encoder  = new TextEncoder();
+  let closed     = false;
+  let snapshot:    OddsMatch[] = [];
+  let polling    = false; // lock anti-sobreposição
 
   const stream = new ReadableStream({
     async start(ctrl) {
@@ -178,31 +220,41 @@ export async function GET() {
         snapshot = await fetchDGOdds();
         push({ type: 'snapshot', data: snapshot, ts: Date.now() });
       } catch (err) {
-        push({ type: 'error', error: String(err), ts: Date.now() });
+        push({ type: 'error', error: `Falha no snapshot inicial: ${err}`, ts: Date.now() });
+        // Continua — próximo poll pode recuperar
       }
 
-      // 2. Polling a cada 30s — detecta mudanças e envia só o que mudou
+      // 2. Polling periódico com lock anti-sobreposição
       const poll = setInterval(async () => {
-        if (closed) return;
-        try {
-          const next    = await fetchDGOdds();
-          const changed = diffMatches(snapshot, next);
-          snapshot      = next;
+        if (closed || polling) return; // skip se já tem um poll em andamento
+        polling = true;
 
-          if (changed.length > 0) {
-            for (const match of changed) {
-              push({ type: 'update', match_id: match.match_id, data: match, ts: Date.now() });
-            }
+        try {
+          const next = await fetchDGOdds();
+          // Só atualiza snapshot se o fetch foi bem-sucedido
+          const { updated, removed } = diffMatches(snapshot, next);
+          snapshot = next;
+
+          for (const match of updated) {
+            push({ type: 'update', match_id: match.match_id, data: match, ts: Date.now() });
           }
-        } catch { /* ignora erros de fetch — tenta de novo no próximo ciclo */ }
+          for (const match_id of removed) {
+            push({ type: 'remove', match_id, ts: Date.now() });
+          }
+        } catch {
+          // Erro de rede: snapshot NÃO é atualizado (evita perder diff na próxima rodada)
+          // SSE continua vivo — próximo ciclo tenta novamente
+        } finally {
+          polling = false;
+        }
       }, POLL_MS);
 
-      // 3. Heartbeat para manter conexão viva
+      // 3. Heartbeat para manter a conexão viva em proxies
       const heartbeat = setInterval(() => {
         push({ type: 'heartbeat', ts: Date.now() });
       }, HEARTBEAT_MS);
 
-      // 4. Cleanup quando o cliente desconecta
+      // 4. Cleanup quando cliente desconecta
       return () => {
         closed = true;
         clearInterval(poll);

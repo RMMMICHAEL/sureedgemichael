@@ -93,6 +93,11 @@ export function useOdds(opts: UseOddsOptions = {}): UseOddsResult {
           setLastUpdate(event.ts);
           flash(updated.match_id);
         }
+
+        if (event.type === 'remove' && event.match_id) {
+          setOdds(prev => prev.filter(m => m.match_id !== event.match_id));
+          setLastUpdate(event.ts);
+        }
       } catch { /* JSON parse error */ }
     });
 

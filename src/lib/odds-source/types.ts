@@ -28,11 +28,11 @@ export interface OddsMatch {
 
 /** Evento de update incremental enviado via SSE */
 export interface OddsUpdateEvent {
-  type:     'snapshot' | 'update' | 'heartbeat' | 'error';
+  type:      'snapshot' | 'update' | 'remove' | 'heartbeat' | 'error';
   match_id?: string;
-  data?:    OddsMatch | OddsMatch[];
-  error?:   string;
-  ts:       number;
+  data?:     OddsMatch | OddsMatch[];
+  error?:    string;
+  ts:        number;
 }
 
 export interface OddsSourceOptions {
