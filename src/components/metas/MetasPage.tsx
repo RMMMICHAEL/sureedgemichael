@@ -32,7 +32,7 @@ function ConfigModal({ current, onSave, onClose }: {
   onClose: () => void;
 }) {
   const [daily,   setDaily]   = useState(String(current?.dailyGoal   ?? ''));
-  const [mode,    setMode]    = useState<GoalConfig['daysMode']>(current?.daysMode ?? 'custom_20');
+  const [mode,    setMode]    = useState<GoalConfig['daysMode']>(current?.daysMode ?? 'weekdays');
   const [monthly, setMonthly] = useState(String(current?.monthlyGoal ?? ''));
 
   function handleSave() {
@@ -222,10 +222,10 @@ export function MetasPage() {
   ] : [];
 
   function applyTier(tier: { val: number }) {
-    const days = getDaysInMode(goalConfig?.daysMode ?? 'custom_20', year, month);
+    const days = getDaysInMode(goalConfig?.daysMode ?? 'weekdays', year, month);
     setGoalConfig({
       dailyGoal:   +(tier.val / days).toFixed(2),
-      daysMode:    goalConfig?.daysMode ?? 'custom_20',
+      daysMode:    goalConfig?.daysMode ?? 'weekdays',
       monthlyGoal: tier.val,
     });
   }
