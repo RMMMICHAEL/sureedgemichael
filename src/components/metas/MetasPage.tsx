@@ -24,6 +24,20 @@ function getDaysInMode(mode: GoalConfig['daysMode'], year: number, month: number
   return dim;
 }
 
+/** Dias operados restantes a partir de `fromDay` (inclusive) até fim do mês, respeitando o modo. */
+function getRemainingOperatingDays(mode: GoalConfig['daysMode'], year: number, month: number, fromDay: number): number {
+  const dim = new Date(year, month + 1, 0).getDate();
+  if (mode === 'weekdays') {
+    let n = 0;
+    for (let d = fromDay; d <= dim; d++) { const dow = new Date(year, month, d).getDay(); if (dow > 0 && dow < 6) n++; }
+    return n;
+  }
+  const calRemaining = dim - fromDay + 1;
+  if (mode === 'custom_20') return Math.max(1, Math.round((calRemaining / dim) * 20));
+  if (mode === 'custom_25') return Math.max(1, Math.round((calRemaining / dim) * 25));
+  return calRemaining; // 'all'
+}
+
 // ── Config Modal ──────────────────────────────────────────────────────────────
 
 function ConfigModal({ current, onSave, onClose }: {
@@ -149,12 +163,17 @@ export function MetasPage() {
 
   const dailyGoal = goalConfig?.dailyGoal ?? null;
 
-  // Adjusted daily goal: redistributes remaining net target across remaining days
+  // Dias operados restantes respeitando o modo configurado (dias úteis, todos, 20, 25)
+  const remainingOperatingDays = goalConfig
+    ? getRemainingOperatingDays(goalConfig.daysMode, year, month, dayOfMonth)
+    : remainingDays;
+
+  // Adjusted daily goal: redistributes remaining net target across remaining operating days
   const adjustedDailyGoal = useMemo(() => {
-    if (!monthlyGoal || remainingDays <= 0) return dailyGoal ?? 0;
+    if (!monthlyGoal || remainingOperatingDays <= 0) return dailyGoal ?? 0;
     const remaining = monthlyGoal - netMonthlyProfit;
-    return remaining <= 0 ? 0 : +(remaining / remainingDays).toFixed(2);
-  }, [monthlyGoal, netMonthlyProfit, remainingDays, dailyGoal]);
+    return remaining <= 0 ? 0 : +(remaining / remainingOperatingDays).toFixed(2);
+  }, [monthlyGoal, netMonthlyProfit, remainingOperatingDays, dailyGoal]);
 
   const monthPct = monthlyGoal ? Math.round((netMonthlyProfit / monthlyGoal) * 100) : 0;
 
@@ -213,7 +232,7 @@ export function MetasPage() {
   }, [weekDays]);
 
   // ── Redistribution alert ─────────────────────────────────────────────
-  const redistAlert = !!(goalConfig && dailyGoal && dailyGoal > 0 && adjustedDailyGoal > dailyGoal * 1.5 && remainingDays > 0);
+  const redistAlert = !!(goalConfig && dailyGoal && dailyGoal > 0 && adjustedDailyGoal > dailyGoal * 1.5 && remainingOperatingDays > 0);
 
   // ── Tier suggestions ────────────────────────────────────────────────────
   const TIERS = fixedMonthly > 0 ? [
@@ -245,14 +264,15 @@ export function MetasPage() {
       const pct = Math.round((netMonthlyProfit / monthlyGoal - 1) * 100);
       return { type: 'ok' as const, text: `Meta mensal atingida — você está ${pct}% acima do necessário.` };
     }
-    if (remainingDays <= 0) {
+    if (remainingOperatingDays <= 0) {
       return { type: 'info' as const, text: `Mês encerrado. Líquido: ${fmtBRL(netMonthlyProfit)} de ${fmtBRL(monthlyGoal)}.` };
     }
     const needed = Math.max(0, +(monthlyGoal - netMonthlyProfit).toFixed(2));
-    const adjDaily = remainingDays > 0 ? +(needed / remainingDays).toFixed(2) : 0;
+    const adjDaily = remainingOperatingDays > 0 ? +(needed / remainingOperatingDays).toFixed(2) : 0;
+    const modeLabel = goalConfig?.daysMode === 'weekdays' ? 'dias úteis' : 'dias';
     return {
       type: adjDaily > (dailyGoal ?? 0) * 1.5 ? 'warn' as const : 'info' as const,
-      text: `Você precisa de ${fmtBRL(adjDaily)} líquidos/dia nos próximos ${remainingDays} dias para atingir a meta.`,
+      text: `Você precisa de ${fmtBRL(adjDaily)} líquidos/dia nos próximos ${remainingOperatingDays} ${modeLabel} para atingir a meta.`,
     };
   })();
 
