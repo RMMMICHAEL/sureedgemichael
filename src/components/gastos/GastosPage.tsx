@@ -331,6 +331,29 @@ function fmtBRL(v: number) {
   return `R$ ${Math.abs(v).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
 }
 
+/** Converte valor digitado em BR (1.234,56 ou 1234,56 ou 1.234) para número */
+function parseBRLInput(raw: string): number {
+  const s = raw.trim();
+  const hasDot   = s.includes('.');
+  const hasComma = s.includes(',');
+  let normalized: string;
+  if (hasDot && hasComma) {
+    // formato 1.234,56 → remove . e troca , por .
+    normalized = s.replace(/\./g, '').replace(',', '.');
+  } else if (hasDot && !hasComma) {
+    // 1.234 ou 1.5 → se 3 dígitos após o ponto = milhar, senão decimal
+    const afterDot = s.slice(s.lastIndexOf('.') + 1);
+    normalized = afterDot.length === 3 ? s.replace(/\./g, '') : s;
+  } else if (hasComma && !hasDot) {
+    // 1,5 ou 1,500 → se 3 dígitos após vírgula = milhar, senão decimal
+    const afterComma = s.slice(s.lastIndexOf(',') + 1);
+    normalized = afterComma.length === 3 ? s.replace(',', '') : s.replace(',', '.');
+  } else {
+    normalized = s;
+  }
+  return parseFloat(normalized);
+}
+
 function fmtDate(iso: string) {
   return new Date(iso + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
 }
@@ -581,7 +604,7 @@ function ExpenseForm({ existing, learnedKw, onLearn, onClose }: ExpenseFormProps
 
   function save() {
     if (!desc.trim())              { toast('Descrição obrigatória', 'wrn'); return; }
-    const amt = parseFloat(amount.replace(',', '.'));
+    const amt = parseBRLInput(amount);
     if (!amt || amt <= 0)          { toast('Valor inválido', 'wrn'); return; }
 
     const payload: Omit<Expense, 'id'> = {
@@ -715,7 +738,7 @@ function ExpenseForm({ existing, learnedKw, onLearn, onClose }: ExpenseFormProps
         {/* Balance preview after deduction */}
         {bankId && (() => {
           const bank = banks.find(b => b.id === bankId);
-          const amt  = parseFloat(amount.replace(',', '.')) || 0;
+          const amt  = parseBRLInput(amount) || 0;
           if (!bank || amt === 0) return null;
           const after    = bank.balance - amt;
           const negative = after < 0;
@@ -794,7 +817,7 @@ function RecurringForm({ existing, learnedKw, onClose }: RecurringFormProps) {
 
   function save() {
     if (!desc.trim()) { toast('Descrição obrigatória', 'wrn'); return; }
-    const amt = parseFloat(amount.replace(',', '.'));
+    const amt = parseBRLInput(amount);
     if (!amt || amt <= 0) { toast('Valor inválido', 'wrn'); return; }
     if (!category)        { toast('Selecione uma categoria', 'wrn'); return; }
     const payload: Omit<RecurringExpense, 'id'> = {
