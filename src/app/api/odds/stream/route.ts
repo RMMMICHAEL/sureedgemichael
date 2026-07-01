@@ -136,18 +136,37 @@ async function isAuthenticated(): Promise<boolean> {
   } catch { return false; }
 }
 
-/** Busca com timeout + auth headers DG */
+// Proxy residencial para contornar Cloudflare bot-check no IP do Vercel
+const PROXY_URL = process.env.RESIDENTIAL_PROXY ?? '';
+let _proxyDispatcher: import('undici').ProxyAgent | null = null;
+
+async function getProxyDispatcher(): Promise<import('undici').ProxyAgent | null> {
+  if (!PROXY_URL) return null;
+  if (_proxyDispatcher) return _proxyDispatcher;
+  try {
+    const { ProxyAgent } = await import('undici');
+    _proxyDispatcher = new ProxyAgent(PROXY_URL);
+  } catch { /* undici não disponível */ }
+  return _proxyDispatcher;
+}
+
+/** Busca com timeout + auth headers DG + proxy residencial */
 async function fetchWithTimeout(url: string, token: string): Promise<Response> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
+  const dispatcher = await getProxyDispatcher();
   try {
     return await fetch(url, {
       signal:  ctrl.signal,
+      // @ts-expect-error — undici dispatcher não está nos tipos padrão do fetch
+      ...(dispatcher ? { dispatcher } : {}),
       headers: {
         'Authorization': `Bearer ${token}`,
         'Origin':        'https://www.duplogreenengine.com',
         'Referer':       'https://www.duplogreenengine.com/',
-        'User-Agent':    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36',
+        'User-Agent':    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Accept':        'application/json, */*',
+        'Accept-Language': 'pt-BR,pt;q=0.9,en;q=0.8',
       },
       next: { revalidate: 0 },
     });
