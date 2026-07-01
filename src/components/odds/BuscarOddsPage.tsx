@@ -125,6 +125,8 @@ type ViewMode = 'table' | 'card';
 
 // ─── Componente de logo de time (DG CDN com fallback silencioso) ──────────────
 function TeamLogo({ name, size, style }: { name: string; size: number; style?: React.CSSProperties }) {
+  void name; void size; void style;
+  return null;
   const resolved = resolveTeamLogoUrl(name);
   if (!resolved) return null;
   const isFlag = resolved.type === 'flag';
