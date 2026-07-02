@@ -181,6 +181,18 @@ export async function POST(req: NextRequest) {
 
   console.log(`[dg-opp-import] ${inserted}/${rows.length} oportunidades importadas por ${user.email}`);
 
+  // ── Sync automático de bookmakers ─────────────────────────────────────────
+  // Dispara em background — não bloqueia a resposta
+  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
+  fetch(`${baseUrl}/api/admin/sync-dg-bookmakers`, {
+    method:  'POST',
+    headers: { 'x-internal-sync': '1' },
+  }).then(r => r.json()).then(j => {
+    if (j.added > 0) {
+      console.log(`[dg-opp-import] sync bookmakers: ${j.added} novos →`, j.new_bookmakers);
+    }
+  }).catch(e => console.warn('[dg-opp-import] sync bookmakers falhou:', e));
+
   return NextResponse.json({
     ok:       errors.length === 0,
     total:    rows.length,

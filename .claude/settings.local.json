@@ -297,7 +297,8 @@
       "Bash(echo \"=== Inserindo tokens no Supabase ===\")",
       "Bash(date -u +%Y-%m-%dT%H:%M:%SZ)",
       "Bash(curl -s -w '\\\\nSTATUS: %{http_code}' -X POST https://iclzwnrpwkojhxhnclhc.supabase.co/rest/v1/app_settings -H 'apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImljbHp3bnJwd2tvamh4aG5jbGhjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NTY1NDA0NiwiZXhwIjoyMDkxMjMwMDQ2fQ.HUK-Rdu3KXCR9gBKqNEPik6Y49fn5MLGDZE7fj-aoVc' -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImljbHp3bnJwd2tvamh4aG5jbGhjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NTY1NDA0NiwiZXhwIjoyMDkxMjMwMDQ2fQ.HUK-Rdu3KXCR9gBKqNEPik6Y49fn5MLGDZE7fj-aoVc' -H 'Content-Type: application/json' -H 'Prefer: resolution=merge-duplicates' -d '[ *)",
-      "Bash(del \"C:\\\\Users\\\\rmmic\\\\OneDrive\\\\Documentos\\\\suredge-app\\\\src\\\\app\\\\api\\\\sportsdb\\\\route.ts\")"
+      "Bash(del \"C:\\\\Users\\\\rmmic\\\\OneDrive\\\\Documentos\\\\suredge-app\\\\src\\\\app\\\\api\\\\sportsdb\\\\route.ts\")",
+      "mcp__claude-in-chrome__tabs_context_mcp"
     ]
   },
   "enableAllProjectMcpServers": true,

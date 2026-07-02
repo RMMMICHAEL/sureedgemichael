@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useStore } from '@/store/useStore';
 import { Button }   from '@/components/ui/Button';
 import { Modal }    from '@/components/ui/Modal';
@@ -868,6 +868,23 @@ export function BookmakersPage() {
   const [guideOpen,    setGuideOpen]    = useState(false);
   const [txState,      setTxState]      = useState<{ bm: Bookmaker; type: BookmakerTransaction['type'] } | null>(null);
 
+  // Bookmakers descobertos automaticamente via DG
+  interface DGBookmaker { slug: string; name: string; domain: string | null; color: string; source: string }
+  const [dgBookmakers, setDgBookmakers] = useState<DGBookmaker[]>([]);
+
+  useEffect(() => {
+    fetch('/api/bookmakers')
+      .then(r => r.json())
+      .then(j => { if (j.ok) setDgBookmakers(j.bookmakers ?? []); })
+      .catch(() => {});
+  }, []);
+
+  // Filtra os que o usuário ainda não adicionou (compara por nome normalizado)
+  const dgNew = useMemo(() => {
+    const added = new Set(bms.map(b => b.name.toLowerCase().replace(/[\s.-]/g, '')));
+    return dgBookmakers.filter(d => !added.has(d.slug.replace(/[\s.-]/g, '')));
+  }, [dgBookmakers, bms]);
+
   const totalBmCash   = bms.reduce((s, b) => s + b.balance, 0);
   const totalBankCash = banks.reduce((s, b) => s + b.balance, 0);
 
@@ -1195,6 +1212,50 @@ export function BookmakersPage() {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── Casas descobertas via DG ──────────────────────────────────────── */}
+      {dgNew.length > 0 && (
+        <div className="rounded-2xl px-5 py-4"
+          style={{ background: 'var(--bg2)', border: '1px solid rgba(63,255,33,.15)' }}>
+          <div className="flex items-center gap-2 mb-3">
+            <span className="w-2 h-2 rounded-full" style={{ background: '#3FFF21' }} />
+            <div className="text-[11px] font-black uppercase tracking-widest" style={{ color: 'var(--t3)' }}>
+              Casas detectadas via DG
+            </div>
+            <span className="ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full"
+              style={{ background: 'rgba(63,255,33,.1)', color: '#3FFF21' }}>
+              {dgNew.length} nova{dgNew.length !== 1 ? 's' : ''}
+            </span>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            {dgNew.map(d => (
+              <button key={d.slug} type="button"
+                onClick={() => { setPresetName(d.name); setPresetColor(d.color); setEditing(undefined); setShowForm(true); }}
+                className="flex items-center gap-2 rounded-xl px-3 py-2.5 text-left active:scale-95 transition-transform"
+                style={{ background: 'rgba(255,255,255,.03)', border: '1px solid var(--b)', cursor: 'pointer' }}>
+                {d.domain ? (
+                  <img src={fav(d.domain)} alt={d.name} width={18} height={18}
+                    style={{ borderRadius: 3, objectFit: 'contain', flexShrink: 0 }}
+                    onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+                ) : (
+                  <span className="w-[18px] h-[18px] flex items-center justify-center rounded text-[9px] font-black"
+                    style={{ background: 'rgba(255,255,255,.08)', color: 'var(--t3)' }}>
+                    {d.name.slice(0, 2).toUpperCase()}
+                  </span>
+                )}
+                <div className="min-w-0">
+                  <div className="text-xs font-bold truncate" style={{ color: 'var(--t)' }}>{d.name}</div>
+                  {d.domain && <div className="text-[9px] truncate" style={{ color: 'var(--t3)' }}>{d.domain}</div>}
+                </div>
+                <Plus size={11} className="ml-auto flex-shrink-0" style={{ color: '#3FFF21' }} />
+              </button>
+            ))}
+          </div>
+          <p className="text-[10px] mt-2.5" style={{ color: 'var(--t3)' }}>
+            Detectadas automaticamente nas oportunidades do Duplo Green. Toque para adicionar ao seu perfil.
+          </p>
         </div>
       )}
 
