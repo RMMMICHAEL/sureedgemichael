@@ -339,7 +339,7 @@ export function SinaisSurebetPage() {
 
       {/* Source credit */}
       <p style={{ textAlign: 'center', fontSize: 10, color: C.t3, marginTop: 24, opacity: .5 }}>
-        Dados via OddsHunter · atualizado a cada 2.5s
+        Atualizado automaticamente
       </p>
     </div>
   );
