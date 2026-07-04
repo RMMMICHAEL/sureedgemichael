@@ -174,16 +174,28 @@ async function fetchViaProxy(url: string, token: string): Promise<Response> {
   });
 }
 
-async function fetchDG(url: string, token: string): Promise<Response> {
-  if (PROXY_URL) {
-    try { return await fetchViaProxy(url, token); }
-    catch (e) { console.error('[dg/odds-live] proxy falhou:', (e as Error).message); }
-  }
+async function fetchDirect(url: string, token: string): Promise<Response> {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
   try {
     return await fetch(url, { signal: ctrl.signal, headers: { 'Authorization': `Bearer ${token}`, ...DG_HEADERS } });
   } finally { clearTimeout(t); }
+}
+
+async function fetchDG(url: string, token: string): Promise<Response> {
+  // Tenta direto primeiro (menor latência; 403 = Cloudflare bloqueou → usa proxy)
+  try {
+    const r = await fetchDirect(url, token);
+    // Se não for bloqueio de Cloudflare, retorna diretamente
+    if (r.ok || r.status !== 403) return r;
+    // 403 pode ser Cloudflare — tenta pelo proxy residencial
+    const body = await r.clone().text().catch(() => '');
+    console.log(`[dg/odds-live] direto 403 (${body.slice(0, 80)}), tentando proxy...`);
+  } catch (e) {
+    console.error('[dg/odds-live] direto falhou:', (e as Error).message);
+  }
+  if (!PROXY_URL) throw new Error('Proxy não configurado e acesso direto bloqueado');
+  return fetchViaProxy(url, token);
 }
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
