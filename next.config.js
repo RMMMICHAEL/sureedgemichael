@@ -21,7 +21,7 @@ const securityHeaders = [
       // Next.js precisa de scripts inline; unsafe-eval removido (não necessário em produção)
       "script-src 'self' 'unsafe-inline' https://cdn.utmify.com.br https://connect.facebook.net",
       // Supabase, Google Sheets, TheSportsDB, Telegram, Utmify tracking, Meta Pixel
-      "connect-src 'self' https://*.supabase.co https://docs.google.com https://www.thesportsdb.com https://t.me https://*.utmify.com.br https://www.facebook.com https://connect.facebook.net https://api.ipify.org https://api6.ipify.org",
+      "connect-src 'self' https://*.supabase.co https://docs.google.com https://www.thesportsdb.com https://t.me https://*.utmify.com.br https://www.facebook.com https://connect.facebook.net https://api.ipify.org https://api6.ipify.org https://api.duplogreenengine.com https://db.duplogreenengine.com",
       // Imagens: self + Supabase storage + logos de times/ligas + favicons dos bookmakers (Google) + Meta pixel noscript
       "img-src 'self' data: blob: https://*.supabase.co https://www.thesportsdb.com https://www.google.com https://*.gstatic.com https://www.facebook.com https://pps.whatsapp.net",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
