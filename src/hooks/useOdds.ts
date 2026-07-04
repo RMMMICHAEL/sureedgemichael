@@ -39,7 +39,7 @@ export function useOdds(opts: UseOddsOptions = {}): UseOddsResult {
     abortRef.current = ctrl;
 
     try {
-      const res  = await fetch('/api/dg/odds-live', { signal: ctrl.signal });
+      const res  = await fetch('/api/dg/odds-db?all=1', { signal: ctrl.signal });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json() as { ok: boolean; odds?: OddsMatch[]; error?: string };
       if (!data.ok) throw new Error(data.error ?? 'Erro na API');
