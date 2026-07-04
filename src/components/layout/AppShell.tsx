@@ -35,6 +35,7 @@ import { PerfilPage }         from '@/components/perfil/PerfilPage';
 import { NotasPage }          from '@/components/notas/NotasPage';
 import { BuscarOddsPage }         from '@/components/odds/BuscarOddsPage';
 import { FreebetConverterPage }   from '@/components/freebet/FreebetConverterPage';
+import { SinaisSurebetPage }      from '@/components/sinais/SinaisSurebetPage';
 
 function ComingSoonPage({ title }: { title: string }) {
   return (
@@ -531,6 +532,7 @@ export function AppShell() {
             {view === 'analise'   && <AnalisePage />}
             {view === 'calc'      && <CalculadoraPage />}
             {view === 'odds'      && <BuscarOddsPage />}
+            {view === 'sinais'    && <SinaisSurebetPage />}
 
             {view === 'notas'      && <NotasPage />}
             {view === 'freebet'    && <FreebetConverterPage />}

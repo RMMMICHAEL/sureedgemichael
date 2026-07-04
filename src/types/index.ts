@@ -383,4 +383,5 @@ export type ViewId =
   | 'perfil'
   | 'notas'
   | 'freebet'
-  | 'scanner';
+  | 'scanner'
+  | 'sinais';

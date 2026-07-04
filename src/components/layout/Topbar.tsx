@@ -22,6 +22,7 @@ const VIEW_META: Record<string, { label: string; desc: string }> = {
   analise:    { label: 'Análise',           desc: 'Estatísticas avançadas' },
   notas:      { label: 'Notas',             desc: 'Anotações e lembretes' },
   odds:       { label: 'Buscar Odds',        desc: 'Oportunidades em tempo real' },
+  sinais:     { label: 'Sinais Surebet',     desc: 'Surebets via OddsHunter em tempo real' },
   freebet:    { label: 'Converter Free Bet', desc: 'Converta créditos em lucro real' },
   operadores: { label: 'Operadores',         desc: 'Equipe e gestão de bancas' },
   calc:       { label: 'Calculadora',        desc: 'Cálculo de surebet' },
