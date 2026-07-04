@@ -67,12 +67,20 @@ const POLL_LIVE_MS = 5_000;
 const LIVE_CUTOFF_MS = 30_000;
 const PRE_GRACE_MS   = 15_000;
 
-// Whitelist de mercados aceitos
+// Whitelist de mercados aceitos (exact)
 const MARKET_WHITELIST = new Set([
   '1','2','x','team1 win','team2 win','1x','x2','12','ml','1x2',
   'moneyline','3-way result','resultado','match result','w1w2',
   '1x2 (match)','match winner','resultado final','resultado do jogo',
 ]);
+// Substrings aceitas como fallback
+const MARKET_KEYWORDS = ['1x2','moneyline','resultado','match result','match winner','3-way','ml'];
+
+function isMarketAllowed(market: string): boolean {
+  const m = market.toLowerCase().trim();
+  if (MARKET_WHITELIST.has(m)) return true;
+  return MARKET_KEYWORDS.some(k => m.includes(k));
+}
 
 // Sinônimos de seleção
 const HOME_SYNS  = new Set(['1','team1 win','home','w1']);
@@ -117,14 +125,23 @@ function calcProfit(bookmakers: OHBookmaker[]): number {
   return parseFloat(((1 / sum - 1) * 100).toFixed(2));
 }
 
+function parseTs(v: string | null | undefined): number {
+  if (!v) return 0;
+  const n = Number(v);
+  if (!isNaN(n)) return n < 1e12 ? n * 1000 : n; // epoch s → ms
+  const d = new Date(v).getTime();
+  return isNaN(d) ? 0 : d;
+}
+
 function processLegs(legs: OHLeg[], isLive: boolean): OHSurebet[] {
   const now = Date.now();
 
-  // Filtrar mercado + odds válidas
+  // Filtrar mercado + odds válidas (pré: também is_active + !disappeared)
   const valid = legs.filter(l => {
     if (l.odd_value <= 1) return false;
-    const m = l.market.toLowerCase().trim();
-    return MARKET_WHITELIST.has(m);
+    if (!isMarketAllowed(l.market)) return false;
+    if (!isLive && (l.is_active === false || l.disappeared === true)) return false;
+    return true;
   });
 
   // Agrupar por batch_id (fallback: surebet_id)
@@ -146,19 +163,19 @@ function processLegs(legs: OHLeg[], isLive: boolean): OHSurebet[] {
       const cur = byLeg.get(l.leg_index);
       if (!cur || l.updated_at > cur.updated_at) byLeg.set(l.leg_index, l);
     }
-    const legs = Array.from(byLeg.values());
+    let activelegs = Array.from(byLeg.values());
 
     // Live: descartar linhas com updated_at > 30s atrás
     if (isLive) {
-      const filtered = legs.filter(l => {
-        if (!l.updated_at) return false;
-        return now - new Date(l.updated_at).getTime() < LIVE_CUTOFF_MS;
+      activelegs = activelegs.filter(l => {
+        const ts = parseTs(l.updated_at);
+        return ts === 0 || now - ts < LIVE_CUTOFF_MS; // ts=0 → campo ausente, não descarta
       });
-      if (filtered.length < 2) continue;
+      if (activelegs.length < 2) continue;
     }
 
     const bookmakers: OHBookmaker[] = [];
-    for (const l of legs) {
+    for (const l of activelegs) {
       const sel = normalizeOutcome(l.outcome, l.market);
       if (!sel) continue;
       bookmakers.push({
@@ -169,7 +186,7 @@ function processLegs(legs: OHLeg[], isLive: boolean): OHSurebet[] {
         anchor:      l.anchor,
         redirect_id: l.redirect_id,
         is_live:     l.is_live ?? false,
-        updated_at:  l.updated_at,
+        updated_at:  l.updated_at ?? '',
       });
     }
 
@@ -178,7 +195,7 @@ function processLegs(legs: OHLeg[], isLive: boolean): OHSurebet[] {
     const profit = calcProfit(bookmakers);
     if (profit <= 0) continue;
 
-    const first = legs[0];
+    const first = activelegs[0];
 
     // Dedup por surebet_id base (sem #suffix)
     const sbId = (first.surebet_id ?? '').split('#')[0] || first.batch_id;
@@ -317,8 +334,8 @@ export function useOddsHunter(): UseOddsHunterResult {
     const pruneId = setInterval(() => {
       const now = Date.now();
       setLiveSurebets(prev => prev.filter(s => {
-        const latest = Math.max(...s.bookmakers.map(b => new Date(b.updated_at).getTime()));
-        return now - latest < LIVE_CUTOFF_MS;
+        const latest = Math.max(...s.bookmakers.map(b => parseTs(b.updated_at)));
+        return latest === 0 || now - latest < LIVE_CUTOFF_MS;
       }));
     }, 2_000);
 

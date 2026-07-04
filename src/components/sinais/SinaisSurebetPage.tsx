@@ -1,8 +1,11 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { RefreshCw, Radio, Clock, TrendingUp, Zap, ExternalLink } from 'lucide-react';
+import { RefreshCw, Radio, Clock, TrendingUp, Zap, ExternalLink, Lock } from 'lucide-react';
 import { useOddsHunter, type OHSurebet, type OHBookmaker } from '@/hooks/useOddsHunter';
+import { useStore } from '@/store/useStore';
+
+const ALLOWED_EMAILS = ['michael.martins.trader@gmail.com'];
 
 // ─── Palette ──────────────────────────────────────────────────────────────────
 const C = {
@@ -195,10 +198,20 @@ function EmptyState({ loading, error }: { loading: boolean; error: string | null
 }
 
 export function SinaisSurebetPage() {
+  const authEmail = useStore(s => s.authEmail);
   const { preSurebets, liveSurebets, loading, error, lastUpdate, refresh } = useOddsHunter();
   const [tab, setTab] = useState<Tab>('pre');
   const [minProfit, setMinProfit] = useState(0);
   const [search, setSearch] = useState('');
+
+  if (!ALLOWED_EMAILS.includes(authEmail ?? '')) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, gap: 12, padding: 40, color: C.t3 }}>
+        <Lock size={28} style={{ opacity: .4 }} />
+        <p style={{ fontSize: 13 }}>Acesso restrito.</p>
+      </div>
+    );
+  }
 
   const list = tab === 'pre' ? preSurebets : liveSurebets;
 
