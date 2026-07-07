@@ -21,12 +21,17 @@ interface DiffPayload {
   capturedAt: number;
 }
 
-async function decompressBody(req: NextRequest): Promise<DiffPayload> {
-  const buf = await req.arrayBuffer();
-  const ds  = new DecompressionStream('gzip');
-  const writer = ds.writable.getWriter();
-  writer.write(buf);
-  writer.close();
+async function parseBody(req: NextRequest): Promise<DiffPayload> {
+  const ct = req.headers.get('content-type') ?? '';
+  if (ct.includes('application/json')) {
+    return req.json() as Promise<DiffPayload>;
+  }
+  // fallback: octet-stream com gzip
+  const buf  = await req.arrayBuffer();
+  const ds   = new DecompressionStream('gzip');
+  const w    = ds.writable.getWriter();
+  await w.write(new Uint8Array(buf));
+  await w.close();
   const text = await new Response(ds.readable).text();
   return JSON.parse(text);
 }
@@ -90,14 +95,10 @@ export async function POST(req: NextRequest) {
 
   let payload: DiffPayload;
   try {
-    payload = await decompressBody(req);
-  } catch {
-    // Tenta JSON direto (sem compressão — útil em testes)
-    try {
-      payload = await req.json() as DiffPayload;
-    } catch {
-      return NextResponse.json({ ok: false, error: 'body inválido' }, { status: 400 });
-    }
+    payload = await parseBody(req);
+  } catch (e) {
+    console.error('[sync/ingest] body inválido:', e);
+    return NextResponse.json({ ok: false, error: 'body inválido' }, { status: 400 });
   }
 
   // Atualiza last_seen do dispositivo

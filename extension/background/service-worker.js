@@ -128,29 +128,42 @@ async function handleIntercept({ type, data }) {
   ];
   await saveSnapshot(plugin.id, newSnapshot);
 
-  // Enfileira o diff
+  // Enfileira o diff em lotes de 200 rows (evita payload >4MB no Vercel)
+  const BATCH = 200;
   const priority = getPluginPriority(config, plugin.id, plugin.priority);
-  await enqueue({
-    pluginId: plugin.id,
-    priority,
-    payload: {
+
+  const allAdded    = diff.added;
+  const allModified = diff.modified;
+  const allRemoved  = diff.removed.map(r => r[plugin.diffKey]);
+
+  for (let i = 0; i < Math.max(1, Math.ceil((allAdded.length + allModified.length) / BATCH)); i++) {
+    const batchAdded    = allAdded.slice(i * BATCH, (i + 1) * BATCH);
+    const batchModified = allModified.slice(
+      Math.max(0, i * BATCH - allAdded.length),
+      Math.max(0, (i + 1) * BATCH - allAdded.length),
+    );
+    await enqueue({
       pluginId: plugin.id,
-      diff: {
-        added:    diff.added,
-        modified: diff.modified,
-        removed:  diff.removed.map(r => r[plugin.diffKey]),
+      priority,
+      payload: {
+        pluginId: plugin.id,
+        diff: {
+          added:    batchAdded,
+          modified: batchModified,
+          removed:  i === 0 ? allRemoved : [],
+        },
+        stats: {
+          total:     parsed.length,
+          added:     batchAdded.length,
+          modified:  batchModified.length,
+          removed:   i === 0 ? allRemoved.length : 0,
+          unchanged: diff.unchanged,
+          sizeBytes: size,
+        },
+        capturedAt: Date.now(),
       },
-      stats: {
-        total:     parsed.length,
-        added:     diff.added.length,
-        modified:  diff.modified.length,
-        removed:   diff.removed.length,
-        unchanged: diff.unchanged,
-        sizeBytes: size,
-      },
-      capturedAt: Date.now(),
-    },
-  });
+    });
+  }
 
   // Processa fila imediatamente para itens críticos
   if (priority === 'critical') {

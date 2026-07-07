@@ -43,29 +43,21 @@ export async function signPayload(payload) {
   return Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-/** Comprime um objeto JSON com CompressionStream (gzip) */
-export async function compress(obj) {
-  const json   = JSON.stringify(obj);
-  const stream = new Response(json).body.pipeThrough(new CompressionStream('gzip'));
-  const buf    = await new Response(stream).arrayBuffer();
-  return buf;
-}
-
-/** Envia payload ao SureEdge com HMAC */
+/** Envia payload ao SureEdge como JSON puro (sem compressão) */
 export async function sendToSureEdge(endpoint, payload, deviceId) {
-  const compressed = await compress(payload);
-  const hex        = await signPayload(compressed);
+  const json = JSON.stringify(payload);
+  const hex  = await signPayload(json);
 
   const res = await fetch(`${SUREEDGE_ORIGIN}${endpoint}`, {
     method: 'POST',
     headers: {
-      'Content-Type':  'application/octet-stream',
+      'Content-Type':  'application/json',
       'X-Device-ID':   deviceId,
       'X-Signature':   hex,
       'X-Plugin-ID':   payload.pluginId ?? '',
       'X-Sequence-ID': String(payload.sequenceId ?? 0),
     },
-    body: compressed,
+    body: json,
   });
 
   return res;
