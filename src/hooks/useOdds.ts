@@ -14,8 +14,9 @@ export interface OddsRealtimeMetrics {
   refetchCount:   number;   // refetches executados
   lastEventAt:    number;   // timestamp do último broadcast (ms)
   lastRefetchAt:  number;   // timestamp do último refetch (ms)
-  lastLatencyMs:  number;   // ingest → UI renderizada
+  lastLatencyMs:  number;   // ingest → UI renderizada (ingest syncedAt → fetch_finished)
   avgLatencyMs:   number;   // média das últimas 20 latências
+  fallbackPolls:  number;   // vezes que o fallback de 30s foi acionado
 }
 
 interface UseOddsResult {
@@ -29,20 +30,24 @@ interface UseOddsResult {
   rtMetrics:       OddsRealtimeMetrics;
 }
 
-// Payload do broadcast enviado pelo ingest
+// Payload enviado pelo ingest via broadcast REST
 interface BroadcastPayload {
   pluginId:    string;
   rowsWritten: number;
-  syncedAt:    number; // Date.now() no momento exato do upsert
+  syncedAt:    number; // Date.now() no momento exato do db_commit
+  batchId:     string; // rastreamento ponta a ponta
 }
 
-const DEBOUNCE_MS      = 2500;   // silêncio necessário antes de disparar refetch
-const FALLBACK_POLL_MS = 30_000; // polling quando Realtime estiver offline
+// Trailing debounce: agrupa eventos até DEBOUNCE_MS de silêncio, depois 1 refetch
+const DEBOUNCE_MS      = 2500;
+// Fallback poll apenas quando Realtime estiver offline
+const FALLBACK_POLL_MS = 30_000;
 
 const EMPTY_METRICS: OddsRealtimeMetrics = {
   eventsReceived: 0, refetchCount: 0,
   lastEventAt: 0, lastRefetchAt: 0,
   lastLatencyMs: 0, avgLatencyMs: 0,
+  fallbackPolls: 0,
 };
 
 export function useOdds(opts: UseOddsOptions = {}): UseOddsResult {
@@ -56,26 +61,40 @@ export function useOdds(opts: UseOddsOptions = {}): UseOddsResult {
   const [recentlyUpdated, setRecentlyUpdated] = useState<Set<string>>(new Set());
   const [rtMetrics,       setRtMetrics]      = useState<OddsRealtimeMetrics>(EMPTY_METRICS);
 
-  // Refs — não causam re-renders, persistem entre renders
-  const abortRef     = useRef<AbortController | null>(null);
-  const connectedRef = useRef(false);
+  const abortRef        = useRef<AbortController | null>(null);
+  const connectedRef    = useRef(false);
+  const hasConnectedRef = useRef(false); // distingue 1ª conexão de reconexão
 
-  // Estado do debounce em ref: evita capturas de closure obsoletas
+  // Estado do debounce em ref — não causa re-renders, persiste entre renders
   const db = useRef<{
     timer:          ReturnType<typeof setTimeout> | null;
     events:         BroadcastPayload[];
     eventsReceived: number;
     refetchCount:   number;
+    fallbackPolls:  number;
     latencies:      number[];
     lastIngestAt:   number;
-  }>({ timer: null, events: [], eventsReceived: 0, refetchCount: 0, latencies: [], lastIngestAt: 0 });
+    lastBatchIds:   string[];
+  }>({
+    timer: null, events: [], eventsReceived: 0, refetchCount: 0,
+    fallbackPolls: 0, latencies: [], lastIngestAt: 0, lastBatchIds: [],
+  });
 
-  const fetchOdds = useCallback(async (batch?: BroadcastPayload[]) => {
+  const fetchOdds = useCallback(async (batch?: BroadcastPayload[], isFallback = false) => {
     if (paused) return;
 
     abortRef.current?.abort();
     const ctrl = new AbortController();
     abortRef.current = ctrl;
+
+    const s = db.current;
+    const batchIds = batch?.map(e => e.batchId).join(',') ?? 'initial';
+    const fetchStart = Date.now();
+
+    console.log(
+      `[SureEdge] fetch_started reason=${isFallback ? 'fallback_poll' : (batch ? 'realtime' : 'mount')}` +
+      ` batch_ids=${batchIds} events=${batch?.length ?? 0}`
+    );
 
     try {
       const res = await fetch('/api/dg/odds-db?all=1', { signal: ctrl.signal });
@@ -87,16 +106,21 @@ export function useOdds(opts: UseOddsOptions = {}): UseOddsResult {
         setError(null);
         setLastUpdate(Date.now());
 
-        // Calcula latência: momento do ingest → UI renderizada
-        const s = db.current;
-        const latencyMs = s.lastIngestAt > 0 ? Date.now() - s.lastIngestAt : 0;
-        if (latencyMs > 0 && latencyMs < 120_000) { // ignora outliers
+        const elapsed    = Date.now() - fetchStart;
+        const latencyMs  = s.lastIngestAt > 0 ? Date.now() - s.lastIngestAt : 0;
+        if (latencyMs > 0 && latencyMs < 120_000) {
           s.latencies.push(latencyMs);
           if (s.latencies.length > 20) s.latencies.shift();
         }
         const avgLatency = s.latencies.length
           ? Math.round(s.latencies.reduce((a, b) => a + b, 0) / s.latencies.length)
           : 0;
+
+        console.log(
+          `[SureEdge] fetch_finished odds=${d.odds.length} elapsed=${elapsed}ms` +
+          ` latency_ingest_to_ui=${latencyMs}ms avg_latency=${avgLatency}ms` +
+          ` refetch_count=${s.refetchCount} batch_ids=${batchIds}`
+        );
 
         const m: OddsRealtimeMetrics = {
           eventsReceived: s.eventsReceived,
@@ -105,82 +129,100 @@ export function useOdds(opts: UseOddsOptions = {}): UseOddsResult {
           lastRefetchAt:  Date.now(),
           lastLatencyMs:  latencyMs,
           avgLatencyMs:   avgLatency,
+          fallbackPolls:  s.fallbackPolls,
         };
         setRtMetrics(m);
 
-        // Expõe métricas no window para debug rápido no console
         if (typeof window !== 'undefined') {
           (window as Window & { __sureedge_rt?: OddsRealtimeMetrics }).__sureedge_rt = m;
         }
 
-        if (batch?.length) {
-          const totalRows = batch.reduce((s, e) => s + (e.rowsWritten ?? 0), 0);
-          console.debug(
-            `[SureEdge] refetch #${s.refetchCount}: ${batch.length} evento(s) → ${totalRows} linhas | ` +
-            `latência ${latencyMs}ms | avg ${avgLatency}ms`
-          );
-        }
-
-        if (recentlyUpdated.size > 0) {
-          setRecentlyUpdated(new Set());
-        }
+        if (recentlyUpdated.size > 0) setRecentlyUpdated(new Set());
       }
     } catch (e) {
       if ((e as Error).name === 'AbortError') return;
       setError((e as Error).message);
+      console.warn(`[SureEdge] fetch_finished error="${(e as Error).message}" batch_ids=${batchIds}`);
     } finally {
       setLoading(false);
     }
   }, [paused]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Debounce: acumula eventos até DEBOUNCE_MS de silêncio, depois 1 refetch
+  // Trailing debounce: reinicia o timer a cada evento, dispara 1 refetch após silêncio
   const handleBroadcast = useCallback((payload: BroadcastPayload) => {
     if (paused) return;
     const s = db.current;
     s.eventsReceived++;
     s.events.push(payload);
-    // Guarda o syncedAt mais recente como referência de latência
     if (payload.syncedAt > s.lastIngestAt) s.lastIngestAt = payload.syncedAt;
 
-    // Reinicia timer a cada novo evento (trailing debounce)
+    console.log(
+      `[SureEdge] broadcast_received batch_id=${payload.batchId}` +
+      ` plugin=${payload.pluginId} rows_written=${payload.rowsWritten}` +
+      ` total_pending=${s.events.length} debounce_restarts=${s.eventsReceived}`
+    );
+
     if (s.timer) clearTimeout(s.timer);
     s.timer = setTimeout(() => {
       s.refetchCount++;
       const batch = [...s.events];
-      s.events = [];
-      s.timer  = null;
-      fetchOdds(batch);
+      s.events    = [];
+      s.timer     = null;
+      fetchOdds(batch, false);
     }, DEBOUNCE_MS);
   }, [paused, fetchOdds]);
 
   useEffect(() => {
-    fetchOdds(); // carga inicial
+    fetchOdds(); // carga inicial (não conta como refetch)
 
     const supabase = getSupabaseClient();
 
-    // Canal de broadcast dedicado — 1 mensagem por batch de ingest (100 linhas)
-    // Volume: ~36 mensagens por sync completo vs 3.600+ eventos de postgres_changes
     const channel = supabase
       .channel('odds_updates', { config: { broadcast: { ack: false } } })
       .on<{ payload: BroadcastPayload }>(
         'broadcast',
         { event: 'odds_updated' },
-        ({ payload }) => { if (payload) handleBroadcast(payload as unknown as BroadcastPayload); }
+        ({ payload }) => {
+          if (payload) handleBroadcast(payload as unknown as BroadcastPayload);
+        }
       )
       .subscribe((status) => {
-        const ok = status === 'SUBSCRIBED';
+        const wasConnected = connectedRef.current;
+        const ok           = status === 'SUBSCRIBED';
         connectedRef.current = ok;
         setConnected(ok);
-        if (status === 'CHANNEL_ERROR') {
-          console.warn('[SureEdge] Realtime desconectado — fallback 30s ativo');
+
+        if (ok) {
+          if (hasConnectedRef.current) {
+            // Reconexão após queda — faz refetch imediato para recuperar updates perdidos
+            console.log(
+              '[SureEdge] realtime=RECONNECTED → fetch_started reason=reconnect_catchup'
+            );
+            fetchOdds(undefined, false);
+          } else {
+            console.log('[SureEdge] realtime=SUBSCRIBED (conexão inicial)');
+          }
+          hasConnectedRef.current = true;
+        } else {
+          console.warn(
+            `[SureEdge] realtime=${status} — fallback_poll ativo (30s)`
+          );
         }
+
+        void wasConnected; // satisfaz linter
       });
 
-    // Fallback: polling a cada 30s apenas quando Realtime estiver offline
+    // Fallback: poll a cada 30s apenas quando Realtime estiver offline
+    // Registra quando dispara para identificar falhas do canal
     const pollId = setInterval(() => {
       if (!connectedRef.current) {
-        console.debug('[SureEdge] fallback poll (Realtime offline)');
-        fetchOdds();
+        const s = db.current;
+        s.fallbackPolls++;
+        console.warn(
+          `[SureEdge] fallback_poll #${s.fallbackPolls} fired — Realtime offline` +
+          ` (total_events_missed_estimate=unknown)`
+        );
+        fetchOdds(undefined, true);
       }
     }, FALLBACK_POLL_MS);
 
