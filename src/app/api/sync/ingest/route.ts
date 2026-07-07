@@ -53,6 +53,26 @@ async function sbUpsert(table: string, rows: Record<string, unknown>[]) {
   }
 }
 
+// Broadcast via Supabase Realtime REST — 1 mensagem por batch em vez de 1 evento por linha
+function broadcastOddsUpdated(pluginId: string, rowsWritten: number) {
+  const realtimeUrl = `${SB_URL}/realtime/v1/api/broadcast`;
+  fetch(realtimeUrl, {
+    method: 'POST',
+    headers: {
+      'apikey': SB_SVC_KEY,
+      'Authorization': `Bearer ${SB_SVC_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      messages: [{
+        topic:   'realtime:odds_updates',
+        event:   'odds_updated',
+        payload: { pluginId, rowsWritten, syncedAt: Date.now() },
+      }],
+    }),
+  }).catch(() => {}); // fire-and-forget
+}
+
 async function handleOdds(diff: DiffPayload['diff'], pluginId: string) {
   const isPa = pluginId === 'odds-pa';
 
@@ -138,6 +158,9 @@ export async function POST(req: NextRequest) {
   try {
     if (pluginId === 'odds-1x2' || pluginId === 'odds-pa') {
       await handleOdds(payload.diff, pluginId);
+      // Notifica UI via broadcast (1 msg por batch, não 1 evento por linha)
+      const rowsWritten = addedLen + modifiedLen;
+      if (rowsWritten > 0) broadcastOddsUpdated(pluginId, rowsWritten);
     } else {
       console.log(`[DIAG] plugin ${pluginId} não tem handler de DB — ignorado`);
     }
