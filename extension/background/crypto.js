@@ -59,12 +59,11 @@ export async function sendToSureEdge(endpoint, payload, deviceId) {
   const res = await fetch(`${SUREEDGE_ORIGIN}${endpoint}`, {
     method: 'POST',
     headers: {
-      'Content-Type':    'application/octet-stream',
-      'Content-Encoding':'gzip',
-      'X-Device-ID':     deviceId,
-      'X-Signature':     hex,
-      'X-Plugin-ID':     payload.pluginId ?? '',
-      'X-Sequence-ID':   String(payload.sequenceId ?? 0),
+      'Content-Type':  'application/octet-stream',
+      'X-Device-ID':   deviceId,
+      'X-Signature':   hex,
+      'X-Plugin-ID':   payload.pluginId ?? '',
+      'X-Sequence-ID': String(payload.sequenceId ?? 0),
     },
     body: compressed,
   });
