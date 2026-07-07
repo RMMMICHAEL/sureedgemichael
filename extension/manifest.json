@@ -39,8 +39,5 @@
   "action": {
     "default_popup": "popup/index.html",
     "default_title": "SureEdge Sync Bridge"
-  },
-  "icons": {
-    "128": "icons/icon128.png"
   }
 }

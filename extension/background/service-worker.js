@@ -5,6 +5,7 @@
  */
 
 import { matchPlugin, getAllPlugins } from '../plugins/registry.js';
+import { runActiveFetch }            from './active-fetch.js';
 import { computeDiff, hasDiff }      from '../core/diff-engine.js';
 import { SchemaMonitor }             from '../core/schema-validator.js';
 import {
@@ -16,10 +17,12 @@ import { sendHeartbeat }  from './heartbeat.js';
 import { getConfig, isPluginEnabled, getPluginPriority } from './config.js';
 
 // ─── Estado em memória (reiniciado a cada cold start do SW) ──────────────────
-const schemaMonitors = new Map();
-let   deviceId       = null;
-let   lastSyncAt     = null;
-let   isProcessing   = false;
+const schemaMonitors  = new Map();
+let   deviceId        = null;
+let   lastSyncAt      = null;
+let   isProcessing    = false;
+let   activeFetching  = false;
+let   sessionHeaders  = null;
 
 // Endpoints desconhecidos (descoberta automática)
 const unknownEndpoints = new Map();
@@ -46,6 +49,12 @@ async function init() {
 
 // ─── Listener: mensagens do content script ────────────────────────────────────
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  if (msg.kind === 'intercept' && msg.type === 'session_captured') {
+    sessionHeaders = msg.data.headers;
+    triggerActiveFetch().catch(console.error);
+    sendResponse({ ok: true });
+    return;
+  }
   if (msg.kind === 'intercept') {
     handleIntercept(msg).catch(console.error);
     sendResponse({ ok: true });
@@ -62,6 +71,19 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     sendResponse({ ok: true });
   }
 });
+
+// ─── Fetch ativo (dispara ao capturar sessão) ─────────────────────────────────
+async function triggerActiveFetch() {
+  if (activeFetching || !sessionHeaders) return;
+  activeFetching = true;
+  try {
+    await runActiveFetch(sessionHeaders, (data) => {
+      handleIntercept({ type: 'fetch', data }).catch(console.error);
+    });
+  } finally {
+    activeFetching = false;
+  }
+}
 
 // ─── Processamento de interceptação ──────────────────────────────────────────
 async function handleIntercept({ type, data }) {

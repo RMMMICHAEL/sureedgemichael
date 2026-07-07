@@ -41,12 +41,27 @@
   }
 
   // ─── 1. Interceptar fetch ──────────────────────────────────────────────────
+  let sessionCaptured = false;
+
   const _fetch = window.fetch.bind(window);
   window.fetch = async function (input, init) {
     const url = typeof input === 'string' ? input : (input instanceof Request ? input.url : String(input));
     const response = await _fetch(input, init);
 
     if (isDGUrl(url)) {
+      // Captura headers da sessão na primeira requisição DG
+      if (!sessionCaptured && init?.headers) {
+        sessionCaptured = true;
+        const headers = {};
+        const h = init.headers;
+        if (h instanceof Headers) {
+          h.forEach((v, k) => { headers[k] = v; });
+        } else if (typeof h === 'object') {
+          Object.assign(headers, h);
+        }
+        dispatch('session_captured', { headers });
+      }
+
       try {
         const clone = response.clone();
         clone.text().then(body => {
