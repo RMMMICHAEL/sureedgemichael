@@ -38,14 +38,19 @@ async function parseBody(req: NextRequest): Promise<DiffPayload> {
 
 async function sbUpsert(table: string, rows: Record<string, unknown>[]) {
   if (rows.length === 0) return;
-  await fetch(`${SB_URL}/rest/v1/${table}`, {
+  const res = await fetch(`${SB_URL}/rest/v1/${table}`, {
     method: 'POST',
     headers: {
       'apikey': SB_SVC_KEY, 'Authorization': `Bearer ${SB_SVC_KEY}`,
-      'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates',
+      'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates,return=minimal',
     },
     body: JSON.stringify(rows),
   });
+  if (!res.ok) {
+    const body = await res.text();
+    console.error(`[sync/ingest] sbUpsert ${table} falhou ${res.status}:`, body.slice(0, 500));
+    throw new Error(`sbUpsert ${table} ${res.status}: ${body.slice(0, 200)}`);
+  }
 }
 
 async function handleOdds(diff: DiffPayload['diff'], pluginId: string) {
