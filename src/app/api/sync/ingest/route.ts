@@ -153,8 +153,15 @@ export async function POST(req: NextRequest) {
   const pluginId   = req.headers.get('x-plugin-id')    ?? '';
   const sequenceId = Number(req.headers.get('x-sequence-id') ?? 0);
 
+  const protocolVersion = req.headers.get('x-sync-protocol') ?? '0';
+
   if (!deviceId || !pluginId) {
     return NextResponse.json({ ok: false, error: 'headers obrigatórios ausentes' }, { status: 400 });
+  }
+
+  // Registra versão do protocolo; compatibilidade: versão 0 = extensão antiga (sem header)
+  if (protocolVersion !== '1') {
+    console.warn(`[INGEST:${batchId}] sync_protocol_version=${protocolVersion} (esperado=1) — extensão pode estar desatualizada`);
   }
 
   let payload: DiffPayload;
@@ -212,7 +219,8 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ ok: true, accepted_sequence_id: sequenceId, batch_id: batchId });
   } catch (e) {
+    // Loga o erro completo no servidor mas não expõe detalhes do Postgres ao cliente
     console.error(`[INGEST:${batchId}] error=`, e);
-    return NextResponse.json({ ok: false, error: (e as Error).message }, { status: 500 });
+    return NextResponse.json({ ok: false, error: 'ingest_error' }, { status: 500 });
   }
 }

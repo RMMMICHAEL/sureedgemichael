@@ -148,7 +148,13 @@
 
   window.__sureedge_force_fetch = function () {
     if (typeof window.__sureedge_run_active_fetch === 'function') {
-      console.log('[SureEdge] forçando fetch ativo com headers:', lastCapturedHeaders);
+      // Não loga headers brutos — podem conter Authorization Bearer ou cookies
+      const safe = Object.fromEntries(
+        Object.entries(lastCapturedHeaders ?? {})
+          .filter(([k]) => !/^(authorization|cookie|x-signature)$/i.test(k))
+          .map(([k, v]) => [k, typeof v === 'string' ? v.slice(0, 40) : v])
+      );
+      console.log('[SureEdge] forçando fetch ativo headers_safe:', safe);
       window.__sureedge_run_active_fetch(lastCapturedHeaders).catch(console.error);
     } else {
       console.warn('[SureEdge] active-fetch ainda não carregado');

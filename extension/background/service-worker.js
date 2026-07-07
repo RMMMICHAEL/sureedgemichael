@@ -9,7 +9,7 @@ import { runActiveFetch }            from './active-fetch.js';
 import { computeDiff, hasDiff }      from '../core/diff-engine.js';
 import { SchemaMonitor }             from '../core/schema-validator.js';
 import {
-  enqueue, dequeueNext, requeueWithBackoff,
+  enqueue, dequeueNext, markComplete, requeueWithBackoff, resetStaleFlight,
   getSnapshot, saveSnapshot, saveReplay, queueDepth,
   cleanupStale, estimateStorageSize,
 } from './queue.js';
@@ -57,6 +57,10 @@ async function init() {
     ));
   }
 
+  // Recupera itens in_flight órfãos de ciclos anteriores do SW (crash/sleep)
+  const recovered = await resetStaleFlight(45_000);
+  if (recovered > 0) processQueue().catch(console.error);
+
   console.log('[SureEdge] service worker iniciado, device:', deviceId);
 }
 
@@ -92,6 +96,9 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       .then(() => sendResponse({ ok: true }))
       .catch(e => sendResponse({ ok: false, error: e.message }));
     return true; // async
+  }
+  if (msg.kind === 'get_tab_id') {
+    sendResponse({ tabId: _sender?.tab?.id ?? null });
   }
 });
 
@@ -241,6 +248,8 @@ async function processQueue() {
             swMetrics.broadcastsFailed++; // ingest ok mas sem broadcast
           }
           console.log(`[DIAG] processQueue: ingest ok batch_id=${resBody.batch_id ?? 'none'} ingest_ms=${ingestElapsed}`);
+          // Remove o item da fila APÓS confirmar sucesso (sem risco de perda por crash)
+          await markComplete(item.id);
           lastSyncAt = Date.now();
           await chrome.storage.local.set({ last_sync_at: lastSyncAt });
           if (item.snapshotOnSuccess) {
@@ -277,6 +286,11 @@ function trackUnknown(url, body, size) {
     const rows   = Array.isArray(body) ? body : (body?.data ?? []);
     const shape  = rows.length > 0 ? Object.keys(rows[0]) : [];
 
+    // Cap para evitar crescimento ilimitado em memória
+    if (!unknownEndpoints.has(name) && unknownEndpoints.size >= 200) {
+      const oldest = unknownEndpoints.keys().next().value;
+      unknownEndpoints.delete(oldest);
+    }
     const existing = unknownEndpoints.get(name) ?? {
       url, name, shape, firstSeen: Date.now(), count: 0, size,
     };

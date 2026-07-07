@@ -81,6 +81,12 @@ export async function enqueue(item) {
   return record;
 }
 
+/**
+ * Marca o próximo item disponível como in_flight=true (em processamento).
+ * Não deleta — o item persiste até markComplete() ou resetStaleFlight().
+ * Se o SW for encerrado durante o processamento, resetStaleFlight() (chamado
+ * no próximo init) devolve o item à fila sem perda de dados.
+ */
 export async function dequeueNext() {
   const db = await getDB();
   return new Promise((resolve, reject) => {
@@ -91,25 +97,82 @@ export async function dequeueNext() {
       const cursor = e.target.result;
       if (!cursor) { resolve(null); return; }
       const item = cursor.value;
-      if (item.nextRetryAt > Date.now()) { cursor.continue(); return; }
-      cursor.delete();
+      // Pula itens em vôo ou ainda em backoff
+      if (item.in_flight || item.nextRetryAt > Date.now()) {
+        cursor.continue();
+        return;
+      }
+      // Marca como em vôo: persiste no IndexedDB antes de devolver
+      cursor.update({ ...item, in_flight: true, processedAt: Date.now() });
       resolve(item);
     };
     req.onerror = () => reject(req.error);
   });
 }
 
+/** Remove o item da fila após envio bem-sucedido. */
+export async function markComplete(id) {
+  const db = await getDB();
+  await new Promise((res, rej) => {
+    const t = db.transaction(STORE_QUEUE, 'readwrite');
+    t.objectStore(STORE_QUEUE).delete(id).onsuccess = res;
+    t.onerror = rej;
+  });
+}
+
+/**
+ * Recoloca o item na fila com backoff, resetando o flag in_flight.
+ * Descarta se atingiu MAX_RETRIES.
+ */
 export async function requeueWithBackoff(item) {
-  if (item.attempts >= MAX_RETRIES) return; // descarta após max tentativas
+  if (item.attempts >= MAX_RETRIES) {
+    // Tentativas esgotadas — remove definitivamente
+    await markComplete(item.id);
+    return;
+  }
   const backoffs = [5000, 15000, 60000, 300000, 1800000];
   const delay    = backoffs[Math.min(item.attempts, backoffs.length - 1)];
-  const record   = { ...item, attempts: item.attempts + 1, nextRetryAt: Date.now() + delay };
-  const db       = await getDB();
+  const record   = {
+    ...item,
+    attempts:     item.attempts + 1,
+    nextRetryAt:  Date.now() + delay,
+    in_flight:    false,   // libera para a próxima tentativa
+    processedAt:  null,
+  };
+  const db = await getDB();
   await new Promise((res, rej) => {
     const t = db.transaction(STORE_QUEUE, 'readwrite');
     t.objectStore(STORE_QUEUE).put(record).onsuccess = res;
     t.onerror = rej;
   });
+}
+
+/**
+ * Devolve itens in_flight antigos à fila (SW foi encerrado durante processamento).
+ * Chamado no init() do service worker.
+ * @param maxAgeMs Items marcados há mais de N ms são considerados órfãos (padrão 45s)
+ */
+export async function resetStaleFlight(maxAgeMs = 45_000) {
+  const db     = await getDB();
+  const cutoff = Date.now() - maxAgeMs;
+  let   reset  = 0;
+  await new Promise((res, rej) => {
+    const t   = db.transaction(STORE_QUEUE, 'readwrite');
+    const req = t.objectStore(STORE_QUEUE).openCursor();
+    req.onsuccess = e => {
+      const cursor = e.target.result;
+      if (!cursor) { res(); return; }
+      const item = cursor.value;
+      if (item.in_flight && (item.processedAt ?? 0) < cutoff) {
+        cursor.update({ ...item, in_flight: false, processedAt: null });
+        reset++;
+      }
+      cursor.continue();
+    };
+    req.onerror = () => rej(req.error);
+  });
+  if (reset > 0) console.log(`[SureEdge] resetStaleFlight: ${reset} item(ns) devolvido(s) à fila`);
+  return reset;
 }
 
 export async function queueDepth() {
@@ -215,10 +278,6 @@ export async function getLastSequenceId(pluginId) {
 /**
  * Remove itens obsoletos do IndexedDB.
  * Chamado pelo alarm 'cleanup_stale' a cada 6 horas.
- *
- * @param opts.queueMaxAgeHours  Remove itens da fila mais antigos que N horas (padrão 24h)
- * @param opts.replayMaxAgeHours Remove entradas do replay buffer mais antigas que N horas (padrão 6h)
- * @returns { queue, replay } — quantidade de itens deletados
  */
 export async function cleanupStale(opts = { queueMaxAgeHours: 24, replayMaxAgeHours: 6 }) {
   const db          = await getDB();
@@ -226,15 +285,16 @@ export async function cleanupStale(opts = { queueMaxAgeHours: 24, replayMaxAgeHo
   const cutoffReplay = Date.now() - opts.replayMaxAgeHours * 3_600_000;
   const deleted      = { queue: 0, replay: 0 };
 
-  // Fila: remove itens expirados (max tentativas atingido) ou muito antigos
+  // Fila: remove itens com tentativas esgotadas, muito antigos, ou orphaned in_flight
   await new Promise((res, rej) => {
     const t   = db.transaction(STORE_QUEUE, 'readwrite');
     const req = t.objectStore(STORE_QUEUE).openCursor();
     req.onsuccess = e => {
       const cursor = e.target.result;
       if (!cursor) { res(); return; }
-      const { attempts, createdAt } = cursor.value;
-      if (attempts >= MAX_RETRIES || createdAt < cutoffQueue) {
+      const { attempts, createdAt, in_flight, processedAt } = cursor.value;
+      const staleFlight = in_flight && (processedAt ?? 0) < cutoffQueue;
+      if (attempts >= MAX_RETRIES || createdAt < cutoffQueue || staleFlight) {
         cursor.delete();
         deleted.queue++;
       }
