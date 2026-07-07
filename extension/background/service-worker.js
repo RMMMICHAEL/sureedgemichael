@@ -70,6 +70,12 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     processQueue().catch(console.error);
     sendResponse({ ok: true });
   }
+  if (msg.kind === 'clear_snapshots') {
+    Promise.all(getAllPlugins().map(p => saveSnapshot(p.id, [])))
+      .then(() => sendResponse({ ok: true }))
+      .catch(e => sendResponse({ ok: false, error: e.message }));
+    return true; // async
+  }
 });
 
 // ─── Fetch ativo (dispara ao capturar sessão) ─────────────────────────────────
@@ -120,23 +126,23 @@ async function handleIntercept({ type, data }) {
 
   if (!hasDiff(diff)) return; // nada mudou
 
-  // Atualiza snapshot local
+  // Calcula novo snapshot mas NÃO salva ainda — salva só após ingest confirmar
   const newSnapshot = [
     ...snapshot.filter(r => !diff.removed.some(rem => rem[plugin.diffKey] === r[plugin.diffKey])),
     ...diff.added,
     ...diff.modified.map(m => ({ ...snapshot.find(s => s[plugin.diffKey] === m[plugin.diffKey]), ...m })),
   ];
-  await saveSnapshot(plugin.id, newSnapshot);
 
-  // Enfileira o diff em lotes de 200 rows (evita payload >4MB no Vercel)
+  // Enfileira o diff em lotes de 100 rows (evita payload >4MB no Vercel)
   const BATCH = 100;
   const priority = getPluginPriority(config, plugin.id, plugin.priority);
 
   const allAdded    = diff.added;
   const allModified = diff.modified;
   const allRemoved  = diff.removed.map(r => r[plugin.diffKey]);
+  const totalBatches = Math.max(1, Math.ceil((allAdded.length + allModified.length) / BATCH));
 
-  for (let i = 0; i < Math.max(1, Math.ceil((allAdded.length + allModified.length) / BATCH)); i++) {
+  for (let i = 0; i < totalBatches; i++) {
     const batchAdded    = allAdded.slice(i * BATCH, (i + 1) * BATCH);
     const batchModified = allModified.slice(
       Math.max(0, i * BATCH - allAdded.length),
@@ -145,6 +151,8 @@ async function handleIntercept({ type, data }) {
     await enqueue({
       pluginId: plugin.id,
       priority,
+      // snapshot só é salvo pelo último batch (garante que DB recebeu tudo)
+      snapshotOnSuccess: i === totalBatches - 1 ? newSnapshot : null,
       payload: {
         pluginId: plugin.id,
         diff: {
@@ -184,6 +192,10 @@ async function processQueue() {
         if (res.ok) {
           lastSyncAt = Date.now();
           await chrome.storage.local.set({ last_sync_at: lastSyncAt });
+          // Salva snapshot só após DB confirmar recebimento
+          if (item.snapshotOnSuccess) {
+            await saveSnapshot(item.pluginId, item.snapshotOnSuccess);
+          }
         } else if (res.status === 403) {
           // Revogado ou não autorizado
           console.warn('[SureEdge] ingest 403 — verificando revogação');
