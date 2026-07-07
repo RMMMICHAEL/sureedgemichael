@@ -59,7 +59,8 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/obrigado') ||
     pathname.startsWith('/api/webhook') ||
     pathname.startsWith('/api/subscription') ||
-    pathname.startsWith('/api/ativar');
+    pathname.startsWith('/api/ativar') ||
+    pathname.startsWith('/api/sync');  // extensão usa auth própria (device_id + signature)
 
   if (!user && !isPublicRoute) {
     const url = request.nextUrl.clone();
