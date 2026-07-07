@@ -285,9 +285,10 @@ async function getStatus() {
 }
 
 // ─── Alarms (heartbeat + processamento periódico) ─────────────────────────────
-chrome.alarms.create('heartbeat',   { periodInMinutes: 1 });
+chrome.alarms.create('heartbeat',     { periodInMinutes: 1 });
 chrome.alarms.create('process_queue', { periodInMinutes: 0.5 });
 chrome.alarms.create('refresh_config', { periodInMinutes: 5 });
+chrome.alarms.create('refresh_odds',  { periodInMinutes: 10 });
 
 chrome.alarms.onAlarm.addListener(async alarm => {
   if (!deviceId) await init();
@@ -306,6 +307,16 @@ chrome.alarms.onAlarm.addListener(async alarm => {
 
   if (alarm.name === 'refresh_config') {
     await getConfig(); // força refresh
+  }
+
+  if (alarm.name === 'refresh_odds') {
+    if (sessionHeaders) {
+      console.log('[SureEdge] refresh_odds: re-disparando active fetch');
+      activeFetching = false; // permite nova execução
+      triggerActiveFetch().catch(console.error);
+    } else {
+      console.log('[SureEdge] refresh_odds: sem session headers — aguardando captura');
+    }
   }
 });
 
