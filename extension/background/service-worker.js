@@ -129,7 +129,7 @@ async function handleIntercept({ type, data }) {
   await saveSnapshot(plugin.id, newSnapshot);
 
   // Enfileira o diff em lotes de 200 rows (evita payload >4MB no Vercel)
-  const BATCH = 200;
+  const BATCH = 100;
   const priority = getPluginPriority(config, plugin.id, plugin.priority);
 
   const allAdded    = diff.added;
