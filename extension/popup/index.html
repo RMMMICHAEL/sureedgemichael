@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>SureEdge Sync Bridge</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { width: 320px; background: #030507; color: #c8d6e5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 12px; }
+
+  header { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid rgba(255,255,255,.07); }
+  header h1 { font-size: 13px; font-weight: 800; color: #F0F4F8; flex: 1; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: #5a6a7a; flex-shrink: 0; }
+  .dot.online { background: #3FFF21; box-shadow: 0 0 6px rgba(63,255,33,.5); }
+  .dot.offline { background: #f59e0b; }
+  .dot.error   { background: #f87171; }
+
+  nav { display: flex; border-bottom: 1px solid rgba(255,255,255,.07); }
+  nav button { flex: 1; background: none; border: none; cursor: pointer; padding: 8px 0; font-size: 11px; font-weight: 600; color: #5a6a7a; border-bottom: 2px solid transparent; }
+  nav button.active { color: #3FFF21; border-bottom-color: #3FFF21; }
+
+  .panel { display: none; padding: 12px 14px; }
+  .panel.active { display: block; }
+
+  .row { display: flex; justify-content: space-between; align-items: center; padding: 5px 0; border-bottom: 1px solid rgba(255,255,255,.04); }
+  .row:last-child { border-bottom: none; }
+  .row .label { color: #5a6a7a; }
+  .row .value { font-weight: 700; color: #F0F4F8; }
+  .row .value.green  { color: #3FFF21; }
+  .row .value.amber  { color: #f59e0b; }
+  .row .value.red    { color: #f87171; }
+
+  .section-title { font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: #5a6a7a; margin: 10px 0 6px; }
+
+  button.action { width: 100%; background: rgba(63,255,33,.08); border: 1px solid rgba(63,255,33,.2); color: #3FFF21; border-radius: 7px; padding: 8px; font-size: 12px; font-weight: 700; cursor: pointer; margin-top: 10px; }
+  button.action:hover { background: rgba(63,255,33,.14); }
+  button.action.danger { background: rgba(248,113,113,.08); border-color: rgba(248,113,113,.2); color: #f87171; }
+
+  .queue-bar { display: flex; gap: 3px; margin-top: 4px; }
+  .queue-pill { flex: 1; text-align: center; padding: 3px 0; border-radius: 4px; font-size: 10px; font-weight: 700; }
+  .queue-pill.c { background: rgba(248,113,113,.15); color: #f87171; }
+  .queue-pill.h { background: rgba(245,158,11,.15); color: #f59e0b; }
+  .queue-pill.n { background: rgba(96,165,250,.15); color: #60a5fa; }
+  .queue-pill.l { background: rgba(255,255,255,.07); color: #5a6a7a; }
+
+  .unknown-item { background: #0D1117; border-radius: 6px; padding: 7px 9px; margin-bottom: 5px; }
+  .unknown-item .url { font-size: 10px; color: #60a5fa; word-break: break-all; }
+  .unknown-item .meta { font-size: 10px; color: #5a6a7a; margin-top: 3px; }
+
+  footer { padding: 8px 14px; border-top: 1px solid rgba(255,255,255,.05); font-size: 10px; color: #3a4a5a; text-align: center; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="dot" id="status-dot"></div>
+  <h1>SureEdge Sync Bridge</h1>
+  <span id="version" style="font-size:10px;color:#3a4a5a;"></span>
+</header>
+
+<nav>
+  <button class="active" onclick="tab('status')">Status</button>
+  <button onclick="tab('queue')">Fila</button>
+  <button onclick="tab('discovery')">Descoberta</button>
+</nav>
+
+<div id="panel-status" class="panel active">
+  <div class="row"><span class="label">DG aberto</span><span class="value" id="dg-open">—</span></div>
+  <div class="row"><span class="label">Último sync</span><span class="value" id="last-sync">—</span></div>
+  <div class="row"><span class="label">Device ID</span><span class="value" id="device-id" style="font-size:10px;color:#3a4a5a;">—</span></div>
+  <div class="row"><span class="label">Revogado</span><span class="value" id="revoked">—</span></div>
+  <button class="action" id="btn-sync">Sincronizar agora</button>
+</div>
+
+<div id="panel-queue" class="panel">
+  <div class="section-title">Itens na fila</div>
+  <div class="queue-bar">
+    <div class="queue-pill c" id="q-critical">0 críticos</div>
+    <div class="queue-pill h" id="q-high">0 high</div>
+    <div class="queue-pill n" id="q-normal">0 normal</div>
+    <div class="queue-pill l" id="q-low">0 low</div>
+  </div>
+  <div class="row" style="margin-top:10px;"><span class="label">Total</span><span class="value" id="q-total">0</span></div>
+</div>
+
+<div id="panel-discovery" class="panel">
+  <div class="section-title">Endpoints desconhecidos</div>
+  <div id="unknown-list"><span style="color:#3a4a5a;font-size:11px;">Nenhum detectado ainda.</span></div>
+</div>
+
+<footer id="footer-device">—</footer>
+
+<script src="popup.js"></script>
+</body>
+</html>

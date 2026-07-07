@@ -1,0 +1,46 @@
+{
+  "manifest_version": 3,
+  "name": "SureEdge Sync Bridge",
+  "version": "1.0.0",
+  "description": "Agente de sincronização DuploGreen → SureEdge",
+  "permissions": ["storage", "alarms", "tabs", "scripting"],
+  "host_permissions": [
+    "https://www.duplogreenengine.com/*",
+    "https://duplogreenengine.com/*",
+    "https://api.duplogreenengine.com/*",
+    "https://db.duplogreenengine.com/*",
+    "https://www.sureedge.com.br/*",
+    "https://sureedge.com.br/*"
+  ],
+  "background": {
+    "service_worker": "background/service-worker.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.duplogreenengine.com/*",
+        "https://duplogreenengine.com/*"
+      ],
+      "js": ["content/interceptor.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "https://www.duplogreenengine.com/*",
+        "https://duplogreenengine.com/*"
+      ],
+      "js": ["content/relay.js"],
+      "run_at": "document_start",
+      "world": "ISOLATED"
+    }
+  ],
+  "action": {
+    "default_popup": "popup/index.html",
+    "default_title": "SureEdge Sync Bridge"
+  },
+  "icons": {
+    "128": "icons/icon128.png"
+  }
+}
