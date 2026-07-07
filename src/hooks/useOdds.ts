@@ -12,11 +12,18 @@ interface UseOddsOptions {
 export interface OddsRealtimeMetrics {
   eventsReceived: number;   // broadcasts recebidos desde montagem
   refetchCount:   number;   // refetches executados
+  reconnectCount: number;   // reconexões Realtime (útil para detectar instabilidade)
   lastEventAt:    number;   // timestamp do último broadcast (ms)
   lastRefetchAt:  number;   // timestamp do último refetch (ms)
-  lastLatencyMs:  number;   // ingest → UI renderizada (ingest syncedAt → fetch_finished)
+  lastLatencyMs:  number;   // ingest → UI renderizada
   avgLatencyMs:   number;   // média das últimas 20 latências
   fallbackPolls:  number;   // vezes que o fallback de 30s foi acionado
+  // Estatísticas da última resposta da API
+  lastMatchCount: number;   // 82 partidas (jogos, não odds)
+  lastOddsTotal:  number;   // ~4186 linhas no DB
+  lastBooksAvg:   number;   // média de bookmakers por partida
+  lastBooksMin:   number;
+  lastBooksMax:   number;
 }
 
 interface UseOddsResult {
@@ -44,10 +51,12 @@ const DEBOUNCE_MS      = 2500;
 const FALLBACK_POLL_MS = 30_000;
 
 const EMPTY_METRICS: OddsRealtimeMetrics = {
-  eventsReceived: 0, refetchCount: 0,
+  eventsReceived: 0, refetchCount: 0, reconnectCount: 0,
   lastEventAt: 0, lastRefetchAt: 0,
   lastLatencyMs: 0, avgLatencyMs: 0,
   fallbackPolls: 0,
+  lastMatchCount: 0, lastOddsTotal: 0,
+  lastBooksAvg: 0, lastBooksMin: 0, lastBooksMax: 0,
 };
 
 export function useOdds(opts: UseOddsOptions = {}): UseOddsResult {
@@ -71,13 +80,13 @@ export function useOdds(opts: UseOddsOptions = {}): UseOddsResult {
     events:         BroadcastPayload[];
     eventsReceived: number;
     refetchCount:   number;
+    reconnectCount: number;
     fallbackPolls:  number;
     latencies:      number[];
     lastIngestAt:   number;
-    lastBatchIds:   string[];
   }>({
     timer: null, events: [], eventsReceived: 0, refetchCount: 0,
-    fallbackPolls: 0, latencies: [], lastIngestAt: 0, lastBatchIds: [],
+    reconnectCount: 0, fallbackPolls: 0, latencies: [], lastIngestAt: 0,
   });
 
   const fetchOdds = useCallback(async (batch?: BroadcastPayload[], isFallback = false) => {
@@ -116,20 +125,38 @@ export function useOdds(opts: UseOddsOptions = {}): UseOddsResult {
           ? Math.round(s.latencies.reduce((a, b) => a + b, 0) / s.latencies.length)
           : 0;
 
+        // Estatísticas de integridade dos dados
+        const matchCount   = d.odds.length;
+        const booksPerMatch = d.odds.map(m => m.bookmakers?.length ?? 0);
+        const oddsTotal    = booksPerMatch.reduce((a, b) => a + b, 0);
+        const booksMin     = matchCount > 0 ? Math.min(...booksPerMatch) : 0;
+        const booksMax     = matchCount > 0 ? Math.max(...booksPerMatch) : 0;
+        const booksAvg     = matchCount > 0 ? Math.round(oddsTotal / matchCount) : 0;
+
+        // Log ponta a ponta — confirma que "82" são partidas, não odds
         console.log(
-          `[SureEdge] fetch_finished odds=${d.odds.length} elapsed=${elapsed}ms` +
-          ` latency_ingest_to_ui=${latencyMs}ms avg_latency=${avgLatency}ms` +
-          ` refetch_count=${s.refetchCount} batch_ids=${batchIds}`
+          `[SureEdge] fetch_finished` +
+          ` matches=${matchCount} total_odds=${oddsTotal}` +
+          ` books_per_match min=${booksMin} avg=${booksAvg} max=${booksMax}` +
+          ` elapsed=${elapsed}ms latency_ingest_to_ui=${latencyMs}ms avg_latency=${avgLatency}ms` +
+          ` reason=${isFallback ? 'fallback_poll' : (batch ? 'realtime' : 'mount')}` +
+          ` batch_ids=${batchIds}`
         );
 
         const m: OddsRealtimeMetrics = {
           eventsReceived: s.eventsReceived,
           refetchCount:   s.refetchCount,
+          reconnectCount: s.reconnectCount,
           lastEventAt:    s.lastIngestAt,
           lastRefetchAt:  Date.now(),
           lastLatencyMs:  latencyMs,
           avgLatencyMs:   avgLatency,
           fallbackPolls:  s.fallbackPolls,
+          lastMatchCount: matchCount,
+          lastOddsTotal:  oddsTotal,
+          lastBooksAvg:   booksAvg,
+          lastBooksMin:   booksMin,
+          lastBooksMax:   booksMax,
         };
         setRtMetrics(m);
 
@@ -194,9 +221,10 @@ export function useOdds(opts: UseOddsOptions = {}): UseOddsResult {
 
         if (ok) {
           if (hasConnectedRef.current) {
-            // Reconexão após queda — faz refetch imediato para recuperar updates perdidos
+            db.current.reconnectCount++;
             console.log(
-              '[SureEdge] realtime=RECONNECTED → fetch_started reason=reconnect_catchup'
+              `[SureEdge] realtime=RECONNECTED reconnect_count=${db.current.reconnectCount}` +
+              ` → fetch_started reason=reconnect_catchup`
             );
             fetchOdds(undefined, false);
           } else {

@@ -209,3 +209,87 @@ export async function getLastSequenceId(pluginId) {
     req.onerror   = () => reject(req.error);
   });
 }
+
+// ─── Limpeza automática ───────────────────────────────────────────────────────
+
+/**
+ * Remove itens obsoletos do IndexedDB.
+ * Chamado pelo alarm 'cleanup_stale' a cada 6 horas.
+ *
+ * @param opts.queueMaxAgeHours  Remove itens da fila mais antigos que N horas (padrão 24h)
+ * @param opts.replayMaxAgeHours Remove entradas do replay buffer mais antigas que N horas (padrão 6h)
+ * @returns { queue, replay } — quantidade de itens deletados
+ */
+export async function cleanupStale(opts = { queueMaxAgeHours: 24, replayMaxAgeHours: 6 }) {
+  const db          = await getDB();
+  const cutoffQueue  = Date.now() - opts.queueMaxAgeHours  * 3_600_000;
+  const cutoffReplay = Date.now() - opts.replayMaxAgeHours * 3_600_000;
+  const deleted      = { queue: 0, replay: 0 };
+
+  // Fila: remove itens expirados (max tentativas atingido) ou muito antigos
+  await new Promise((res, rej) => {
+    const t   = db.transaction(STORE_QUEUE, 'readwrite');
+    const req = t.objectStore(STORE_QUEUE).openCursor();
+    req.onsuccess = e => {
+      const cursor = e.target.result;
+      if (!cursor) { res(); return; }
+      const { attempts, createdAt } = cursor.value;
+      if (attempts >= MAX_RETRIES || createdAt < cutoffQueue) {
+        cursor.delete();
+        deleted.queue++;
+      }
+      cursor.continue();
+    };
+    req.onerror = () => rej(req.error);
+  });
+
+  // Replay buffer: remove entradas antigas (preserva as recentes para diagnóstico)
+  await new Promise((res, rej) => {
+    const t   = db.transaction(STORE_REPLAY, 'readwrite');
+    const req = t.objectStore(STORE_REPLAY).openCursor();
+    req.onsuccess = e => {
+      const cursor = e.target.result;
+      if (!cursor) { res(); return; }
+      if (cursor.value.savedAt < cutoffReplay) {
+        cursor.delete();
+        deleted.replay++;
+      }
+      cursor.continue();
+    };
+    req.onerror = () => rej(req.error);
+  });
+
+  return deleted;
+}
+
+/**
+ * Retorna o tamanho estimado do IndexedDB em bytes (somando snapshots e replay).
+ * Útil para detectar crescimento anormal em testes de 24h.
+ */
+export async function estimateStorageSize() {
+  const [snapshots, replay] = await Promise.all([
+    new Promise((res, rej) => {
+      getDB().then(db => {
+        const t   = db.transaction(STORE_SNAPSHOTS, 'readonly');
+        const req = t.objectStore(STORE_SNAPSHOTS).getAll();
+        req.onsuccess = () => {
+          const bytes = JSON.stringify(req.result).length;
+          res({ count: req.result.length, bytes });
+        };
+        req.onerror = () => rej(req.error);
+      });
+    }),
+    new Promise((res, rej) => {
+      getDB().then(db => {
+        const t   = db.transaction(STORE_REPLAY, 'readonly');
+        const req = t.objectStore(STORE_REPLAY).getAll();
+        req.onsuccess = () => {
+          const bytes = JSON.stringify(req.result).length;
+          res({ count: req.result.length, bytes });
+        };
+        req.onerror = () => rej(req.error);
+      });
+    }),
+  ]);
+  return { snapshots, replay };
+}

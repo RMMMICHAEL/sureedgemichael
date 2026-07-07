@@ -11,6 +11,7 @@ import { SchemaMonitor }             from '../core/schema-validator.js';
 import {
   enqueue, dequeueNext, requeueWithBackoff,
   getSnapshot, saveSnapshot, saveReplay, queueDepth,
+  cleanupStale, estimateStorageSize,
 } from './queue.js';
 import { getDeviceId, signPayload, sendToSureEdge } from './crypto.js';
 import { sendHeartbeat }  from './heartbeat.js';
@@ -26,6 +27,18 @@ let   sessionHeaders  = null;
 
 // Endpoints desconhecidos (descoberta automática)
 const unknownEndpoints = new Map();
+
+// ─── Métricas de operação do SW (persistem enquanto SW viver) ────────────────
+const swMetrics = {
+  startedAt:        Date.now(),
+  totalBatchesSent: 0,   // lotes enviados ao ingest
+  ingestOk:         0,   // respostas 2xx
+  ingestFail:       0,   // respostas 4xx/5xx ou erro de rede
+  ingestTimes:      [],  // últimos 20 tempos de ingest (ms)
+  broadcastsTotal:  0,   // broadcasts contados via batch_id na resposta do ingest
+  broadcastsFailed: 0,   // quando a resposta não tem batch_id (broadcast provavelmente falhou)
+  queueDepthSamples:[], // últimas 20 amostras de profundidade da fila
+};
 
 // ─── Inicialização ────────────────────────────────────────────────────────────
 async function init() {
@@ -61,6 +74,10 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   }
   if (msg.kind === 'get_status') {
     getStatus().then(sendResponse);
+    return true; // async
+  }
+  if (msg.kind === 'get_metrics') {
+    getSWMetrics().then(sendResponse);
     return true; // async
   }
   if (msg.kind === 'get_unknown_endpoints') {
@@ -201,15 +218,29 @@ async function processQueue() {
     let item;
     while ((item = await dequeueNext()) !== null) {
       try {
-        // [DIAG-6] POST enviado
         const payloadJson = JSON.stringify(item.payload);
+        const ingestStart = Date.now();
+        swMetrics.totalBatchesSent++;
+
         console.log(`[DIAG] processQueue: enviando ${item.pluginId} +${item.payload.diff?.added?.length} ~${item.payload.diff?.modified?.length} | body=${payloadJson.length} bytes`);
         const res = await sendToSureEdge('/api/sync/ingest', item.payload, deviceId);
-        // [DIAG-7] Resposta
-        console.log(`[DIAG] processQueue: resposta ${res.status} para ${item.pluginId}`);
+        const ingestElapsed = Date.now() - ingestStart;
+
+        // Registra tempo de ingest (janela de 20)
+        swMetrics.ingestTimes.push(ingestElapsed);
+        if (swMetrics.ingestTimes.length > 20) swMetrics.ingestTimes.shift();
+
+        console.log(`[DIAG] processQueue: resposta ${res.status} para ${item.pluginId} elapsed=${ingestElapsed}ms`);
         if (res.ok) {
+          swMetrics.ingestOk++;
           const resBody = await res.json().catch(() => ({}));
-          console.log(`[DIAG] processQueue: ingest ok`, resBody);
+          // Detecta se broadcast foi emitido (batch_id presente na resposta)
+          if (resBody.batch_id) {
+            swMetrics.broadcastsTotal++;
+          } else if (item.pluginId === 'odds-1x2' || item.pluginId === 'odds-pa') {
+            swMetrics.broadcastsFailed++; // ingest ok mas sem broadcast
+          }
+          console.log(`[DIAG] processQueue: ingest ok batch_id=${resBody.batch_id ?? 'none'} ingest_ms=${ingestElapsed}`);
           lastSyncAt = Date.now();
           await chrome.storage.local.set({ last_sync_at: lastSyncAt });
           if (item.snapshotOnSuccess) {
@@ -217,14 +248,17 @@ async function processQueue() {
             console.log(`[DIAG] snapshot salvo para ${item.pluginId}`);
           }
         } else if (res.status === 403) {
+          swMetrics.ingestFail++;
           console.warn('[SureEdge] ingest 403 — verificando revogação');
           break;
         } else {
+          swMetrics.ingestFail++;
           const errBody = await res.text().catch(() => '');
           console.error(`[DIAG] ingest ${res.status} para ${item.pluginId}:`, errBody.slice(0, 300));
           await requeueWithBackoff(item);
         }
       } catch (e) {
+        swMetrics.ingestFail++;
         console.error(`[DIAG] processQueue erro rede:`, e.message);
         await requeueWithBackoff(item);
         break; // sem conexão — para de tentar
@@ -264,6 +298,47 @@ async function onSchemaAlert(alert) {
   } catch { /* ignora */ }
 }
 
+// ─── Métricas completas do SW (expostas via get_metrics) ─────────────────────
+async function getSWMetrics() {
+  const depth      = await queueDepth();
+  const storage    = await estimateStorageSize().catch(() => null);
+  const avgIngest  = swMetrics.ingestTimes.length
+    ? Math.round(swMetrics.ingestTimes.reduce((a, b) => a + b, 0) / swMetrics.ingestTimes.length)
+    : 0;
+  const successRate = swMetrics.totalBatchesSent > 0
+    ? Math.round(swMetrics.ingestOk / swMetrics.totalBatchesSent * 100)
+    : 100;
+  const broadcastSuccessRate = (swMetrics.broadcastsTotal + swMetrics.broadcastsFailed) > 0
+    ? Math.round(swMetrics.broadcastsTotal / (swMetrics.broadcastsTotal + swMetrics.broadcastsFailed) * 100)
+    : 100;
+
+  return {
+    uptimeMs:              Date.now() - swMetrics.startedAt,
+    uptimeHuman:           formatUptime(Date.now() - swMetrics.startedAt),
+    totalBatchesSent:      swMetrics.totalBatchesSent,
+    ingestOk:              swMetrics.ingestOk,
+    ingestFail:            swMetrics.ingestFail,
+    ingestSuccessRate:     `${successRate}%`,
+    avgIngestTimeMs:       avgIngest,
+    broadcastsTotal:       swMetrics.broadcastsTotal,
+    broadcastsFailed:      swMetrics.broadcastsFailed,
+    broadcastSuccessRate:  `${broadcastSuccessRate}%`,
+    currentQueueDepth:     depth.total,
+    queueByPriority:       depth,
+    storageSizeBytes:      storage
+      ? (storage.snapshots.bytes + storage.replay.bytes)
+      : null,
+    snapshotCount:         storage?.snapshots.count ?? null,
+    replayCount:           storage?.replay.count    ?? null,
+  };
+}
+
+function formatUptime(ms) {
+  const h = Math.floor(ms / 3_600_000);
+  const m = Math.floor((ms % 3_600_000) / 60_000);
+  return `${h}h${m}m`;
+}
+
 // ─── Status para popup ────────────────────────────────────────────────────────
 async function getStatus() {
   const depth      = await queueDepth();
@@ -285,10 +360,11 @@ async function getStatus() {
 }
 
 // ─── Alarms (heartbeat + processamento periódico) ─────────────────────────────
-chrome.alarms.create('heartbeat',     { periodInMinutes: 1 });
-chrome.alarms.create('process_queue', { periodInMinutes: 0.5 });
+chrome.alarms.create('heartbeat',      { periodInMinutes: 1 });
+chrome.alarms.create('process_queue',  { periodInMinutes: 0.5 });
 chrome.alarms.create('refresh_config', { periodInMinutes: 5 });
-chrome.alarms.create('refresh_odds',  { periodInMinutes: 10 });
+chrome.alarms.create('refresh_odds',   { periodInMinutes: 10 });
+chrome.alarms.create('cleanup_stale',  { periodInMinutes: 360 }); // a cada 6h
 
 chrome.alarms.onAlarm.addListener(async alarm => {
   if (!deviceId) await init();
@@ -312,11 +388,22 @@ chrome.alarms.onAlarm.addListener(async alarm => {
   if (alarm.name === 'refresh_odds') {
     if (sessionHeaders) {
       console.log('[SureEdge] refresh_odds: re-disparando active fetch');
-      activeFetching = false; // permite nova execução
+      activeFetching = false;
       triggerActiveFetch().catch(console.error);
     } else {
       console.log('[SureEdge] refresh_odds: sem session headers — aguardando captura');
     }
+  }
+
+  if (alarm.name === 'cleanup_stale') {
+    const t0 = Date.now();
+    const deleted = await cleanupStale({ queueMaxAgeHours: 24, replayMaxAgeHours: 6 });
+    const storage = await estimateStorageSize().catch(() => null);
+    console.log(
+      `[SureEdge] cleanup_stale: removidos queue=${deleted.queue} replay=${deleted.replay}` +
+      ` elapsed=${Date.now()-t0}ms` +
+      (storage ? ` storage_approx=${Math.round((storage.snapshots.bytes + storage.replay.bytes)/1024)}KB` : '')
+    );
   }
 });
 
