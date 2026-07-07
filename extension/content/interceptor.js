@@ -59,7 +59,10 @@
         } else if (typeof h === 'object') {
           Object.assign(headers, h);
         }
-        dispatch('session_captured', { headers });
+        // Roda fetch ativo no contexto da página (tem acesso à sessão completa)
+        if (typeof window.__sureedge_run_active_fetch === 'function') {
+          window.__sureedge_run_active_fetch(headers).catch(console.error);
+        }
       }
 
       try {

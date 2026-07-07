@@ -22,7 +22,7 @@
         "https://www.duplogreenengine.com/*",
         "https://duplogreenengine.com/*"
       ],
-      "js": ["content/interceptor.js"],
+      "js": ["content/active-fetch.js", "content/interceptor.js"],
       "run_at": "document_start",
       "world": "MAIN"
     },
