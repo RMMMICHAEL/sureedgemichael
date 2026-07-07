@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import type { SyncMetrics } from '@/app/api/sync/metrics/route';
 import { createPortal } from 'react-dom';
 import {
   X, ScanSearch, ChevronLeft, ExternalLink, ArrowDown, RefreshCw, Zap,
@@ -921,11 +922,26 @@ export function BuscarOddsPage() {
   const [dgMap,           setDgMap]           = useState<Map<string, DGInfo>>(new Map());
   const [showTutorial,    setShowTutorial]    = useState(false);
   const [tick,            setTick]            = useState(0);
+  const [syncMetrics,     setSyncMetrics]     = useState<(SyncMetrics & { since_seconds: number }) | null>(null);
 
   // ── Odds trend: snapshot das odds anteriores ────────────────────────────────
   // matchId → { slugCasa → { home, draw, away } }
   const [oddsPrevSnap, setOddsPrevSnap] = useState<Map<string, OddSnapshot>>(new Map());
 
+
+  // ── Sync Bridge metrics ────────────────────────────────────────────────────
+  const loadSyncMetrics = useCallback(async () => {
+    try {
+      const res  = await fetch('/api/sync/metrics');
+      const data = await res.json() as SyncMetrics & { ok: boolean; since_seconds: number };
+      if (data.ok) setSyncMetrics(data);
+    } catch { /* silencia */ }
+  }, []);
+  useEffect(() => {
+    loadSyncMetrics();
+    const id = setInterval(loadSyncMetrics, 2 * 60 * 1000);
+    return () => clearInterval(id);
+  }, [loadSyncMetrics]);
 
   // ── SSE ────────────────────────────────────────────────────────────────────
   const { odds: rawOdds, loading, error: oddsError, connected, lastUpdate, recentlyUpdated } = useOdds();
@@ -1126,6 +1142,38 @@ export function BuscarOddsPage() {
 
         {tab === 'odds' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+            {/* ── Sync Bridge metrics bar ──────────────────────────────────── */}
+            {syncMetrics && (() => {
+              const sec    = syncMetrics.since_seconds;
+              const stale  = sec > 7200;
+              const warn   = sec > 1800;
+              const dot    = stale ? C.red : warn ? C.amber : C.green;
+              const dotRgb = stale ? '248,113,113' : warn ? '245,158,11' : '63,255,33';
+              const sinceStr = sec < 60 ? `${sec}s` : sec < 3600 ? `${Math.floor(sec / 60)}min` : `${Math.floor(sec / 3600)}h`;
+              const hasAll = syncMetrics.total_matches != null;
+              return (
+                <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 6, padding: '7px 14px', borderRadius: 10, background: `rgba(${dotRgb},.04)`, border: `1px solid rgba(${dotRgb},.14)`, fontSize: 11, fontWeight: 700, color: C.t3 }}>
+                  <div style={{ width: 6, height: 6, borderRadius: '50%', background: dot, boxShadow: `0 0 5px ${dot}88`, flexShrink: 0 }} />
+                  <span style={{ color: C.t2 }}>Sync Bridge</span>
+                  <span style={{ color: 'rgba(255,255,255,.12)' }}>·</span>
+                  {hasAll && <><span><span style={{ color: C.t1 }}>{syncMetrics.total_matches}</span> jogos</span><span style={{ color: 'rgba(255,255,255,.12)' }}>·</span></>}
+                  <span><span style={{ color: C.t1 }}>{(syncMetrics.total_odds ?? 0).toLocaleString('pt-BR')}</span> odds</span>
+                  <span style={{ color: 'rgba(255,255,255,.12)' }}>·</span>
+                  <span><span style={{ color: C.green }}>1x2</span> {(syncMetrics.market_1x2 ?? 0).toLocaleString('pt-BR')}</span>
+                  <span style={{ color: 'rgba(255,255,255,.12)' }}>·</span>
+                  <span><span style={{ color: C.purple }}>PA</span> {(syncMetrics.market_pa ?? 0).toLocaleString('pt-BR')}</span>
+                  {hasAll && syncMetrics.avg_bookmakers != null && (
+                    <><span style={{ color: 'rgba(255,255,255,.12)' }}>·</span><span>~<span style={{ color: C.t1 }}>{syncMetrics.avg_bookmakers}</span> casas/jogo</span></>
+                  )}
+                  <span style={{ color: 'rgba(255,255,255,.12)' }}>·</span>
+                  <Tip text={`Último dado sincronizado via extensão há ${sinceStr}. ${stale ? 'Dados desatualizados — recarregue a página do DuploGreen.' : warn ? 'Abra ou recarregue o DuploGreen para atualizar.' : 'Sync recente.'}`}>
+                    <span style={{ color: dot, cursor: 'default' }}>sincronizado há {sinceStr}</span>
+                  </Tip>
+                  <button onClick={loadSyncMetrics} style={{ marginLeft: 2, background: 'none', border: 'none', cursor: 'pointer', padding: '1px 4px', borderRadius: 4, color: C.t3, fontSize: 10, fontWeight: 900 }} title="Atualizar métricas">⟲</button>
+                </div>
+              );
+            })()}
 
             {/* ── Filter bar ──────────────────────────────────────────────── */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: '10px 14px', borderRadius: 14, background: `${C.surf}ee`, border: `1px solid ${C.surfB}`, boxShadow: '0 2px 12px rgba(0,0,0,.3)', position: 'sticky', top: 0, zIndex: 40 }}>

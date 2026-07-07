@@ -109,14 +109,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: 'body inválido' }, { status: 400 });
   }
 
-  // Atualiza last_seen do dispositivo
-  fetch(`${SB_URL}/rest/v1/sync_devices?device_id=eq.${deviceId}`, {
-    method: 'PATCH',
+  // Upsert dispositivo (cria se não existir)
+  fetch(`${SB_URL}/rest/v1/sync_devices`, {
+    method: 'POST',
     headers: {
       'apikey': SB_SVC_KEY, 'Authorization': `Bearer ${SB_SVC_KEY}`,
-      'Content-Type': 'application/json',
+      'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates',
     },
-    body: JSON.stringify({ last_seen: new Date().toISOString(), last_plugin: pluginId }),
+    body: JSON.stringify({ device_id: deviceId, last_seen: new Date().toISOString(), last_plugin: pluginId }),
   }).catch(() => {});
 
   // Persiste sequence_id

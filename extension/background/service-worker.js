@@ -138,6 +138,13 @@ async function handleIntercept({ type, data }) {
   ];
   console.log(`[DIAG] ${plugin.id} novo snapshot calculado: ${newSnapshot.length} rows`);
 
+  // Plugins com skipIngest não enviam ao servidor — salva snapshot local e para
+  if (plugin.skipIngest) {
+    await saveSnapshot(plugin.id, newSnapshot);
+    console.log(`[DIAG] ${plugin.id} skipIngest — snapshot local atualizado: ${newSnapshot.length} rows`);
+    return;
+  }
+
   // [DIAG-4] Batching
   const BATCH = 100;
   const priority = getPluginPriority(config, plugin.id, plugin.priority);

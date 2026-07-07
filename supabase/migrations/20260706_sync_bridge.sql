@@ -43,3 +43,21 @@ create policy "service_role_all_alerts"   on sync_alerts   for all using (auth.r
 
 create policy "auth_read_devices"  on sync_devices  for select using (auth.role() = 'authenticated');
 create policy "auth_read_alerts"   on sync_alerts   for select using (auth.role() = 'authenticated');
+
+-- Função de métricas do Sync Bridge (chamada via RPC)
+create or replace function public.sync_bridge_metrics()
+returns json
+language sql
+security definer
+set search_path = public
+as $$
+  select json_build_object(
+    'total_odds',        COUNT(*),
+    'total_matches',     COUNT(DISTINCT match_id),
+    'market_1x2',        COUNT(*) filter (where market_type = '1x2'),
+    'market_pa',         COUNT(*) filter (where market_type = '1x2_pa'),
+    'last_updated',      MAX(updated_at),
+    'avg_bookmakers',    ROUND(COUNT(*)::numeric / NULLIF(COUNT(DISTINCT match_id), 0), 1)
+  )
+  from bookmaker_odds;
+$$;
