@@ -117,30 +117,35 @@ async function handleIntercept({ type, data }) {
     monitor.check(rows);
   }
 
-  // Parse + diff
-  const parsed   = plugin.parse(body);
-  if (!parsed || parsed.length === 0) return;
+  // [DIAG-1] Parse
+  const parsed = plugin.parse(body);
+  console.log(`[DIAG] ${plugin.id} parse: body=${Array.isArray(body) ? body.length : typeof body} → parsed=${parsed?.length ?? 0}`);
+  if (!parsed || parsed.length === 0) { console.warn(`[DIAG] ${plugin.id} parse vazio — abortando`); return; }
 
+  // [DIAG-2] Snapshot + Diff
   const snapshot = await getSnapshot(plugin.id);
-  const diff     = computeDiff(snapshot, parsed, plugin.diffKey);
+  console.log(`[DIAG] ${plugin.id} snapshot atual: ${snapshot.length} rows`);
+  const diff = computeDiff(snapshot, parsed, plugin.diffKey);
+  console.log(`[DIAG] ${plugin.id} diff: +${diff.added.length} ~${diff.modified.length} -${diff.removed.length} =${diff.unchanged}`);
 
-  if (!hasDiff(diff)) return; // nada mudou
+  if (!hasDiff(diff)) { console.log(`[DIAG] ${plugin.id} sem diff — nada a enviar`); return; }
 
-  // Calcula novo snapshot mas NÃO salva ainda — salva só após ingest confirmar
+  // [DIAG-3] Snapshot novo
   const newSnapshot = [
     ...snapshot.filter(r => !diff.removed.some(rem => rem[plugin.diffKey] === r[plugin.diffKey])),
     ...diff.added,
     ...diff.modified.map(m => ({ ...snapshot.find(s => s[plugin.diffKey] === m[plugin.diffKey]), ...m })),
   ];
+  console.log(`[DIAG] ${plugin.id} novo snapshot calculado: ${newSnapshot.length} rows`);
 
-  // Enfileira o diff em lotes de 100 rows (evita payload >4MB no Vercel)
+  // [DIAG-4] Batching
   const BATCH = 100;
   const priority = getPluginPriority(config, plugin.id, plugin.priority);
-
   const allAdded    = diff.added;
   const allModified = diff.modified;
   const allRemoved  = diff.removed.map(r => r[plugin.diffKey]);
   const totalBatches = Math.max(1, Math.ceil((allAdded.length + allModified.length) / BATCH));
+  console.log(`[DIAG] ${plugin.id} batches: ${totalBatches} (${allAdded.length} added, ${allModified.length} modified, ${allRemoved.length} removed)`);
 
   for (let i = 0; i < totalBatches; i++) {
     const batchAdded    = allAdded.slice(i * BATCH, (i + 1) * BATCH);
@@ -148,10 +153,11 @@ async function handleIntercept({ type, data }) {
       Math.max(0, i * BATCH - allAdded.length),
       Math.max(0, (i + 1) * BATCH - allAdded.length),
     );
+    // [DIAG-5] Enqueue
+    console.log(`[DIAG] ${plugin.id} enqueue batch ${i + 1}/${totalBatches}: +${batchAdded.length} ~${batchModified.length}`);
     await enqueue({
       pluginId: plugin.id,
       priority,
-      // snapshot só é salvo pelo último batch (garante que DB recebeu tudo)
       snapshotOnSuccess: i === totalBatches - 1 ? newSnapshot : null,
       payload: {
         pluginId: plugin.id,
@@ -188,22 +194,31 @@ async function processQueue() {
     let item;
     while ((item = await dequeueNext()) !== null) {
       try {
+        // [DIAG-6] POST enviado
+        const payloadJson = JSON.stringify(item.payload);
+        console.log(`[DIAG] processQueue: enviando ${item.pluginId} +${item.payload.diff?.added?.length} ~${item.payload.diff?.modified?.length} | body=${payloadJson.length} bytes`);
         const res = await sendToSureEdge('/api/sync/ingest', item.payload, deviceId);
+        // [DIAG-7] Resposta
+        console.log(`[DIAG] processQueue: resposta ${res.status} para ${item.pluginId}`);
         if (res.ok) {
+          const resBody = await res.json().catch(() => ({}));
+          console.log(`[DIAG] processQueue: ingest ok`, resBody);
           lastSyncAt = Date.now();
           await chrome.storage.local.set({ last_sync_at: lastSyncAt });
-          // Salva snapshot só após DB confirmar recebimento
           if (item.snapshotOnSuccess) {
             await saveSnapshot(item.pluginId, item.snapshotOnSuccess);
+            console.log(`[DIAG] snapshot salvo para ${item.pluginId}`);
           }
         } else if (res.status === 403) {
-          // Revogado ou não autorizado
           console.warn('[SureEdge] ingest 403 — verificando revogação');
           break;
         } else {
+          const errBody = await res.text().catch(() => '');
+          console.error(`[DIAG] ingest ${res.status} para ${item.pluginId}:`, errBody.slice(0, 300));
           await requeueWithBackoff(item);
         }
-      } catch {
+      } catch (e) {
+        console.error(`[DIAG] processQueue erro rede:`, e.message);
         await requeueWithBackoff(item);
         break; // sem conexão — para de tentar
       }

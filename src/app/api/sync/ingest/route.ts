@@ -56,10 +56,11 @@ async function sbUpsert(table: string, rows: Record<string, unknown>[]) {
 async function handleOdds(diff: DiffPayload['diff'], pluginId: string) {
   const isPa = pluginId === 'odds-pa';
 
-  // Upsert added + modified
   const rows = [...(diff.added as Record<string,unknown>[]), ...(diff.modified as Record<string,unknown>[])];
+  console.log(`[DIAG] handleOdds ${pluginId}: ${rows.length} rows para upsert`);
   if (rows.length > 0) {
-    // Mapeia para formato bookmaker_odds do SureEdge
+    // [DIAG-9] Amostra do primeiro row para verificar campos
+    console.log(`[DIAG] handleOdds amostra[0]:`, JSON.stringify(rows[0]).slice(0, 300));
     const mapped = rows.map((r: Record<string,unknown>) => ({
       match_id:       r.match_id,
       home_team:      r.home_team,
@@ -77,7 +78,9 @@ async function handleOdds(diff: DiffPayload['diff'], pluginId: string) {
       match_url:      r.match_url,
       updated_at:     new Date().toISOString(),
     }));
+    console.log(`[DIAG] sbUpsert: enviando ${mapped.length} rows para bookmaker_odds`);
     await sbUpsert('bookmaker_odds', mapped);
+    console.log(`[DIAG] sbUpsert: concluído para ${mapped.length} rows`);
   }
 
   // Remove deleted (por row_id)
@@ -126,11 +129,18 @@ export async function POST(req: NextRequest) {
     body: JSON.stringify({ device_id: deviceId, plugin_id: pluginId, last_sequence_id: sequenceId }),
   }).catch(() => {});
 
+  // [DIAG-8] Recebido na API
+  const addedLen   = (payload.diff?.added   as unknown[])?.length ?? 0;
+  const modifiedLen= (payload.diff?.modified as unknown[])?.length ?? 0;
+  const removedLen = (payload.diff?.removed  as unknown[])?.length ?? 0;
+  console.log(`[DIAG] ingest recebido: plugin=${pluginId} +${addedLen} ~${modifiedLen} -${removedLen} bodyBytes=${JSON.stringify(payload).length}`);
+
   try {
     if (pluginId === 'odds-1x2' || pluginId === 'odds-pa') {
       await handleOdds(payload.diff, pluginId);
+    } else {
+      console.log(`[DIAG] plugin ${pluginId} não tem handler de DB — ignorado`);
     }
-    // Outros plugins: opportunities, etc. — expandir aqui
 
     const stats = payload.stats ?? {};
     console.log(`[sync/ingest] ${pluginId} seq=${sequenceId} +${stats.added} ~${stats.modified} -${stats.removed}`);
