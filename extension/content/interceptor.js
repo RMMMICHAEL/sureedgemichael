@@ -73,18 +73,19 @@
     const response = await _fetch(input, init);
 
     if (isDGUrl(url)) {
-      // Acumula sempre os headers mais recentes (pode ter Authorization)
       const captured = extractHeaders(init);
-      if (captured.Authorization || captured.authorization) {
-        lastCapturedHeaders = { ...lastCapturedHeaders, ...captured };
-      }
+      const isFunctionCall = url.includes('/functions/v1/');
 
-      // Dispara fetch ativo na primeira requisição DG autenticada
-      if (!sessionCaptured && (captured.Authorization || captured.authorization)) {
-        sessionCaptured = true;
-        console.log('[SureEdge] sessão capturada, iniciando fetch ativo');
-        if (typeof window.__sureedge_run_active_fetch === 'function') {
-          window.__sureedge_run_active_fetch(lastCapturedHeaders).catch(console.error);
+      // Captura headers apenas de chamadas às Edge Functions (têm auth correta)
+      if (isFunctionCall && (captured.Authorization || captured.authorization)) {
+        lastCapturedHeaders = { ...lastCapturedHeaders, ...captured };
+
+        if (!sessionCaptured) {
+          sessionCaptured = true;
+          console.log('[SureEdge] sessão capturada (functions/v1), iniciando fetch ativo');
+          if (typeof window.__sureedge_run_active_fetch === 'function') {
+            window.__sureedge_run_active_fetch(lastCapturedHeaders).catch(console.error);
+          }
         }
       }
 
