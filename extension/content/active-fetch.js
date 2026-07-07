@@ -25,10 +25,22 @@
     for (let i = 0; i < 3; i++) {
       if (i > 0) await delay(800);
       try {
-        const res = await fetch(url, { headers, credentials: 'include', mode: 'cors' });
+        const res = await fetch(url, {
+          headers: {
+            ...headers,
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          mode: 'cors',
+        });
         if (res.ok) return { url, body: await res.json() };
-        if (res.status === 401) return null;
-      } catch { /* retry */ }
+        if (res.status === 401 || res.status === 403) {
+          console.warn('[SureEdge] auth falhou para', path, res.status);
+          return null;
+        }
+      } catch (e) {
+        console.warn('[SureEdge] erro em', path, e.message);
+      }
     }
     return null;
   }
