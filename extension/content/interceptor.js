@@ -42,6 +42,30 @@
 
   // ─── 1. Interceptar fetch ──────────────────────────────────────────────────
   let sessionCaptured = false;
+  let lastCapturedHeaders = {};
+
+  function extractHeaders(init) {
+    const h = init?.headers;
+    if (!h) return {};
+    const out = {};
+    if (h instanceof Headers) {
+      h.forEach((v, k) => { out[k] = v; });
+    } else if (typeof h === 'object') {
+      Object.assign(out, h);
+    }
+    return out;
+  }
+
+  // Permite forçar fetch ativo manualmente via console do DG:
+  //   window.__sureedge_force_fetch()
+  window.__sureedge_force_fetch = function () {
+    if (typeof window.__sureedge_run_active_fetch === 'function') {
+      console.log('[SureEdge] forçando fetch ativo com headers:', lastCapturedHeaders);
+      window.__sureedge_run_active_fetch(lastCapturedHeaders).catch(console.error);
+    } else {
+      console.warn('[SureEdge] active-fetch ainda não carregado');
+    }
+  };
 
   const _fetch = window.fetch.bind(window);
   window.fetch = async function (input, init) {
@@ -49,19 +73,18 @@
     const response = await _fetch(input, init);
 
     if (isDGUrl(url)) {
-      // Captura headers da sessão na primeira requisição DG
-      if (!sessionCaptured && init?.headers) {
+      // Acumula sempre os headers mais recentes (pode ter Authorization)
+      const captured = extractHeaders(init);
+      if (captured.Authorization || captured.authorization) {
+        lastCapturedHeaders = { ...lastCapturedHeaders, ...captured };
+      }
+
+      // Dispara fetch ativo na primeira requisição DG autenticada
+      if (!sessionCaptured && (captured.Authorization || captured.authorization)) {
         sessionCaptured = true;
-        const headers = {};
-        const h = init.headers;
-        if (h instanceof Headers) {
-          h.forEach((v, k) => { headers[k] = v; });
-        } else if (typeof h === 'object') {
-          Object.assign(headers, h);
-        }
-        // Roda fetch ativo no contexto da página (tem acesso à sessão completa)
+        console.log('[SureEdge] sessão capturada, iniciando fetch ativo');
         if (typeof window.__sureedge_run_active_fetch === 'function') {
-          window.__sureedge_run_active_fetch(headers).catch(console.error);
+          window.__sureedge_run_active_fetch(lastCapturedHeaders).catch(console.error);
         }
       }
 
