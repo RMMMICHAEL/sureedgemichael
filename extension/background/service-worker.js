@@ -12,7 +12,7 @@ import {
   enqueue, dequeueNext, requeueWithBackoff,
   getSnapshot, saveSnapshot, saveReplay, queueDepth,
 } from './queue.js';
-import { getDeviceId, signPayload, compress, sendToSureEdge } from './crypto.js';
+import { getDeviceId, signPayload, sendToSureEdge } from './crypto.js';
 import { sendHeartbeat }  from './heartbeat.js';
 import { getConfig, isPluginEnabled, getPluginPriority } from './config.js';
 
