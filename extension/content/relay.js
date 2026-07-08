@@ -71,6 +71,10 @@ window.addEventListener('pagehide', async () => {
   _isLeader = false;
 });
 
+// Previne que o Chrome congele esta aba em background (Tab Freeze).
+// Sem isso, o content script para de interceptar fetches quando a aba é minimizada.
+navigator.locks.request('sureedge_active', { mode: 'shared' }, () => new Promise(() => {}));
+
 // Inicializa eleição na carga da página
 tryBecomeLeader().then(() => {
   startLeaderRenewal();
