@@ -48,6 +48,22 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ ok: false, error: 'Não autenticado' }, { status: 401 });
   }
 
+  // ETag baseado no MAX(updated_at) — evita retornar o payload inteiro quando nada mudou.
+  // Um 304 tem 0 bytes no body, reduzindo bandwidth ~99% nas chamadas repetidas.
+  const { data: latest } = await supabase
+    .from('bookmaker_odds')
+    .select('updated_at')
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .single();
+  const etag         = `"${new Date(latest?.updated_at ?? 0).getTime()}"`;
+  const ifNoneMatch  = req.headers.get('if-none-match');
+  const cacheHeaders = { 'ETag': etag, 'Cache-Control': 'private, no-cache' };
+
+  if (ifNoneMatch === etag) {
+    return new NextResponse(null, { status: 304, headers: cacheHeaders });
+  }
+
   const showAll   = req.nextUrl.searchParams.get('all')  === '1';
   const dateParam = req.nextUrl.searchParams.get('date');
   const fromParam = req.nextUrl.searchParams.get('from') ?? todayBRT(); // padrão: a partir de hoje
@@ -136,10 +152,8 @@ export async function GET(req: NextRequest) {
 
   console.log(`[odds-db] ${odds.length} jogos · ${data.length} linhas · data=${dateParam}`);
 
-  return NextResponse.json({
-    ok:     true,
-    count:  odds.length,
-    source: 'supabase-db',
-    odds,
-  });
+  return NextResponse.json(
+    { ok: true, count: odds.length, source: 'supabase-db', odds },
+    { headers: cacheHeaders },
+  );
 }

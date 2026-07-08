@@ -106,7 +106,12 @@ export function useOdds(opts: UseOddsOptions = {}): UseOddsResult {
     );
 
     try {
-      const res = await fetch('/api/dg/odds-db?all=1', { signal: ctrl.signal });
+      const res = await fetch('/api/dg/odds-db?all=1', { signal: ctrl.signal, cache: 'no-cache' });
+      if (res.status === 304) {
+        console.log(`[SureEdge] fetch_304_not_modified batch_ids=${batchIds} — sem alterações`);
+        setLoading(false);
+        return;
+      }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const d = await res.json() as { ok: boolean; odds?: OddsMatch[] };
 
