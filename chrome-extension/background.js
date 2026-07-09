@@ -307,7 +307,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
 const DG_SYNC_ENDPOINT = 'https://www.sureedge.com.br/api/dg-sync/ingest';
 // Mesmo valor da env var DG_SYNC_SECRET configurada no Vercel/`.env.local` do SureEdge.
-const DG_SYNC_SECRET = 'TROQUE_PELO_SECRET_REAL';
+const DG_SYNC_SECRET = 'f65ec5a64997ccbb4de69e5b589085cc15ccdd2ce727cd18ae24648db2f3dbc2';
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg.type !== 'dg-sync-batch') return false;
