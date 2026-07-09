@@ -1,17 +1,23 @@
 {
   "manifest_version": 3,
   "name": "SureEdge Capture",
-  "version": "1.0",
-  "description": "Captura sinais do SuperMonitor em tempo real",
+  "version": "1.1",
+  "description": "Captura sinais do SuperMonitor e sincroniza odds do DuploGreen Engine em tempo real",
   "permissions": ["tabs", "scripting", "alarms"],
   "host_permissions": [
     "https://painel.supermonitor.pro/*",
+    "https://*.duplogreenengine.com/*",
     "https://www.sureedge.com.br/*"
   ],
   "content_scripts": [
     {
       "matches": ["https://painel.supermonitor.pro/*"],
       "js": ["content-script.js"],
+      "run_at": "document_start"
+    },
+    {
+      "matches": ["https://www.duplogreenengine.com/*"],
+      "js": ["dg-sync-content.js"],
       "run_at": "document_start"
     }
   ],
@@ -22,6 +28,10 @@
     {
       "resources": ["injected.js"],
       "matches": ["https://painel.supermonitor.pro/*"]
+    },
+    {
+      "resources": ["dg-sync-injected.js"],
+      "matches": ["https://www.duplogreenengine.com/*"]
     }
   ]
 }

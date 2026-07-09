@@ -300,3 +300,44 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   }
   return false;
 });
+
+// ── DG Sync — repassa lotes de odds do DuploGreen Engine pro SureEdge ─────────
+// Vem do dg-sync-content.js (que só faz ponte de postMessage), nunca fala com
+// o Supabase direto — quem tem a service_role key é o endpoint Next.js.
+
+const DG_SYNC_ENDPOINT = 'https://www.sureedge.com.br/api/dg-sync/ingest';
+// Mesmo valor da env var DG_SYNC_SECRET configurada no Vercel/`.env.local` do SureEdge.
+const DG_SYNC_SECRET = 'TROQUE_PELO_SECRET_REAL';
+
+chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  if (msg.type !== 'dg-sync-batch') return false;
+
+  (async () => {
+    try {
+      const res = await fetch(DG_SYNC_ENDPOINT, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-dg-sync-secret': DG_SYNC_SECRET,
+        },
+        body: JSON.stringify({ source: 'dg-sync-extension', batch: msg.payloads }),
+      });
+
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        console.warn(`[SureEdge BG][DG-Sync] HTTP ${res.status}: ${text.slice(0, 200)}`);
+        sendResponse({ ok: false, error: `HTTP ${res.status}: ${text.slice(0, 200)}` });
+        return;
+      }
+
+      const json = await res.json().catch(() => ({}));
+      console.log(`[SureEdge BG][DG-Sync] lote enviado — upserted=${json.upserted ?? '?'} deleted=${json.deleted ?? '?'}`);
+      sendResponse({ ok: true });
+    } catch (e) {
+      console.error('[SureEdge BG][DG-Sync] falha no envio:', e.message);
+      sendResponse({ ok: false, error: e.message });
+    }
+  })();
+
+  return true; // resposta assíncrona
+});
