@@ -69,30 +69,44 @@ export async function GET(req: NextRequest) {
   const fromParam = req.nextUrl.searchParams.get('from') ?? todayBRT(); // padrão: a partir de hoje
 
   // ── Query ────────────────────────────────────────────────────────────────────
-  let query = supabase
-    .from('bookmaker_odds')
-    .select('match_id,home_team,away_team,match_date,start_time,league_slug,league_name,bookmaker_slug,bookmaker_name,market_type,odd_home,odd_draw,odd_away,match_url,source_url')
-    .order('match_date', { ascending: true })
-    .order('start_time', { ascending: true });
+  // PostgREST limita a 1000 linhas por resposta por padrão — com a tabela hoje
+  // passando disso, uma única chamada sem paginação trunca silenciosamente e,
+  // como a ordenação é ascendente por data, trunca justo nas linhas mais
+  // antigas (jogos já encerrados), fazendo o front achar que não há jogos.
+  // Pagina em blocos de 1000 até esgotar o resultado.
+  const PAGE_SIZE = 1000;
+  const data: DbRow[] = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    let query = supabase
+      .from('bookmaker_odds')
+      .select('match_id,home_team,away_team,match_date,start_time,league_slug,league_name,bookmaker_slug,bookmaker_name,market_type,odd_home,odd_draw,odd_away,match_url,source_url')
+      .order('match_date', { ascending: true })
+      .order('start_time', { ascending: true })
+      .range(from, from + PAGE_SIZE - 1);
 
-  if (!showAll) {
-    if (dateParam) {
-      // data exata
-      query = query.eq('match_date', dateParam);
-    } else {
-      // padrão: a partir de hoje (inclui hoje + futuros)
-      query = query.gte('match_date', fromParam);
+    if (!showAll) {
+      if (dateParam) {
+        // data exata
+        query = query.eq('match_date', dateParam);
+      } else {
+        // padrão: a partir de hoje (inclui hoje + futuros)
+        query = query.gte('match_date', fromParam);
+      }
     }
+
+    const { data: page, error } = await query.returns<DbRow[]>();
+
+    if (error) {
+      console.error('[odds-db] erro:', error.message);
+      return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    }
+
+    if (!page || page.length === 0) break;
+    data.push(...page);
+    if (page.length < PAGE_SIZE) break;
   }
 
-  const { data, error } = await query.returns<DbRow[]>();
-
-  if (error) {
-    console.error('[odds-db] erro:', error.message);
-    return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
-  }
-
-  if (!data || data.length === 0) {
+  if (data.length === 0) {
     return NextResponse.json({ ok: true, count: 0, odds: [], source: 'db-empty' });
   }
 
