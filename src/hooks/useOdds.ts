@@ -20,6 +20,11 @@ export interface OddsRealtimeMetrics {
   fallbackPolls:  number;   // vezes que o fallback de 30s foi acionado
   deltaFetches:   number;   // refetches que usaram ?ids= (delta) em vez de full
   fullFetches:    number;   // refetches que precisaram buscar a tabela inteira
+  notModified:    number;   // respostas 304 (nada mudou desde o último full fetch)
+  errorCount:     number;   // fetches que falharam (rede, HTTP não-ok, etc.)
+  staleDiscards:  number;   // respostas descartadas por chegar fora de ordem
+  lastBytes:      number;   // tamanho (aprox., bytes) da última resposta aplicada
+  totalBytes:     number;   // soma acumulada desde a montagem — útil pra comparar antes/depois
   // Estatísticas da última resposta da API
   lastMatchCount: number;   // 82 partidas (jogos, não odds)
   lastOddsTotal:  number;   // ~4186 linhas no DB
@@ -61,12 +66,18 @@ const EMPTY_METRICS: OddsRealtimeMetrics = {
   lastEventAt: 0, lastRefetchAt: 0,
   lastLatencyMs: 0, avgLatencyMs: 0,
   fallbackPolls: 0, deltaFetches: 0, fullFetches: 0,
+  notModified: 0, errorCount: 0, staleDiscards: 0,
+  lastBytes: 0, totalBytes: 0,
   lastMatchCount: 0, lastOddsTotal: 0,
   lastBooksAvg: 0, lastBooksMin: 0, lastBooksMax: 0,
 };
 
 // Aplica um lote de matches atualizados + ids removidos sobre o estado atual,
 // sem descartar o que não mudou — é o que evita rebuscar a tabela inteira.
+// SUBSTITUI (nunca soma/anexa) o array de bookmakers de cada match afetado
+// pelo que veio fresco do servidor — isso é o que garante que uma casa ou
+// mercado removido no banco desapareça também no cliente, em vez de ficar
+// "grudado" de uma resposta antiga.
 function mergeOdds(current: OddsMatch[], updated: OddsMatch[], removedIds: string[]): OddsMatch[] {
   const removedSet = new Set(removedIds);
   const updatedMap = new Map(updated.map(m => [m.match_id, m]));
@@ -96,6 +107,15 @@ export function useOdds(opts: UseOddsOptions = {}): UseOddsResult {
   const abortRef        = useRef<AbortController | null>(null);
   const connectedRef    = useRef(false);
   const hasConnectedRef = useRef(false); // distingue 1ª conexão de reconexão
+  const lastEtagRef     = useRef<string | null>(null); // último ETag de um full fetch 200 OK
+
+  // Contador de geração: cada fetch (full ou delta) reivindica um número ao
+  // iniciar. Se, quando a resposta chega, um fetch MAIS NOVO já começou,
+  // esta resposta é descartada — evita que uma resposta lenta e antiga
+  // sobrescreva dados mais recentes que já chegaram (fora de ordem).
+  // O AbortController já cancela a maioria desses casos, mas só é garantido
+  // até o momento em que a resposta começa a ser lida; isto cobre o resto.
+  const genRef = useRef(0);
 
   // Estado do debounce em ref — não causa re-renders, persiste entre renders
   const db = useRef<{
@@ -107,21 +127,27 @@ export function useOdds(opts: UseOddsOptions = {}): UseOddsResult {
     fallbackPolls:  number;
     deltaFetches:   number;
     fullFetches:    number;
+    notModified:    number;
+    errorCount:     number;
+    staleDiscards:  number;
+    totalBytes:     number;
     latencies:      number[];
     lastIngestAt:   number;
   }>({
     timer: null, events: [], eventsReceived: 0, refetchCount: 0,
     reconnectCount: 0, fallbackPolls: 0, deltaFetches: 0, fullFetches: 0,
+    notModified: 0, errorCount: 0, staleDiscards: 0, totalBytes: 0,
     latencies: [], lastIngestAt: 0,
   });
 
   // Aplica o resultado de um fetch (full ou delta) no estado + métricas.
   // `nextOdds` já vem pronto (substituído ou mesclado) — só registra estatísticas.
-  const applyResult = useCallback((nextOdds: OddsMatch[], fetchStart: number, batchIds: string) => {
+  const applyResult = useCallback((nextOdds: OddsMatch[], fetchStart: number, batchIds: string, bytes: number) => {
     const s = db.current;
     setOdds(nextOdds);
     setError(null);
     setLastUpdate(Date.now());
+    s.totalBytes += bytes;
 
     const elapsed   = Date.now() - fetchStart;
     const latencyMs = s.lastIngestAt > 0 ? Date.now() - s.lastIngestAt : 0;
@@ -144,7 +170,7 @@ export function useOdds(opts: UseOddsOptions = {}): UseOddsResult {
       `[SureEdge] fetch_finished` +
       ` matches=${matchCount} total_odds=${oddsTotal}` +
       ` books_per_match min=${booksMin} avg=${booksAvg} max=${booksMax}` +
-      ` elapsed=${elapsed}ms latency_ingest_to_ui=${latencyMs}ms avg_latency=${avgLatency}ms` +
+      ` bytes=${bytes} elapsed=${elapsed}ms latency_ingest_to_ui=${latencyMs}ms avg_latency=${avgLatency}ms` +
       ` batch_ids=${batchIds}`
     );
 
@@ -159,6 +185,11 @@ export function useOdds(opts: UseOddsOptions = {}): UseOddsResult {
       fallbackPolls:  s.fallbackPolls,
       deltaFetches:   s.deltaFetches,
       fullFetches:    s.fullFetches,
+      notModified:    s.notModified,
+      errorCount:     s.errorCount,
+      staleDiscards:  s.staleDiscards,
+      lastBytes:      bytes,
+      totalBytes:     s.totalBytes,
       lastMatchCount: matchCount,
       lastOddsTotal:  oddsTotal,
       lastBooksAvg:   booksAvg,
@@ -175,13 +206,16 @@ export function useOdds(opts: UseOddsOptions = {}): UseOddsResult {
   }, []);
 
   // Full refetch — tabela inteira (mount, reconnect, fallback poll, ou lote
-  // grande demais pra virar delta). Comportamento original, inalterado.
+  // grande demais pra virar delta). Manda o ETag do último full fetch bem
+  // sucedido como If-None-Match — se nada mudou desde então, o servidor
+  // responde 304 sem corpo, economizando o payload inteiro no fallback poll.
   const fetchOdds = useCallback(async (batch?: BroadcastPayload[], isFallback = false) => {
     if (paused) return;
 
     abortRef.current?.abort();
-    const ctrl = new AbortController();
+    const ctrl  = new AbortController();
     abortRef.current = ctrl;
+    const myGen = ++genRef.current;
 
     const s = db.current;
     const batchIds = batch?.map(e => e.batchId).join(',') ?? 'initial';
@@ -194,18 +228,41 @@ export function useOdds(opts: UseOddsOptions = {}): UseOddsResult {
     );
 
     try {
-      const res = await fetch('/api/dg/odds-db?all=1', { signal: ctrl.signal, cache: 'no-cache' });
+      const headers: Record<string, string> = {};
+      if (lastEtagRef.current) headers['If-None-Match'] = lastEtagRef.current;
+
+      const res = await fetch('/api/dg/odds-db?all=1', { signal: ctrl.signal, cache: 'no-cache', headers });
+
+      if (myGen !== genRef.current) {
+        s.staleDiscards++;
+        console.log(`[SureEdge] fetch_discarded_stale (resposta antiga chegou depois de uma mais nova) batch_ids=${batchIds}`);
+        return;
+      }
+
       if (res.status === 304) {
+        s.notModified++;
         console.log(`[SureEdge] fetch_304_not_modified batch_ids=${batchIds} — sem alterações`);
         setLoading(false);
         return;
       }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const d = await res.json() as { ok: boolean; odds?: OddsMatch[] };
 
-      if (d.ok && d.odds) applyResult(d.odds, fetchStart, batchIds);
+      const etag = res.headers.get('etag');
+      if (etag) lastEtagRef.current = etag;
+
+      const bodyText = await res.text();
+      const d = JSON.parse(bodyText) as { ok: boolean; odds?: OddsMatch[] };
+
+      if (myGen !== genRef.current) {
+        s.staleDiscards++;
+        console.log(`[SureEdge] fetch_discarded_stale (pós-parse) batch_ids=${batchIds}`);
+        return;
+      }
+
+      if (d.ok && d.odds) applyResult(d.odds, fetchStart, batchIds, bodyText.length);
     } catch (e) {
       if ((e as Error).name === 'AbortError') return;
+      s.errorCount++;
       setError((e as Error).message);
       console.warn(`[SureEdge] fetch_finished error="${(e as Error).message}" batch_ids=${batchIds}`);
     } finally {
@@ -222,8 +279,9 @@ export function useOdds(opts: UseOddsOptions = {}): UseOddsResult {
     if (paused) return;
 
     abortRef.current?.abort();
-    const ctrl = new AbortController();
+    const ctrl  = new AbortController();
     abortRef.current = ctrl;
+    const myGen = ++genRef.current;
 
     const s = db.current;
     const fetchStart = Date.now();
@@ -237,26 +295,44 @@ export function useOdds(opts: UseOddsOptions = {}): UseOddsResult {
     try {
       if (upsertIds.length === 0) {
         // Só remoções — nenhum dado novo pra buscar, aplica local e pronto.
-        setOdds(prev => mergeOdds(prev, [], removedIds));
-        setLastUpdate(Date.now());
-        setLoading(false);
+        if (myGen !== genRef.current) { s.staleDiscards++; return; }
+        let merged: OddsMatch[] = [];
+        setOdds(prev => { merged = mergeOdds(prev, [], removedIds); return merged; });
+        applyResult(merged, fetchStart, batchIds, 0);
         return;
       }
 
       const res = await fetch(`/api/dg/odds-db?ids=${upsertIds.join(',')}`, { signal: ctrl.signal, cache: 'no-cache' });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const d = await res.json() as { ok: boolean; odds?: OddsMatch[] };
+      const bodyText = await res.text();
+      const d = JSON.parse(bodyText) as { ok: boolean; odds?: OddsMatch[] };
+
+      if (myGen !== genRef.current) {
+        s.staleDiscards++;
+        console.log(`[SureEdge] fetch_discarded_stale (delta) batch_ids=${batchIds}`);
+        return;
+      }
 
       if (d.ok && d.odds) {
+        // Qualquer id pedido que NÃO voltou na resposta não tem mais odds no
+        // banco (todas as casas/mercados daquele jogo sumiram) — trata como
+        // removido também, senão o jogo ficaria com dado velho pra sempre.
+        const returned       = new Set(d.odds.map(m => m.match_id));
+        const implicitRemoved = upsertIds.filter(id => !returned.has(id));
+        const allRemoved      = removedIds.length || implicitRemoved.length
+          ? [...removedIds, ...implicitRemoved]
+          : removedIds;
+
         // setOdds funcional: sempre mescla sobre o estado mais recente,
         // nunca sobre um closure potencialmente desatualizado.
         let merged: OddsMatch[] = [];
-        setOdds(prev => { merged = mergeOdds(prev, d.odds!, removedIds); return merged; });
-        applyResult(merged, fetchStart, batchIds);
+        setOdds(prev => { merged = mergeOdds(prev, d.odds!, allRemoved); return merged; });
+        applyResult(merged, fetchStart, batchIds, bodyText.length);
       }
     } catch (e) {
       if ((e as Error).name === 'AbortError') return;
       // Falha no delta: cai pro full refetch pra não deixar o estado divergir.
+      s.errorCount++;
       console.warn(`[SureEdge] delta_fetch_failed error="${(e as Error).message}" batch_ids=${batchIds} — caindo pro full refetch`);
       await fetchOdds(undefined, false);
     } finally {
@@ -293,7 +369,9 @@ export function useOdds(opts: UseOddsOptions = {}): UseOddsResult {
       if (canDelta) {
         // Resolve o estado final por id em ordem cronológica — se um match foi
         // removido e depois voltou (ou vice-versa) no mesmo lote, o último
-        // evento decide.
+        // evento decide. Isso garante que NENHUM evento do lote é perdido:
+        // todos são dobrados numa única decisão final por id, em vez de só
+        // olhar o último payload recebido.
         const state = new Map<string, 'upsert' | 'remove'>();
         for (const e of batch) {
           for (const id of e.upsertedIds ?? []) state.set(id, 'upsert');
@@ -333,6 +411,9 @@ export function useOdds(opts: UseOddsOptions = {}): UseOddsResult {
 
         if (ok) {
           if (hasConnectedRef.current) {
+            // Reconexão: pode ter perdido broadcasts enquanto estava caído —
+            // sempre um full refetch de segurança, nunca delta, pra garantir
+            // que o estado local reflita o banco por completo.
             db.current.reconnectCount++;
             console.log(
               `[SureEdge] realtime=RECONNECTED reconnect_count=${db.current.reconnectCount}` +

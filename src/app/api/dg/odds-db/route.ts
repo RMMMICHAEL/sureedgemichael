@@ -31,7 +31,6 @@ interface DbRow {
   odd_draw:       number | null;
   odd_away:       number;
   match_url:      string | null;
-  source_url:     string | null;
 }
 
 function todayBRT(): string {
@@ -114,14 +113,29 @@ export async function GET(req: NextRequest) {
   // por natureza (poucos match_id) e o chamador sempre quer os dados atuais.
   const idsParam = req.nextUrl.searchParams.get('ids');
   if (idsParam) {
-    const ids = idsParam.split(',').map(s => s.trim()).filter(Boolean);
+    // UUID_RE espelha o formato usado em toda a base (match_id é sempre um
+    // UUID). Ids fora desse formato são descartados em vez de irem pra
+    // query — evita string arbitrária/gigante chegando no `.in()`.
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const MAX_IDS = 500; // bem acima do limite de broadcast (300) — headroom de sobra
+
+    const ids = [...new Set(
+      idsParam.split(',').map(s => s.trim()).filter(id => UUID_RE.test(id))
+    )];
+
     if (ids.length === 0) {
       return NextResponse.json({ ok: true, count: 0, odds: [], source: 'db-empty' });
+    }
+    if (ids.length > MAX_IDS) {
+      return NextResponse.json(
+        { ok: false, error: `ids demais (${ids.length} > ${MAX_IDS}) — use ?all=1 para um refetch completo` },
+        { status: 400 },
+      );
     }
 
     const { data: rows, error } = await supabase
       .from('bookmaker_odds')
-      .select('match_id,home_team,away_team,match_date,start_time,league_slug,league_name,bookmaker_slug,bookmaker_name,market_type,odd_home,odd_draw,odd_away,match_url,source_url')
+      .select('match_id,home_team,away_team,match_date,start_time,league_slug,league_name,bookmaker_slug,bookmaker_name,market_type,odd_home,odd_draw,odd_away,match_url')
       .in('match_id', ids)
       .returns<DbRow[]>();
 
@@ -169,7 +183,7 @@ export async function GET(req: NextRequest) {
   for (let from = 0; ; from += PAGE_SIZE) {
     let query = supabase
       .from('bookmaker_odds')
-      .select('match_id,home_team,away_team,match_date,start_time,league_slug,league_name,bookmaker_slug,bookmaker_name,market_type,odd_home,odd_draw,odd_away,match_url,source_url')
+      .select('match_id,home_team,away_team,match_date,start_time,league_slug,league_name,bookmaker_slug,bookmaker_name,market_type,odd_home,odd_draw,odd_away,match_url')
       .order('match_date', { ascending: true })
       .order('start_time', { ascending: true })
       .range(from, from + PAGE_SIZE - 1);
