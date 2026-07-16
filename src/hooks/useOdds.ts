@@ -302,7 +302,15 @@ export function useOdds(opts: UseOddsOptions = {}): UseOddsResult {
         return;
       }
 
-      const res = await fetch(`/api/dg/odds-db?ids=${upsertIds.join(',')}`, { signal: ctrl.signal, cache: 'no-cache' });
+      // POST (não query string): até 500 UUIDs na URL passariam de ~18KB,
+      // arriscando estourar limites de tamanho de URL/header de proxies e CDNs.
+      const res = await fetch('/api/dg/odds-db', {
+        method:  'POST',
+        signal:  ctrl.signal,
+        cache:   'no-cache',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ ids: upsertIds }),
+      });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const bodyText = await res.text();
       const d = JSON.parse(bodyText) as { ok: boolean; odds?: OddsMatch[] };

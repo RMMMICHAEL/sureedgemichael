@@ -4,17 +4,23 @@
  * Lê odds da tabela bookmaker_odds (importadas via admin) e devolve
  * o mesmo formato de /api/dg/odds — OddsSummary[] com bookmakers agrupados.
  *
- * Query params:
+ * Query params (GET):
  *   ?date=YYYY-MM-DD  → filtra por data (padrão: hoje BRT)
  *   ?all=1            → sem filtro de data
- *   ?ids=a,b,c        → só esses match_id (fetch por delta, usado pelo useOdds
- *                        após um broadcast — evita rebuscar a tabela inteira)
+ *
+ * POST /api/dg/odds-db  { ids: string[] }
+ *   Fetch por delta — só esses match_id (usado pelo useOdds após um
+ *   broadcast, evita rebuscar a tabela inteira). É POST (não query string)
+ *   de propósito: até 500 UUIDs na URL passariam de ~18KB, arriscando
+ *   estourar limites de tamanho de URL/header de proxies e CDNs.
  */
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse }   from 'next/server';
 import { cookies }                     from 'next/headers';
 import { createSupabaseServerClient }  from '@/lib/supabase/server';
+
+type SupabaseServerClient = ReturnType<typeof createSupabaseServerClient>;
 
 interface DbRow {
   match_id:       string;
@@ -32,6 +38,8 @@ interface DbRow {
   odd_away:       number;
   match_url:      string | null;
 }
+
+const ROW_SELECT = 'match_id,home_team,away_team,match_date,start_time,league_slug,league_name,bookmaker_slug,bookmaker_name,market_type,odd_home,odd_draw,odd_away,match_url';
 
 function todayBRT(): string {
   const d = new Date(Date.now() - 3 * 60 * 60 * 1000);
@@ -99,6 +107,92 @@ function groupIntoMatches(data: DbRow[]): OddsSummaryOut[] {
   return Array.from(matchMap.values());
 }
 
+// PostgREST limita a 1000 linhas por resposta por padrão. Com ~8
+// bookmakers/mercado por jogo, até uma lista de match_id relativamente
+// pequena (150+) já pode passar disso — então TODA busca (full ou por
+// ids) precisa paginar, não só a full como antes.
+const PAGE_SIZE = 1000;
+
+interface RangeableQuery {
+  range(from: number, to: number): RangeableQuery;
+  returns<T>(): Promise<{ data: T[] | null; error: { message: string } | null }>;
+}
+
+async function fetchAllPages(
+  buildQuery: (from: number, to: number) => RangeableQuery,
+): Promise<{ rows: DbRow[]; error: string | null }> {
+  const rows: DbRow[] = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data: page, error } = await buildQuery(from, from + PAGE_SIZE - 1).returns<DbRow>();
+    if (error) return { rows, error: error.message };
+    if (!page || page.length === 0) break;
+    rows.push(...page);
+    if (page.length < PAGE_SIZE) break;
+  }
+  return { rows, error: null };
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const MAX_IDS = 500; // bem acima do limite de broadcast (300) — headroom de sobra
+
+async function handleDeltaByIds(supabase: SupabaseServerClient, rawIds: unknown) {
+  if (!Array.isArray(rawIds)) {
+    return NextResponse.json({ ok: false, error: '"ids" precisa ser um array' }, { status: 400 });
+  }
+
+  // Ids fora do formato UUID são descartados em vez de irem pra query —
+  // evita string arbitrária/malformada chegando no `.in()`.
+  const ids = [...new Set(
+    rawIds.filter((id): id is string => typeof id === 'string').map(s => s.trim()).filter(id => UUID_RE.test(id))
+  )];
+
+  if (ids.length === 0) {
+    return NextResponse.json({ ok: true, count: 0, odds: [], source: 'db-empty' });
+  }
+  if (ids.length > MAX_IDS) {
+    return NextResponse.json(
+      { ok: false, error: `ids demais (${ids.length} > ${MAX_IDS}) — use ?all=1 para um refetch completo` },
+      { status: 400 },
+    );
+  }
+
+  const { rows, error } = await fetchAllPages((from, to) =>
+    supabase
+      .from('bookmaker_odds')
+      .select(ROW_SELECT)
+      .in('match_id', ids)
+      .range(from, to) as unknown as RangeableQuery
+  );
+
+  if (error) {
+    console.error('[odds-db][ids] erro:', error);
+    return NextResponse.json({ ok: false, error }, { status: 500 });
+  }
+
+  const odds = groupIntoMatches(rows);
+  console.log(`[odds-db][ids] ${odds.length} jogos · ${rows.length} linhas · ids=${ids.length}`);
+  return NextResponse.json(
+    { ok: true, count: odds.length, source: 'supabase-db-delta', odds },
+    { headers: { 'Cache-Control': 'private, no-cache' } },
+  );
+}
+
+// Fetch por delta — ver comentário no topo do arquivo sobre por que é POST.
+export async function POST(req: NextRequest) {
+  const cookieStore = await cookies();
+  const supabase    = createSupabaseServerClient(cookieStore);
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    return NextResponse.json({ ok: false, error: 'Não autenticado' }, { status: 401 });
+  }
+
+  let body: { ids?: unknown };
+  try { body = await req.json(); }
+  catch { return NextResponse.json({ ok: false, error: 'JSON inválido' }, { status: 400 }); }
+
+  return handleDeltaByIds(supabase, body.ids);
+}
+
 export async function GET(req: NextRequest) {
   const cookieStore = await cookies();
   const supabase    = createSupabaseServerClient(cookieStore);
@@ -107,60 +201,16 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ ok: false, error: 'Não autenticado' }, { status: 401 });
   }
 
-  // ── Fetch por delta (?ids=a,b,c) ────────────────────────────────────────────
-  // Usado após um broadcast de sync para buscar só os matches que mudaram, em
-  // vez do refetch da tabela inteira — sem ETag aqui, o payload já é pequeno
-  // por natureza (poucos match_id) e o chamador sempre quer os dados atuais.
-  const idsParam = req.nextUrl.searchParams.get('ids');
-  if (idsParam) {
-    // UUID_RE espelha o formato usado em toda a base (match_id é sempre um
-    // UUID). Ids fora desse formato são descartados em vez de irem pra
-    // query — evita string arbitrária/gigante chegando no `.in()`.
-    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    const MAX_IDS = 500; // bem acima do limite de broadcast (300) — headroom de sobra
-
-    const ids = [...new Set(
-      idsParam.split(',').map(s => s.trim()).filter(id => UUID_RE.test(id))
-    )];
-
-    if (ids.length === 0) {
-      return NextResponse.json({ ok: true, count: 0, odds: [], source: 'db-empty' });
-    }
-    if (ids.length > MAX_IDS) {
-      return NextResponse.json(
-        { ok: false, error: `ids demais (${ids.length} > ${MAX_IDS}) — use ?all=1 para um refetch completo` },
-        { status: 400 },
-      );
-    }
-
-    const { data: rows, error } = await supabase
-      .from('bookmaker_odds')
-      .select('match_id,home_team,away_team,match_date,start_time,league_slug,league_name,bookmaker_slug,bookmaker_name,market_type,odd_home,odd_draw,odd_away,match_url')
-      .in('match_id', ids)
-      .returns<DbRow[]>();
-
-    if (error) {
-      console.error('[odds-db][ids] erro:', error.message);
-      return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
-    }
-
-    const odds = groupIntoMatches(rows ?? []);
-    console.log(`[odds-db][ids] ${odds.length} jogos · ${(rows ?? []).length} linhas · ids=${ids.length}`);
-    return NextResponse.json(
-      { ok: true, count: odds.length, source: 'supabase-db-delta', odds },
-      { headers: { 'Cache-Control': 'private, no-cache' } },
-    );
-  }
-
-  // ETag baseado no MAX(updated_at) — evita retornar o payload inteiro quando nada mudou.
-  // Um 304 tem 0 bytes no body, reduzindo bandwidth ~99% nas chamadas repetidas.
-  const { data: latest } = await supabase
-    .from('bookmaker_odds')
-    .select('updated_at')
-    .order('updated_at', { ascending: false })
-    .limit(1)
-    .single();
-  const etag         = `"${new Date(latest?.updated_at ?? 0).getTime()}"`;
+  // ETag = contagem de linhas + MAX(updated_at). Usar só o MAX(updated_at)
+  // não pega DELETEs puros (uma remoção não muda o timestamp das linhas que
+  // sobraram) — o cliente ficaria recebendo 304 mesmo depois de um jogo
+  // sumir do banco. A contagem muda em qualquer INSERT/DELETE, fechando
+  // esse buraco sem precisar de uma coluna de versão dedicada.
+  const [{ data: latest }, { count }] = await Promise.all([
+    supabase.from('bookmaker_odds').select('updated_at').order('updated_at', { ascending: false }).limit(1).single(),
+    supabase.from('bookmaker_odds').select('*', { count: 'exact', head: true }),
+  ]);
+  const etag         = `"${count ?? 0}-${new Date(latest?.updated_at ?? 0).getTime()}"`;
   const ifNoneMatch  = req.headers.get('if-none-match');
   const cacheHeaders = { 'ETag': etag, 'Cache-Control': 'private, no-cache' };
 
@@ -172,42 +222,27 @@ export async function GET(req: NextRequest) {
   const dateParam = req.nextUrl.searchParams.get('date');
   const fromParam = req.nextUrl.searchParams.get('from') ?? todayBRT(); // padrão: a partir de hoje
 
-  // ── Query ────────────────────────────────────────────────────────────────────
   // PostgREST limita a 1000 linhas por resposta por padrão — com a tabela hoje
   // passando disso, uma única chamada sem paginação trunca silenciosamente e,
   // como a ordenação é ascendente por data, trunca justo nas linhas mais
   // antigas (jogos já encerrados), fazendo o front achar que não há jogos.
-  // Pagina em blocos de 1000 até esgotar o resultado.
-  const PAGE_SIZE = 1000;
-  const data: DbRow[] = [];
-  for (let from = 0; ; from += PAGE_SIZE) {
+  const { rows: data, error } = await fetchAllPages((from, to) => {
     let query = supabase
       .from('bookmaker_odds')
-      .select('match_id,home_team,away_team,match_date,start_time,league_slug,league_name,bookmaker_slug,bookmaker_name,market_type,odd_home,odd_draw,odd_away,match_url')
+      .select(ROW_SELECT)
       .order('match_date', { ascending: true })
       .order('start_time', { ascending: true })
-      .range(from, from + PAGE_SIZE - 1);
+      .range(from, to);
 
     if (!showAll) {
-      if (dateParam) {
-        // data exata
-        query = query.eq('match_date', dateParam);
-      } else {
-        // padrão: a partir de hoje (inclui hoje + futuros)
-        query = query.gte('match_date', fromParam);
-      }
+      query = dateParam ? query.eq('match_date', dateParam) : query.gte('match_date', fromParam);
     }
+    return query as unknown as RangeableQuery;
+  });
 
-    const { data: page, error } = await query.returns<DbRow[]>();
-
-    if (error) {
-      console.error('[odds-db] erro:', error.message);
-      return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
-    }
-
-    if (!page || page.length === 0) break;
-    data.push(...page);
-    if (page.length < PAGE_SIZE) break;
+  if (error) {
+    console.error('[odds-db] erro:', error);
+    return NextResponse.json({ ok: false, error }, { status: 500 });
   }
 
   if (data.length === 0) {
