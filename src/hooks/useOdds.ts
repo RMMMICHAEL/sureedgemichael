@@ -18,6 +18,8 @@ export interface OddsRealtimeMetrics {
   lastLatencyMs:  number;   // ingest → UI renderizada
   avgLatencyMs:   number;   // média das últimas 20 latências
   fallbackPolls:  number;   // vezes que o fallback de 30s foi acionado
+  deltaFetches:   number;   // refetches que usaram ?ids= (delta) em vez de full
+  fullFetches:    number;   // refetches que precisaram buscar a tabela inteira
   // Estatísticas da última resposta da API
   lastMatchCount: number;   // 82 partidas (jogos, não odds)
   lastOddsTotal:  number;   // ~4186 linhas no DB
@@ -37,12 +39,16 @@ interface UseOddsResult {
   rtMetrics:       OddsRealtimeMetrics;
 }
 
-// Payload enviado pelo ingest via broadcast REST
+// Payload enviado pelo ingest via broadcast REST.
+// upsertedIds/removedIds vêm undefined quando o lote passa de
+// MAX_IDS_IN_BROADCAST no servidor — nesse caso cai pro full refetch.
 interface BroadcastPayload {
-  pluginId:    string;
-  rowsWritten: number;
-  syncedAt:    number; // Date.now() no momento exato do db_commit
-  batchId:     string; // rastreamento ponta a ponta
+  pluginId:     string;
+  rowsWritten:  number;
+  syncedAt:     number; // Date.now() no momento exato do db_commit
+  batchId:      string; // rastreamento ponta a ponta
+  upsertedIds?: string[];
+  removedIds?:  string[];
 }
 
 // Trailing debounce: agrupa eventos até DEBOUNCE_MS de silêncio, depois 1 refetch
@@ -54,10 +60,27 @@ const EMPTY_METRICS: OddsRealtimeMetrics = {
   eventsReceived: 0, refetchCount: 0, reconnectCount: 0,
   lastEventAt: 0, lastRefetchAt: 0,
   lastLatencyMs: 0, avgLatencyMs: 0,
-  fallbackPolls: 0,
+  fallbackPolls: 0, deltaFetches: 0, fullFetches: 0,
   lastMatchCount: 0, lastOddsTotal: 0,
   lastBooksAvg: 0, lastBooksMin: 0, lastBooksMax: 0,
 };
+
+// Aplica um lote de matches atualizados + ids removidos sobre o estado atual,
+// sem descartar o que não mudou — é o que evita rebuscar a tabela inteira.
+function mergeOdds(current: OddsMatch[], updated: OddsMatch[], removedIds: string[]): OddsMatch[] {
+  const removedSet = new Set(removedIds);
+  const updatedMap = new Map(updated.map(m => [m.match_id, m]));
+  const result: OddsMatch[] = [];
+  for (const m of current) {
+    if (removedSet.has(m.match_id)) continue;
+    const fresh = updatedMap.get(m.match_id);
+    if (fresh) { result.push(fresh); updatedMap.delete(m.match_id); }
+    else result.push(m);
+  }
+  // O que sobrou no map são matches novos (não existiam no estado atual)
+  for (const m of updatedMap.values()) result.push(m);
+  return result;
+}
 
 export function useOdds(opts: UseOddsOptions = {}): UseOddsResult {
   const { matchId, paused = false } = opts;
@@ -82,13 +105,77 @@ export function useOdds(opts: UseOddsOptions = {}): UseOddsResult {
     refetchCount:   number;
     reconnectCount: number;
     fallbackPolls:  number;
+    deltaFetches:   number;
+    fullFetches:    number;
     latencies:      number[];
     lastIngestAt:   number;
   }>({
     timer: null, events: [], eventsReceived: 0, refetchCount: 0,
-    reconnectCount: 0, fallbackPolls: 0, latencies: [], lastIngestAt: 0,
+    reconnectCount: 0, fallbackPolls: 0, deltaFetches: 0, fullFetches: 0,
+    latencies: [], lastIngestAt: 0,
   });
 
+  // Aplica o resultado de um fetch (full ou delta) no estado + métricas.
+  // `nextOdds` já vem pronto (substituído ou mesclado) — só registra estatísticas.
+  const applyResult = useCallback((nextOdds: OddsMatch[], fetchStart: number, batchIds: string) => {
+    const s = db.current;
+    setOdds(nextOdds);
+    setError(null);
+    setLastUpdate(Date.now());
+
+    const elapsed   = Date.now() - fetchStart;
+    const latencyMs = s.lastIngestAt > 0 ? Date.now() - s.lastIngestAt : 0;
+    if (latencyMs > 0 && latencyMs < 120_000) {
+      s.latencies.push(latencyMs);
+      if (s.latencies.length > 20) s.latencies.shift();
+    }
+    const avgLatency = s.latencies.length
+      ? Math.round(s.latencies.reduce((a, b) => a + b, 0) / s.latencies.length)
+      : 0;
+
+    const matchCount    = nextOdds.length;
+    const booksPerMatch = nextOdds.map(m => m.bookmakers?.length ?? 0);
+    const oddsTotal     = booksPerMatch.reduce((a, b) => a + b, 0);
+    const booksMin      = matchCount > 0 ? Math.min(...booksPerMatch) : 0;
+    const booksMax      = matchCount > 0 ? Math.max(...booksPerMatch) : 0;
+    const booksAvg      = matchCount > 0 ? Math.round(oddsTotal / matchCount) : 0;
+
+    console.log(
+      `[SureEdge] fetch_finished` +
+      ` matches=${matchCount} total_odds=${oddsTotal}` +
+      ` books_per_match min=${booksMin} avg=${booksAvg} max=${booksMax}` +
+      ` elapsed=${elapsed}ms latency_ingest_to_ui=${latencyMs}ms avg_latency=${avgLatency}ms` +
+      ` batch_ids=${batchIds}`
+    );
+
+    const m: OddsRealtimeMetrics = {
+      eventsReceived: s.eventsReceived,
+      refetchCount:   s.refetchCount,
+      reconnectCount: s.reconnectCount,
+      lastEventAt:    s.lastIngestAt,
+      lastRefetchAt:  Date.now(),
+      lastLatencyMs:  latencyMs,
+      avgLatencyMs:   avgLatency,
+      fallbackPolls:  s.fallbackPolls,
+      deltaFetches:   s.deltaFetches,
+      fullFetches:    s.fullFetches,
+      lastMatchCount: matchCount,
+      lastOddsTotal:  oddsTotal,
+      lastBooksAvg:   booksAvg,
+      lastBooksMin:   booksMin,
+      lastBooksMax:   booksMax,
+    };
+    setRtMetrics(m);
+
+    if (typeof window !== 'undefined') {
+      (window as Window & { __sureedge_rt?: OddsRealtimeMetrics }).__sureedge_rt = m;
+    }
+
+    setRecentlyUpdated(prev => (prev.size > 0 ? new Set() : prev));
+  }, []);
+
+  // Full refetch — tabela inteira (mount, reconnect, fallback poll, ou lote
+  // grande demais pra virar delta). Comportamento original, inalterado.
   const fetchOdds = useCallback(async (batch?: BroadcastPayload[], isFallback = false) => {
     if (paused) return;
 
@@ -99,9 +186,10 @@ export function useOdds(opts: UseOddsOptions = {}): UseOddsResult {
     const s = db.current;
     const batchIds = batch?.map(e => e.batchId).join(',') ?? 'initial';
     const fetchStart = Date.now();
+    s.fullFetches++;
 
     console.log(
-      `[SureEdge] fetch_started reason=${isFallback ? 'fallback_poll' : (batch ? 'realtime' : 'mount')}` +
+      `[SureEdge] fetch_started reason=${isFallback ? 'fallback_poll' : (batch ? 'realtime_full' : 'mount')}` +
       ` batch_ids=${batchIds} events=${batch?.length ?? 0}`
     );
 
@@ -115,62 +203,7 @@ export function useOdds(opts: UseOddsOptions = {}): UseOddsResult {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const d = await res.json() as { ok: boolean; odds?: OddsMatch[] };
 
-      if (d.ok && d.odds) {
-        setOdds(d.odds);
-        setError(null);
-        setLastUpdate(Date.now());
-
-        const elapsed    = Date.now() - fetchStart;
-        const latencyMs  = s.lastIngestAt > 0 ? Date.now() - s.lastIngestAt : 0;
-        if (latencyMs > 0 && latencyMs < 120_000) {
-          s.latencies.push(latencyMs);
-          if (s.latencies.length > 20) s.latencies.shift();
-        }
-        const avgLatency = s.latencies.length
-          ? Math.round(s.latencies.reduce((a, b) => a + b, 0) / s.latencies.length)
-          : 0;
-
-        // Estatísticas de integridade dos dados
-        const matchCount   = d.odds.length;
-        const booksPerMatch = d.odds.map(m => m.bookmakers?.length ?? 0);
-        const oddsTotal    = booksPerMatch.reduce((a, b) => a + b, 0);
-        const booksMin     = matchCount > 0 ? Math.min(...booksPerMatch) : 0;
-        const booksMax     = matchCount > 0 ? Math.max(...booksPerMatch) : 0;
-        const booksAvg     = matchCount > 0 ? Math.round(oddsTotal / matchCount) : 0;
-
-        // Log ponta a ponta — confirma que "82" são partidas, não odds
-        console.log(
-          `[SureEdge] fetch_finished` +
-          ` matches=${matchCount} total_odds=${oddsTotal}` +
-          ` books_per_match min=${booksMin} avg=${booksAvg} max=${booksMax}` +
-          ` elapsed=${elapsed}ms latency_ingest_to_ui=${latencyMs}ms avg_latency=${avgLatency}ms` +
-          ` reason=${isFallback ? 'fallback_poll' : (batch ? 'realtime' : 'mount')}` +
-          ` batch_ids=${batchIds}`
-        );
-
-        const m: OddsRealtimeMetrics = {
-          eventsReceived: s.eventsReceived,
-          refetchCount:   s.refetchCount,
-          reconnectCount: s.reconnectCount,
-          lastEventAt:    s.lastIngestAt,
-          lastRefetchAt:  Date.now(),
-          lastLatencyMs:  latencyMs,
-          avgLatencyMs:   avgLatency,
-          fallbackPolls:  s.fallbackPolls,
-          lastMatchCount: matchCount,
-          lastOddsTotal:  oddsTotal,
-          lastBooksAvg:   booksAvg,
-          lastBooksMin:   booksMin,
-          lastBooksMax:   booksMax,
-        };
-        setRtMetrics(m);
-
-        if (typeof window !== 'undefined') {
-          (window as Window & { __sureedge_rt?: OddsRealtimeMetrics }).__sureedge_rt = m;
-        }
-
-        if (recentlyUpdated.size > 0) setRecentlyUpdated(new Set());
-      }
+      if (d.ok && d.odds) applyResult(d.odds, fetchStart, batchIds);
     } catch (e) {
       if ((e as Error).name === 'AbortError') return;
       setError((e as Error).message);
@@ -178,7 +211,58 @@ export function useOdds(opts: UseOddsOptions = {}): UseOddsResult {
     } finally {
       setLoading(false);
     }
-  }, [paused]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [paused, applyResult]);
+
+  // Delta refetch — só os match_id que o ingest reportou como alterados.
+  // rowsWritten do broadcast pode cobrir dezenas de jogos; em vez de ~2MB
+  // (tabela inteira), o payload aqui fica na casa de poucos KB por jogo.
+  const fetchOddsDelta = useCallback(async (
+    upsertIds: string[], removedIds: string[], batchIds: string,
+  ) => {
+    if (paused) return;
+
+    abortRef.current?.abort();
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+
+    const s = db.current;
+    const fetchStart = Date.now();
+    s.deltaFetches++;
+
+    console.log(
+      `[SureEdge] fetch_started reason=delta batch_ids=${batchIds}` +
+      ` upsert=${upsertIds.length} removed=${removedIds.length}`
+    );
+
+    try {
+      if (upsertIds.length === 0) {
+        // Só remoções — nenhum dado novo pra buscar, aplica local e pronto.
+        setOdds(prev => mergeOdds(prev, [], removedIds));
+        setLastUpdate(Date.now());
+        setLoading(false);
+        return;
+      }
+
+      const res = await fetch(`/api/dg/odds-db?ids=${upsertIds.join(',')}`, { signal: ctrl.signal, cache: 'no-cache' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const d = await res.json() as { ok: boolean; odds?: OddsMatch[] };
+
+      if (d.ok && d.odds) {
+        // setOdds funcional: sempre mescla sobre o estado mais recente,
+        // nunca sobre um closure potencialmente desatualizado.
+        let merged: OddsMatch[] = [];
+        setOdds(prev => { merged = mergeOdds(prev, d.odds!, removedIds); return merged; });
+        applyResult(merged, fetchStart, batchIds);
+      }
+    } catch (e) {
+      if ((e as Error).name === 'AbortError') return;
+      // Falha no delta: cai pro full refetch pra não deixar o estado divergir.
+      console.warn(`[SureEdge] delta_fetch_failed error="${(e as Error).message}" batch_ids=${batchIds} — caindo pro full refetch`);
+      await fetchOdds(undefined, false);
+    } finally {
+      setLoading(false);
+    }
+  }, [paused, applyResult, fetchOdds]);
 
   // Trailing debounce: reinicia o timer a cada evento, dispara 1 refetch após silêncio
   const handleBroadcast = useCallback((payload: BroadcastPayload) => {
@@ -200,9 +284,32 @@ export function useOdds(opts: UseOddsOptions = {}): UseOddsResult {
       const batch = [...s.events];
       s.events    = [];
       s.timer     = null;
-      fetchOdds(batch, false);
+      const batchIds = batch.map(e => e.batchId).join(',');
+
+      // Só vira delta se TODOS os eventos do lote trouxerem upsertedIds/removedIds
+      // (o ingest omite os dois quando o lote passa de MAX_IDS_IN_BROADCAST).
+      const canDelta = batch.every(e => e.upsertedIds !== undefined && e.removedIds !== undefined);
+
+      if (canDelta) {
+        // Resolve o estado final por id em ordem cronológica — se um match foi
+        // removido e depois voltou (ou vice-versa) no mesmo lote, o último
+        // evento decide.
+        const state = new Map<string, 'upsert' | 'remove'>();
+        for (const e of batch) {
+          for (const id of e.upsertedIds ?? []) state.set(id, 'upsert');
+          for (const id of e.removedIds  ?? []) state.set(id, 'remove');
+        }
+        const upsertIds: string[] = [];
+        const removeIds: string[] = [];
+        for (const [id, kind] of state) (kind === 'upsert' ? upsertIds : removeIds).push(id);
+
+        if (upsertIds.length === 0 && removeIds.length === 0) return; // nada a fazer
+        fetchOddsDelta(upsertIds, removeIds, batchIds);
+      } else {
+        fetchOdds(batch, false);
+      }
     }, DEBOUNCE_MS);
-  }, [paused, fetchOdds]);
+  }, [paused, fetchOdds, fetchOddsDelta]);
 
   useEffect(() => {
     fetchOdds(); // carga inicial (não conta como refetch)

@@ -76,10 +76,17 @@ function matchesToRows(matches: OddsMatch[]) {
   return rows;
 }
 
+// Broadcasts acima disso viram "sinal genérico" sem lista de IDs — o payload
+// do Realtime tem limite de tamanho, e listener já sabe cair pro full refetch.
+const MAX_IDS_IN_BROADCAST = 300;
+
 /**
  * Notifica os navegadores conectados ao SureEdge via broadcast do Supabase
- * Realtime — mesmo canal/formato que `useOdds.ts` já escuta. Nunca envia o
- * dado em si, só um sinal "algo mudou"; quem escuta decide o que refazer.
+ * Realtime — mesmo canal/formato que `useOdds.ts` já escuta.
+ *
+ * Vai junto o ID dos matches afetados (upserted/removed) para permitir um
+ * refetch por delta (só esses IDs) em vez de rebuscar a tabela inteira a
+ * cada mudança — que é o principal consumidor de CDN→Compute do projeto.
  * Falha aqui não derruba a resposta HTTP — o upsert já é a fonte da verdade.
  */
 async function broadcastOddsUpdated(
@@ -87,6 +94,8 @@ async function broadcastOddsUpdated(
   admin: SupabaseClient<any, any, any>,
   rowsWritten: number,
   batchId: string,
+  upsertedIds: string[],
+  removedIds: string[],
 ): Promise<void> {
   const channel = admin.channel('odds_updates', { config: { broadcast: { ack: true } } });
   try {
@@ -100,10 +109,17 @@ async function broadcastOddsUpdated(
         }
       });
     });
+    const totalIds = upsertedIds.length + removedIds.length;
+    const withinLimit = totalIds > 0 && totalIds <= MAX_IDS_IN_BROADCAST;
     await channel.send({
       type:    'broadcast',
       event:   'odds_updated',
-      payload: { pluginId: 'dg-sync-extension', rowsWritten, syncedAt: Date.now(), batchId },
+      payload: {
+        pluginId: 'dg-sync-extension', rowsWritten, syncedAt: Date.now(), batchId,
+        // Ausentes/undefined quando passa do limite — listener cai pro full refetch.
+        upsertedIds: withinLimit ? upsertedIds : undefined,
+        removedIds:  withinLimit ? removedIds  : undefined,
+      },
     });
   } catch (e) {
     console.warn('[dg-sync/ingest] broadcast falhou (upsert já foi salvo):', (e as Error).message);
@@ -131,10 +147,14 @@ export async function POST(req: NextRequest) {
   }
 
   const upsertRows: Record<string, unknown>[] = [];
-  const removedIds = new Set<string>();
+  const upsertedIds = new Set<string>();
+  const removedIds  = new Set<string>();
   for (const item of batch) {
-    upsertRows.push(...matchesToRows(item.added ?? []));
-    upsertRows.push(...matchesToRows(item.modified ?? []));
+    const addedRows    = matchesToRows(item.added ?? []);
+    const modifiedRows = matchesToRows(item.modified ?? []);
+    upsertRows.push(...addedRows, ...modifiedRows);
+    for (const r of addedRows)    upsertedIds.add(r.match_id as string);
+    for (const r of modifiedRows) upsertedIds.add(r.match_id as string);
     for (const id of item.removed ?? []) removedIds.add(id);
   }
 
@@ -170,7 +190,7 @@ export async function POST(req: NextRequest) {
 
   const batchId = randomUUID();
   if (upserted > 0 || deleted > 0) {
-    await broadcastOddsUpdated(admin, upserted + deleted, batchId);
+    await broadcastOddsUpdated(admin, upserted + deleted, batchId, [...upsertedIds], [...removedIds]);
   }
 
   return NextResponse.json({

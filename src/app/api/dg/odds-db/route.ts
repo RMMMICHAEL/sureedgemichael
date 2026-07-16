@@ -7,6 +7,8 @@
  * Query params:
  *   ?date=YYYY-MM-DD  → filtra por data (padrão: hoje BRT)
  *   ?all=1            → sem filtro de data
+ *   ?ids=a,b,c        → só esses match_id (fetch por delta, usado pelo useOdds
+ *                        após um broadcast — evita rebuscar a tabela inteira)
  */
 export const dynamic = 'force-dynamic';
 
@@ -40,12 +42,100 @@ function todayBRT(): string {
   return `${y}-${m}-${day}`;
 }
 
+interface OddsSummaryOut {
+  match_id:    string;
+  home_team:   string;
+  away_team:   string;
+  start_time:  string;
+  league_name: string;
+  league_id:   number;
+  bookmakers:  Array<{
+    slug: string; name: string;
+    home: number; draw: number; away: number;
+    url: string; is_pa: boolean; market_type: string;
+  }>;
+}
+
+// ── Agrupar linhas de bookmaker_odds por match_id → OddsSummary[] ────────────
+function groupIntoMatches(data: DbRow[]): OddsSummaryOut[] {
+  const matchMap = new Map<string, OddsSummaryOut>();
+
+  for (const row of data) {
+    if (!matchMap.has(row.match_id)) {
+      matchMap.set(row.match_id, {
+        match_id:    row.match_id,
+        home_team:   row.home_team,
+        away_team:   row.away_team,
+        start_time:  row.start_time ?? row.match_date ?? '',
+        league_name: row.league_name ?? row.league_slug ?? '',
+        league_id:   0,
+        bookmakers:  [],
+      });
+    }
+
+    const match = matchMap.get(row.match_id)!;
+    const isPA  = row.market_type === '1x2_pa';
+
+    // Mantém AMBAS as entradas (1x2 e 1x2_pa) por bookmaker.
+    // 1x2_pa = mercado PA (odds menores, pagamento antecipado)
+    // 1x2    = mercado regular (odds maiores, sem restrição de PA)
+    // Dedup apenas dentro do mesmo slug + market_type para evitar duplicatas brutas.
+    const already = match.bookmakers.find(
+      b => b.slug === row.bookmaker_slug && b.market_type === row.market_type
+    );
+    if (!already) {
+      match.bookmakers.push({
+        slug:        row.bookmaker_slug,
+        name:        row.bookmaker_name ?? row.bookmaker_slug,
+        home:        row.odd_home,
+        draw:        row.odd_draw ?? 0,
+        away:        row.odd_away,
+        url:         row.match_url ?? '',
+        is_pa:       isPA,
+        market_type: row.market_type,
+      });
+    }
+  }
+
+  return Array.from(matchMap.values());
+}
+
 export async function GET(req: NextRequest) {
   const cookieStore = await cookies();
   const supabase    = createSupabaseServerClient(cookieStore);
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
     return NextResponse.json({ ok: false, error: 'Não autenticado' }, { status: 401 });
+  }
+
+  // ── Fetch por delta (?ids=a,b,c) ────────────────────────────────────────────
+  // Usado após um broadcast de sync para buscar só os matches que mudaram, em
+  // vez do refetch da tabela inteira — sem ETag aqui, o payload já é pequeno
+  // por natureza (poucos match_id) e o chamador sempre quer os dados atuais.
+  const idsParam = req.nextUrl.searchParams.get('ids');
+  if (idsParam) {
+    const ids = idsParam.split(',').map(s => s.trim()).filter(Boolean);
+    if (ids.length === 0) {
+      return NextResponse.json({ ok: true, count: 0, odds: [], source: 'db-empty' });
+    }
+
+    const { data: rows, error } = await supabase
+      .from('bookmaker_odds')
+      .select('match_id,home_team,away_team,match_date,start_time,league_slug,league_name,bookmaker_slug,bookmaker_name,market_type,odd_home,odd_draw,odd_away,match_url,source_url')
+      .in('match_id', ids)
+      .returns<DbRow[]>();
+
+    if (error) {
+      console.error('[odds-db][ids] erro:', error.message);
+      return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    }
+
+    const odds = groupIntoMatches(rows ?? []);
+    console.log(`[odds-db][ids] ${odds.length} jogos · ${(rows ?? []).length} linhas · ids=${ids.length}`);
+    return NextResponse.json(
+      { ok: true, count: odds.length, source: 'supabase-db-delta', odds },
+      { headers: { 'Cache-Control': 'private, no-cache' } },
+    );
   }
 
   // ETag baseado no MAX(updated_at) — evita retornar o payload inteiro quando nada mudou.
@@ -110,59 +200,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ ok: true, count: 0, odds: [], source: 'db-empty' });
   }
 
-  // ── Agrupar por match_id → OddsSummary[] ────────────────────────────────────
-  const matchMap = new Map<string, {
-    match_id:    string;
-    home_team:   string;
-    away_team:   string;
-    start_time:  string;
-    league_name: string;
-    league_id:   number;
-    bookmakers:  Array<{
-      slug: string; name: string;
-      home: number; draw: number; away: number;
-      url: string; is_pa: boolean; market_type: string;
-    }>;
-  }>();
-
-  for (const row of data) {
-    if (!matchMap.has(row.match_id)) {
-      matchMap.set(row.match_id, {
-        match_id:    row.match_id,
-        home_team:   row.home_team,
-        away_team:   row.away_team,
-        start_time:  row.start_time ?? row.match_date ?? '',
-        league_name: row.league_name ?? row.league_slug ?? '',
-        league_id:   0,
-        bookmakers:  [],
-      });
-    }
-
-    const match = matchMap.get(row.match_id)!;
-    const isPA  = row.market_type === '1x2_pa';
-
-    // Mantém AMBAS as entradas (1x2 e 1x2_pa) por bookmaker.
-    // 1x2_pa = mercado PA (odds menores, pagamento antecipado)
-    // 1x2    = mercado regular (odds maiores, sem restrição de PA)
-    // Dedup apenas dentro do mesmo slug + market_type para evitar duplicatas brutas.
-    const already = match.bookmakers.find(
-      b => b.slug === row.bookmaker_slug && b.market_type === row.market_type
-    );
-    if (!already) {
-      match.bookmakers.push({
-        slug:        row.bookmaker_slug,
-        name:        row.bookmaker_name ?? row.bookmaker_slug,
-        home:        row.odd_home,
-        draw:        row.odd_draw ?? 0,
-        away:        row.odd_away,
-        url:         row.match_url ?? '',
-        is_pa:       isPA,
-        market_type: row.market_type,
-      });
-    }
-  }
-
-  const odds = Array.from(matchMap.values());
+  const odds = groupIntoMatches(data);
 
   console.log(`[odds-db] ${odds.length} jogos · ${data.length} linhas · data=${dateParam}`);
 
